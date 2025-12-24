@@ -1,0 +1,73 @@
+{
+  "id": "dummy-id",
+  "name": "Dummy Package",
+  "version": "1.0.0",
+  "path": "/dummy",
+  "created_at": "2024-03-19T00:00:00.000Z",
+  "dependencies": {
+    "dependency-pkg": {
+      "id": "dep-id",
+      "name": "dependency-pkg",
+      "version": "0.1.0",
+      "path": "/dummy/node_modules/dependency-pkg",
+      "created_at": "2024-03-19T00:00:00.000Z",
+      "dependencies": {},
+      "devDependencies": {},
+      "peerDependencies": {},
+      "modules": {}
+    }
+  },
+  "devDependencies": {},
+  "peerDependencies": {},
+  "modules": {
+    "main.ts": {
+      "id": "main-module-id",
+      "name": "main.ts",
+      "path": "/dummy/src/main.ts",
+      "classes": {
+        "DemoClass": {
+          "id": "demo-class-id",
+          "name": "DemoClass",
+          "path": "/dummy/src/main.ts",
+          "properties": {
+            "demoProperty": {
+              "id": "demo-prop-id",
+              "name": "demoProperty",
+              "type": "string",
+              "visibility": "private"
+            }
+          },
+          "methods": {
+            "demoMethod": {
+              "id": "demo-class-method-id",
+              "name": "demoMethod",
+              "return_type": "void",
+              "visibility": "public"
+            }
+          },
+          "implemented_interfaces": {
+            "demo-interface-id": true
+          },
+          "extends_id": null
+        }
+      },
+      "interfaces": {
+        "IDemoInterface": {
+          "id": "demo-interface-id",
+          "name": "IDemoInterface",
+          "path": "/dummy/src/main.ts",
+          "properties": {},
+          "methods": {
+            "demoMethod": {
+              "id": "demo-method-id",
+              "name": "demoMethod",
+              "return_type": "void",
+              "visibility": "public"
+            }
+          },
+          "extended_interfaces": {}
+        }
+      }
+    }
+  }
+}

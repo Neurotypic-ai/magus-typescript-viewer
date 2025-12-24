@@ -1,0 +1,3 @@
+{
+  "extends": "@magus-mark/typescript-config/config/app.json"
+}
