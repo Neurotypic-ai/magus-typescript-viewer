@@ -3,3 +3,4 @@ build
 dist
 *.duckdb*
 DuckDB.session.sql
+.DS_Store
