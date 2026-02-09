@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref } from "vue";
 
-import BaseNode from './BaseNode.vue';
+import BaseNode from "./BaseNode.vue";
 
-import type { DependencyProps } from '../types';
+import type { DependencyProps } from "../types";
 
 const props = defineProps<DependencyProps>();
 
@@ -24,36 +24,38 @@ const toggleMethods = () => {
 
 // Compute visibility color class and icon
 const getVisibilityColor = (visibility: string) => {
-  if (visibility === 'public') return 'visibility-public-symbol';
-  if (visibility === 'protected') return 'visibility-protected-symbol';
-  return 'visibility-private-symbol';
+  if (visibility === "public") return "visibility-public-symbol";
+  if (visibility === "protected") return "visibility-protected-symbol";
+  return "visibility-private-symbol";
 };
 
 const getVisibilitySymbol = (visibility: string) => {
-  if (visibility === 'public') return '+';
-  if (visibility === 'protected') return '#';
-  return '-';
+  if (visibility === "public") return "+";
+  if (visibility === "protected") return "#";
+  return "-";
 };
 
 // Get type-specific styling
 const getTypeColor = computed(() => {
   switch (nodeType.value) {
-    case 'class':
-      return 'type-class';
-    case 'interface':
-      return 'type-interface';
-    case 'enum':
-      return 'type-enum';
-    case 'type':
-      return 'type-type';
+    case "class":
+      return "type-class";
+    case "interface":
+      return "type-interface";
+    case "enum":
+      return "type-enum";
+    case "type":
+      return "type-type";
     default:
-      return 'type-default';
+      return "type-default";
   }
 });
 
 const hasContent = computed(() => {
-  const hasProps = nodeData.value.properties && nodeData.value.properties.length > 0;
-  const hasMethods = nodeData.value.methods && nodeData.value.methods.length > 0;
+  const hasProps =
+    nodeData.value.properties && nodeData.value.properties.length > 0;
+  const hasMethods =
+    nodeData.value.methods && nodeData.value.methods.length > 0;
   return hasProps || hasMethods;
 });
 
@@ -74,7 +76,10 @@ const badgeText = computed(() => String(nodeType.value).toUpperCase());
       <!-- Node Content -->
       <div v-if="hasContent" class="symbol-content">
         <!-- Properties Section -->
-        <div v-if="nodeData.properties && nodeData.properties.length > 0" class="collapsible-section">
+        <div
+          v-if="nodeData.properties && nodeData.properties.length > 0"
+          class="collapsible-section"
+        >
           <!-- Collapsible Header -->
           <button
             class="collapsible-header"
@@ -85,7 +90,9 @@ const badgeText = computed(() => String(nodeType.value).toUpperCase());
           >
             <div class="collapsible-header-label">
               <span class="section-title">Properties</span>
-              <span class="section-count">({{ nodeData.properties.length }})</span>
+              <span class="section-count"
+                >({{ nodeData.properties.length }})</span
+              >
             </div>
             <svg
               class="collapsible-icon"
@@ -94,32 +101,50 @@ const badgeText = computed(() => String(nodeType.value).toUpperCase());
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
 
           <!-- Collapsible Content -->
           <div v-show="isPropertiesExpanded" class="collapsible-content">
-            <div v-for="(prop, index) in nodeData.properties" :key="index" class="member-item">
+            <div
+              v-for="(prop, index) in nodeData.properties"
+              :key="index"
+              class="member-item"
+            >
               <span
                 v-if="prop.visibility"
                 :class="['visibility-dot', getVisibilityColor(prop.visibility)]"
                 :title="`${prop.visibility} visibility`"
               ></span>
-              <span v-if="prop.visibility" class="visibility-symbol" :title="`${prop.visibility} visibility`">
+              <span
+                v-if="prop.visibility"
+                class="visibility-symbol"
+                :title="`${prop.visibility} visibility`"
+              >
                 {{ getVisibilitySymbol(prop.visibility) }}
               </span>
               <div class="member-signature">
                 <span class="member-name">{{ prop.name }}</span>
                 <span class="member-separator">: </span>
-                <span class="member-type-property" :title="prop.type">{{ prop.type }}</span>
+                <span class="member-type-property" :title="prop.type">{{
+                  prop.type
+                }}</span>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Methods Section -->
-        <div v-if="nodeData.methods && nodeData.methods.length > 0" class="collapsible-section">
+        <div
+          v-if="nodeData.methods && nodeData.methods.length > 0"
+          class="collapsible-section"
+        >
           <!-- Collapsible Header -->
           <button
             class="collapsible-header"
@@ -139,26 +164,44 @@ const badgeText = computed(() => String(nodeType.value).toUpperCase());
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
 
           <!-- Collapsible Content -->
           <div v-show="isMethodsExpanded" class="collapsible-content">
-            <div v-for="(method, index) in nodeData.methods" :key="index" class="member-item">
+            <div
+              v-for="(method, index) in nodeData.methods"
+              :key="index"
+              class="member-item"
+            >
               <span
                 v-if="method.visibility"
-                :class="['visibility-dot', getVisibilityColor(method.visibility)]"
+                :class="[
+                  'visibility-dot',
+                  getVisibilityColor(method.visibility),
+                ]"
                 :title="`${method.visibility} visibility`"
               ></span>
-              <span v-if="method.visibility" class="visibility-symbol" :title="`${method.visibility} visibility`">
+              <span
+                v-if="method.visibility"
+                class="visibility-symbol"
+                :title="`${method.visibility} visibility`"
+              >
                 {{ getVisibilitySymbol(method.visibility) }}
               </span>
               <div class="member-signature">
                 <span class="member-name">{{ method.name }}</span>
                 <span class="member-separator">()</span>
                 <span class="member-separator">: </span>
-                <span class="member-type-method" :title="method.returnType">{{ method.returnType }}</span>
+                <span class="member-type-method" :title="method.returnType">{{
+                  method.returnType
+                }}</span>
               </div>
             </div>
           </div>
@@ -168,7 +211,9 @@ const badgeText = computed(() => String(nodeType.value).toUpperCase());
 
     <template #empty>
       <!-- Empty State -->
-      <div v-if="!hasContent" class="symbol-empty-state">No properties or methods</div>
+      <div v-if="!hasContent" class="symbol-empty-state">
+        No properties or methods
+      </div>
     </template>
   </BaseNode>
 </template>
@@ -259,9 +304,7 @@ const badgeText = computed(() => String(nodeType.value).toUpperCase());
   padding: 0 0.75rem 0.75rem 0.75rem;
   max-height: 200px;
   overflow-y: auto;
-  animation:
-    fade-in 200ms ease-out,
-    slide-in-from-top 200ms ease-out;
+  animation: fade-in 200ms ease-out, slide-in-from-top 200ms ease-out;
 }
 
 /* Custom Scrollbar */

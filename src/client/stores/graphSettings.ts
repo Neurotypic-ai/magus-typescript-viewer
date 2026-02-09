@@ -1,12 +1,12 @@
-import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { defineStore } from "pinia";
+import { ref } from "vue";
 
 interface GraphSettingsState {
   collapseScc: boolean;
   clusterByFolder: boolean;
 }
 
-export const useGraphSettings = defineStore('graphSettings', () => {
+export const useGraphSettings = defineStore("graphSettings", () => {
   const collapseScc = ref<boolean>(true);
   const clusterByFolder = ref<boolean>(false);
 
@@ -23,7 +23,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     clusterByFolder,
     setCollapseScc,
     setClusterByFolder,
-  } as GraphSettingsState & {
+  } as unknown as GraphSettingsState & {
     setCollapseScc: (value: boolean) => void;
     setClusterByFolder: (value: boolean) => void;
   };

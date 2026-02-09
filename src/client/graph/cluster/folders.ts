@@ -60,5 +60,5 @@ export function clusterByFolder(
     };
   });
 
-  return { nodes: [...dirNodes, ...remappedNodes], edges };
+  return { nodes: [...dirNodes, ...remappedNodes] as DependencyNode[], edges };
 }

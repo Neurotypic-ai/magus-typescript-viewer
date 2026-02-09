@@ -1,0 +1,17 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false
+  },
+  "references": [
+    {
+      "path": "./build.json"
+    },
+    {
+      "path": "./test.json"
+    },
+    {
+      "path": "./storybook.json"
+    }
+  ]
+}

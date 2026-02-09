@@ -1,0 +1,18 @@
+{
+  "name": "@magus-mark/typescript-config",
+  "version": "0.1.0",
+  "description": "Shared TypeScript configurations for Magus Mark",
+  "private": true,
+  "author": "Kevin Hallmark <magus-mark@littleblackhat.com>",
+  "license": "MIT",
+  "exports": {
+    "./config/*.json": "./config/*.json"
+  },
+  "files": [
+    "config/**/*.json",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@vue/tsconfig": "^0.8.1"
+  }
+}

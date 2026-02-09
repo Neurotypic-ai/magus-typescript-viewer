@@ -10,6 +10,15 @@
     "node_modules": true,
     "**/node_modules/**/*": true
   },
+  "[vue]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "workbench.colorCustomizations": {
     "activityBar.activeBackground": "#1f6fd0",
     "activityBar.background": "#1f6fd0",
