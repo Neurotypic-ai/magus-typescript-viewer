@@ -9,6 +9,13 @@ function getPathFromNode(node: DependencyNode): string | null {
   return typeof pathProp?.type === 'string' ? pathProp.type : null;
 }
 
+function getPackageFromNode(node: DependencyNode): string | null {
+  const props = node.data?.properties;
+  if (!Array.isArray(props)) return null;
+  const packageProp = props.find((p) => p.name === 'package');
+  return typeof packageProp?.type === 'string' ? packageProp.type : null;
+}
+
 function getDirname(path: string): string {
   const normalized = path.replace(/\\/g, '/');
   const idx = normalized.lastIndexOf('/');
@@ -29,17 +36,18 @@ export function clusterByFolder(
   const dirToId = new Map<string, string>();
   const dirNodes: DependencyNode[] = [];
 
-  function ensureDirNode(dir: string): string {
-    if (dirToId.has(dir)) {
-      return dirToId.get(dir) ?? `dir:${dir || 'root'}`;
+  function ensureDirNode(pkg: string, dir: string): string {
+    const key = `${pkg}:${dir}`;
+    if (dirToId.has(key)) {
+      return dirToId.get(key) ?? `dir:${key || 'root'}`;
     }
-    const id = `dir:${dir || 'root'}`;
-    dirToId.set(dir, id);
+    const id = `dir:${key || 'root'}`;
+    dirToId.set(key, id);
     dirNodes.push({
       id,
       type: 'group' as DependencyKind,
       position: { x: 0, y: 0 },
-      data: { label: dir || 'root' },
+      data: { label: `${pkg}/${dir || 'root'}` },
       style: { ...getNodeStyle('group') },
       expandParent: true,
     });
@@ -48,10 +56,11 @@ export function clusterByFolder(
 
   const remappedNodes = nodes.map((n) => {
     if (n.type !== 'module') return n;
+    const pkg = getPackageFromNode(n);
     const p = getPathFromNode(n);
-    if (!p) return n;
+    if (!p || !pkg) return n;
     const dir = getDirname(p);
-    const parentId = ensureDirNode(dir);
+    const parentId = ensureDirNode(pkg, dir);
     return {
       ...n,
       parentNode: parentId,

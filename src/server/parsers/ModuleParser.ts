@@ -145,22 +145,44 @@ export class ModuleParser {
       if (typeof importPath !== 'string') return;
 
       const importSpecifiers = new Map<string, ImportSpecifier>();
+      const isTypeImport = path.node.importKind === 'type';
 
       path.node.specifiers?.forEach((specifier) => {
         if (specifier.type === 'ImportSpecifier' && specifier.imported.type === 'Identifier') {
           const name = specifier.imported.name;
           const uuid = generateImportUUID(importPath, name);
-          const importSpecifier = new ImportSpecifier(uuid, name, 'value', undefined, new Set(), new Set());
+          const kind = isTypeImport ? 'type' : 'value';
+          const importSpecifier = new ImportSpecifier(uuid, name, kind, undefined, new Set(), new Set());
+          importSpecifiers.set(name, importSpecifier);
+        } else if (specifier.type === 'ImportDefaultSpecifier' && specifier.local?.type === 'Identifier') {
+          const name = specifier.local.name;
+          const uuid = generateImportUUID(importPath, name);
+          const kind = isTypeImport ? 'type' : 'default';
+          const importSpecifier = new ImportSpecifier(uuid, name, kind, undefined, new Set(), new Set());
+          importSpecifiers.set(name, importSpecifier);
+        } else if (specifier.type === 'ImportNamespaceSpecifier' && specifier.local?.type === 'Identifier') {
+          const name = specifier.local.name;
+          const uuid = generateImportUUID(importPath, name);
+          const kind = isTypeImport ? 'type' : 'value';
+          const importSpecifier = new ImportSpecifier(uuid, name, kind, undefined, new Set(), new Set());
           importSpecifiers.set(name, importSpecifier);
         }
       });
 
-      // Create the Import instance with module-specific UUID
-      if (importSpecifiers.size > 0) {
-        const uuid = generateImportUUID(this.moduleId, importPath);
-        const imp = new Import(uuid, importPath, importPath, importPath, importSpecifiers);
-        this.imports.set(importPath, imp);
+      const existingImport = this.imports.get(importPath);
+      if (existingImport) {
+        importSpecifiers.forEach((spec, name) => {
+          if (!existingImport.specifiers.has(name)) {
+            existingImport.specifiers.set(name, spec);
+          }
+        });
+        return;
       }
+
+      // Create the Import instance with module-specific UUID (even for side-effect imports)
+      const uuid = generateImportUUID(this.moduleId, importPath);
+      const imp = new Import(uuid, importPath, importPath, importPath, importSpecifiers);
+      this.imports.set(importPath, imp);
     });
 
     // Parse exports and track re-exports
@@ -284,7 +306,10 @@ export class ModuleParser {
       package_id: this.packageId,
       module_id: moduleId,
       name: node.id.name,
-      extends_id: node.superClass?.type === 'Identifier' ? node.superClass.name : undefined,
+      extends_id:
+        node.superClass?.type === 'Identifier'
+          ? generateClassUUID(this.packageId, moduleId, node.superClass.name)
+          : undefined,
     };
   }
 

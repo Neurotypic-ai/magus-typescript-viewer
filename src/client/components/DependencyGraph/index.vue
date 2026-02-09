@@ -235,6 +235,7 @@ const initializeGraph = async () => {
     const invalidEdges = graphEdges.filter((e) => !nodeIds.has(e.source) || !nodeIds.has(e.target));
     if (invalidEdges.length > 0) {
       graphLogger.warn(`Found ${invalidEdges.length} edges with invalid source/target IDs:`, invalidEdges.slice(0, 3));
+      graphEdges = graphEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
     } else {
       graphLogger.info('All edge connections are valid');
     }
@@ -519,10 +520,15 @@ const onNodeDoubleClick = async ({ node }: { node: unknown }): Promise<void> => 
       `Showing ${detailedNodes.length} nodes (${detailedNodes.filter((n) => n.type === 'class').length} classes, ${detailedNodes.filter((n) => n.type === 'interface').length} interfaces) and ${detailedEdges.length} edges`
     );
 
+    const detailedNodeIds = new Set(detailedNodes.map((n) => n.id));
+    const filteredDetailedEdges = detailedEdges.filter(
+      (edge) => detailedNodeIds.has(edge.source) && detailedNodeIds.has(edge.target)
+    );
+
     // Trigger re-layout with detailed subgraph
     await processGraphLayout({
       nodes: detailedNodes,
-      edges: detailedEdges,
+      edges: filteredDetailedEdges,
     });
 
     // Fit view to the detailed subgraph
@@ -733,46 +739,47 @@ function toDependencyEdgeKind(type: string | undefined): DependencyEdgeKind {
 </script>
 
 <template>
-  <div class="h-full w-full" role="application" aria-label="TypeScript dependency graph visualization">
-    <!-- Use a standard button for keyboard controls instead of a non-interactive div -->
-    <button
-      class="visualization-keyboard-control h-full w-full outline-none bg-transparent border-none p-0 cursor-default text-left"
-      @keydown="handleKeyDown" aria-label="Press arrow keys to navigate between connected nodes">
-      <!-- The actual graph -->
-      <VueFlow :nodes="nodes" :edges="edges" :node-types="nodeTypes as any" :fit-view-on-init="true" :min-zoom="0.1"
-        :max-zoom="2" :default-viewport="{ x: 0, y: 0, zoom: 0.5 }" :snap-to-grid="true" :snap-grid="[15, 15]"
-        :pan-on-scroll="true" :zoom-on-scroll="true" :zoom-on-double-click="false" :elevate-edges-on-select="true"
-        :default-edge-options="{
-          style: { stroke: '#61dafb', strokeWidth: 3 },
-          markerEnd: { type: 'arrowclosed', width: 20, height: 20 },
-          zIndex: 1000,
-          type: 'step',
-        }" @node-click="onNodeClick" @node-double-click="onNodeDoubleClick" @pane-click="onPaneClick">
-        <Background />
-        <GraphControls @relationship-filter-change="handleRelationshipFilterChange" @layout-change="handleLayoutChange"
-          @toggle-collapse-scc="
-            (v: boolean) => {
-              graphSettings.setCollapseScc(v);
-              void initializeGraph();
-            }
-          " @toggle-cluster-folder="
-            (v: boolean) => {
-              graphSettings.setClusterByFolder(v);
-              void initializeGraph();
-            }
-          " />
-        <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
-        <NodeDetails v-if="selectedNode" :node="selectedNode" />
+  <div
+    class="h-full w-full"
+    role="application"
+    aria-label="TypeScript dependency graph visualization"
+    tabindex="0"
+    @keydown="handleKeyDown"
+  >
+    <!-- The actual graph -->
+    <VueFlow :nodes="nodes" :edges="edges" :node-types="nodeTypes as any" :fit-view-on-init="true" :min-zoom="0.1"
+      :max-zoom="2" :default-viewport="{ x: 0, y: 0, zoom: 0.5 }" :snap-to-grid="true" :snap-grid="[15, 15]"
+      :pan-on-scroll="true" :zoom-on-scroll="true" :zoom-on-double-click="false" :elevate-edges-on-select="true"
+      :default-edge-options="{
+        style: { stroke: '#61dafb', strokeWidth: 3 },
+        markerEnd: { type: 'arrowclosed', width: 20, height: 20 },
+        zIndex: 1000,
+        type: 'step',
+      }" @node-click="onNodeClick" @node-double-click="onNodeDoubleClick" @pane-click="onPaneClick">
+      <Background />
+      <GraphControls @relationship-filter-change="handleRelationshipFilterChange" @layout-change="handleLayoutChange"
+        @toggle-collapse-scc="
+          (v: boolean) => {
+            graphSettings.setCollapseScc(v);
+            void initializeGraph();
+          }
+        " @toggle-cluster-folder="
+          (v: boolean) => {
+            graphSettings.setClusterByFolder(v);
+            void initializeGraph();
+          }
+        " />
+      <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
+      <NodeDetails v-if="selectedNode" :node="selectedNode" />
 
-        <!-- Back to Full Graph button -->
-        <Panel v-if="selectedNode" position="bottom-left">
-          <button @click="onPaneClick"
-            class="px-4 py-2 bg-primary-main text-white rounded-md hover:bg-primary-dark transition-colors shadow-lg border border-primary-light"
-            aria-label="Return to full graph view">
-            ← Back to Full Graph
-          </button>
-        </Panel>
-      </VueFlow>
-    </button>
+      <!-- Back to Full Graph button -->
+      <Panel v-if="selectedNode" position="bottom-left">
+        <button @click="onPaneClick"
+          class="px-4 py-2 bg-primary-main text-white rounded-md hover:bg-primary-dark transition-colors shadow-lg border border-primary-light"
+          aria-label="Return to full graph view">
+          ← Back to Full Graph
+        </button>
+      </Panel>
+    </VueFlow>
   </div>
 </template>

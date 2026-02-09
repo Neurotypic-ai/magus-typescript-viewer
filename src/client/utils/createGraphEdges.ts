@@ -29,6 +29,26 @@ function normalizePath(path: string): string {
   return result.join('/');
 }
 
+const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'] as const;
+
+function generatePathVariants(normalizedPath: string): string[] {
+  const variants = [normalizedPath];
+  const withoutExt = normalizedPath.replace(/\.(ts|tsx|js|jsx)$/, '');
+  if (withoutExt !== normalizedPath) {
+    variants.push(withoutExt);
+  }
+
+  const indexMatch = normalizedPath.match(/^(.+)\/index\.(ts|tsx|js|jsx)$/);
+  if (indexMatch) {
+    const dirPath = indexMatch[1];
+    if (dirPath) {
+      variants.push(dirPath);
+    }
+  }
+
+  return Array.from(new Set(variants));
+}
+
 /**
  * Gets the directory portion of a file path
  * @param path The file path
@@ -62,11 +82,9 @@ function buildModulePathMap(data: DependencyPackageGraph): Map<string, string> {
       mapTypeCollection(pkg.modules, (module) => {
         // Normalize the path to handle different separators
         const normalizedPath = normalizePath(module.source.relativePath);
-        pathMap.set(normalizedPath, module.id);
-
-        // Also add without extension for matching flexibility
-        const withoutExt = normalizedPath.replace(/\.(ts|tsx|js|jsx)$/, '');
-        pathMap.set(withoutExt, module.id);
+        generatePathVariants(normalizedPath).forEach((variant) => {
+          pathMap.set(variant, module.id);
+        });
       });
     }
   });
@@ -78,11 +96,37 @@ function buildModulePathMap(data: DependencyPackageGraph): Map<string, string> {
  * Resolves an import path relative to the importing module
  * @param importerPath The path of the module doing the import
  * @param importPath The relative import path
- * @returns The resolved absolute path
+ * @returns Candidate resolved paths
  */
-function resolveImportPath(importerPath: string, importPath: string): string {
+function resolveImportPath(importerPath: string, importPath: string): string[] {
   const importerDir = getDirname(importerPath);
-  return joinPaths(importerDir, importPath);
+  const baseResolved = joinPaths(importerDir, importPath);
+  const candidates: string[] = [baseResolved];
+
+  if (!/\.(ts|tsx|js|jsx)$/.test(importPath)) {
+    EXTENSIONS.forEach((ext) => {
+      candidates.push(`${baseResolved}${ext}`);
+    });
+    EXTENSIONS.forEach((ext) => {
+      candidates.push(joinPaths(baseResolved, `index${ext}`));
+    });
+  }
+
+  return candidates;
+}
+
+function resolveNonRelativeCandidates(importPath: string, modulePathMap: Map<string, string>): string[] {
+  const candidates = [importPath, `src/${importPath}`];
+  return candidates.filter((candidate) => modulePathMap.has(normalizePath(candidate)));
+}
+
+function findModuleId(modulePathMap: Map<string, string>, candidates: string[]): string | undefined {
+  for (const candidate of candidates) {
+    const normalized = normalizePath(candidate);
+    const match = modulePathMap.get(normalized);
+    if (match) return match;
+  }
+  return undefined;
 }
 
 /**
@@ -91,10 +135,18 @@ function resolveImportPath(importerPath: string, importPath: string): string {
  * @returns Array of edges for the dependency graph
  */
 export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
-  const edges: GraphEdge[] = [];
+  const edgeMap = new Map<string, GraphEdge>();
 
   // Build module path lookup for import resolution
   const modulePathMap = buildModulePathMap(data);
+  const addEdge = (edge: GraphEdge, keyOverride?: string) => {
+    const key =
+      keyOverride ??
+      `${edge.source}|${edge.target}|${edge.data?.type ?? 'unknown'}|${edge.data?.importName ?? ''}`;
+    if (!edgeMap.has(key)) {
+      edgeMap.set(key, { ...edge, id: edge.id || key });
+    }
+  };
 
   // Create edges from package dependencies
   data.packages.forEach((pkg) => {
@@ -103,7 +155,7 @@ export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
       mapTypeCollection(pkg.dependencies, (dep) => {
         if (!dep.id) return;
 
-        edges.push({
+        addEdge({
           id: `${pkg.id}-${dep.id}-dependency`,
           source: pkg.id,
           target: dep.id,
@@ -126,7 +178,7 @@ export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
       mapTypeCollection(pkg.devDependencies, (dep) => {
         if (!dep.id) return;
 
-        edges.push({
+        addEdge({
           id: `${pkg.id}-${dep.id}-devDependency`,
           source: pkg.id,
           target: dep.id,
@@ -149,7 +201,7 @@ export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
       mapTypeCollection(pkg.peerDependencies, (dep) => {
         if (!dep.id) return;
 
-        edges.push({
+        addEdge({
           id: `${pkg.id}-${dep.id}-peerDependency`,
           source: pkg.id,
           target: dep.id,
@@ -175,18 +227,17 @@ export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
           mapTypeCollection(module.imports, (imp) => {
             if (!imp.path) return; // Skip imports without paths (e.g., external npm packages)
 
-            // Resolve the import path relative to the current module
-            const resolvedPath = resolveImportPath(module.source.relativePath, imp.path);
-
-            // Look up the target module ID
-            const targetModuleId =
-              modulePathMap.get(resolvedPath) ?? modulePathMap.get(resolvedPath.replace(/\.(ts|tsx|js|jsx)$/, ''));
+            const isRelative = imp.path.startsWith('.') || imp.path.startsWith('/');
+            const candidates = isRelative
+              ? resolveImportPath(module.source.relativePath, imp.path)
+              : resolveNonRelativeCandidates(imp.path, modulePathMap);
+            const targetModuleId = findModuleId(modulePathMap, candidates);
 
             if (targetModuleId && targetModuleId !== module.id) {
               // Arrow points FROM imported module TO importing module
               // Shows "is imported by" / "is used by" relationship
               // If module A imports module B, arrow goes: B -> A
-              edges.push({
+              addEdge({
                 id: `${targetModuleId}-${module.id}-import`,
                 source: targetModuleId,
                 target: module.id,
@@ -211,7 +262,7 @@ export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
           mapTypeCollection(module.classes, (cls) => {
             // Handle class inheritance
             if (cls.extends_id) {
-              edges.push({
+              addEdge({
                 id: `${cls.id}-${cls.extends_id}-inheritance`,
                 source: cls.id,
                 target: cls.extends_id,
@@ -233,7 +284,7 @@ export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
               mapTypeCollection(cls.implemented_interfaces, (iface) => {
                 if (!iface.id) return;
 
-                edges.push({
+                addEdge({
                   id: `${cls.id}-${iface.id}-implements`,
                   source: cls.id,
                   target: iface.id,
@@ -260,7 +311,7 @@ export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
               mapTypeCollection(iface.extended_interfaces, (extended) => {
                 if (!extended.id) return;
 
-                edges.push({
+                addEdge({
                   id: `${iface.id}-${extended.id}-inheritance`,
                   source: iface.id,
                   target: extended.id,
@@ -283,5 +334,5 @@ export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
     }
   });
 
-  return edges;
+  return Array.from(edgeMap.values());
 }

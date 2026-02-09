@@ -1,5 +1,7 @@
 import { createLogger } from '../../shared/utils/logger';
 
+import { getApiBaseUrl } from '../config/api';
+
 import type { Class } from '../../shared/types/Class';
 import type { Interface as SharedInterface } from '../../shared/types/Interface';
 import type { Method } from '../../shared/types/Method';
@@ -83,8 +85,8 @@ export class GraphDataAssembler {
   private readonly baseUrl: string;
   private readonly cache: GraphDataCache;
 
-  constructor(baseUrl = 'http://localhost:4001') {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    this.baseUrl = baseUrl ?? getApiBaseUrl();
     this.cache = GraphDataCache.getInstance();
   }
 
@@ -126,7 +128,7 @@ export class GraphDataAssembler {
       }
 
       assemblerLogger.debug('Fetching packages data...');
-      const packagesResponse = await fetch(`${this.baseUrl}/packages`, signal ? { signal } : {});
+      const packagesResponse = await fetch(this.buildUrl('/packages'), signal ? { signal } : {});
       if (!packagesResponse.ok) {
         throw new Error(`HTTP error! status: ${packagesResponse.status.toString()}`);
       }
@@ -138,7 +140,10 @@ export class GraphDataAssembler {
       const enrichedPackages = await Promise.all(
         packages.map(async (pkg) => {
           assemblerLogger.debug(`Fetching modules for package: ${pkg.name}`);
-          const modulesResponse = await fetch(`${this.baseUrl}/modules?packageId=${pkg.id}`, signal ? { signal } : {});
+          const modulesResponse = await fetch(
+            this.buildUrl(`/modules?packageId=${pkg.id}`),
+            signal ? { signal } : {}
+          );
           if (!modulesResponse.ok) {
             throw new Error(`HTTP error! status: ${modulesResponse.status.toString()}`);
           }
@@ -360,5 +365,13 @@ export class GraphDataAssembler {
   public clearCache(): void {
     this.cache.clear();
     assemblerLogger.debug('Cleared graph data cache');
+  }
+
+  private buildUrl(path: string): string {
+    if (!this.baseUrl) return path;
+    if (this.baseUrl.endsWith('/') && path.startsWith('/')) {
+      return `${this.baseUrl.slice(0, -1)}${path}`;
+    }
+    return `${this.baseUrl}${path}`;
   }
 }

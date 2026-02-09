@@ -6,8 +6,10 @@ import type { Ref } from 'vue';
 import type { DependencyNode, GraphEdge } from '../components/DependencyGraph/types';
 
 // Cache keys for local storage
-const NODES_CACHE_KEY = 'typescript-viewer-nodes';
-const EDGES_CACHE_KEY = 'typescript-viewer-edges';
+const CACHE_VERSION = 'v1';
+const NODES_CACHE_KEY = `${CACHE_VERSION}:typescript-viewer-nodes`;
+const EDGES_CACHE_KEY = `${CACHE_VERSION}:typescript-viewer-edges`;
+const CACHE_DEBOUNCE_MS = 500;
 
 interface GraphStore {
   nodes: Ref<DependencyNode[]>;
@@ -19,6 +21,21 @@ interface GraphStore {
   setSelectedNode: (node: DependencyNode | null) => void;
   setCacheKey: (key: string | null) => void;
   clearCache: () => void;
+}
+
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = setTimeout(() => {
+      func(...args);
+    }, wait);
+  };
 }
 
 /**
@@ -49,23 +66,26 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     }
   };
 
+  const writeCache = debounce((nodesToCache: DependencyNode[], edgesToCache: GraphEdge[]) => {
+    try {
+      if (nodesToCache.length > 0) {
+        localStorage.setItem(NODES_CACHE_KEY, JSON.stringify(nodesToCache));
+      }
+
+      if (edgesToCache.length > 0) {
+        localStorage.setItem(EDGES_CACHE_KEY, JSON.stringify(edgesToCache));
+      }
+    } catch {
+      // Silently fail if cache storage fails
+    }
+  }, CACHE_DEBOUNCE_MS);
+
   // Watch for changes to nodes/edges and update cache when we have a cache key
   watch(
     [nodes, edges, cacheKey],
     ([newNodes, newEdges, newCacheKey]) => {
       if (!newCacheKey) return;
-
-      try {
-        if (newNodes.length > 0) {
-          localStorage.setItem(NODES_CACHE_KEY, JSON.stringify(newNodes));
-        }
-
-        if (newEdges.length > 0) {
-          localStorage.setItem(EDGES_CACHE_KEY, JSON.stringify(newEdges));
-        }
-      } catch {
-        // Silently fail if cache storage fails
-      }
+      writeCache(newNodes, newEdges);
     },
     { deep: true }
   );
