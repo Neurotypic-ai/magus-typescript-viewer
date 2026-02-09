@@ -21,7 +21,12 @@ import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
 import type { IPackageCreateDTO } from '../db/repositories/PackageRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
-import type { ParseResult } from './ParseResult';
+import type {
+  ClassExtendsRef,
+  ClassImplementsRef,
+  InterfaceExtendsRef,
+  ParseResult,
+} from './ParseResult';
 
 interface PackageDependencies {
   dependencies?: Record<string, string> | undefined;
@@ -140,6 +145,11 @@ export class PackageParser {
     const moduleExports: Export[] = [];
     const importsWithModules: { import: Import; moduleId: string }[] = [];
 
+    // Collect raw relationship refs from all modules (name-based, not yet resolved)
+    const rawClassExtends: ClassExtendsRef[] = [];
+    const rawClassImplements: ClassImplementsRef[] = [];
+    const rawInterfaceExtends: InterfaceExtendsRef[] = [];
+
     for (const file of files) {
       const moduleParser = new ModuleParser(file, packageId);
       const result = await moduleParser.parse();
@@ -158,6 +168,56 @@ export class PackageParser {
         importsWithModules.push({ import: imp, moduleId });
       });
       result.exports.forEach((exp) => moduleExports.push(exp));
+
+      // Collect deferred relationship data
+      rawClassExtends.push(...result.classExtends);
+      rawClassImplements.push(...result.classImplements);
+      rawInterfaceExtends.push(...result.interfaceExtends);
+    }
+
+    // Build name→ID lookup maps for first-pass resolution within this package
+    const classNameToId = new Map<string, string>();
+    for (const cls of classes) {
+      classNameToId.set(cls.name, cls.id);
+    }
+    const interfaceNameToId = new Map<string, string>();
+    for (const iface of interfaces) {
+      interfaceNameToId.set(iface.name, iface.id);
+    }
+
+    // Resolve class extends: look up parent class name → UUID
+    const classExtends: ClassExtendsRef[] = [];
+    for (const ref of rawClassExtends) {
+      const parentId = classNameToId.get(ref.parentName);
+      if (parentId) {
+        // Resolved within this package — store resolved UUID as parentName
+        classExtends.push({ classId: ref.classId, parentName: parentId });
+      } else {
+        // Unresolved (cross-package) — keep raw name for later DB resolution
+        classExtends.push(ref);
+      }
+    }
+
+    // Resolve class implements: look up interface name → UUID
+    const classImplements: ClassImplementsRef[] = [];
+    for (const ref of rawClassImplements) {
+      const ifaceId = interfaceNameToId.get(ref.interfaceName);
+      if (ifaceId) {
+        classImplements.push({ classId: ref.classId, interfaceName: ifaceId });
+      } else {
+        classImplements.push(ref);
+      }
+    }
+
+    // Resolve interface extends: look up parent interface name → UUID
+    const interfaceExtends: InterfaceExtendsRef[] = [];
+    for (const ref of rawInterfaceExtends) {
+      const parentId = interfaceNameToId.get(ref.parentName);
+      if (parentId) {
+        interfaceExtends.push({ interfaceId: ref.interfaceId, parentName: parentId });
+      } else {
+        interfaceExtends.push(ref);
+      }
     }
 
     return {
@@ -172,6 +232,9 @@ export class PackageParser {
       imports: [...Array.from(imports.values()), ...moduleImports],
       exports: [...Array.from(exports.values()), ...moduleExports],
       importsWithModules,
+      classExtends,
+      classImplements,
+      interfaceExtends,
     };
   }
 

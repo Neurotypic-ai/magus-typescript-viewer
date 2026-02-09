@@ -80,15 +80,13 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     }
   }, CACHE_DEBOUNCE_MS);
 
-  // Watch for changes to nodes/edges and update cache when we have a cache key
-  watch(
-    [nodes, edges, cacheKey],
-    ([newNodes, newEdges, newCacheKey]) => {
-      if (!newCacheKey) return;
-      writeCache(newNodes, newEdges);
-    },
-    { deep: true }
-  );
+  // Watch for reference changes to nodes/edges and update cache when we have a cache key.
+  // Shallow watch is sufficient since setNodes/setEdges replace the entire array reference.
+  // Avoids expensive deep comparison on large graphs (drag/hover would trigger O(n×m) diffs).
+  watch([nodes, edges, cacheKey], ([newNodes, newEdges, newCacheKey]) => {
+    if (!newCacheKey) return;
+    writeCache(newNodes, newEdges);
+  });
 
   // Actions
   const setNodes = (newNodes: DependencyNode[]) => {

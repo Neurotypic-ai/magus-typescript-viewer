@@ -19,9 +19,48 @@ import { PackageRepository } from '../db/repositories/PackageRepository';
 import { ParameterRepository } from '../db/repositories/ParameterRepository';
 import { PropertyRepository } from '../db/repositories/PropertyRepository';
 import { PackageParser } from '../parsers/PackageParser';
+import { generateRelationshipUUID } from '../utils/uuid';
+
+import type { IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+/** Insert a row, ignoring duplicate key errors */
+async function safeInsert(
+  adapter: IDatabaseAdapter,
+  table: string,
+  columns: string,
+  values: string[]
+): Promise<void> {
+  const placeholders = values.map(() => '?').join(', ');
+  try {
+    await adapter.query(`INSERT INTO ${table} ${columns} VALUES (${placeholders})`, values);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : '';
+    // Ignore duplicate constraint violations
+    if (msg.includes('Duplicate') || msg.includes('UNIQUE') || msg.includes('already exists')) {
+      return;
+    }
+    throw error;
+  }
+}
+
+/** Update a single column on a row by ID */
+async function safeUpdate(
+  adapter: IDatabaseAdapter,
+  table: string,
+  column: string,
+  value: string,
+  id: string
+): Promise<void> {
+  try {
+    await adapter.query(`UPDATE ${table} SET ${column} = ? WHERE id = ?`, [value, id]);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : '';
+    console.warn(`Warning: failed to update ${table}.${column}:`, msg);
+  }
+}
 
 const program = new Command();
 
@@ -113,14 +152,14 @@ program
         await repositories.property.create(prop);
       }
 
-      // Save imports with module context
+      // Save imports with module context (use relativePath for client-side resolution)
       if (parseResult.importsWithModules) {
         for (const { import: imp, moduleId } of parseResult.importsWithModules) {
           const importDTO = {
             id: imp.uuid,
             package_id: parseResult.package?.id ?? '',
             module_id: moduleId,
-            source: imp.fullPath,
+            source: imp.relativePath,
           };
           await repositories.import.create(importDTO);
         }
@@ -138,6 +177,70 @@ program
         await repositories.export.create(exportDTO);
       }
 
+      // Save relationship records to junction tables
+      spinner.text = 'Saving relationships...';
+      let relationshipCount = 0;
+
+      // Cross-package resolution: query DB for all known classes/interfaces
+      // to resolve any names that weren't found within this package
+      const allClassRows = await adapter.query<{ id: string; name: string }>(
+        'SELECT id, name FROM classes'
+      );
+      const allInterfaceRows = await adapter.query<{ id: string; name: string }>(
+        'SELECT id, name FROM interfaces'
+      );
+      const globalClassMap = new Map<string, string>();
+      for (const row of allClassRows) {
+        globalClassMap.set(row.name, row.id);
+      }
+      const globalInterfaceMap = new Map<string, string>();
+      for (const row of allInterfaceRows) {
+        globalInterfaceMap.set(row.name, row.id);
+      }
+
+      // Save class_extends records
+      for (const ref of parseResult.classExtends) {
+        // ref.parentName is either a resolved UUID or a raw name needing DB lookup
+        let parentId = ref.parentName;
+        if (!parentId.includes('-')) {
+          // Not a UUID — try global DB lookup
+          parentId = globalClassMap.get(parentId) ?? '';
+        }
+        if (parentId && parentId !== ref.classId) {
+          const relId = generateRelationshipUUID(ref.classId, parentId, 'class_extends');
+          await safeInsert(adapter, 'class_extends', '(id, class_id, parent_id)', [relId, ref.classId, parentId]);
+          // Also update the class's extends_id column
+          await safeUpdate(adapter, 'classes', 'extends_id', parentId, ref.classId);
+          relationshipCount++;
+        }
+      }
+
+      // Save class_implements records
+      for (const ref of parseResult.classImplements) {
+        let interfaceId = ref.interfaceName;
+        if (!interfaceId.includes('-')) {
+          interfaceId = globalInterfaceMap.get(interfaceId) ?? '';
+        }
+        if (interfaceId) {
+          const relId = generateRelationshipUUID(ref.classId, interfaceId, 'class_implements');
+          await safeInsert(adapter, 'class_implements', '(id, class_id, interface_id)', [relId, ref.classId, interfaceId]);
+          relationshipCount++;
+        }
+      }
+
+      // Save interface_extends records
+      for (const ref of parseResult.interfaceExtends) {
+        let parentId = ref.parentName;
+        if (!parentId.includes('-')) {
+          parentId = globalInterfaceMap.get(parentId) ?? '';
+        }
+        if (parentId && parentId !== ref.interfaceId) {
+          const relId = generateRelationshipUUID(ref.interfaceId, parentId, 'interface_extends');
+          await safeInsert(adapter, 'interface_extends', '(id, interface_id, extended_id)', [relId, ref.interfaceId, parentId]);
+          relationshipCount++;
+        }
+      }
+
       spinner.succeed(chalk.green('Analysis complete!'));
       console.log();
       console.log(chalk.blue('Statistics:'));
@@ -150,6 +253,7 @@ program
       console.log(chalk.gray('- Parameters found:'), parseResult.parameters.length);
       console.log(chalk.gray('- Imports found:'), parseResult.importsWithModules?.length ?? 0);
       console.log(chalk.gray('- Exports found:'), parseResult.exports.length);
+      console.log(chalk.gray('- Relationships found:'), relationshipCount);
 
       await db.close();
     } catch (error) {

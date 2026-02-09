@@ -80,13 +80,20 @@ describe('ModuleParser.parseImportsAndExports', () => {
     expect(stylesImport?.specifiers.size).toBe(0);
   });
 
-  it('stores extends_id as a deterministic UUID', async () => {
+  it('captures class extends as deferred name reference', async () => {
     const result = await parseFixture('extends-class.input.ts');
     const baseClass = result.classes.find((cls) => cls.name === 'BaseClass');
     const childClass = result.classes.find((cls) => cls.name === 'ChildClass');
 
     expect(baseClass).toBeDefined();
     expect(childClass).toBeDefined();
-    expect(childClass?.extends_id).toBe(baseClass?.id);
+
+    // extends_id is NOT set during parsing — resolution is deferred to PackageParser/CLI
+    expect(childClass?.extends_id).toBeUndefined();
+
+    // Instead, classExtends carries the deferred reference by name
+    const extendsRef = result.classExtends.find((ref) => ref.classId === childClass?.id);
+    expect(extendsRef).toBeDefined();
+    expect(extendsRef?.parentName).toBe('BaseClass');
   });
 });

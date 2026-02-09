@@ -9,6 +9,31 @@ import type { IPackageCreateDTO } from '../db/repositories/PackageRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
 
+/**
+ * Represents a deferred relationship between a class and its parent class.
+ * Stored as a name reference during parsing, resolved to UUIDs after all modules are parsed.
+ */
+export interface ClassExtendsRef {
+  classId: string;
+  parentName: string;
+}
+
+/**
+ * Represents a deferred relationship between a class and an interface it implements.
+ */
+export interface ClassImplementsRef {
+  classId: string;
+  interfaceName: string;
+}
+
+/**
+ * Represents a deferred relationship between an interface and a parent interface it extends.
+ */
+export interface InterfaceExtendsRef {
+  interfaceId: string;
+  parentName: string;
+}
+
 export interface ParseResult {
   package?: IPackageCreateDTO | undefined;
   modules: IModuleCreateDTO[];
@@ -21,4 +46,11 @@ export interface ParseResult {
   imports: Import[];
   exports: Export[];
   importsWithModules?: { import: Import; moduleId: string }[];
+
+  /** Deferred class extends relationships (name-based, resolved after all modules are parsed) */
+  classExtends: ClassExtendsRef[];
+  /** Deferred class implements relationships (name-based, resolved after all modules are parsed) */
+  classImplements: ClassImplementsRef[];
+  /** Deferred interface extends relationships (name-based, resolved after all modules are parsed) */
+  interfaceExtends: InterfaceExtendsRef[];
 }

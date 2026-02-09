@@ -87,8 +87,8 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
     try {
       const results = await this.executeQuery<IClassOrInterfaceRow>(
         'create',
-        'INSERT INTO classes (id, package_id, module_id, name) VALUES (?, ?, ?, ?) RETURNING *',
-        [dto.id, dto.package_id, dto.module_id, dto.name]
+        'INSERT INTO classes (id, package_id, module_id, name, extends_id) VALUES (?, ?, ?, ?, ?) RETURNING *',
+        [dto.id, dto.package_id, dto.module_id, dto.name, dto.extends_id ?? null]
       );
 
       if (results.length === 0) {

@@ -45,7 +45,7 @@ import type { IMethodCreateDTO } from '../db/repositories/MethodRepository';
 import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
-import type { ParseResult } from './ParseResult';
+import type { ClassExtendsRef, ClassImplementsRef, InterfaceExtendsRef, ParseResult } from './ParseResult';
 
 export class ModuleParser {
   private j: JSCodeshift;
@@ -78,6 +78,25 @@ export class ModuleParser {
     return null;
   }
 
+  /**
+   * Extracts the name from a heritage clause node (implements/extends).
+   * Handles both TSExpressionWithTypeArguments (has `expression`) and direct Identifiers.
+   */
+  private getHeritageClauseName(node: ASTNode): string | null {
+    // TSExpressionWithTypeArguments has an `expression` property
+    if ('expression' in node) {
+      const expression = node.expression as ASTNode | undefined;
+      if (expression?.type === 'Identifier' && 'name' in expression) {
+        return expression.name;
+      }
+    }
+    // Direct Identifier
+    if (node.type === 'Identifier' && 'name' in node) {
+      return node.name;
+    }
+    return null;
+  }
+
   async parse(): Promise<ParseResult> {
     this.moduleId = generateModuleUUID(this.packageId, this.filePath);
     const relativePath = relative(process.cwd(), this.filePath);
@@ -91,7 +110,7 @@ export class ModuleParser {
       this.exports.clear();
       this.reExports.clear();
 
-      const result = {
+      const result: ParseResult = {
         package: undefined,
         modules: [await this.createModuleDTO(this.moduleId, relativePath)],
         classes: [] as IClassCreateDTO[],
@@ -102,6 +121,9 @@ export class ModuleParser {
         parameters: [] as IParameterCreateDTO[],
         imports: [] as Import[],
         exports: [] as Export[],
+        classExtends: [] as ClassExtendsRef[],
+        classImplements: [] as ClassImplementsRef[],
+        interfaceExtends: [] as InterfaceExtendsRef[],
       };
 
       this.parseImportsAndExports();
@@ -132,6 +154,9 @@ export class ModuleParser {
         parameters: [],
         imports: [],
         exports: [],
+        classExtends: [],
+        classImplements: [],
+        interfaceExtends: [],
       };
     }
   }
@@ -287,6 +312,24 @@ export class ModuleParser {
       const classDTO = this.createClassDTO(classId, moduleId, node);
       result.classes.push(classDTO);
 
+      // Extract extends relationship (deferred name-based resolution)
+      if (node.superClass?.type === 'Identifier' && node.superClass.name) {
+        result.classExtends.push({
+          classId,
+          parentName: node.superClass.name,
+        });
+      }
+
+      // Extract implements relationships (deferred name-based resolution)
+      if (node.implements && Array.isArray(node.implements)) {
+        for (const impl of node.implements) {
+          const name = this.getHeritageClauseName(impl);
+          if (name) {
+            result.classImplements.push({ classId, interfaceName: name });
+          }
+        }
+      }
+
       // Parse methods and properties and add them to result
       const methods = this.parseClassMethods(moduleId, classId, node, result);
       const properties = this.parseClassProperties(moduleId, classId, node);
@@ -306,10 +349,8 @@ export class ModuleParser {
       package_id: this.packageId,
       module_id: moduleId,
       name: node.id.name,
-      extends_id:
-        node.superClass?.type === 'Identifier'
-          ? generateClassUUID(this.packageId, moduleId, node.superClass.name)
-          : undefined,
+      // Note: extends_id is no longer set here. The parent class name is captured
+      // in result.classExtends and resolved to a UUID after all modules are parsed.
     };
   }
 
@@ -322,6 +363,16 @@ export class ModuleParser {
       const interfaceId = generateInterfaceUUID(this.packageId, moduleId, node.id.name);
       const interfaceDTO = this.createInterfaceDTO(interfaceId, moduleId, node);
       result.interfaces.push(interfaceDTO);
+
+      // Extract extends relationships (deferred name-based resolution)
+      if (node.extends && Array.isArray(node.extends)) {
+        for (const ext of node.extends) {
+          const name = this.getHeritageClauseName(ext as ASTNode);
+          if (name) {
+            result.interfaceExtends.push({ interfaceId, parentName: name });
+          }
+        }
+      }
 
       // Parse methods and properties and add them to result
       const methods = this.parseInterfaceMethods(moduleId, interfaceId, node, result);

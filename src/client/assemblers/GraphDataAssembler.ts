@@ -127,22 +127,25 @@ export class GraphDataAssembler {
         return cachedData;
       }
 
+      // Use a timeout signal if none provided (30s default)
+      const fetchSignal = signal ?? AbortSignal.timeout(30_000);
+
       assemblerLogger.debug('Fetching packages data...');
-      const packagesResponse = await fetch(this.buildUrl('/packages'), signal ? { signal } : {});
+      const packagesResponse = await fetch(this.buildUrl('/packages'), { signal: fetchSignal });
       if (!packagesResponse.ok) {
         throw new Error(`HTTP error! status: ${packagesResponse.status.toString()}`);
       }
       const packages = (await packagesResponse.json()) as Package[];
       assemblerLogger.debug('Fetched packages:', packages.length);
 
-      // Fetch modules and their dependencies for each package
+      // Fetch modules for each package — use allSettled so one failure doesn't kill the graph
       assemblerLogger.debug('Fetching modules for each package...');
-      const enrichedPackages = await Promise.all(
+      const results = await Promise.allSettled(
         packages.map(async (pkg) => {
           assemblerLogger.debug(`Fetching modules for package: ${pkg.name}`);
           const modulesResponse = await fetch(
             this.buildUrl(`/modules?packageId=${pkg.id}`),
-            signal ? { signal } : {}
+            { signal: fetchSignal }
           );
           if (!modulesResponse.ok) {
             throw new Error(`HTTP error! status: ${modulesResponse.status.toString()}`);
@@ -160,6 +163,17 @@ export class GraphDataAssembler {
           };
         })
       );
+
+      // Collect successful results, log failures
+      const enrichedPackages = results
+        .filter((r) => {
+          if (r.status === 'rejected') {
+            assemblerLogger.warn('Failed to fetch modules for a package:', r.reason);
+            return false;
+          }
+          return true;
+        })
+        .map((r) => (r as PromiseFulfilledResult<(typeof results)[number] extends PromiseSettledResult<infer T> ? T : never>).value);
 
       // Create the final graph data
       const graphData = this.createGraphData(enrichedPackages);

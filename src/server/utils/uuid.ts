@@ -76,3 +76,7 @@ export const generateModuleDefinitionUUID = (moduleId: string, name: string): st
 
 export const generateFunctionUUID = (packageId: string, moduleId: string, name: string): string =>
   generateUUID('function', `${packageId}.${moduleId}.${name}`);
+
+/** Generate a deterministic UUID for a relationship record (junction table row) */
+export const generateRelationshipUUID = (sourceId: string, targetId: string, type: string): string =>
+  generateUUID('class', `rel:${type}:${sourceId}:${targetId}`);
