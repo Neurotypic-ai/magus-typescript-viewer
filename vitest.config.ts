@@ -4,7 +4,7 @@ import type { ViteUserConfigExport } from 'vitest/config';
 
 const config: ViteUserConfigExport = defineConfig({
   test: {
-    environment: 'jsdom',
+    environment: 'node',
     globals: true,
     setupFiles: [],
     include: ['src/**/*.{test,spec}.{js,ts,jsx,tsx}'],

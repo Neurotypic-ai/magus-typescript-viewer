@@ -7,11 +7,22 @@ import type { DependencyProps } from '../types';
 
 const props = defineProps<DependencyProps>();
 
+const baseNodeProps = computed(() => ({
+  id: props.id,
+  type: props.type,
+  data: props.data,
+  ...(props.selected !== undefined ? { selected: props.selected } : {}),
+  ...(props.width !== undefined ? { width: props.width } : {}),
+  ...(props.height !== undefined ? { height: props.height } : {}),
+  ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
+  ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
+}));
+
 const nodeData = computed(() => props.data);
 </script>
 
 <template>
-  <BaseNode v-bind="props" badge-text="PACKAGE" :z-index="0" badge-class="package-badge">
+  <BaseNode v-bind="baseNodeProps" badge-text="PACKAGE" :z-index="0" badge-class="package-badge">
     <template #content>
       <!-- Package Metadata -->
       <div v-if="nodeData.properties && nodeData.properties.length > 0" class="package-metadata">

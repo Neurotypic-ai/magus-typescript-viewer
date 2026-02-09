@@ -58,7 +58,8 @@ export class ModuleParser {
 
   constructor(
     private readonly filePath: string,
-    private readonly packageId: string
+    private readonly packageId: string,
+    private readonly sourceOverride?: string
   ) {
     this.j = jscodeshift.withParser('tsx');
     this.root = undefined; // Will be initialized in parse()
@@ -102,7 +103,7 @@ export class ModuleParser {
     const relativePath = relative(process.cwd(), this.filePath);
 
     try {
-      const content = await readFile(this.filePath, 'utf-8');
+      const content = this.sourceOverride ?? (await readFile(this.filePath, 'utf-8'));
       this.root = this.j(content);
 
       // Reset tracking collections
@@ -269,17 +270,15 @@ export class ModuleParser {
 
     // Check for index files
     let indexFile: string | undefined;
-    try {
-      const tsIndex = join(directory, 'index.ts');
-      await access(tsIndex);
-      indexFile = tsIndex;
-    } catch {
+    const indexCandidates = ['index.ts', 'index.tsx', 'index.js', 'index.jsx', 'index.mjs', 'index.cjs', 'index.vue'];
+    for (const candidate of indexCandidates) {
+      const candidatePath = join(directory, candidate);
       try {
-        const tsxIndex = join(directory, 'index.tsx');
-        await access(tsxIndex);
-        indexFile = tsxIndex;
+        await access(candidatePath);
+        indexFile = candidatePath;
+        break;
       } catch {
-        // No index file found
+        // Continue checking candidates
       }
     }
 

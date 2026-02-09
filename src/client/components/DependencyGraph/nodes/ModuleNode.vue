@@ -7,6 +7,17 @@ import type { DependencyProps } from '../types';
 
 const props = defineProps<DependencyProps>();
 
+const baseNodeProps = computed(() => ({
+  id: props.id,
+  type: props.type,
+  data: props.data,
+  ...(props.selected !== undefined ? { selected: props.selected } : {}),
+  ...(props.width !== undefined ? { width: props.width } : {}),
+  ...(props.height !== undefined ? { height: props.height } : {}),
+  ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
+  ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
+}));
+
 const nodeData = computed(() => props.data);
 
 // Collapsible sections state
@@ -18,7 +29,7 @@ const toggleMetadata = () => {
 </script>
 
 <template>
-  <BaseNode v-bind="props" badge-text="MODULE">
+  <BaseNode v-bind="baseNodeProps" badge-text="MODULE">
     <template #content>
       <!-- Module Metadata Section -->
       <div v-if="nodeData.properties && nodeData.properties.length > 0" class="metadata-section">

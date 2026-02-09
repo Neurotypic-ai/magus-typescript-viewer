@@ -5,16 +5,25 @@ import { getEdgeStyle } from '../theme/graphTheme';
 
 import type { DependencyEdgeKind, DependencyPackageGraph, GraphEdge } from '../components/DependencyGraph/types';
 
-/**
- * Normalizes a file path by converting backslashes to forward slashes and removing redundant parts
- * @param path The path to normalize
- * @returns Normalized path
- */
-function normalizePath(path: string): string {
-  // Convert backslashes to forward slashes
-  let normalized = path.replace(/\\/g, '/');
+type ImportDirection = 'importer-to-imported' | 'imported-to-importer';
 
-  // Resolve '..' and '.' segments
+export interface CreateGraphEdgesOptions {
+  includePackageEdges?: boolean;
+  includeSymbolEdges?: boolean;
+  importDirection?: ImportDirection;
+}
+
+interface ModulePathLookup {
+  packagePathMap: Map<string, Map<string, string>>;
+  globalPathMap: Map<string, Set<string>>;
+}
+
+const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'] as const;
+const FILE_EXTENSION_PATTERN = /\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
+const INDEX_FILE_PATTERN = /^(.*)\/index\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
+
+function normalizePath(path: string): string {
+  const normalized = path.replace(/\\/g, '/');
   const parts = normalized.split('/');
   const result: string[] = [];
 
@@ -29,309 +38,374 @@ function normalizePath(path: string): string {
   return result.join('/');
 }
 
-const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'] as const;
-
-function generatePathVariants(normalizedPath: string): string[] {
-  const variants = [normalizedPath];
-  const withoutExt = normalizedPath.replace(/\.(ts|tsx|js|jsx)$/, '');
-  if (withoutExt !== normalizedPath) {
-    variants.push(withoutExt);
-  }
-
-  const indexMatch = normalizedPath.match(/^(.+)\/index\.(ts|tsx|js|jsx)$/);
-  if (indexMatch) {
-    const dirPath = indexMatch[1];
-    if (dirPath) {
-      variants.push(dirPath);
-    }
-  }
-
-  return Array.from(new Set(variants));
-}
-
-/**
- * Gets the directory portion of a file path
- * @param path The file path
- * @returns The directory path
- */
 function getDirname(path: string): string {
   const normalized = normalizePath(path);
   const lastSlash = normalized.lastIndexOf('/');
   return lastSlash > 0 ? normalized.substring(0, lastSlash) : '';
 }
 
-/**
- * Joins path segments together
- * @param segments Path segments to join
- * @returns Joined path
- */
 function joinPaths(...segments: string[]): string {
   return normalizePath(segments.join('/'));
 }
 
-/**
- * Builds a lookup map from module paths to module IDs
- * @param data The dependency package graph data
- * @returns Map of normalized paths to module IDs
- */
-function buildModulePathMap(data: DependencyPackageGraph): Map<string, string> {
-  const pathMap = new Map<string, string>();
+function generatePathVariants(normalizedPath: string): string[] {
+  const variants = [normalizedPath];
+  const withoutExt = normalizedPath.replace(FILE_EXTENSION_PATTERN, '');
+
+  if (withoutExt !== normalizedPath) {
+    variants.push(withoutExt);
+  }
+
+  const indexMatch = INDEX_FILE_PATTERN.exec(normalizedPath);
+  if (indexMatch?.[1]) {
+    variants.push(indexMatch[1]);
+  }
+
+  return Array.from(new Set(variants));
+}
+
+function addModulePathEntry(pathMap: Map<string, string>, relativePath: string, moduleId: string): void {
+  const normalizedPath = normalizePath(relativePath);
+  for (const variant of generatePathVariants(normalizedPath)) {
+    pathMap.set(variant, moduleId);
+  }
+}
+
+function buildModulePathLookup(data: DependencyPackageGraph): ModulePathLookup {
+  const packagePathMap = new Map<string, Map<string, string>>();
+  const globalPathMap = new Map<string, Set<string>>();
 
   data.packages.forEach((pkg) => {
-    if (pkg.modules) {
-      mapTypeCollection(pkg.modules, (module) => {
-        // Normalize the path to handle different separators
-        const normalizedPath = normalizePath(module.source.relativePath);
-        generatePathVariants(normalizedPath).forEach((variant) => {
-          pathMap.set(variant, module.id);
-        });
-      });
+    const pathMap = new Map<string, string>();
+    packagePathMap.set(pkg.id, pathMap);
+
+    if (!pkg.modules) {
+      return;
     }
+
+    mapTypeCollection(pkg.modules, (module) => {
+      addModulePathEntry(pathMap, module.source.relativePath, module.id);
+      for (const variant of generatePathVariants(normalizePath(module.source.relativePath))) {
+        const existing = globalPathMap.get(variant);
+        if (existing) {
+          existing.add(module.id);
+        } else {
+          globalPathMap.set(variant, new Set([module.id]));
+        }
+      }
+    });
   });
 
-  return pathMap;
+  return { packagePathMap, globalPathMap };
 }
 
-/**
- * Resolves an import path relative to the importing module
- * @param importerPath The path of the module doing the import
- * @param importPath The relative import path
- * @returns Candidate resolved paths
- */
-function resolveImportPath(importerPath: string, importPath: string): string[] {
-  const importerDir = getDirname(importerPath);
-  const baseResolved = joinPaths(importerDir, importPath);
-  const candidates: string[] = [baseResolved];
+function getPackagePrefixFromImporter(importerPath: string): string | undefined {
+  const normalized = normalizePath(importerPath);
+  const marker = '/src/';
+  const markerIndex = normalized.indexOf(marker);
+  if (markerIndex <= 0) {
+    return undefined;
+  }
+  return normalized.slice(0, markerIndex);
+}
 
-  if (!/\.(ts|tsx|js|jsx)$/.test(importPath)) {
-    EXTENSIONS.forEach((ext) => {
-      candidates.push(`${baseResolved}${ext}`);
-    });
-    EXTENSIONS.forEach((ext) => {
-      candidates.push(joinPaths(baseResolved, `index${ext}`));
-    });
+function expandCandidatePath(path: string): string[] {
+  const normalized = normalizePath(path);
+  const candidates = new Set<string>([normalized]);
+  const hasExplicitExtension = FILE_EXTENSION_PATTERN.test(normalized);
+
+  if (!hasExplicitExtension) {
+    for (const extension of EXTENSIONS) {
+      candidates.add(`${normalized}${extension}`);
+      candidates.add(joinPaths(normalized, `index${extension}`));
+    }
   }
 
-  return candidates;
+  return Array.from(candidates);
 }
 
-function resolveNonRelativeCandidates(importPath: string, modulePathMap: Map<string, string>): string[] {
-  const candidates = [importPath, `src/${importPath}`];
-  return candidates.filter((candidate) => modulePathMap.has(normalizePath(candidate)));
+function resolveRelativeCandidates(importerPath: string, importPath: string): string[] {
+  const importerDir = getDirname(importerPath);
+  const resolvedBasePath = joinPaths(importerDir, importPath);
+  return expandCandidatePath(resolvedBasePath);
 }
 
-function findModuleId(modulePathMap: Map<string, string>, candidates: string[]): string | undefined {
+function resolveNonRelativeCandidates(importerPath: string, importPath: string): string[] {
+  const normalizedImportPath = normalizePath(importPath);
+  const baseCandidates = new Set<string>();
+  const packagePrefix = getPackagePrefixFromImporter(importerPath);
+
+  if (normalizedImportPath.startsWith('@/')) {
+    const suffix = normalizedImportPath.slice(2);
+    baseCandidates.add(`src/${suffix}`);
+    if (packagePrefix) {
+      baseCandidates.add(`${packagePrefix}/src/${suffix}`);
+    }
+  } else if (normalizedImportPath.startsWith('src/')) {
+    baseCandidates.add(normalizedImportPath);
+    if (packagePrefix) {
+      baseCandidates.add(`${packagePrefix}/${normalizedImportPath}`);
+    }
+  } else {
+    return [];
+  }
+
+  const expandedCandidates = new Set<string>();
+  for (const candidate of baseCandidates) {
+    for (const expanded of expandCandidatePath(candidate)) {
+      expandedCandidates.add(expanded);
+    }
+  }
+
+  return Array.from(expandedCandidates);
+}
+
+function resolveModuleId(
+  lookup: ModulePathLookup,
+  packageId: string,
+  importerPath: string,
+  importPath: string
+): string | undefined {
+  const isRelative = importPath.startsWith('.') || importPath.startsWith('/');
+  const candidates = isRelative
+    ? resolveRelativeCandidates(importerPath, importPath)
+    : resolveNonRelativeCandidates(importerPath, importPath);
+
+  const packageLookup = lookup.packagePathMap.get(packageId);
+
   for (const candidate of candidates) {
     const normalized = normalizePath(candidate);
-    const match = modulePathMap.get(normalized);
-    if (match) return match;
+    const packageMatch = packageLookup?.get(normalized);
+    if (packageMatch) {
+      return packageMatch;
+    }
+
+    const globalMatches = lookup.globalPathMap.get(normalized);
+    if (globalMatches?.size === 1) {
+      const [globalMatch] = Array.from(globalMatches);
+      return globalMatch;
+    }
   }
+
   return undefined;
 }
 
+function buildNodeIdSet(data: DependencyPackageGraph, options: Required<CreateGraphEdgesOptions>): Set<string> {
+  const nodeIds = new Set<string>();
+
+  data.packages.forEach((pkg) => {
+    if (options.includePackageEdges) {
+      nodeIds.add(pkg.id);
+    }
+
+    if (!pkg.modules) {
+      return;
+    }
+
+    mapTypeCollection(pkg.modules, (module) => {
+      nodeIds.add(module.id);
+
+      if (!options.includeSymbolEdges) {
+        return;
+      }
+
+      if (module.classes) {
+        mapTypeCollection(module.classes, (cls) => {
+          nodeIds.add(cls.id);
+        });
+      }
+
+      if (module.interfaces) {
+        mapTypeCollection(module.interfaces, (iface) => {
+          nodeIds.add(iface.id);
+        });
+      }
+    });
+  });
+
+  return nodeIds;
+}
+
+function createArrowMarker() {
+  return {
+    type: MarkerType.ArrowClosed,
+    width: 20,
+    height: 20,
+  };
+}
+
 /**
- * Creates graph edges from the provided dependency package graph data
- * @param data The dependency package graph data
- * @returns Array of edges for the dependency graph
+ * Creates graph edges from the provided dependency package graph data.
  */
-export function createGraphEdges(data: DependencyPackageGraph): GraphEdge[] {
+export function createGraphEdges(
+  data: DependencyPackageGraph,
+  options: CreateGraphEdgesOptions = {}
+): GraphEdge[] {
+  const resolvedOptions: Required<CreateGraphEdgesOptions> = {
+    includePackageEdges: options.includePackageEdges ?? false,
+    includeSymbolEdges: options.includeSymbolEdges ?? true,
+    importDirection: options.importDirection ?? 'importer-to-imported',
+  };
+
+  const lookup = buildModulePathLookup(data);
+  const validNodeIds = buildNodeIdSet(data, resolvedOptions);
   const edgeMap = new Map<string, GraphEdge>();
 
-  // Build module path lookup for import resolution
-  const modulePathMap = buildModulePathMap(data);
-  const addEdge = (edge: GraphEdge, keyOverride?: string) => {
+  const addEdge = (edge: GraphEdge, keyOverride?: string): void => {
+    if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {
+      return;
+    }
+
     const key =
       keyOverride ??
       `${edge.source}|${edge.target}|${edge.data?.type ?? 'unknown'}|${edge.data?.importName ?? ''}`;
+
     if (!edgeMap.has(key)) {
       edgeMap.set(key, { ...edge, id: edge.id || key });
     }
   };
 
-  // Create edges from package dependencies
   data.packages.forEach((pkg) => {
-    // Handle regular dependencies
-    if (pkg.dependencies && Object.keys(pkg.dependencies).length > 0) {
-      mapTypeCollection(pkg.dependencies, (dep) => {
-        if (!dep.id) return;
+    if (resolvedOptions.includePackageEdges) {
+      if (pkg.dependencies && Object.keys(pkg.dependencies).length > 0) {
+        mapTypeCollection(pkg.dependencies, (dep) => {
+          if (!dep.id) return;
 
-        addEdge({
-          id: `${pkg.id}-${dep.id}-dependency`,
-          source: pkg.id,
-          target: dep.id,
-          hidden: false,
-          data: {
-            type: 'dependency' as DependencyEdgeKind,
-          },
-          style: getEdgeStyle('dependency'),
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            width: 20,
-            height: 20,
-          },
-        });
-      });
-    }
-
-    // Handle dev dependencies
-    if (pkg.devDependencies && Object.keys(pkg.devDependencies).length > 0) {
-      mapTypeCollection(pkg.devDependencies, (dep) => {
-        if (!dep.id) return;
-
-        addEdge({
-          id: `${pkg.id}-${dep.id}-devDependency`,
-          source: pkg.id,
-          target: dep.id,
-          hidden: false,
-          data: {
-            type: 'devDependency' as DependencyEdgeKind,
-          },
-          style: getEdgeStyle('devDependency'),
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            width: 20,
-            height: 20,
-          },
-        });
-      });
-    }
-
-    // Handle peer dependencies
-    if (pkg.peerDependencies && Object.keys(pkg.peerDependencies).length > 0) {
-      mapTypeCollection(pkg.peerDependencies, (dep) => {
-        if (!dep.id) return;
-
-        addEdge({
-          id: `${pkg.id}-${dep.id}-peerDependency`,
-          source: pkg.id,
-          target: dep.id,
-          hidden: false,
-          data: {
-            type: 'peerDependency' as DependencyEdgeKind,
-          },
-          style: getEdgeStyle('peerDependency'),
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            width: 20,
-            height: 20,
-          },
-        });
-      });
-    }
-
-    // Handle module imports - create edges between modules
-    if (pkg.modules && Object.keys(pkg.modules).length > 0) {
-      mapTypeCollection(pkg.modules, (module) => {
-        // Add module import edges
-        if (module.imports && Object.keys(module.imports).length > 0) {
-          mapTypeCollection(module.imports, (imp) => {
-            if (!imp.path) return; // Skip imports without paths (e.g., external npm packages)
-
-            const isRelative = imp.path.startsWith('.') || imp.path.startsWith('/');
-            const candidates = isRelative
-              ? resolveImportPath(module.source.relativePath, imp.path)
-              : resolveNonRelativeCandidates(imp.path, modulePathMap);
-            const targetModuleId = findModuleId(modulePathMap, candidates);
-
-            if (targetModuleId && targetModuleId !== module.id) {
-              // Arrow points FROM imported module TO importing module
-              // Shows "is imported by" / "is used by" relationship
-              // If module A imports module B, arrow goes: B -> A
-              addEdge({
-                id: `${targetModuleId}-${module.id}-import`,
-                source: targetModuleId,
-                target: module.id,
-                hidden: false,
-                data: {
-                  type: 'import' as DependencyEdgeKind,
-                  importName: imp.name,
-                },
-                style: getEdgeStyle('import'),
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  width: 20,
-                  height: 20,
-                },
-              });
-            }
+          addEdge({
+            id: `${pkg.id}-${dep.id}-dependency`,
+            source: pkg.id,
+            target: dep.id,
+            hidden: false,
+            data: { type: 'dependency' as DependencyEdgeKind },
+            style: getEdgeStyle('dependency'),
+            markerEnd: createArrowMarker(),
           });
-        }
+        });
+      }
 
-        // Add class inheritance and implementation edges
-        if (module.classes && Object.keys(module.classes).length > 0) {
-          mapTypeCollection(module.classes, (cls) => {
-            // Handle class inheritance
-            if (cls.extends_id) {
+      if (pkg.devDependencies && Object.keys(pkg.devDependencies).length > 0) {
+        mapTypeCollection(pkg.devDependencies, (dep) => {
+          if (!dep.id) return;
+
+          addEdge({
+            id: `${pkg.id}-${dep.id}-devDependency`,
+            source: pkg.id,
+            target: dep.id,
+            hidden: false,
+            data: { type: 'devDependency' as DependencyEdgeKind },
+            style: getEdgeStyle('devDependency'),
+            markerEnd: createArrowMarker(),
+          });
+        });
+      }
+
+      if (pkg.peerDependencies && Object.keys(pkg.peerDependencies).length > 0) {
+        mapTypeCollection(pkg.peerDependencies, (dep) => {
+          if (!dep.id) return;
+
+          addEdge({
+            id: `${pkg.id}-${dep.id}-peerDependency`,
+            source: pkg.id,
+            target: dep.id,
+            hidden: false,
+            data: { type: 'peerDependency' as DependencyEdgeKind },
+            style: getEdgeStyle('peerDependency'),
+            markerEnd: createArrowMarker(),
+          });
+        });
+      }
+    }
+
+    if (!pkg.modules) {
+      return;
+    }
+
+    mapTypeCollection(pkg.modules, (module) => {
+      if (module.imports && Object.keys(module.imports).length > 0) {
+        mapTypeCollection(module.imports, (imp) => {
+          if (!imp.path) return;
+
+          const importedModuleId = resolveModuleId(lookup, module.package_id, module.source.relativePath, imp.path);
+          if (!importedModuleId || importedModuleId === module.id) {
+            return;
+          }
+
+          const source =
+            resolvedOptions.importDirection === 'importer-to-imported' ? module.id : importedModuleId;
+          const target =
+            resolvedOptions.importDirection === 'importer-to-imported' ? importedModuleId : module.id;
+
+          addEdge({
+            id: `${source}-${target}-import`,
+            source,
+            target,
+            hidden: false,
+            data: {
+              type: 'import' as DependencyEdgeKind,
+              importName: imp.name,
+            },
+            style: getEdgeStyle('import'),
+            markerEnd: createArrowMarker(),
+          });
+        });
+      }
+
+      if (!resolvedOptions.includeSymbolEdges) {
+        return;
+      }
+
+      if (module.classes && Object.keys(module.classes).length > 0) {
+        mapTypeCollection(module.classes, (cls) => {
+          if (cls.extends_id) {
+            addEdge({
+              id: `${cls.id}-${cls.extends_id}-inheritance`,
+              source: cls.id,
+              target: cls.extends_id,
+              hidden: false,
+              data: { type: 'inheritance' as DependencyEdgeKind },
+              style: getEdgeStyle('inheritance'),
+              markerEnd: createArrowMarker(),
+            });
+          }
+
+          if (cls.implemented_interfaces && Object.keys(cls.implemented_interfaces).length > 0) {
+            mapTypeCollection(cls.implemented_interfaces, (iface) => {
+              if (!iface.id) return;
+
               addEdge({
-                id: `${cls.id}-${cls.extends_id}-inheritance`,
+                id: `${cls.id}-${iface.id}-implements`,
                 source: cls.id,
-                target: cls.extends_id,
+                target: iface.id,
                 hidden: false,
-                data: {
-                  type: 'inheritance' as DependencyEdgeKind,
-                },
+                data: { type: 'implements' as DependencyEdgeKind },
+                style: getEdgeStyle('implements'),
+                markerEnd: createArrowMarker(),
+              });
+            });
+          }
+        });
+      }
+
+      if (module.interfaces && Object.keys(module.interfaces).length > 0) {
+        mapTypeCollection(module.interfaces, (iface) => {
+          if (iface.extended_interfaces && Object.keys(iface.extended_interfaces).length > 0) {
+            mapTypeCollection(iface.extended_interfaces, (extended) => {
+              if (!extended.id) return;
+
+              addEdge({
+                id: `${iface.id}-${extended.id}-inheritance`,
+                source: iface.id,
+                target: extended.id,
+                hidden: false,
+                data: { type: 'inheritance' as DependencyEdgeKind },
                 style: getEdgeStyle('inheritance'),
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  width: 20,
-                  height: 20,
-                },
+                markerEnd: createArrowMarker(),
               });
-            }
-
-            // Handle interface implementations
-            if (cls.implemented_interfaces && Object.keys(cls.implemented_interfaces).length > 0) {
-              mapTypeCollection(cls.implemented_interfaces, (iface) => {
-                if (!iface.id) return;
-
-                addEdge({
-                  id: `${cls.id}-${iface.id}-implements`,
-                  source: cls.id,
-                  target: iface.id,
-                  hidden: false,
-                  data: {
-                    type: 'implements' as DependencyEdgeKind,
-                  },
-                  style: getEdgeStyle('implements'),
-                  markerEnd: {
-                    type: MarkerType.ArrowClosed,
-                    width: 20,
-                    height: 20,
-                  },
-                });
-              });
-            }
-          });
-        }
-
-        // Add interface inheritance edges
-        if (module.interfaces && Object.keys(module.interfaces).length > 0) {
-          mapTypeCollection(module.interfaces, (iface) => {
-            if (iface.extended_interfaces && Object.keys(iface.extended_interfaces).length > 0) {
-              mapTypeCollection(iface.extended_interfaces, (extended) => {
-                if (!extended.id) return;
-
-                addEdge({
-                  id: `${iface.id}-${extended.id}-inheritance`,
-                  source: iface.id,
-                  target: extended.id,
-                  hidden: false,
-                  data: {
-                    type: 'inheritance' as DependencyEdgeKind,
-                  },
-                  style: getEdgeStyle('inheritance'),
-                  markerEnd: {
-                    type: MarkerType.ArrowClosed,
-                    width: 20,
-                    height: 20,
-                  },
-                });
-              });
-            }
-          });
-        }
-      });
-    }
+            });
+          }
+        });
+      }
+    });
   });
 
   return Array.from(edgeMap.values());

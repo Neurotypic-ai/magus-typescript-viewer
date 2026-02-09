@@ -16,6 +16,7 @@ import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
 export interface ClassExtendsRef {
   classId: string;
   parentName: string;
+  parentId?: string | undefined;
 }
 
 /**
@@ -24,6 +25,7 @@ export interface ClassExtendsRef {
 export interface ClassImplementsRef {
   classId: string;
   interfaceName: string;
+  interfaceId?: string | undefined;
 }
 
 /**
@@ -32,6 +34,7 @@ export interface ClassImplementsRef {
 export interface InterfaceExtendsRef {
   interfaceId: string;
   parentName: string;
+  parentId?: string | undefined;
 }
 
 export interface ParseResult {

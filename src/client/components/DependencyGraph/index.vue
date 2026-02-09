@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Background } from '@vue-flow/background';
-import { Panel, Position, VueFlow, useVueFlow } from '@vue-flow/core';
+import { MarkerType, Panel, Position, VueFlow, useVueFlow } from '@vue-flow/core';
 import { computed, onUnmounted, watch } from 'vue';
 
 import { createLogger } from '../../../shared/utils/logger';
@@ -49,15 +49,23 @@ const { fitView } = useVueFlow();
 
 // Keep a reference to the layout processor for cleanup
 let layoutProcessor: WebWorkerLayoutProcessor | null = null;
+let layoutRequestVersion = 0;
+
+const graphEdgeOptions = {
+  includePackageEdges: false,
+  includeSymbolEdges: true,
+  importDirection: 'importer-to-imported' as const,
+};
 
 // Layout configuration state optimized for module import visualization
-const layoutConfig = {
+const defaultLayoutConfig = {
   algorithm: 'layered' as 'layered' | 'radial' | 'force' | 'stress',
   direction: 'LR' as 'LR' | 'RL' | 'TB' | 'BT', // Left-to-right flow
   nodeSpacing: 80, // Space between nodes in same rank
   rankSpacing: 200, // Space between ranks (layers) - increased for clarity
   edgeSpacing: 30, // Space between parallel edges
 };
+const layoutConfig = { ...defaultLayoutConfig };
 
 // Helper to get handle positions based on layout direction
 const getHandlePositions = (
@@ -77,6 +85,9 @@ const getHandlePositions = (
 
 // Create WebWorkerLayoutProcessor
 const initializeLayoutProcessor = () => {
+  // Invalidate any in-flight layout request from an older processor/config.
+  layoutRequestVersion += 1;
+
   // Clean up previous instance if it exists
   if (layoutProcessor) {
     layoutProcessor.dispose();
@@ -106,6 +117,7 @@ onUnmounted(() => {
 // Process graph layout using web worker
 const processGraphLayout = async (graphData: { nodes: DependencyNode[]; edges: GraphEdge[] }) => {
   if (!layoutProcessor) return;
+  const requestVersion = ++layoutRequestVersion;
 
   try {
     // Start performance measurement
@@ -113,6 +125,9 @@ const processGraphLayout = async (graphData: { nodes: DependencyNode[]; edges: G
 
     // Process layout using the web worker
     const result = await layoutProcessor.processLayout(graphData);
+    if (requestVersion !== layoutRequestVersion) {
+      return;
+    }
 
     // Force the correct types for nodes and edges
     const typedNodes = result.nodes as unknown as DependencyNode[];
@@ -181,6 +196,9 @@ const processGraphLayout = async (graphData: { nodes: DependencyNode[]; edges: G
     graphLogger.info('Store edges count:', edges.value.length);
 
     // Fit view after layout with faster animation
+    if (requestVersion !== layoutRequestVersion) {
+      return;
+    }
     await fitView({ duration: 150, padding: 0.1 });
 
     // End performance measurement
@@ -191,6 +209,11 @@ const processGraphLayout = async (graphData: { nodes: DependencyNode[]; edges: G
     graphLogger.error('Layout processing failed:', error);
     // Potentially update UI to show error state to the user
   }
+};
+
+const filterEdgesByNodeSet = (graphNodes: DependencyNode[], graphEdges: GraphEdge[]): GraphEdge[] => {
+  const nodeIds = new Set(graphNodes.map((node) => node.id));
+  return graphEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
 };
 
 // Initialize graph
@@ -207,7 +230,7 @@ const initializeGraph = async () => {
     includeClasses: false, // No classes = focus on module structure
     direction: layoutConfig.direction,
   });
-  let graphEdges = createGraphEdges(props.data) as unknown as GraphEdge[];
+  let graphEdges = createGraphEdges(props.data, graphEdgeOptions) as unknown as GraphEdge[];
 
   // Debug: Log edge creation
   graphLogger.info(`Created ${graphNodes.length} nodes and ${graphEdges.length} edges`);
@@ -231,11 +254,11 @@ const initializeGraph = async () => {
     );
 
     // Validate edge connections
-    const nodeIds = new Set(graphNodes.map((n) => n.id));
-    const invalidEdges = graphEdges.filter((e) => !nodeIds.has(e.source) || !nodeIds.has(e.target));
-    if (invalidEdges.length > 0) {
-      graphLogger.warn(`Found ${invalidEdges.length} edges with invalid source/target IDs:`, invalidEdges.slice(0, 3));
-      graphEdges = graphEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+    const filteredEdges = filterEdgesByNodeSet(graphNodes, graphEdges);
+    if (filteredEdges.length !== graphEdges.length) {
+      const invalidEdgeCount = graphEdges.length - filteredEdges.length;
+      graphLogger.warn(`Filtered ${invalidEdgeCount} edges with invalid source/target IDs.`);
+      graphEdges = filteredEdges;
     } else {
       graphLogger.info('All edge connections are valid');
     }
@@ -324,7 +347,7 @@ const onNodeDoubleClick = async ({ node }: { node: unknown }): Promise<void> => 
 
   // If it's a module node, show its internal structure
   if (selectedNode.type === 'module') {
-    graphLogger.info(`Expanding module view: ${selectedNode.data.label}`);
+    graphLogger.info(`Expanding module view: ${selectedNode.data?.label ?? selectedNode.id}`);
 
     // Create detailed nodes for this module from the original data
     const moduleData = props.data.packages
@@ -400,7 +423,7 @@ const onNodeDoubleClick = async ({ node }: { node: unknown }): Promise<void> => 
             hidden: false,
             data: { type: 'inheritance' as DependencyEdgeKind },
             style: { ...getEdgeStyle('inheritance'), strokeWidth: 3 },
-            markerEnd: { type: 'arrowclosed', width: 20, height: 20 },
+            markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
           } as GraphEdge);
         }
 
@@ -415,7 +438,7 @@ const onNodeDoubleClick = async ({ node }: { node: unknown }): Promise<void> => 
                 hidden: false,
                 data: { type: 'implements' as DependencyEdgeKind },
                 style: { ...getEdgeStyle('implements'), strokeWidth: 3 },
-                markerEnd: { type: 'arrowclosed', width: 20, height: 20 },
+                markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
               } as GraphEdge);
             }
           });
@@ -471,7 +494,7 @@ const onNodeDoubleClick = async ({ node }: { node: unknown }): Promise<void> => 
                 hidden: false,
                 data: { type: 'inheritance' as DependencyEdgeKind },
                 style: { ...getEdgeStyle('inheritance'), strokeWidth: 3 },
-                markerEnd: { type: 'arrowclosed', width: 20, height: 20 },
+                markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
               } as GraphEdge);
             }
           });
@@ -596,6 +619,16 @@ const onPaneClick = async (): Promise<void> => {
   await initializeGraph();
 };
 
+const handleResetLayout = async (): Promise<void> => {
+  layoutConfig.algorithm = defaultLayoutConfig.algorithm;
+  layoutConfig.direction = defaultLayoutConfig.direction;
+  layoutConfig.nodeSpacing = defaultLayoutConfig.nodeSpacing;
+  layoutConfig.rankSpacing = defaultLayoutConfig.rankSpacing;
+  layoutConfig.edgeSpacing = defaultLayoutConfig.edgeSpacing;
+
+  await initializeGraph();
+};
+
 // Filter handler for relationship types
 const handleRelationshipFilterChange = (types: string[]) => {
   graphStore['setEdges'](
@@ -635,8 +668,9 @@ const handleLayoutChange = async (config: {
     includeClasses: false,
     direction: layoutConfig.direction,
   });
-  const graphEdges = createGraphEdges(props.data) as unknown as GraphEdge[];
-  await processGraphLayout({ nodes: graphNodes, edges: graphEdges });
+  const graphEdges = createGraphEdges(props.data, graphEdgeOptions) as unknown as GraphEdge[];
+  const filteredEdges = filterEdgesByNodeSet(graphNodes, graphEdges);
+  await processGraphLayout({ nodes: graphNodes, edges: filteredEdges });
 };
 
 // Search result handler
@@ -752,12 +786,13 @@ function toDependencyEdgeKind(type: string | undefined): DependencyEdgeKind {
       :pan-on-scroll="true" :zoom-on-scroll="true" :zoom-on-double-click="false" :elevate-edges-on-select="true"
       :default-edge-options="{
         style: { stroke: '#61dafb', strokeWidth: 3 },
-        markerEnd: { type: 'arrowclosed', width: 20, height: 20 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
         zIndex: 1000,
         type: 'step',
       }" @node-click="onNodeClick" @node-double-click="onNodeDoubleClick" @pane-click="onPaneClick">
       <Background />
       <GraphControls @relationship-filter-change="handleRelationshipFilterChange" @layout-change="handleLayoutChange"
+        @reset-layout="handleResetLayout"
         @toggle-collapse-scc="
           (v: boolean) => {
             graphSettings.setCollapseScc(v);

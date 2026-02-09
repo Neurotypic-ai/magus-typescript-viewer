@@ -62,6 +62,45 @@ async function safeUpdate(
   }
 }
 
+type ResolutionStatus = 'resolved' | 'ambiguous' | 'unresolved';
+
+interface ResolutionSummary {
+  resolved: number;
+  ambiguous: number;
+  unresolved: number;
+}
+
+function addNameToMap(nameMap: Map<string, string[]>, name: string, id: string): void {
+  const existing = nameMap.get(name);
+  if (existing) {
+    if (!existing.includes(id)) {
+      existing.push(id);
+    }
+    return;
+  }
+  nameMap.set(name, [id]);
+}
+
+function resolveFromNameMap(
+  explicitId: string | undefined,
+  name: string,
+  nameMap: Map<string, string[]>
+): { id: string | undefined; status: ResolutionStatus } {
+  if (explicitId) {
+    return { id: explicitId, status: 'resolved' };
+  }
+
+  const matches = nameMap.get(name) ?? [];
+  if (matches.length === 1) {
+    return { id: matches[0], status: 'resolved' };
+  }
+  if (matches.length > 1) {
+    return { id: undefined, status: 'ambiguous' };
+  }
+
+  return { id: undefined, status: 'unresolved' };
+}
+
 const program = new Command();
 
 program.name('typescript-viewer').description('TypeScript codebase visualization tool').version('1.0.0');
@@ -180,6 +219,11 @@ program
       // Save relationship records to junction tables
       spinner.text = 'Saving relationships...';
       let relationshipCount = 0;
+      const relationStats: Record<'classExtends' | 'classImplements' | 'interfaceExtends', ResolutionSummary> = {
+        classExtends: { resolved: 0, ambiguous: 0, unresolved: 0 },
+        classImplements: { resolved: 0, ambiguous: 0, unresolved: 0 },
+        interfaceExtends: { resolved: 0, ambiguous: 0, unresolved: 0 },
+      };
 
       // Cross-package resolution: query DB for all known classes/interfaces
       // to resolve any names that weren't found within this package
@@ -189,56 +233,70 @@ program
       const allInterfaceRows = await adapter.query<{ id: string; name: string }>(
         'SELECT id, name FROM interfaces'
       );
-      const globalClassMap = new Map<string, string>();
+      const globalClassMap = new Map<string, string[]>();
       for (const row of allClassRows) {
-        globalClassMap.set(row.name, row.id);
+        addNameToMap(globalClassMap, row.name, row.id);
       }
-      const globalInterfaceMap = new Map<string, string>();
+      const globalInterfaceMap = new Map<string, string[]>();
       for (const row of allInterfaceRows) {
-        globalInterfaceMap.set(row.name, row.id);
+        addNameToMap(globalInterfaceMap, row.name, row.id);
       }
 
       // Save class_extends records
       for (const ref of parseResult.classExtends) {
-        // ref.parentName is either a resolved UUID or a raw name needing DB lookup
-        let parentId = ref.parentName;
-        if (!parentId.includes('-')) {
-          // Not a UUID — try global DB lookup
-          parentId = globalClassMap.get(parentId) ?? '';
+        const resolution = resolveFromNameMap(ref.parentId, ref.parentName, globalClassMap);
+        if (!resolution.id) {
+          relationStats.classExtends[resolution.status]++;
+          continue;
         }
-        if (parentId && parentId !== ref.classId) {
-          const relId = generateRelationshipUUID(ref.classId, parentId, 'class_extends');
-          await safeInsert(adapter, 'class_extends', '(id, class_id, parent_id)', [relId, ref.classId, parentId]);
-          // Also update the class's extends_id column
-          await safeUpdate(adapter, 'classes', 'extends_id', parentId, ref.classId);
-          relationshipCount++;
+
+        if (resolution.id === ref.classId) {
+          relationStats.classExtends.unresolved++;
+          continue;
         }
+
+        const relId = generateRelationshipUUID(ref.classId, resolution.id, 'class_extends');
+        await safeInsert(adapter, 'class_extends', '(id, class_id, parent_id)', [relId, ref.classId, resolution.id]);
+        await safeUpdate(adapter, 'classes', 'extends_id', resolution.id, ref.classId);
+        relationshipCount++;
+        relationStats.classExtends.resolved++;
       }
 
       // Save class_implements records
       for (const ref of parseResult.classImplements) {
-        let interfaceId = ref.interfaceName;
-        if (!interfaceId.includes('-')) {
-          interfaceId = globalInterfaceMap.get(interfaceId) ?? '';
+        const resolution = resolveFromNameMap(ref.interfaceId, ref.interfaceName, globalInterfaceMap);
+        if (!resolution.id) {
+          relationStats.classImplements[resolution.status]++;
+          continue;
         }
-        if (interfaceId) {
-          const relId = generateRelationshipUUID(ref.classId, interfaceId, 'class_implements');
-          await safeInsert(adapter, 'class_implements', '(id, class_id, interface_id)', [relId, ref.classId, interfaceId]);
-          relationshipCount++;
-        }
+
+        const relId = generateRelationshipUUID(ref.classId, resolution.id, 'class_implements');
+        await safeInsert(adapter, 'class_implements', '(id, class_id, interface_id)', [relId, ref.classId, resolution.id]);
+        relationshipCount++;
+        relationStats.classImplements.resolved++;
       }
 
       // Save interface_extends records
       for (const ref of parseResult.interfaceExtends) {
-        let parentId = ref.parentName;
-        if (!parentId.includes('-')) {
-          parentId = globalInterfaceMap.get(parentId) ?? '';
+        const resolution = resolveFromNameMap(ref.parentId, ref.parentName, globalInterfaceMap);
+        if (!resolution.id) {
+          relationStats.interfaceExtends[resolution.status]++;
+          continue;
         }
-        if (parentId && parentId !== ref.interfaceId) {
-          const relId = generateRelationshipUUID(ref.interfaceId, parentId, 'interface_extends');
-          await safeInsert(adapter, 'interface_extends', '(id, interface_id, extended_id)', [relId, ref.interfaceId, parentId]);
-          relationshipCount++;
+
+        if (resolution.id === ref.interfaceId) {
+          relationStats.interfaceExtends.unresolved++;
+          continue;
         }
+
+        const relId = generateRelationshipUUID(ref.interfaceId, resolution.id, 'interface_extends');
+        await safeInsert(adapter, 'interface_extends', '(id, interface_id, extended_id)', [
+          relId,
+          ref.interfaceId,
+          resolution.id,
+        ]);
+        relationshipCount++;
+        relationStats.interfaceExtends.resolved++;
       }
 
       spinner.succeed(chalk.green('Analysis complete!'));
@@ -254,6 +312,33 @@ program
       console.log(chalk.gray('- Imports found:'), parseResult.importsWithModules?.length ?? 0);
       console.log(chalk.gray('- Exports found:'), parseResult.exports.length);
       console.log(chalk.gray('- Relationships found:'), relationshipCount);
+      console.log(
+        chalk.gray('- class_extends resolution:'),
+        'resolved=',
+        relationStats.classExtends.resolved,
+        'ambiguous=',
+        relationStats.classExtends.ambiguous,
+        'unresolved=',
+        relationStats.classExtends.unresolved
+      );
+      console.log(
+        chalk.gray('- class_implements resolution:'),
+        'resolved=',
+        relationStats.classImplements.resolved,
+        'ambiguous=',
+        relationStats.classImplements.ambiguous,
+        'unresolved=',
+        relationStats.classImplements.unresolved
+      );
+      console.log(
+        chalk.gray('- interface_extends resolution:'),
+        'resolved=',
+        relationStats.interfaceExtends.resolved,
+        'ambiguous=',
+        relationStats.interfaceExtends.ambiguous,
+        'unresolved=',
+        relationStats.interfaceExtends.unresolved
+      );
 
       await db.close();
     } catch (error) {

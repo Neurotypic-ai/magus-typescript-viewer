@@ -7,6 +7,17 @@ import type { DependencyProps } from '../types';
 
 const props = defineProps<DependencyProps>();
 
+const baseNodeProps = computed(() => ({
+  id: props.id,
+  type: props.type,
+  data: props.data,
+  ...(props.selected !== undefined ? { selected: props.selected } : {}),
+  ...(props.width !== undefined ? { width: props.width } : {}),
+  ...(props.height !== undefined ? { height: props.height } : {}),
+  ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
+  ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
+}));
+
 // Make sure data exists and has the required properties
 const nodeData = computed(() => props.data);
 const nodeType = computed(() => props.type);
@@ -38,7 +49,7 @@ const badgeText = computed(() => String(nodeType.value).toUpperCase());
 </script>
 
 <template>
-  <BaseNode v-bind="props" :badge-text="badgeText" :z-index="nodeZIndex">
+  <BaseNode v-bind="baseNodeProps" :badge-text="badgeText" :z-index="nodeZIndex">
     <template #content>
       <!-- Node Content -->
       <div class="node-content">
