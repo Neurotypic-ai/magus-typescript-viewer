@@ -4,4 +4,7 @@ dist
 *.duckdb*
 DuckDB.session.sql
 .DS_Store
-node_modules/**/*
+node_modules/
+.vite/
+coverage/
+*.log
