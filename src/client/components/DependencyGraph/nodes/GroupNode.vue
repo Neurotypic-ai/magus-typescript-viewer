@@ -15,8 +15,10 @@ const label = computed(() => props.data?.label ?? 'Folder');
 
 <style scoped>
 .group-node-container {
+  width: 100%;
+  height: 100%;
   min-width: 220px;
-  min-height: 120px;
+  min-height: 80px;
   border: 1px dashed rgba(148, 163, 184, 0.6);
   border-radius: 10px;
   background: rgba(15, 23, 42, 0.15);

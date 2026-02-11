@@ -47,8 +47,6 @@ export function clusterByFolder(
       id,
       type: 'group' as DependencyKind,
       position: { x: 0, y: 0 },
-      width: 220,
-      height: 120,
       data: { label: `${pkg}/${dir || 'root'}` },
       style: {
         ...getNodeStyle('group'),

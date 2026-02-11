@@ -57,6 +57,139 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       layoutOptions?: Record<string, string>;
     }
 
+    /**
+     * Parse a CSS size value (number or string like '280px') to a numeric pixel value.
+     */
+    function parseCssSize(val: unknown): number {
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string') {
+        const num = parseFloat(val);
+        return isNaN(num) ? 0 : num;
+      }
+      return 0;
+    }
+
+    /**
+     * Estimate text width in pixels based on character count and average char width.
+     * Uses conservative estimates (monospace ~7.5px/char, proportional ~6.5px/char at ~11px font).
+     */
+    function estimateTextWidth(text: string, padding = 32): number {
+      return Math.ceil(text.length * 7) + padding;
+    }
+
+    /**
+     * Estimate the rendered size of a node based on its type, style hints, and data content.
+     * On the first layout pass, nodes haven't been measured by the DOM yet, so ELK needs
+     * realistic size estimates to avoid placing nodes too close together (causing overlaps).
+     */
+    function estimateNodeSize(node: DependencyNode): { width: number; height: number } {
+      // Prefer actual DOM measurements if available (subsequent layout passes)
+      const measured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
+      if (measured?.width && measured.height && measured.width > 10 && measured.height > 10) {
+        return { width: measured.width, height: measured.height };
+      }
+
+      const style = (typeof node.style === 'object' ? node.style : {}) as Record<string, unknown>;
+      const data = node.data as Record<string, unknown> | undefined;
+
+      // Extract size hints from style properties
+      let hintWidth = Math.max(parseCssSize(style['width']), parseCssSize(style['minWidth']));
+      let hintHeight = Math.max(parseCssSize(style['height']), parseCssSize(style['minHeight']));
+
+      // Content-based estimation per node type
+      if (node.type === 'module') {
+        // Module node layout: header(42) + body content + subnodes(44) + padding(16)
+        let estHeight = 42 + 16 + 44 + 16; // ~118px base
+        let maxContentWidth = 280; // BaseNode default minWidth
+
+        // Estimate width from label text
+        const label = data?.['label'];
+        if (typeof label === 'string') {
+          maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(label, 120)); // header + badge
+        }
+
+        const properties = data?.['properties'];
+        if (Array.isArray(properties) && properties.length > 0) {
+          estHeight += 28; // metadata section toggle header
+          for (const prop of properties) {
+            const p = prop as { name?: string; type?: string };
+            estHeight += 22;
+            const propText = `${p.name ?? ''}: ${p.type ?? ''}`;
+            maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(propText, 80));
+          }
+        }
+
+        const extDeps = data?.['externalDependencies'];
+        if (Array.isArray(extDeps) && extDeps.length > 0) {
+          estHeight += 28; // external deps section toggle header
+          for (const dep of extDeps) {
+            const d = dep as { packageName?: string; symbols?: string[] };
+            estHeight += 42;
+            const pkgName = d.packageName ?? '';
+            const symbols = Array.isArray(d.symbols) ? d.symbols.join(', ') : '';
+            maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(pkgName, 48));
+            maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(symbols, 48));
+          }
+        }
+
+        hintWidth = Math.max(hintWidth, maxContentWidth);
+        hintHeight = Math.max(hintHeight, estHeight);
+
+      } else if (node.type === 'class' || node.type === 'interface') {
+        // Symbol node: header(42) + properties + methods + subnodes(44) + padding
+        let estHeight = 42 + 16 + 44 + 16;
+        let maxContentWidth = 280; // BaseNode default minWidth
+
+        // Estimate width from label text
+        const label = data?.['label'];
+        if (typeof label === 'string') {
+          maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(label, 120)); // header + badge
+        }
+
+        const properties = data?.['properties'];
+        if (Array.isArray(properties)) {
+          estHeight += properties.length * 22;
+          for (const prop of properties) {
+            const p = prop as { name?: string; type?: string };
+            const propText = `${p.name ?? ''}: ${p.type ?? ''}`;
+            maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(propText, 80));
+          }
+        }
+
+        const methods = data?.['methods'];
+        if (Array.isArray(methods)) {
+          estHeight += methods.length * 24;
+          for (const method of methods) {
+            const m = method as { name?: string; returnType?: string; params?: string };
+            const sig = `${m.name ?? ''}(${m.params ?? ''}): ${m.returnType ?? ''}`;
+            maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(sig, 80));
+          }
+        }
+
+        hintWidth = Math.max(hintWidth, maxContentWidth);
+        hintHeight = Math.max(hintHeight, estHeight);
+
+      } else if (node.type === 'package') {
+        hintWidth = Math.max(hintWidth, 300);
+        hintHeight = Math.max(hintHeight, 200);
+
+      } else if (node.type === 'group') {
+        // Group nodes are containers — ELK will compute their final size from children.
+        // Set a reasonable minimum; the actual size is determined by child layout.
+        hintWidth = Math.max(hintWidth, 250);
+        hintHeight = Math.max(hintHeight, 80);
+
+      } else if (node.type === 'property' || node.type === 'method') {
+        hintWidth = Math.max(hintWidth, 200);
+        hintHeight = Math.max(hintHeight, 40);
+      }
+
+      return {
+        width: Math.max(hintWidth, defaultWidth),
+        height: Math.max(hintHeight, defaultHeight),
+      };
+    }
+
     // Map VueFlow directions to ELK's expected values
     const directionMap: Record<string, string> = {
       RIGHT: 'RIGHT',
@@ -81,10 +214,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       childIdsByParent.set(parentNodeId, children);
     });
 
-    // First pass: create all nodes
+    // First pass: create all ELK nodes with content-aware size estimates
     nodes.forEach((node) => {
-      const nodeWidth = (node as unknown as { measured?: { width?: number } }).measured?.width ?? defaultWidth;
-      const nodeHeight = (node as unknown as { measured?: { height?: number } }).measured?.height ?? defaultHeight;
+      const { width: nodeWidth, height: nodeHeight } = estimateNodeSize(node);
 
       const elkNode: ElkNode = {
         id: node.id,
@@ -95,13 +227,12 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       nodeMap.set(node.id, elkNode);
     });
 
-    // Add layout options to nodes that will have children
+    // Add layout options to nodes that will have children (compound nodes)
     nodeMap.forEach((elkNode) => {
-      // Check if this node will have children
       const hasChildren = childIdsByParent.has(elkNode.id);
       if (hasChildren) {
         elkNode.layoutOptions = {
-          // Child nodes inside containers should stack vertically regardless of global graph direction.
+          // Child nodes inside containers should stack vertically regardless of global direction.
           'elk.algorithm': 'layered',
           'elk.direction': 'DOWN',
           // Reserve top area for node header/body/subnodes labels.
@@ -131,7 +262,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     });
 
     // Filter edges to only include valid connections and exclude containment edges
-    // Containment is now handled by hierarchy structure, not as edges for layout
+    // Containment is handled by ELK's hierarchy structure, not as edges
     const validEdges = edges.filter((edge) => {
       const edgeType = (edge.data as { type?: string } | undefined)?.type;
       const isValid = nodes.some((n) => n.id === edge.source) && nodes.some((n) => n.id === edge.target);
@@ -161,6 +292,13 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       edges: ElkEdge[];
     }
 
+    // Compute an average node size to inform spacing parameters for non-layered algorithms.
+    // Radial/force/stress algorithms need larger spacing because they don't natively
+    // account for node dimensions as well as layered does.
+    const avgNodeWidth = rootNodes.reduce((sum, n) => sum + n.width, 0) / Math.max(rootNodes.length, 1);
+    const avgNodeHeight = rootNodes.reduce((sum, n) => sum + n.height, 0) / Math.max(rootNodes.length, 1);
+    const avgNodeDiagonal = Math.sqrt(avgNodeWidth * avgNodeWidth + avgNodeHeight * avgNodeHeight);
+
     // Build layout options based on algorithm
     const layoutOptions: Record<string, string> = {
       'elk.algorithm': config.algorithm,
@@ -188,21 +326,34 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       layoutOptions['elk.layered.compaction.postCompaction.strategy'] = 'EDGE_LENGTH';
       layoutOptions['elk.layered.mergeEdges'] = 'true';
     } else if (config.algorithm === 'radial') {
-      layoutOptions['elk.radial.radius'] = String(config.ranksep);
+      // Radius must be large enough so adjacent rings don't overlap — use at least
+      // half the average node diagonal plus user-configured rank separation.
+      const radialRadius = Math.max(config.ranksep, avgNodeDiagonal * 0.75 + config.nodesep);
+      layoutOptions['elk.radial.radius'] = String(Math.round(radialRadius));
       layoutOptions['elk.radial.compactionStepSize'] = '0.1';
       layoutOptions['elk.radial.compaction'] = 'true';
       layoutOptions['elk.radial.sorter'] = 'QUADRANTS';
       layoutOptions['elk.radial.wedgeCriteria'] = 'CONNECTIONS';
       layoutOptions['elk.radial.optimizeDistance'] = 'true';
+      // Increase node spacing for radial — nodes spread on arcs need more room
+      layoutOptions['elk.spacing.nodeNode'] = String(Math.max(config.nodesep, Math.round(avgNodeWidth * 0.5)));
       layoutOptions['elk.edgeRouting'] = 'SPLINES';
     } else if (config.algorithm === 'force') {
-      layoutOptions['elk.force.repulsion'] = '5.0';
+      // Repulsion must be proportional to node size so large nodes push each other apart
+      const repulsion = Math.max(5.0, avgNodeDiagonal / 20);
+      layoutOptions['elk.force.repulsion'] = String(repulsion);
       layoutOptions['elk.force.temperature'] = '0.001';
+      layoutOptions['elk.force.iterations'] = '300';
+      // Increase spacing proportional to node size
+      layoutOptions['elk.spacing.nodeNode'] = String(Math.max(config.nodesep, Math.round(avgNodeWidth * 0.6)));
       layoutOptions['elk.edgeRouting'] = 'SPLINES';
     } else {
-      // stress algorithm
-      layoutOptions['elk.stress.desiredEdgeLength'] = String(config.ranksep);
+      // stress algorithm — desired edge length must accommodate node sizes
+      const desiredLength = Math.max(config.ranksep, Math.round(avgNodeDiagonal + config.nodesep));
+      layoutOptions['elk.stress.desiredEdgeLength'] = String(desiredLength);
       layoutOptions['elk.stress.epsilon'] = '0.0001';
+      layoutOptions['elk.stress.iterations'] = '300';
+      layoutOptions['elk.spacing.nodeNode'] = String(Math.max(config.nodesep, Math.round(avgNodeWidth * 0.6)));
       layoutOptions['elk.edgeRouting'] = 'SPLINES';
     }
 
@@ -220,17 +371,16 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // For VueFlow, nested nodes need RELATIVE positions to their parent, not absolute
     const positionMap = new Map<string, { x: number; y: number; width: number; height: number }>();
 
-    function extractPositions(nodes: ElkNode[]): void {
-      nodes.forEach((node) => {
-        // For root nodes, use absolute positions
-        // For nested nodes, use relative positions (as calculated by ELK within the parent)
+    function extractPositions(elkNodes: ElkNode[]): void {
+      elkNodes.forEach((node) => {
+        // ELK returns positions relative to the parent for nested nodes
         const x = node.x ?? 0;
         const y = node.y ?? 0;
-        const width = node.width ?? defaultWidth;
-        const height = node.height ?? defaultHeight;
+        const width = node.width;
+        const height = node.height;
         positionMap.set(node.id, { x, y, width, height });
 
-        // Recursively process children with their relative positions
+        // Recursively process children
         if (node.children && node.children.length > 0) {
           extractPositions(node.children);
         }
@@ -241,83 +391,215 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       extractPositions(layoutedGraph.children);
     }
 
-    const MIN_CHILD_GAP = 24;
-    const CONTAINER_HORIZONTAL_PADDING = 24;
-    const CONTAINER_BOTTOM_PADDING = 24;
+    // Post-processing: ensure children don't overlap and parents contain all children.
+    // ELK should handle this, but we add a safety net.
+    const CONTAINER_HORIZONTAL_PADDING = 48;
+    const CONTAINER_TOP_PADDING = 120; // space for header/body content
+    const CONTAINER_BOTTOM_PADDING = 48;
 
-    childIdsByParent.forEach((childIds, parentId) => {
-      const positionedChildren = childIds
-        .map((childId) => ({ id: childId, box: positionMap.get(childId) }))
-        .filter((entry): entry is { id: string; box: { x: number; y: number; width: number; height: number } } => Boolean(entry.box))
-        .sort((a, b) => {
-          if (a.box.y !== b.box.y) {
-            return a.box.y - b.box.y;
-          }
+    // Group nodes by parent so we only compare siblings in the sweep.
+    const nodesByParent = new Map<string, string[]>();
+    nodes.forEach((node) => {
+      const parentId = (node as { parentNode?: string }).parentNode ?? '__root__';
+      const siblings = nodesByParent.get(parentId) ?? [];
+      siblings.push(node.id);
+      nodesByParent.set(parentId, siblings);
+    });
+
+    // Vue Flow uses box-sizing: border-box, so the rendered size matches the
+    // CSS width/height exactly. A 40px gap provides comfortable visual spacing.
+    const OVERLAP_GAP = 40;
+
+    // Compute depth for each parent so we can expand bottom-up.
+    // Depth 0 = leaf parent (children have no sub-children).
+    // Higher depth = further from leaves.
+    const parentDepth = new Map<string, number>();
+    function computeParentDepth(nodeId: string): number {
+      const cached = parentDepth.get(nodeId);
+      if (cached !== undefined) return cached;
+      const children = childIdsByParent.get(nodeId);
+      if (!children || children.length === 0) {
+        parentDepth.set(nodeId, 0);
+        return 0;
+      }
+      let maxChildDepth = 0;
+      for (const childId of children) {
+        if (childIdsByParent.has(childId)) {
+          maxChildDepth = Math.max(maxChildDepth, computeParentDepth(childId) + 1);
+        }
+      }
+      parentDepth.set(nodeId, maxChildDepth);
+      return maxChildDepth;
+    }
+    childIdsByParent.forEach((_, parentId) => computeParentDepth(parentId));
+
+    // Sort parents ascending by depth: leaf parents first, grandparents later.
+    // This ensures bottom-up expansion (modules before packages).
+    const sortedParentIds = [...childIdsByParent.keys()].sort(
+      (a, b) => (parentDepth.get(a) ?? 0) - (parentDepth.get(b) ?? 0)
+    );
+
+    /**
+     * Enforce minimum child positions: children must be below the header area
+     * and past the left padding boundary.
+     */
+    function enforceMinPositions(): void {
+      childIdsByParent.forEach((childIds) => {
+        for (const childId of childIds) {
+          const box = positionMap.get(childId);
+          if (!box) continue;
+          if (box.y < CONTAINER_TOP_PADDING) box.y = CONTAINER_TOP_PADDING;
+          if (box.x < CONTAINER_HORIZONTAL_PADDING) box.x = CONTAINER_HORIZONTAL_PADDING;
+        }
+      });
+    }
+
+    /**
+     * Expand parent nodes to fully contain their children, processing
+     * bottom-up (leaf parents first) so that grandparents see fully-expanded
+     * children and compute correct sizes.
+     */
+    function expandParentsBottomUp(): void {
+      for (const parentId of sortedParentIds) {
+        const childIds = childIdsByParent.get(parentId);
+        if (!childIds) continue;
+
+        const parentBox = positionMap.get(parentId);
+        if (!parentBox) continue;
+
+        const childBoxes = childIds
+          .map((id) => positionMap.get(id))
+          .filter((box): box is { x: number; y: number; width: number; height: number } => Boolean(box));
+
+        if (childBoxes.length === 0) continue;
+
+        const maxRight = Math.max(...childBoxes.map((box) => box.x + box.width));
+        const maxBottom = Math.max(...childBoxes.map((box) => box.y + box.height));
+
+        parentBox.width = Math.max(parentBox.width, maxRight + CONTAINER_HORIZONTAL_PADDING);
+        parentBox.height = Math.max(parentBox.height, maxBottom + CONTAINER_BOTTOM_PADDING);
+      }
+    }
+
+    /**
+     * Forward-only sweep: for each sibling group, sort by position, then push
+     * overlapping nodes forward (down in Y-sweep, right in X-sweep).
+     * Returns true if any overlap was found and resolved.
+     */
+    function sweepResolveSiblings(): boolean {
+      let anyOverlap = false;
+
+      nodesByParent.forEach((siblingIds) => {
+        if (siblingIds.length < 2) return;
+
+        const siblings = siblingIds
+          .map((id) => ({ id, box: positionMap.get(id) }))
+          .filter((entry): entry is { id: string; box: { x: number; y: number; width: number; height: number } } =>
+            Boolean(entry.box)
+          );
+
+        // --- Vertical sweep: sort by Y, push overlapping nodes down ---
+        siblings.sort((a, b) => {
+          const yDiff = a.box.y - b.box.y;
+          if (Math.abs(yDiff) > 1) return yDiff;
           return a.box.x - b.box.x;
         });
 
-      if (positionedChildren.length === 0) {
-        return;
-      }
+        for (let i = 0; i < siblings.length; i += 1) {
+          const current = siblings[i];
+          if (!current) continue;
 
-      const firstChild = positionedChildren[0];
-      if (!firstChild) {
-        return;
-      }
+          for (let j = 0; j < i; j += 1) {
+            const placed = siblings[j];
+            if (!placed) continue;
 
-      let previousBottom = firstChild.box.y + firstChild.box.height;
-      for (let index = 1; index < positionedChildren.length; index += 1) {
-        const current = positionedChildren[index];
-        if (!current) {
-          continue;
+            const hOverlap = current.box.x < placed.box.x + placed.box.width + OVERLAP_GAP &&
+                              current.box.x + current.box.width + OVERLAP_GAP > placed.box.x;
+            const vOverlap = current.box.y < placed.box.y + placed.box.height + OVERLAP_GAP &&
+                              current.box.y + current.box.height + OVERLAP_GAP > placed.box.y;
+
+            if (hOverlap && vOverlap) {
+              anyOverlap = true;
+              current.box.y = placed.box.y + placed.box.height + OVERLAP_GAP;
+            }
+          }
         }
 
-        if (current.box.y < previousBottom + MIN_CHILD_GAP) {
-          current.box.y = previousBottom + MIN_CHILD_GAP;
-          positionMap.set(current.id, current.box);
+        // --- Horizontal sweep: sort by X, push overlapping nodes right ---
+        siblings.sort((a, b) => {
+          const xDiff = a.box.x - b.box.x;
+          if (Math.abs(xDiff) > 1) return xDiff;
+          return a.box.y - b.box.y;
+        });
+
+        for (let i = 0; i < siblings.length; i += 1) {
+          const current = siblings[i];
+          if (!current) continue;
+
+          for (let j = 0; j < i; j += 1) {
+            const placed = siblings[j];
+            if (!placed) continue;
+
+            const hOverlap = current.box.x < placed.box.x + placed.box.width + OVERLAP_GAP &&
+                              current.box.x + current.box.width + OVERLAP_GAP > placed.box.x;
+            const vOverlap = current.box.y < placed.box.y + placed.box.height + OVERLAP_GAP &&
+                              current.box.y + current.box.height + OVERLAP_GAP > placed.box.y;
+
+            if (hOverlap && vOverlap) {
+              anyOverlap = true;
+              current.box.x = placed.box.x + placed.box.width + OVERLAP_GAP;
+            }
+          }
         }
-        previousBottom = current.box.y + current.box.height;
-      }
+      });
 
-      const parentBox = positionMap.get(parentId);
-      if (!parentBox) {
-        return;
-      }
+      return anyOverlap;
+    }
 
-      const maxRight = Math.max(...positionedChildren.map((entry) => entry.box.x + entry.box.width));
-      const maxBottom = Math.max(...positionedChildren.map((entry) => entry.box.y + entry.box.height));
+    // Enforce minimum child positions before sweep cycle.
+    enforceMinPositions();
 
-      parentBox.width = Math.max(parentBox.width, maxRight + CONTAINER_HORIZONTAL_PADDING);
-      parentBox.height = Math.max(parentBox.height, maxBottom + CONTAINER_BOTTOM_PADDING);
-      positionMap.set(parentId, parentBox);
-    });
+    // Iteratively resolve overlaps with correct expansion order:
+    // 1. expandParentsBottomUp: compute correct sizes (leaf parents first)
+    // 2. sweepResolveSiblings: fix overlaps using those correct sizes
+    // Only exit when sweep confirms 0 overlaps with up-to-date sizes.
+    for (let cycle = 0; cycle < 20; cycle += 1) {
+      expandParentsBottomUp();
+      const hadOverlaps = sweepResolveSiblings();
+      if (!hadOverlaps) break;
+      enforceMinPositions();
+    }
 
-    // Apply positions to nodes
+    // Apply positions and explicit sizes to ALL nodes.
+    // Setting CSS width/height on every node (not just containers) ensures the
+    // rendered size exactly matches the worker's positionMap — this prevents
+    // content-driven sizing from exceeding the worker's estimates and causing overlaps.
+    //
+    // CRITICAL: Strip `expandParent` and `extent` from output nodes.
+    // These Vue Flow properties cause it to auto-expand parents and clamp child
+    // positions AFTER the worker runs, overriding the carefully computed layout.
+    // The worker already handles parent expansion (expandParentsBottomUp) and
+    // child containment (enforceMinPositions), so Vue Flow must not interfere.
     const newNodes = nodes.map((node) => {
       const position = positionMap.get(node.id);
+      // Destructure out expandParent and extent so they don't reach Vue Flow.
+      const { expandParent: _ep, extent: _ext, ...nodeBase } = node;
+
       if (position) {
         const hasChildren = nodes.some((candidate) => (candidate as { parentNode?: string }).parentNode === node.id);
-        const baseNode = {
-          ...node,
-          position: { x: position.x, y: position.y },
-        };
-
-        if (!hasChildren) {
-          return baseNode;
-        }
-
         const style = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
         return {
-          ...baseNode,
+          ...nodeBase,
+          position: { x: position.x, y: position.y },
           style: {
             ...style,
-            width: Math.max(position.width, defaultWidth),
-            height: Math.max(position.height, defaultHeight),
-            overflow: 'hidden',
+            width: String(Math.max(position.width, defaultWidth)) + 'px',
+            height: String(Math.max(position.height, defaultHeight)) + 'px',
+            ...(hasChildren ? { overflow: 'visible' } : {}),
           },
         };
       }
-      return node;
+      return nodeBase;
     });
 
     // Return all edges (including containment edges), not just the ones used for layout

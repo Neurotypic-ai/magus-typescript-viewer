@@ -145,6 +145,7 @@ const containerStyle = computed(() => {
 
 .base-node-container--container {
   border-radius: 0.625rem;
+  overflow: visible;
 }
 
 .base-node-container:hover {
