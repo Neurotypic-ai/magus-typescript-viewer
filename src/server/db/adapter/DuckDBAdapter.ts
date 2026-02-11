@@ -82,6 +82,7 @@ export class DuckDBAdapter implements IDatabaseAdapter {
   private currentConnectionIndex = 0;
   private isInitialized = false;
   private readonly poolSize: number;
+  private queryExecutionQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly dbPath: string,
@@ -130,27 +131,46 @@ export class DuckDBAdapter implements IDatabaseAdapter {
     return this.dbPath;
   }
 
+  private async executeSerialized<T>(operation: () => Promise<T>): Promise<T> {
+    const previousOperation = this.queryExecutionQueue;
+    let resolveCurrentOperation: (() => void) | undefined;
+    this.queryExecutionQueue = new Promise<void>((resolve) => {
+      resolveCurrentOperation = resolve;
+    });
+
+    await previousOperation;
+
+    try {
+      return await operation();
+    } finally {
+      resolveCurrentOperation?.();
+    }
+  }
+
   async query<T extends DatabaseRow = DatabaseRow>(sql: string, params?: QueryParams): Promise<QueryResult<T>> {
     if (!this.isInitialized) {
       throw new Error('Database not initialized. Call init() first.');
     }
 
     try {
-      // Get connection from pool for this query
-      const connection = this.getConnection();
-      const result = await connection.runAndReadAll(sql, params as DuckDBValue[]);
+      return await this.executeSerialized(async () => {
+        // Get connection from pool for this query
+        const connection = this.getConnection();
+        const queryParams = (params ?? []) as DuckDBValue[];
+        const result = await connection.runAndReadAll(sql, queryParams);
 
-      if (typeof result.columnNames !== 'function' || typeof result.getRows !== 'function') {
-        throw new Error('Invalid result from DuckDB query');
-      }
+        if (typeof result.columnNames !== 'function' || typeof result.getRows !== 'function') {
+          throw new Error('Invalid result from DuckDB query');
+        }
 
-      const columnNames = result.columnNames();
-      const rows = result.getRows();
-      if (!Array.isArray(rows)) {
-        throw new Error('Invalid rows format from DuckDB query');
-      }
+        const columnNames = result.columnNames();
+        const rows = result.getRows();
+        if (!Array.isArray(rows)) {
+          throw new Error('Invalid rows format from DuckDB query');
+        }
 
-      return rows.map((row: unknown) => convertToRow(row, columnNames)) as T[];
+        return rows.map((row: unknown) => convertToRow(row, columnNames)) as T[];
+      });
     } catch (error) {
       throw error instanceof Error ? error : new Error(String(error));
     }
