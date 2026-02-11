@@ -28,6 +28,28 @@ interface ResolvedOptions {
   importDirection: ImportDirection;
 }
 
+function isExternalImportRef(imp: { isExternal?: boolean; packageName?: string; path?: string | undefined }): boolean {
+  if (imp.isExternal === true) {
+    return true;
+  }
+
+  if (typeof imp.packageName === 'string' && imp.packageName.length > 0) {
+    return true;
+  }
+
+  const path = imp.path;
+  if (!path) {
+    return false;
+  }
+
+  // Treat bare package imports as metadata-only, not graph topology edges.
+  if (!path.startsWith('.') && !path.startsWith('/') && !path.startsWith('@/') && !path.startsWith('src/')) {
+    return true;
+  }
+
+  return false;
+}
+
 const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'] as const;
 const FILE_EXTENSION_PATTERN = /\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
 const INDEX_FILE_PATTERN = /^(.*)\/index\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
@@ -375,6 +397,7 @@ export function createGraphEdges(
       if (module.imports && Object.keys(module.imports).length > 0) {
         mapTypeCollection(module.imports, (imp) => {
           if (!imp.path) return;
+          if (isExternalImportRef(imp)) return;
 
           const importedModuleId = resolveModuleId(lookup, module.package_id, module.source.relativePath, imp.path);
           if (!importedModuleId || importedModuleId === module.id) {

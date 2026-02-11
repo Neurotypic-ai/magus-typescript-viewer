@@ -8,6 +8,7 @@ import type {
   DependencyKind,
   DependencyNode,
   DependencyPackageGraph,
+  ExternalDependencyRef,
   ImportRef,
   ModuleStructure,
 } from '../components/DependencyGraph/types';
@@ -82,6 +83,62 @@ export function createGraphNodes(
     return mapTypeCollection(module.imports, (imp: ImportRef) => imp.path ?? imp.name ?? '').filter(Boolean);
   };
 
+  const getModuleExternalDependencies = (module: ModuleStructure): ExternalDependencyRef[] => {
+    const explicitExternalDeps = (module as { externalDependencies?: unknown }).externalDependencies;
+    if (Array.isArray(explicitExternalDeps)) {
+      return explicitExternalDeps as ExternalDependencyRef[];
+    }
+
+    if (!module.imports || Object.keys(module.imports).length === 0) {
+      return [];
+    }
+
+    const grouped = new Map<string, Set<string>>();
+
+    mapTypeCollection(module.imports, (imp: ImportRef) => imp).forEach((imp) => {
+      const importPath = imp.path ?? imp.name;
+      if (!importPath) return;
+
+      const inferredPackageName = importPath.startsWith('@')
+        ? importPath.split('/').slice(0, 2).join('/')
+        : importPath.split('/')[0];
+      const packageName = imp.packageName ?? inferredPackageName;
+      const isExternal = imp.isExternal ?? (!importPath.startsWith('.') && !importPath.startsWith('/'));
+      if (!isExternal || !packageName) {
+        return;
+      }
+
+      const symbols = grouped.get(packageName) ?? new Set<string>();
+      if (Array.isArray(imp.specifiers) && imp.specifiers.length > 0) {
+        imp.specifiers.forEach((specifier) => {
+          if (specifier.kind === 'sideEffect') {
+            symbols.add('(side-effect)');
+            return;
+          }
+
+          const symbol =
+            specifier.local && specifier.local !== specifier.imported
+              ? `${specifier.imported} as ${specifier.local}`
+              : specifier.imported;
+          if (symbol.length > 0) {
+            symbols.add(symbol);
+          }
+        });
+      } else {
+        symbols.add('(side-effect)');
+      }
+
+      grouped.set(packageName, symbols);
+    });
+
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([packageName, symbols]) => ({
+        packageName,
+        symbols: Array.from(symbols).sort((a, b) => a.localeCompare(b)),
+      }));
+  };
+
   const getModuleExports = (module: ModuleStructure): string[] => {
     const exportsValue = (module as { exports?: unknown }).exports;
     if (!exportsValue) return [];
@@ -140,6 +197,11 @@ export function createGraphNodes(
         expandParent: true,
         data: {
           label: pkg.name,
+          isContainer: true,
+          subnodes: {
+            count: pkg.modules ? Object.keys(pkg.modules).length : 0,
+            isContainer: true,
+          },
           properties: [{ name: 'version', type: pkg.version, visibility: 'public' }],
         },
         style: {
@@ -154,7 +216,14 @@ export function createGraphNodes(
     if (!pkg.modules) return;
 
     mapTypeCollection(pkg.modules, (module) => {
+      const classCount = module.classes ? Object.keys(module.classes).length : 0;
+      const interfaceCount = module.interfaces ? Object.keys(module.interfaces).length : 0;
+      const moduleSubnodeCount = (includeClassNodes ? classCount : 0) + (includeInterfaceNodes ? interfaceCount : 0);
+
       if (includeModules) {
+        const externalDependencies = getModuleExternalDependencies(module);
+        const estimatedHeight = Math.max(140, 120 + Math.min(moduleSubnodeCount, 8) * 90);
+
         const moduleNode: DependencyNode = {
           id: module.id,
           type: 'module' as DependencyKind,
@@ -165,6 +234,16 @@ export function createGraphNodes(
             label: module.name,
             imports: getModuleImports(module),
             exports: getModuleExports(module),
+            externalDependencies,
+            isContainer: true,
+            subnodes: {
+              count: moduleSubnodeCount,
+              byType: {
+                class: classCount,
+                interface: interfaceCount,
+              },
+              isContainer: true,
+            },
             properties: [
               { name: 'package', type: pkg.name, visibility: 'public' },
               { name: 'path', type: module.source.relativePath || '', visibility: 'public' },
@@ -172,6 +251,12 @@ export function createGraphNodes(
           },
           style: {
             ...getNodeStyle('module'),
+            ...(nestSymbolsInModules && moduleSubnodeCount > 0
+              ? {
+                minWidth: 340,
+                minHeight: estimatedHeight,
+              }
+              : {}),
           },
         };
 
@@ -228,9 +313,16 @@ export function createGraphNodes(
               label: cls.name,
               properties,
               methods,
+              isContainer: properties.length + methods.length > 0,
+              subnodes: {
+                count: properties.length + methods.length,
+              },
             },
             style: {
               ...getNodeStyle('class'),
+              ...(properties.length + methods.length > 0
+                ? { minHeight: Math.max(150, 110 + Math.min(properties.length + methods.length, 10) * 22) }
+                : {}),
             },
           };
 
@@ -282,9 +374,16 @@ export function createGraphNodes(
               label: iface.name,
               properties,
               methods,
+              isContainer: properties.length + methods.length > 0,
+              subnodes: {
+                count: properties.length + methods.length,
+              },
             },
             style: {
               ...getNodeStyle('interface'),
+              ...(properties.length + methods.length > 0
+                ? { minHeight: Math.max(150, 110 + Math.min(properties.length + methods.length, 10) * 22) }
+                : {}),
             },
           };
 

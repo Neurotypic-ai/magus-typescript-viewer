@@ -14,8 +14,10 @@ import type {
   ClassStructure,
   DependencyPackageGraph,
   DependencyRef,
+  ExternalDependencyRef,
   ImportRef,
   InterfaceStructure,
+  ImportSpecifierRef,
   ModuleStructure,
   NodeMethod,
   NodeProperty,
@@ -84,6 +86,7 @@ class GraphDataCache {
 }
 
 export class GraphDataAssembler {
+  private static readonly CACHE_VERSION = 'v2-import-specifiers';
   private readonly baseUrl: string;
   private readonly cache: GraphDataCache;
 
@@ -122,7 +125,7 @@ export class GraphDataAssembler {
   async assembleGraphData(signal?: AbortSignal): Promise<DependencyPackageGraph> {
     try {
       // Check cache first
-      const cacheKey = this.baseUrl;
+      const cacheKey = `${GraphDataAssembler.CACHE_VERSION}:${this.baseUrl}`;
       const cachedData = this.cache.get(cacheKey);
       if (cachedData) {
         assemblerLogger.debug('Using cached graph data...');
@@ -203,6 +206,7 @@ export class GraphDataAssembler {
     // Use type assertion to convert array elements
     return modules.map((module) => {
       const relativePath = module.source.relativePath;
+      const transformedImports = this.transformImportCollection(this.typeCollectionToArray(module.imports));
       // Simple module transformation that meets ModuleStructure requirements
       return {
         id: module.id,
@@ -211,7 +215,8 @@ export class GraphDataAssembler {
         source: {
           relativePath,
         },
-        imports: this.transformImportCollection(this.typeCollectionToArray(module.imports)),
+        imports: transformedImports,
+        externalDependencies: this.buildExternalDependencies(transformedImports),
         symbol_references: this.transformSymbolReferenceCollection(this.typeCollectionToArray(module.symbol_references)),
         classes: this.transformClassCollection(this.typeCollectionToArray(module.classes)),
         interfaces: this.transformInterfaceCollection(this.typeCollectionToArray(module.interfaces)),
@@ -347,11 +352,189 @@ export class GraphDataAssembler {
     return result;
   }
 
+  private normalizeImportKind(kind: unknown): ImportSpecifierRef['kind'] {
+    if (kind === 'value' || kind === 'type' || kind === 'default' || kind === 'namespace' || kind === 'sideEffect') {
+      return kind;
+    }
+    if (kind === 'typeof') {
+      return 'type';
+    }
+    return 'value';
+  }
+
+  private normalizeImportSpecifier(
+    key: string | undefined,
+    value: unknown
+  ): ImportSpecifierRef | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    const entry = value as {
+      imported?: unknown;
+      name?: unknown;
+      local?: unknown;
+      kind?: unknown;
+      aliases?: unknown;
+    };
+
+    const importedCandidate = entry.imported ?? entry.name ?? key;
+    if (typeof importedCandidate !== 'string' || importedCandidate.length === 0) {
+      return undefined;
+    }
+
+    let localCandidate: string | undefined;
+    if (typeof entry.local === 'string' && entry.local.length > 0) {
+      localCandidate = entry.local;
+    } else if (Array.isArray(entry.aliases) && typeof entry.aliases[0] === 'string') {
+      localCandidate = entry.aliases[0];
+    } else if (entry.aliases instanceof Set) {
+      const [firstAlias] = Array.from(entry.aliases);
+      if (typeof firstAlias === 'string' && firstAlias.length > 0) {
+        localCandidate = firstAlias;
+      }
+    } else if (typeof key === 'string' && key.length > 0 && key !== importedCandidate) {
+      localCandidate = key;
+    }
+
+    return {
+      imported: importedCandidate,
+      ...(localCandidate ? { local: localCandidate } : {}),
+      kind: this.normalizeImportKind(entry.kind),
+    };
+  }
+
+  private parseImportSpecifiers(specifiers: unknown): ImportSpecifierRef[] {
+    const normalized: ImportSpecifierRef[] = [];
+
+    if (Array.isArray(specifiers)) {
+      specifiers.forEach((entry) => {
+        const parsed = this.normalizeImportSpecifier(undefined, entry);
+        if (parsed) {
+          normalized.push(parsed);
+        }
+      });
+    } else if (specifiers instanceof Map) {
+      specifiers.forEach((entry, key) => {
+        const parsed = this.normalizeImportSpecifier(String(key), entry);
+        if (parsed) {
+          normalized.push(parsed);
+        }
+      });
+    } else if (specifiers && typeof specifiers === 'object') {
+      Object.entries(specifiers as Record<string, unknown>).forEach(([key, entry]) => {
+        const parsed = this.normalizeImportSpecifier(key, entry);
+        if (parsed) {
+          normalized.push(parsed);
+        }
+      });
+    }
+
+    const deduped = new Map<string, ImportSpecifierRef>();
+    normalized.forEach((specifier) => {
+      const key = `${specifier.kind}:${specifier.imported}:${specifier.local ?? ''}`;
+      if (!deduped.has(key)) {
+        deduped.set(key, specifier);
+      }
+    });
+
+    return Array.from(deduped.values());
+  }
+
+  private isExternalImportPath(path: string): boolean {
+    if (path.startsWith('./') || path.startsWith('../') || path.startsWith('/') || path.startsWith('@/') || path.startsWith('src/')) {
+      return false;
+    }
+    return true;
+  }
+
+  private packageNameFromImportPath(path: string): string | undefined {
+    if (!this.isExternalImportPath(path)) {
+      return undefined;
+    }
+
+    if (path.startsWith('@')) {
+      const [scope, pkg] = path.split('/').slice(0, 2);
+      if (!scope || !pkg) {
+        return undefined;
+      }
+      return `${scope}/${pkg}`;
+    }
+
+    const [pkg] = path.split('/');
+    return pkg || undefined;
+  }
+
+  private buildExternalDependencies(imports: Record<string, ImportRef>): ExternalDependencyRef[] {
+    const grouped = new Map<string, { symbols: Set<string>; specifiers: ImportSpecifierRef[] }>();
+
+    Object.values(imports).forEach((imp) => {
+      const importPath = imp.path ?? imp.name;
+      if (!importPath) {
+        return;
+      }
+
+      const packageName = imp.packageName ?? this.packageNameFromImportPath(importPath);
+      const isExternal = imp.isExternal ?? Boolean(packageName);
+      if (!isExternal || !packageName) {
+        return;
+      }
+
+      const bucket = grouped.get(packageName) ?? { symbols: new Set<string>(), specifiers: [] };
+      const specifiers = Array.isArray(imp.specifiers) ? imp.specifiers : [];
+
+      if (specifiers.length === 0) {
+        bucket.symbols.add('(side-effect)');
+      } else {
+        specifiers.forEach((specifier) => {
+          bucket.specifiers.push(specifier);
+          if (specifier.kind === 'sideEffect') {
+            bucket.symbols.add('(side-effect)');
+            return;
+          }
+
+          const symbolLabel =
+            specifier.local && specifier.local !== specifier.imported
+              ? `${specifier.imported} as ${specifier.local}`
+              : specifier.imported;
+          if (symbolLabel.length > 0) {
+            bucket.symbols.add(symbolLabel);
+          }
+        });
+      }
+
+      grouped.set(packageName, bucket);
+    });
+
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([packageName, entry]) => {
+        const dedupedSpecifiers = Array.from(
+          new Map(entry.specifiers.map((specifier) => [`${specifier.kind}:${specifier.imported}:${specifier.local ?? ''}`, specifier])).values()
+        );
+
+        return {
+          packageName,
+          symbols: Array.from(entry.symbols).sort((a, b) => a.localeCompare(b)),
+          ...(dedupedSpecifiers.length > 0 ? { specifiers: dedupedSpecifiers } : {}),
+        };
+      });
+  }
+
   /**
    * Transforms a collection of imports into a record of ImportRef keyed by uuid
    */
   private transformImportCollection(
-    imports: { uuid: string; name?: string; relativePath?: string }[]
+    imports: Array<{
+      uuid: string;
+      name?: string;
+      relativePath?: string;
+      path?: string;
+      fullPath?: string;
+      isExternal?: boolean;
+      packageName?: string;
+      specifiers?: unknown;
+    }>
   ): Record<string, ImportRef> {
     const result: Record<string, ImportRef> = {};
     imports.forEach((imp) => {
@@ -361,7 +544,24 @@ export class GraphDataAssembler {
       }
       if (imp.relativePath !== undefined) {
         (ref as { path?: string }).path = imp.relativePath;
+      } else if (imp.path !== undefined) {
+        (ref as { path?: string }).path = imp.path;
+      } else if (imp.fullPath !== undefined) {
+        (ref as { path?: string }).path = imp.fullPath;
       }
+
+      const path = ref.path ?? ref.name;
+      const packageName = imp.packageName ?? (path ? this.packageNameFromImportPath(path) : undefined);
+      if (typeof imp.isExternal === 'boolean') {
+        ref.isExternal = imp.isExternal;
+      } else {
+        ref.isExternal = Boolean(packageName);
+      }
+      if (packageName) {
+        ref.packageName = packageName;
+      }
+
+      ref.specifiers = this.parseImportSpecifiers(imp.specifiers);
       result[imp.uuid] = ref;
     });
     return result;

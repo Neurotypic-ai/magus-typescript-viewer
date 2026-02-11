@@ -36,6 +36,9 @@ interface SymbolSummary {
 }
 
 const props = defineProps<NodeDetailsProps>();
+const emit = defineEmits<{
+  'open-symbol-usage': [nodeId: string];
+}>();
 
 function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
@@ -270,6 +273,86 @@ const implementedBy = computed(() => {
 
 const moduleImportsMetadata = computed(() => props.node.data?.imports ?? []);
 const moduleExportsMetadata = computed(() => props.node.data?.exports ?? []);
+
+interface ExternalImportGroup {
+  packageName: string;
+  specifiers: string[];
+}
+
+function isExternalImportPath(path: string): boolean {
+  if (path.startsWith('./') || path.startsWith('../') || path.startsWith('/') || path.startsWith('@/') || path.startsWith('src/')) {
+    return false;
+  }
+  return true;
+}
+
+const externalImports = computed<ExternalImportGroup[]>(() => {
+  const module = selectedModule.value;
+  if (!module) {
+    return [];
+  }
+
+  const metadataExternalDependencies = (module as { externalDependencies?: unknown }).externalDependencies;
+  if (Array.isArray(metadataExternalDependencies)) {
+    return metadataExternalDependencies
+      .filter((dependency): dependency is { packageName: string; symbols: string[] } => {
+        if (!dependency || typeof dependency !== 'object') return false;
+        const entry = dependency as { packageName?: unknown; symbols?: unknown };
+        return typeof entry.packageName === 'string' && Array.isArray(entry.symbols);
+      })
+      .map((dependency) => ({
+        packageName: dependency.packageName,
+        specifiers: dependency.symbols,
+      }))
+      .sort((a, b) => a.packageName.localeCompare(b.packageName));
+  }
+
+  if (!module.imports) {
+    return [];
+  }
+
+  const grouped = new Map<string, Set<string>>();
+
+  mapTypeCollection(module.imports, (imp) => imp).forEach((imp) => {
+    const packageName = imp.packageName ?? (typeof imp.path === 'string' && isExternalImportPath(imp.path) ? imp.path : undefined);
+    const isExternal = imp.isExternal ?? Boolean(packageName);
+    if (!isExternal || !packageName) {
+      return;
+    }
+
+    const existing = grouped.get(packageName) ?? new Set<string>();
+
+    if (Array.isArray(imp.specifiers)) {
+      imp.specifiers.forEach((specifier) => {
+        const label = specifier.local && specifier.local !== specifier.imported
+          ? `${specifier.imported} as ${specifier.local}`
+          : specifier.imported;
+        if (label.length > 0) {
+          existing.add(label);
+        }
+      });
+    } else if (imp.name) {
+      existing.add(imp.name);
+    } else {
+      existing.add('(side-effect)');
+    }
+
+    grouped.set(packageName, existing);
+  });
+
+  return Array.from(grouped.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([packageName, specifiers]) => ({
+      packageName,
+      specifiers: Array.from(specifiers).sort((a, b) => a.localeCompare(b)),
+    }));
+});
+
+const canOpenSymbolUsageGraph = computed(() => ['module', 'class', 'interface'].includes(String(props.node.type ?? '')));
+
+const openSymbolUsageGraph = () => {
+  emit('open-symbol-usage', props.node.id);
+};
 </script>
 
 <template>
@@ -285,6 +368,15 @@ const moduleExportsMetadata = computed(() => props.node.data?.exports ?? []);
     <p class="text-sm text-text-secondary mb-4 pb-4 border-b border-border-default">
       Type: <span class="font-semibold text-primary-main">{{ props.node.type }}</span>
     </p>
+
+    <button
+      v-if="canOpenSymbolUsageGraph"
+      type="button"
+      @click="openSymbolUsageGraph"
+      class="w-full mb-4 px-3 py-2 bg-primary-main/20 text-primary-main border border-primary-main/30 rounded hover:bg-primary-main/30 transition-fast text-xs font-semibold"
+    >
+      Open Symbol Usage Graph
+    </button>
 
     <div v-if="props.node.type === 'module'" class="mb-4 space-y-4">
       <div v-if="moduleClasses.length > 0">
@@ -415,6 +507,18 @@ const moduleExportsMetadata = computed(() => props.node.data?.exports ?? []);
           class="text-xs text-text-secondary ml-3 font-mono truncate"
         >
           {{ String(imp ?? '') }}
+        </div>
+      </div>
+    </div>
+
+    <div v-if="externalImports.length > 0" class="mb-4">
+      <strong class="text-sm font-semibold text-text-primary block mb-2">External Imports</strong>
+      <div class="space-y-2">
+        <div v-for="group in externalImports" :key="group.packageName" class="ml-2">
+          <div class="text-xs font-semibold text-primary-main">{{ group.packageName }}</div>
+          <div class="text-xs text-text-secondary ml-2">
+            {{ group.specifiers.join(', ') }}
+          </div>
         </div>
       </div>
     </div>

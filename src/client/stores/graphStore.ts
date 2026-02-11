@@ -5,6 +5,8 @@ import type { Ref } from 'vue';
 
 import type { DependencyNode, GraphEdge } from '../components/DependencyGraph/types';
 
+export type GraphViewMode = 'overview' | 'moduleDrilldown' | 'symbolDrilldown';
+
 // Cache keys for local storage
 const CACHE_VERSION = 'v1';
 const NODES_CACHE_KEY = `${CACHE_VERSION}:typescript-viewer-nodes`;
@@ -16,10 +18,15 @@ interface GraphStore {
   edges: Ref<GraphEdge[]>;
   selectedNode: Ref<DependencyNode | null>;
   cacheKey: Ref<string | null>;
+  viewMode: Ref<GraphViewMode>;
+  overviewSnapshot: Ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
   setNodes: (newNodes: DependencyNode[]) => void;
   setEdges: (newEdges: GraphEdge[]) => void;
   setSelectedNode: (node: DependencyNode | null) => void;
   setCacheKey: (key: string | null) => void;
+  setViewMode: (mode: GraphViewMode) => void;
+  setOverviewSnapshot: (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => void;
+  restoreOverviewSnapshot: () => boolean;
   clearCache: () => void;
 }
 
@@ -47,6 +54,8 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
   const edges = ref<GraphEdge[]>([]);
   const selectedNode = ref<DependencyNode | null>(null);
   const cacheKey = ref<string | null>(null);
+  const viewMode = ref<GraphViewMode>('overview');
+  const overviewSnapshot = ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>(null);
 
   // Load cached data from localStorage on initialization
   const loadCache = () => {
@@ -105,6 +114,24 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     cacheKey.value = key;
   };
 
+  const setViewMode = (mode: GraphViewMode) => {
+    viewMode.value = mode;
+  };
+
+  const setOverviewSnapshot = (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => {
+    overviewSnapshot.value = snapshot;
+  };
+
+  const restoreOverviewSnapshot = (): boolean => {
+    const snapshot = overviewSnapshot.value;
+    if (!snapshot) {
+      return false;
+    }
+    nodes.value = snapshot.nodes;
+    edges.value = snapshot.edges;
+    return true;
+  };
+
   const clearCache = (): void => {
     try {
       localStorage.removeItem(NODES_CACHE_KEY);
@@ -113,6 +140,8 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
       edges.value = [];
       selectedNode.value = null;
       cacheKey.value = null;
+      viewMode.value = 'overview';
+      overviewSnapshot.value = null;
     } catch {
       // Silently fail if cache clearing fails
     }
@@ -127,11 +156,16 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     edges,
     selectedNode,
     cacheKey,
+    viewMode,
+    overviewSnapshot,
     // Actions
     setNodes,
     setEdges,
     setSelectedNode,
     setCacheKey,
+    setViewMode,
+    setOverviewSnapshot,
+    restoreOverviewSnapshot,
     clearCache,
   };
 });

@@ -85,4 +85,19 @@ describe('clusterByFolder', () => {
     expect(moduleB?.parentNode).toBeDefined();
     expect(moduleA?.parentNode).not.toBe(moduleB?.parentNode);
   });
+
+  it('keeps group nodes draggable while module nodes remain non-draggable by default', () => {
+    const nodes: DependencyNode[] = [
+      createModuleNode('module-a', 'src/core/a.ts', 'package-a'),
+      createModuleNode('module-b', 'src/core/b.ts', 'package-a'),
+    ];
+
+    const result = clusterByFolder(nodes, []);
+    const groupNodes = result.nodes.filter((node) => node.type === 'group');
+    const moduleNodes = result.nodes.filter((node) => node.type === 'module');
+
+    expect(groupNodes.length).toBeGreaterThan(0);
+    expect(groupNodes.every((node) => node.draggable === true)).toBe(true);
+    expect(moduleNodes.every((node) => node.draggable !== true)).toBe(true);
+  });
 });

@@ -31,7 +31,7 @@ export interface IImportSpecifier {
   /**
    * The kind of the specifier.
    */
-  readonly kind: 'value' | 'type' | 'typeof' | 'default';
+  readonly kind: 'value' | 'type' | 'typeof' | 'default' | 'namespace' | 'sideEffect';
 }
 
 /**
@@ -41,7 +41,7 @@ export class ImportSpecifier implements IImportSpecifier {
   constructor(
     public readonly uuid: string,
     public readonly name: string,
-    public readonly kind: 'value' | 'type' | 'typeof' | 'default',
+    public readonly kind: 'value' | 'type' | 'typeof' | 'default' | 'namespace' | 'sideEffect',
     public readonly exportRef?: string | undefined,
     public readonly modules: Set<string> = new Set(),
     public readonly aliases: Set<string> = new Set()

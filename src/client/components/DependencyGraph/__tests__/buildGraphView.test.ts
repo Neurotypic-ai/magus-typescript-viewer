@@ -1,0 +1,153 @@
+import { describe, expect, it } from 'vitest';
+
+import { applyEdgeVisibility, buildSymbolDrilldownGraph, filterNodeChangesForFolderMode } from '../buildGraphView';
+
+import type { NodeChange } from '@vue-flow/core';
+
+import type { DependencyNode, DependencyPackageGraph, GraphEdge } from '../types';
+
+describe('applyEdgeVisibility', () => {
+  it('keeps uses edges visible while honoring enabled relationship filters for others', () => {
+    const edges: GraphEdge[] = [
+      {
+        id: 'import-edge',
+        source: 'a',
+        target: 'b',
+        hidden: false,
+        data: { type: 'import' },
+      } as GraphEdge,
+      {
+        id: 'inheritance-edge',
+        source: 'b',
+        target: 'c',
+        hidden: false,
+        data: { type: 'inheritance' },
+      } as GraphEdge,
+      {
+        id: 'uses-edge',
+        source: 'c',
+        target: 'd',
+        hidden: false,
+        data: { type: 'uses', usageKind: 'property' },
+      } as GraphEdge,
+    ];
+
+    const result = applyEdgeVisibility(edges, ['import']);
+
+    expect(result.find((edge) => edge.id === 'import-edge')?.hidden).toBe(false);
+    expect(result.find((edge) => edge.id === 'inheritance-edge')?.hidden).toBe(true);
+    expect(result.find((edge) => edge.id === 'uses-edge')?.hidden).toBe(false);
+  });
+});
+
+describe('buildSymbolDrilldownGraph', () => {
+  it('creates uses edges with usageKind metadata from module symbol references', () => {
+    const graphData: DependencyPackageGraph = {
+      packages: [
+        {
+          id: 'pkg-1',
+          name: 'pkg',
+          version: '1.0.0',
+          path: '/pkg',
+          created_at: '2024-01-01T00:00:00.000Z',
+          modules: {
+            mod: {
+              id: 'module-1',
+              name: 'module.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/module.ts' },
+              classes: {
+                Service: {
+                  id: 'class-1',
+                  name: 'Service',
+                  methods: [
+                    {
+                      id: 'method-1',
+                      name: 'load',
+                      returnType: 'void',
+                      visibility: 'public',
+                      signature: 'load(): void',
+                    },
+                  ],
+                  properties: [
+                    {
+                      id: 'property-1',
+                      name: 'state',
+                      type: 'string',
+                      visibility: 'private',
+                    },
+                  ],
+                },
+              },
+              symbol_references: {
+                ref: {
+                  id: 'ref-1',
+                  package_id: 'pkg-1',
+                  module_id: 'module-1',
+                  source_symbol_id: 'method-1',
+                  source_symbol_type: 'method',
+                  source_symbol_name: 'load',
+                  target_symbol_id: 'property-1',
+                  target_symbol_type: 'property',
+                  target_symbol_name: 'state',
+                  access_kind: 'property',
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const selectedNode: DependencyNode = {
+      id: 'module-1',
+      type: 'module',
+      position: { x: 0, y: 0 },
+      data: { label: 'module.ts' },
+    } as DependencyNode;
+
+    const result = buildSymbolDrilldownGraph({
+      data: graphData,
+      selectedNode,
+      direction: 'LR',
+      enabledRelationshipTypes: ['import'],
+    });
+
+    const usesEdge = result.edges.find((edge) => edge.data?.type === 'uses');
+    expect(usesEdge).toBeDefined();
+    expect(usesEdge?.data?.usageKind).toBe('property');
+    expect(usesEdge?.hidden).toBe(false);
+  });
+});
+
+describe('filterNodeChangesForFolderMode', () => {
+  it('allows only group node position and dimension changes in folder mode', () => {
+    const nodes: DependencyNode[] = [
+      {
+        id: 'group-1',
+        type: 'group',
+        position: { x: 0, y: 0 },
+        data: { label: 'group' },
+      } as DependencyNode,
+      {
+        id: 'module-1',
+        type: 'module',
+        position: { x: 0, y: 0 },
+        data: { label: 'module' },
+      } as DependencyNode,
+    ];
+
+    const changes: NodeChange[] = [
+      { id: 'group-1', type: 'position', position: { x: 10, y: 20 }, dragging: true } as NodeChange,
+      { id: 'module-1', type: 'position', position: { x: 30, y: 40 }, dragging: true } as NodeChange,
+      { id: 'module-1', type: 'dimensions', dimensions: { width: 200, height: 100 } } as NodeChange,
+      { id: 'module-1', type: 'select', selected: true } as NodeChange,
+    ];
+
+    const result = filterNodeChangesForFolderMode(changes, nodes, true);
+
+    expect(result).toHaveLength(2);
+    expect(result.some((change) => 'id' in change && change.id === 'group-1' && change.type === 'position')).toBe(true);
+    expect(result.some((change) => 'id' in change && change.id === 'module-1' && change.type === 'select')).toBe(true);
+  });
+});

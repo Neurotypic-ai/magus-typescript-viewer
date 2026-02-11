@@ -63,6 +63,97 @@ async function safeUpdate(
   }
 }
 
+interface PersistedImportSpecifier {
+  imported: string;
+  local?: string;
+  kind: 'value' | 'type' | 'default' | 'namespace' | 'sideEffect';
+}
+
+function normalizeSpecifierKind(kind: string): PersistedImportSpecifier['kind'] {
+  if (kind === 'default' || kind === 'type' || kind === 'value' || kind === 'namespace') {
+    return kind;
+  }
+  if (kind === 'typeof') {
+    return 'type';
+  }
+  return 'value';
+}
+
+function serializeImportSpecifiers(
+  imp: {
+    name?: string;
+    relativePath?: string;
+    fullPath?: string;
+    specifiers?: unknown;
+  }
+): string | undefined {
+  const serialized: PersistedImportSpecifier[] = [];
+  const sourceLabel = imp.name ?? imp.relativePath ?? imp.fullPath ?? '(side-effect)';
+
+  if (imp.specifiers instanceof Map) {
+    imp.specifiers.forEach((specifier, key) => {
+      if (!specifier || typeof specifier !== 'object') return;
+
+      const entry = specifier as { name?: string; kind?: string; aliases?: Set<string> };
+      const imported = typeof entry.name === 'string' && entry.name.length > 0 ? entry.name : String(key);
+      const aliasFromKey = typeof key === 'string' && key.length > 0 && key !== imported ? key : undefined;
+      const aliasFromSet = entry.aliases instanceof Set ? Array.from(entry.aliases)[0] : undefined;
+      const local = aliasFromSet ?? aliasFromKey;
+
+      serialized.push({
+        imported,
+        kind: normalizeSpecifierKind(entry.kind ?? 'value'),
+        ...(local ? { local } : {}),
+      });
+    });
+  } else if (imp.specifiers && typeof imp.specifiers === 'object') {
+    Object.entries(imp.specifiers as Record<string, unknown>).forEach(([key, value]) => {
+      if (!value || typeof value !== 'object') return;
+
+      const entry = value as { name?: string; kind?: string; aliases?: string[] };
+      const imported = typeof entry.name === 'string' && entry.name.length > 0 ? entry.name : key;
+      const aliasFromKey = key !== imported ? key : undefined;
+      const aliasFromArray = Array.isArray(entry.aliases) ? entry.aliases[0] : undefined;
+      const local = aliasFromArray ?? aliasFromKey;
+
+      serialized.push({
+        imported,
+        kind: normalizeSpecifierKind(entry.kind ?? 'value'),
+        ...(local ? { local } : {}),
+      });
+    });
+  }
+
+  if (serialized.length === 0) {
+    serialized.push({
+      imported: sourceLabel,
+      kind: 'sideEffect',
+    });
+  }
+
+  return JSON.stringify(serialized);
+}
+
+function dedupeBy<T>(rows: T[], getKey: (row: T) => string): T[] {
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+
+  rows.forEach((row) => {
+    const key = getKey(row);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    deduped.push(row);
+  });
+
+  return deduped;
+}
+
+function dedupeById<T extends { id: string }>(rows: T[]): T[] {
+  return dedupeBy(rows, (row) => row.id);
+}
+
 type ResolutionStatus = 'resolved' | 'ambiguous' | 'unresolved';
 
 interface ResolutionSummary {
@@ -160,54 +251,59 @@ program
       }
 
       // Save modules
-      for (const module of parseResult.modules) {
+      for (const module of dedupeById(parseResult.modules)) {
         await repositories.module.create(module);
       }
 
       // Save classes
-      for (const cls of parseResult.classes) {
+      for (const cls of dedupeById(parseResult.classes)) {
         await repositories.class.create(cls);
       }
 
       // Save interfaces
-      for (const iface of parseResult.interfaces) {
+      for (const iface of dedupeById(parseResult.interfaces)) {
         await repositories.interface.create(iface);
       }
 
       // Save functions
-      for (const func of parseResult.functions) {
+      for (const func of dedupeById(parseResult.functions)) {
         await repositories.function.create(func);
       }
       // Save methods
-      for (const method of parseResult.methods) {
+      for (const method of dedupeById(parseResult.methods)) {
         await repositories.method.create(method);
       }
 
       // Save parameters
-      for (const param of parseResult.parameters) {
+      for (const param of dedupeById(parseResult.parameters)) {
         await repositories.parameter.create(param);
       }
 
       // Save properties
-      for (const prop of parseResult.properties) {
+      for (const prop of dedupeById(parseResult.properties)) {
         await repositories.property.create(prop);
       }
 
       // Save imports with module context (use relativePath for client-side resolution)
       if (parseResult.importsWithModules) {
-        for (const { import: imp, moduleId } of parseResult.importsWithModules) {
+        const dedupedImports = Array.from(
+          new Map(parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
+        );
+
+        for (const { import: imp, moduleId } of dedupedImports) {
           const importDTO = {
             id: imp.uuid,
             package_id: parseResult.package?.id ?? '',
             module_id: moduleId,
             source: imp.relativePath,
+            specifiers_json: serializeImportSpecifiers(imp),
           };
           await repositories.import.create(importDTO);
         }
       }
 
       // Save exports
-      for (const exp of parseResult.exports) {
+      for (const exp of dedupeBy(parseResult.exports, (row) => row.uuid)) {
         const exportDTO = {
           id: exp.uuid,
           package_id: parseResult.package?.id ?? '',
@@ -219,7 +315,7 @@ program
       }
 
       // Save symbol references (method/property usage edges)
-      for (const reference of parseResult.symbolReferences) {
+      for (const reference of dedupeById(parseResult.symbolReferences)) {
         await repositories.symbolReference.create(reference);
       }
 

@@ -69,6 +69,17 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // Build hierarchical structure for ELK
     const nodeMap = new Map<string, ElkNode>();
     const rootNodes: ElkNode[] = [];
+    const childIdsByParent = new Map<string, string[]>();
+
+    nodes.forEach((node) => {
+      const parentNodeId = (node as { parentNode?: string }).parentNode;
+      if (!parentNodeId) {
+        return;
+      }
+      const children = childIdsByParent.get(parentNodeId) ?? [];
+      children.push(node.id);
+      childIdsByParent.set(parentNodeId, children);
+    });
 
     // First pass: create all nodes
     nodes.forEach((node) => {
@@ -87,27 +98,18 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // Add layout options to nodes that will have children
     nodeMap.forEach((elkNode) => {
       // Check if this node will have children
-      const hasChildren = nodes.some((n) => (n as unknown as { parentNode?: string }).parentNode === elkNode.id);
+      const hasChildren = childIdsByParent.has(elkNode.id);
       if (hasChildren) {
-        // Base layout options
-        const baseOptions: Record<string, string> = {
-          'elk.algorithm': config.algorithm,
-          'elk.padding': '[top=30,left=30,bottom=30,right=30]',
-          'elk.spacing.nodeNode': '20',
+        elkNode.layoutOptions = {
+          // Child nodes inside containers should stack vertically regardless of global graph direction.
+          'elk.algorithm': 'layered',
+          'elk.direction': 'DOWN',
+          // Reserve top area for node header/body/subnodes labels.
+          'elk.padding': '[top=120,left=24,bottom=24,right=24]',
+          'elk.spacing.nodeNode': '24',
+          'elk.layered.spacing.nodeNodeBetweenLayers': '24',
+          'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
         };
-
-        // Algorithm-specific options
-        if (config.algorithm === 'layered') {
-          baseOptions['elk.direction'] = elkDirection;
-          baseOptions['elk.layered.spacing.nodeNodeBetweenLayers'] = '30';
-        } else if (config.algorithm === 'radial') {
-          baseOptions['elk.radial.radius'] = '200';
-          baseOptions['elk.radial.compactionStepSize'] = '0.1';
-          baseOptions['elk.radial.compaction'] = 'true';
-          baseOptions['elk.radial.sorter'] = 'QUADRANTS';
-        }
-
-        elkNode.layoutOptions = baseOptions;
       }
     });
 
@@ -239,6 +241,57 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       extractPositions(layoutedGraph.children);
     }
 
+    const MIN_CHILD_GAP = 24;
+    const CONTAINER_HORIZONTAL_PADDING = 24;
+    const CONTAINER_BOTTOM_PADDING = 24;
+
+    childIdsByParent.forEach((childIds, parentId) => {
+      const positionedChildren = childIds
+        .map((childId) => ({ id: childId, box: positionMap.get(childId) }))
+        .filter((entry): entry is { id: string; box: { x: number; y: number; width: number; height: number } } => Boolean(entry.box))
+        .sort((a, b) => {
+          if (a.box.y !== b.box.y) {
+            return a.box.y - b.box.y;
+          }
+          return a.box.x - b.box.x;
+        });
+
+      if (positionedChildren.length === 0) {
+        return;
+      }
+
+      const firstChild = positionedChildren[0];
+      if (!firstChild) {
+        return;
+      }
+
+      let previousBottom = firstChild.box.y + firstChild.box.height;
+      for (let index = 1; index < positionedChildren.length; index += 1) {
+        const current = positionedChildren[index];
+        if (!current) {
+          continue;
+        }
+
+        if (current.box.y < previousBottom + MIN_CHILD_GAP) {
+          current.box.y = previousBottom + MIN_CHILD_GAP;
+          positionMap.set(current.id, current.box);
+        }
+        previousBottom = current.box.y + current.box.height;
+      }
+
+      const parentBox = positionMap.get(parentId);
+      if (!parentBox) {
+        return;
+      }
+
+      const maxRight = Math.max(...positionedChildren.map((entry) => entry.box.x + entry.box.width));
+      const maxBottom = Math.max(...positionedChildren.map((entry) => entry.box.y + entry.box.height));
+
+      parentBox.width = Math.max(parentBox.width, maxRight + CONTAINER_HORIZONTAL_PADDING);
+      parentBox.height = Math.max(parentBox.height, maxBottom + CONTAINER_BOTTOM_PADDING);
+      positionMap.set(parentId, parentBox);
+    });
+
     // Apply positions to nodes
     const newNodes = nodes.map((node) => {
       const position = positionMap.get(node.id);
@@ -260,7 +313,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
             ...style,
             width: Math.max(position.width, defaultWidth),
             height: Math.max(position.height, defaultHeight),
-            overflow: 'visible',
+            overflow: 'hidden',
           },
         };
       }

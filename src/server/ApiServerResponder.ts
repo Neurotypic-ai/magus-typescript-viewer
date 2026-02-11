@@ -18,6 +18,76 @@ export interface ApiServerResponderOptions {
   readOnly?: boolean;
 }
 
+type PersistedImportSpecifier = {
+  imported: string;
+  local?: string;
+  kind: 'value' | 'type' | 'default' | 'namespace' | 'sideEffect';
+};
+
+function normalizeImportSpecifier(value: unknown): PersistedImportSpecifier | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const entry = value as { imported?: unknown; local?: unknown; kind?: unknown };
+  if (typeof entry.imported !== 'string' || entry.imported.length === 0) {
+    return undefined;
+  }
+
+  const kind =
+    entry.kind === 'value' ||
+    entry.kind === 'type' ||
+    entry.kind === 'default' ||
+    entry.kind === 'namespace' ||
+    entry.kind === 'sideEffect'
+      ? entry.kind
+      : 'value';
+
+  return {
+    imported: entry.imported,
+    ...(typeof entry.local === 'string' && entry.local.length > 0 ? { local: entry.local } : {}),
+    kind,
+  };
+}
+
+function parseImportSpecifiers(specifiersJson: string | undefined): PersistedImportSpecifier[] {
+  if (!specifiersJson) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(specifiersJson) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const normalized = parsed
+      .map((entry) => normalizeImportSpecifier(entry))
+      .filter((entry): entry is PersistedImportSpecifier => Boolean(entry));
+
+    return normalized;
+  } catch {
+    return [];
+  }
+}
+
+function inferExternalPackageName(source: string): string | undefined {
+  if (!source || source.startsWith('.') || source.startsWith('/') || source.startsWith('@/') || source.startsWith('src/')) {
+    return undefined;
+  }
+
+  if (source.startsWith('@')) {
+    const [scope, name] = source.split('/').slice(0, 2);
+    if (!scope || !name) {
+      return undefined;
+    }
+    return `${scope}/${name}`;
+  }
+
+  const [packageName] = source.split('/');
+  return packageName || undefined;
+}
+
 export class ApiServerResponder {
   private readonly database: Database;
   private readonly dbAdapter: DuckDBAdapter;
@@ -195,12 +265,16 @@ export class ApiServerResponder {
           try {
             const importsArray = await this.importRepository.findByModuleId(mod.id);
             for (const imp of importsArray) {
+              const specifiers = parseImportSpecifiers(imp.specifiers_json);
+              const packageName = inferExternalPackageName(imp.source);
               imports.set(imp.id, {
                 uuid: imp.id,
                 fullPath: imp.source,
                 relativePath: imp.source,
                 name: imp.source,
-                specifiers: new Map(),
+                specifiers,
+                isExternal: Boolean(packageName),
+                ...(packageName ? { packageName } : {}),
                 depth: 0,
               });
             }

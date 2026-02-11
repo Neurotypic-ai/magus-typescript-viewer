@@ -27,6 +27,11 @@ export interface IImportCreateDTO {
    * The source path of the import.
    */
   source: string;
+
+  /**
+   * JSON-serialized import specifiers metadata.
+   */
+  specifiers_json?: string | undefined;
 }
 
 /**
@@ -56,6 +61,7 @@ export interface IImportRepository {
 
 interface IImportUpdateDTO {
   source?: string;
+  specifiers_json?: string | null;
 }
 
 interface IImportRow extends IDatabaseRow {
@@ -63,6 +69,7 @@ interface IImportRow extends IDatabaseRow {
   package_id: string;
   module_id: string;
   source: string;
+  specifiers_json: string | null;
   created_at: string;
 }
 
@@ -73,13 +80,19 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
 
   async create(dto: IImportCreateDTO): Promise<IImportCreateDTO> {
     try {
-      const params: string[] = [dto.id, dto.package_id, dto.module_id, dto.source];
+      const params: Array<string | null> = [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.source,
+        dto.specifiers_json ?? null,
+      ];
 
       await this.executeQuery<IImportRow>(
         'create',
         `
-        INSERT INTO imports (id, package_id, module_id, source)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO imports (id, package_id, module_id, source, specifiers_json)
+        VALUES (?, ?, ?, ?, ?)
       `,
         params
       );
@@ -97,10 +110,13 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
 
   async update(id: string, dto: IImportUpdateDTO): Promise<IImportCreateDTO> {
     try {
-      const updates: { field: string; value: string }[] = [];
+      const updates: { field: string; value: string | null }[] = [];
 
       if (dto.source !== undefined) {
         updates.push({ field: 'source', value: dto.source });
+      }
+      if (dto.specifiers_json !== undefined) {
+        updates.push({ field: 'specifiers_json', value: dto.specifiers_json });
       }
 
       if (updates.length === 0) {
@@ -207,6 +223,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
       package_id: row.package_id,
       module_id: row.module_id,
       source: row.source,
+      specifiers_json: row.specifiers_json ?? undefined,
     };
   }
 }

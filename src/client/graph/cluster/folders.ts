@@ -60,6 +60,28 @@ export function clusterByFolder(
     return id;
   }
 
+  // Deterministic group creation order keeps folder IDs/ordering stable between renders.
+  const sortedModules = modules
+    .slice()
+    .sort((a, b) => {
+      const pkgA = getPackageFromNode(a) ?? '';
+      const pkgB = getPackageFromNode(b) ?? '';
+      if (pkgA !== pkgB) return pkgA.localeCompare(pkgB);
+
+      const pathA = getPathFromNode(a) ?? '';
+      const pathB = getPathFromNode(b) ?? '';
+      if (pathA !== pathB) return pathA.localeCompare(pathB);
+
+      return a.id.localeCompare(b.id);
+    });
+
+  sortedModules.forEach((moduleNode) => {
+    const pkg = getPackageFromNode(moduleNode);
+    const p = getPathFromNode(moduleNode);
+    if (!p || !pkg) return;
+    ensureDirNode(pkg, getDirname(p));
+  });
+
   const remappedNodes = nodes.map((n) => {
     if (n.type !== 'module') return n;
     const pkg = getPackageFromNode(n);
@@ -76,5 +98,7 @@ export function clusterByFolder(
     };
   });
 
-  return { nodes: [...dirNodes, ...remappedNodes] as DependencyNode[], edges };
+  const sortedGroupNodes = dirNodes.slice().sort((a, b) => a.id.localeCompare(b.id));
+
+  return { nodes: [...sortedGroupNodes, ...remappedNodes] as DependencyNode[], edges };
 }

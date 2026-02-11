@@ -179,11 +179,23 @@ export class ModuleParser {
 
       path.node.specifiers?.forEach((specifier) => {
         if (specifier.type === 'ImportSpecifier' && specifier.imported.type === 'Identifier') {
-          const name = specifier.imported.name;
-          const uuid = generateImportUUID(importPath, name);
+          const importedName = specifier.imported.name;
+          const localName = specifier.local?.type === 'Identifier' ? specifier.local.name : importedName;
+          const uuid = generateImportUUID(importPath, importedName);
           const kind = isTypeImport ? 'type' : 'value';
-          const importSpecifier = new ImportSpecifier(uuid, name, kind, undefined, new Set(), new Set());
-          importSpecifiers.set(name, importSpecifier);
+          const aliases = new Set<string>();
+          if (localName !== importedName) {
+            aliases.add(localName);
+          }
+          const importSpecifier = new ImportSpecifier(
+            uuid,
+            importedName,
+            kind,
+            undefined,
+            new Set(),
+            aliases
+          );
+          importSpecifiers.set(localName, importSpecifier);
         } else if (specifier.type === 'ImportDefaultSpecifier' && specifier.local?.type === 'Identifier') {
           const name = specifier.local.name;
           const uuid = generateImportUUID(importPath, name);
@@ -193,7 +205,7 @@ export class ModuleParser {
         } else if (specifier.type === 'ImportNamespaceSpecifier' && specifier.local?.type === 'Identifier') {
           const name = specifier.local.name;
           const uuid = generateImportUUID(importPath, name);
-          const kind = isTypeImport ? 'type' : 'value';
+          const kind = isTypeImport ? 'type' : 'namespace';
           const importSpecifier = new ImportSpecifier(uuid, name, kind, undefined, new Set(), new Set());
           importSpecifiers.set(name, importSpecifier);
         }

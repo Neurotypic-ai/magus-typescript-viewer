@@ -133,4 +133,41 @@ describe('PackageParser source coverage', () => {
     const templateOnlyImports = (result.importsWithModules ?? []).filter((item) => item.moduleId === templateOnlyModule?.id);
     expect(templateOnlyImports).toHaveLength(0);
   });
+
+  it('respects tsconfig discovery and excludes generated/vendor directories', async () => {
+    const packagePath = await createTempPackage({
+      'tsconfig.json': JSON.stringify(
+        {
+          include: ['src/**/*', 'apps/**/*'],
+        },
+        null,
+        2
+      ),
+      'src/keep.ts': `export const keep = true;`,
+      'src/keep.vue': `<script setup lang="ts">const keepVue = true; void keepVue;</script>`,
+      'apps/feature/entry.ts': `export const entry = 'ok';`,
+      'dist/skip.ts': `export const skipDist = true;`,
+      'build/skip.ts': `export const skipBuild = true;`,
+      'coverage/skip.ts': `export const skipCoverage = true;`,
+      '.cache/skip.ts': `export const skipCache = true;`,
+      'node_modules/pkg/index.ts': `export const skipNodeModules = true;`,
+    });
+
+    const parser = new PackageParser(packagePath, 'fixture-package', '1.0.0');
+    const result = await parser.parse();
+
+    const relativePaths = result.modules
+      .map((module) => module.source.relativePath.replace(/\\/g, '/'))
+      .sort((a, b) => a.localeCompare(b));
+
+    expect(relativePaths.some((path) => path.endsWith('src/keep.ts'))).toBe(true);
+    expect(relativePaths.some((path) => path.endsWith('src/keep.vue'))).toBe(true);
+    expect(relativePaths.some((path) => path.endsWith('apps/feature/entry.ts'))).toBe(true);
+
+    expect(relativePaths.some((path) => path.startsWith('dist/'))).toBe(false);
+    expect(relativePaths.some((path) => path.startsWith('build/'))).toBe(false);
+    expect(relativePaths.some((path) => path.startsWith('coverage/'))).toBe(false);
+    expect(relativePaths.some((path) => path.includes('node_modules/'))).toBe(false);
+    expect(relativePaths.some((path) => path.startsWith('.cache/'))).toBe(false);
+  });
 });

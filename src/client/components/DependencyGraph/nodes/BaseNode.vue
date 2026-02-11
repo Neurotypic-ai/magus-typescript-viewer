@@ -10,35 +10,88 @@ interface BaseNodeProps extends DependencyProps {
   zIndex?: number;
   badgeText: string;
   badgeClass?: string;
+  isContainer?: boolean;
+  showSubnodes?: boolean;
+  subnodesCount?: number;
 }
 
 const props = withDefaults(defineProps<BaseNodeProps>(), {
   minWidth: '280px',
-  maxWidth: '400px',
+  maxWidth: '420px',
   zIndex: 1,
 });
 
 const nodeData = computed(() => props.data);
 const isSelected = computed(() => !!props.selected);
 
-// Get handle positions from props (set by createGraphNodes based on layout direction)
-// These are set dynamically by Vue Flow based on layout direction
 const sourcePosition = computed(() => props.sourcePosition ?? Position.Bottom);
 const targetPosition = computed(() => props.targetPosition ?? Position.Top);
 
-// Container style
-const containerStyle = computed(() => ({
-  minWidth: props.minWidth,
-  maxWidth: props.maxWidth,
-  zIndex: props.zIndex,
-}));
+const inferredContainer = computed(() => {
+  if (typeof props.isContainer === 'boolean') {
+    return props.isContainer;
+  }
+
+  if (props.type === 'module' || props.type === 'package' || props.type === 'group') {
+    return true;
+  }
+
+  return Boolean(nodeData.value?.isContainer);
+});
+
+const resolvedSubnodesCount = computed(() => {
+  if (typeof props.subnodesCount === 'number') {
+    return props.subnodesCount;
+  }
+
+  const subnodes = nodeData.value?.subnodes as { count?: number } | undefined;
+  return typeof subnodes?.count === 'number' ? subnodes.count : 0;
+});
+
+const shouldShowSubnodes = computed(() => {
+  if (typeof props.showSubnodes === 'boolean') {
+    return props.showSubnodes;
+  }
+
+  if (inferredContainer.value) {
+    return true;
+  }
+
+  return resolvedSubnodesCount.value > 0;
+});
+
+const containerStyle = computed(() => {
+  if (inferredContainer.value) {
+    return {
+      width: '100%',
+      height: '100%',
+      minWidth: '100%',
+      minHeight: '100%',
+      zIndex: props.zIndex,
+    };
+  }
+
+  return {
+    minWidth: props.minWidth,
+    maxWidth: props.maxWidth,
+    zIndex: props.zIndex,
+  };
+});
 </script>
 
 <template>
-  <div :class="['base-node-container', { 'base-node-selected': isSelected }]" :style="containerStyle">
+  <div
+    :class="[
+      'base-node-container',
+      {
+        'base-node-selected': isSelected,
+        'base-node-container--container': inferredContainer,
+      },
+    ]"
+    :style="containerStyle"
+  >
     <Handle type="target" :position="targetPosition" :key="`target-${targetPosition}`" class="base-node-handle" />
 
-    <!-- Node Header -->
     <div class="base-node-header">
       <div class="base-node-title-container">
         <div class="base-node-title" :title="nodeData.label">
@@ -50,10 +103,22 @@ const containerStyle = computed(() => ({
       </div>
     </div>
 
-    <!-- Node Content Slot -->
-    <slot name="content" />
+    <section class="base-node-body">
+      <slot name="body" />
+    </section>
 
-    <!-- Empty State Slot -->
+    <section v-if="shouldShowSubnodes" class="base-node-subnodes">
+      <div class="base-node-subnodes-header">
+        <span>Subnodes</span>
+        <span class="base-node-subnodes-count">{{ resolvedSubnodesCount }}</span>
+      </div>
+      <div class="base-node-subnodes-content">
+        <slot name="subnodes">
+          <div class="base-node-subnodes-empty">No subnodes</div>
+        </slot>
+      </div>
+    </section>
+
     <slot name="empty" />
 
     <Handle type="source" :position="sourcePosition" :key="`source-${sourcePosition}`" class="base-node-handle" />
@@ -61,7 +126,6 @@ const containerStyle = computed(() => ({
 </template>
 
 <style scoped>
-/* Base Node Container */
 .base-node-container {
   position: relative;
   border-radius: 0.5rem;
@@ -74,8 +138,13 @@ const containerStyle = computed(() => ({
     0 4px 6px -2px rgba(0, 0, 0, 0.05);
   font-size: 0.75rem;
   line-height: 1rem;
-  padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.base-node-container--container {
+  border-radius: 0.625rem;
 }
 
 .base-node-container:hover {
@@ -90,26 +159,23 @@ const containerStyle = computed(() => ({
     0 0 12px rgba(144, 202, 249, 0.4);
 }
 
-/* Node Handles */
 .base-node-handle {
   width: 0.75rem !important;
   height: 0.75rem !important;
 }
 
-/* Node Header */
 .base-node-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   border-bottom: 1px solid var(--border-default);
   padding: 0.5rem 0.75rem;
+  min-height: 42px;
 }
 
 .base-node-title-container {
   flex: 1;
   min-width: 0;
-  padding-left: 0.25rem;
-  padding-right: 0.25rem;
 }
 
 .base-node-title {
@@ -133,22 +199,41 @@ const containerStyle = computed(() => ({
   flex-shrink: 0;
 }
 
-/* Shared Animations */
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.base-node-body {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(var(--border-default-rgb), 0.35);
 }
 
-@keyframes slide-in-from-top {
-  from {
-    transform: translateY(-8px);
-  }
-  to {
-    transform: translateY(0);
-  }
+.base-node-subnodes {
+  display: flex;
+  flex-direction: column;
+  min-height: 44px;
+}
+
+.base-node-subnodes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.base-node-subnodes-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.7rem;
+}
+
+.base-node-subnodes-content {
+  padding: 0 0.75rem 0.6rem 0.75rem;
+}
+
+.base-node-subnodes-empty {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  opacity: 0.75;
 }
 </style>

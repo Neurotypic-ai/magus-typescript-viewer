@@ -3,9 +3,22 @@ import { computed, ref } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 
-import type { DependencyProps } from '../types';
+import type { DependencyProps, ExternalDependencyRef } from '../types';
 
 const props = defineProps<DependencyProps>();
+
+const nodeData = computed(() => props.data);
+
+const metadataItems = computed(() => nodeData.value.properties ?? []);
+const externalDependencies = computed<ExternalDependencyRef[]>(() => {
+  const metadata = nodeData.value.externalDependencies;
+  return Array.isArray(metadata) ? metadata : [];
+});
+
+const subnodeCount = computed(() => {
+  const count = (nodeData.value.subnodes as { count?: number } | undefined)?.count;
+  return typeof count === 'number' ? count : 0;
+});
 
 const baseNodeProps = computed(() => ({
   id: props.id,
@@ -16,145 +29,132 @@ const baseNodeProps = computed(() => ({
   ...(props.height !== undefined ? { height: props.height } : {}),
   ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
   ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
+  isContainer: true,
+  showSubnodes: true,
+  subnodesCount: subnodeCount.value,
 }));
 
-const nodeData = computed(() => props.data);
-
-// Collapsible sections state
-const isMetadataExpanded = ref(true);
-
-const toggleMetadata = () => {
-  isMetadataExpanded.value = !isMetadataExpanded.value;
-};
+const showMetadata = ref(true);
+const showExternalDeps = ref(true);
 </script>
 
 <template>
   <BaseNode v-bind="baseNodeProps" badge-text="MODULE">
-    <template #content>
-      <!-- Module Metadata Section -->
-      <div v-if="nodeData.properties && nodeData.properties.length > 0" class="metadata-section">
-        <!-- Collapsible Header -->
-        <button
-          class="metadata-toggle"
-          @click="toggleMetadata"
-          type="button"
-          :aria-expanded="isMetadataExpanded"
-          aria-label="Toggle metadata section"
-        >
-          <span class="metadata-label">Metadata</span>
-          <svg
-            class="metadata-icon"
-            :class="{ 'metadata-icon-expanded': isMetadataExpanded }"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
+    <template #body>
+      <div v-if="metadataItems.length > 0" class="module-section">
+        <button class="module-section-toggle" type="button" @click="showMetadata = !showMetadata">
+          <span>Metadata</span>
+          <span>{{ showMetadata ? '−' : '+' }}</span>
         </button>
-
-        <!-- Collapsible Content -->
-        <div v-show="isMetadataExpanded" class="metadata-content">
-          <div v-for="(prop, index) in nodeData.properties" :key="index" class="metadata-item">
-            <span class="metadata-prop-name">{{ prop.name }}:</span>
-            <span class="metadata-prop-value" :title="prop.type">{{ prop.type }}</span>
+        <div v-if="showMetadata" class="module-section-content">
+          <div v-for="(prop, index) in metadataItems" :key="`metadata-${index}`" class="metadata-item">
+            <span class="metadata-key">{{ prop.name }}:</span>
+            <span class="metadata-value" :title="prop.type">{{ prop.type }}</span>
           </div>
         </div>
       </div>
+
+      <div v-if="externalDependencies.length > 0" class="module-section">
+        <button class="module-section-toggle" type="button" @click="showExternalDeps = !showExternalDeps">
+          <span>External Dependencies</span>
+          <span>{{ showExternalDeps ? '−' : '+' }}</span>
+        </button>
+        <div v-if="showExternalDeps" class="module-section-content">
+          <div
+            v-for="dependency in externalDependencies"
+            :key="dependency.packageName"
+            class="external-dependency"
+          >
+            <div class="external-dependency-name">{{ dependency.packageName }}</div>
+            <div class="external-dependency-symbols">{{ dependency.symbols.join(', ') }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="metadataItems.length === 0 && externalDependencies.length === 0" class="module-empty-state">
+        No module metadata
+      </div>
     </template>
 
-    <template #empty>
-      <!-- Empty State -->
-      <div v-if="!nodeData.properties || nodeData.properties.length === 0" class="empty-state">
-        No metadata available
+    <template #subnodes>
+      <div v-if="subnodeCount > 0" class="subnode-hint">
+        Child class/interface nodes are laid out in this module container.
       </div>
+      <div v-else class="subnode-hint">No class/interface subnodes for current filters.</div>
     </template>
   </BaseNode>
 </template>
 
 <style scoped>
-/* Metadata Section */
-.metadata-section {
-  border-bottom: 1px solid rgba(var(--border-default-rgb), 0.5);
+.module-section + .module-section {
+  margin-top: 0.5rem;
 }
 
-.metadata-toggle {
+.module-section-toggle {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.75rem;
-  transition: background-color 200ms;
-  text-align: left;
-  background: transparent;
   border: none;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.55rem;
   cursor: pointer;
 }
 
-.metadata-toggle:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-.metadata-label {
-  color: var(--text-secondary);
-  font-size: 0.625rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.metadata-icon {
-  width: 0.75rem;
-  height: 0.75rem;
-  color: var(--text-secondary);
-  transition: transform 200ms;
-}
-
-.metadata-icon-expanded {
-  transform: rotate(180deg);
-}
-
-.metadata-content {
+.module-section-content {
+  margin-top: 0.35rem;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 0 1rem 0.75rem 1rem;
-  animation:
-    fade-in 200ms ease-out,
-    slide-in-from-top 200ms ease-out;
+  gap: 0.3rem;
 }
 
 .metadata-item {
   display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  padding: 0.5rem;
-  border-radius: 0.25rem;
-  transition: background-color 200ms;
+  gap: 0.4rem;
+  font-size: 0.72rem;
 }
 
-.metadata-prop-name {
+.metadata-key {
+  color: var(--text-secondary);
   font-weight: 600;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-  min-width: 50px;
+  min-width: 58px;
 }
 
-.metadata-prop-value {
+.metadata-value {
   color: var(--text-primary);
-  word-break: break-all;
+  word-break: break-word;
 }
 
-/* Empty State */
-.empty-state {
-  padding: 1rem;
-  text-align: center;
+.external-dependency {
+  padding: 0.35rem 0.45rem;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.external-dependency-name {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.external-dependency-symbols {
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  line-height: 1rem;
-  font-style: italic;
-  opacity: 0.6;
+  font-size: 0.68rem;
+  line-height: 1.1;
+  margin-top: 0.15rem;
+  word-break: break-word;
+}
+
+.module-empty-state,
+.subnode-hint {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  opacity: 0.8;
 }
 </style>

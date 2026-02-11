@@ -27,7 +27,8 @@ export type DependencyEdgeKind =
   | 'inheritance'
   | 'implements'
   | 'extends'
-  | 'contains';
+  | 'contains'
+  | 'uses';
 
 /**
  * Node method format for display
@@ -50,6 +51,25 @@ export interface NodeProperty {
   visibility: string;
 }
 
+export interface ImportSpecifierRef {
+  imported: string;
+  local?: string;
+  kind: 'value' | 'type' | 'default' | 'namespace' | 'sideEffect';
+}
+
+export interface ExternalDependencyRef {
+  packageName: string;
+  symbols: string[];
+  specifiers?: ImportSpecifierRef[];
+}
+
+export interface SubnodeMetadata {
+  count: number;
+  ids?: string[];
+  byType?: Partial<Record<DependencyKind, number>>;
+  isContainer?: boolean;
+}
+
 /**
  * Node data structure for dependency nodes
  */
@@ -62,6 +82,9 @@ export interface DependencyData {
   extends?: string[];
   imports?: string[];
   exports?: string[];
+  externalDependencies?: ExternalDependencyRef[];
+  subnodes?: SubnodeMetadata;
+  isContainer?: boolean;
   [key: string]: unknown;
 }
 
@@ -90,6 +113,7 @@ export interface DependencyProps {
 export type GraphEdge = Edge<{
   type?: DependencyEdgeKind;
   importName?: string | undefined;
+  usageKind?: 'method' | 'property' | undefined;
 }>;
 
 /**
@@ -116,6 +140,13 @@ export interface ImportRef {
   uuid: string;
   name?: string;
   path?: string;
+  isExternal?: boolean;
+  packageName?: string;
+  specifiers?: {
+    imported: string;
+    local?: string;
+    kind: 'value' | 'type' | 'default' | 'namespace' | 'sideEffect';
+  }[];
 }
 
 /**

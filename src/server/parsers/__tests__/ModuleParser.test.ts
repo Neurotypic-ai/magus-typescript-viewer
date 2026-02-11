@@ -37,7 +37,7 @@ describe('ModuleParser.parseImportsAndExports', () => {
     const reactImport = result.imports.find((imp) => imp.fullPath === 'react');
     expect(reactImport).toBeDefined();
     expect(reactImport?.specifiers.has('React')).toBe(true);
-    expect(reactImport?.specifiers.get('React')?.kind).toBe('value');
+    expect(reactImport?.specifiers.get('React')?.kind).toBe('namespace');
   });
 
   it('captures type-only imports', async () => {
@@ -68,7 +68,7 @@ describe('ModuleParser.parseImportsAndExports', () => {
     const reactImport = result.imports.find((imp) => imp.fullPath === 'react');
     expect(reactImport).toBeDefined();
     expect(reactImport?.specifiers.has('React')).toBe(true);
-    expect(reactImport?.specifiers.get('React')?.kind).toBe('default');
+    expect(reactImport?.specifiers.get('React')?.kind).toBe('namespace');
     expect(reactImport?.specifiers.has('useState')).toBe(true);
 
     const utilsImport = result.imports.find((imp) => imp.fullPath === './utils');

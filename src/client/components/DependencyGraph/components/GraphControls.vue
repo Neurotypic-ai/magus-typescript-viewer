@@ -4,6 +4,14 @@ import { ref } from 'vue';
 
 import { DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../../../stores/graphSettings';
 
+interface GraphControlsProps {
+  relationshipAvailability?: Record<string, { available: boolean; reason?: string }>;
+}
+
+const props = withDefaults(defineProps<GraphControlsProps>(), {
+  relationshipAvailability: () => ({}),
+});
+
 const emit = defineEmits<{
   'relationship-filter-change': [types: string[]];
   'node-type-filter-change': [types: string[]];
@@ -45,7 +53,14 @@ const handleResetLayout = () => {
 const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
 const nodeTypes = ['module', 'class', 'interface', 'package'] as const;
 
+const getRelationshipAvailability = (type: string) => props.relationshipAvailability[type] ?? { available: true };
+const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
+const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
+
 const handleRelationshipFilterChange = (type: string, checked: boolean) => {
+  if (isRelationshipDisabled(type)) {
+    return;
+  }
   graphSettings.toggleRelationshipType(type as (typeof DEFAULT_RELATIONSHIP_TYPES)[number], checked);
   emit('relationship-filter-change', [...graphSettings.enabledRelationshipTypes]);
 };
@@ -252,15 +267,24 @@ const handleClusterByFolderToggle = (checked: boolean) => {
           <label
             v-for="type in relationshipTypes"
             :key="type"
-            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+            class="flex items-center gap-2 text-sm text-text-secondary transition-fast"
+            :class="[
+              isRelationshipDisabled(type)
+                ? 'cursor-not-allowed opacity-60'
+                : 'cursor-pointer hover:text-text-primary',
+            ]"
           >
             <input
               type="checkbox"
               :checked="graphSettings.enabledRelationshipTypes.includes(type)"
+              :disabled="isRelationshipDisabled(type)"
               @change="(e) => handleRelationshipFilterChange(type, (e.target as HTMLInputElement).checked)"
               class="cursor-pointer accent-primary-main"
             />
-            <span class="text-xs capitalize">{{ type }}</span>
+            <span class="text-xs capitalize">
+              {{ type }}
+              <span v-if="isRelationshipDisabled(type)" class="text-text-muted"> ({{ relationshipReason(type) }}) </span>
+            </span>
           </label>
         </div>
       </div>

@@ -1,17 +1,15 @@
 import { readFile, readdir } from 'fs/promises';
-import { dirname, join, relative } from 'path';
+import { dirname, join, relative, resolve } from 'path';
 
-import { readPackageUp } from 'read-package-up';
 import { readPackage } from 'read-pkg';
+import ts from 'typescript';
 
-import { Export } from '../../shared/types/Export';
 import { PackageImport } from '../../shared/types/Import';
 import { createLogger } from '../../shared/utils/logger';
-import { generateExportUUID, generateImportUUID, generatePackageUUID, generateRelationshipUUID } from '../utils/uuid';
+import { generateImportUUID, generatePackageUUID, generateRelationshipUUID } from '../utils/uuid';
 import { ModuleParser } from './ModuleParser';
 
-import type { NormalizedPackageJson } from 'read-pkg';
-
+import type { Export } from '../../shared/types/Export';
 import type { Import } from '../../shared/types/Import';
 import type { IClassCreateDTO } from '../db/repositories/ClassRepository';
 import type { IFunctionCreateDTO } from '../db/repositories/FunctionRepository';
@@ -25,9 +23,9 @@ import type { ISymbolReferenceCreateDTO } from '../db/repositories/SymbolReferen
 import type { ParseResult, SymbolUsageRef } from './ParseResult';
 
 interface PackageDependencies {
-  dependencies?: Record<string, string> | undefined;
-  devDependencies?: Record<string, string> | undefined;
-  peerDependencies?: Record<string, string> | undefined;
+  dependencies?: Partial<Record<string, string | undefined>> | undefined;
+  devDependencies?: Partial<Record<string, string | undefined>> | undefined;
+  peerDependencies?: Partial<Record<string, string | undefined>> | undefined;
 }
 
 type PackageLock = Record<string, LockfileEntry | undefined>;
@@ -57,6 +55,18 @@ interface DeferredInterfaceExtendsRef {
 
 const SOURCE_FILE_PATTERN = /\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
 const VUE_SCRIPT_BLOCK_PATTERN = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+const ALWAYS_EXCLUDED_DIRECTORIES = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  '.git',
+  '.next',
+  '.nuxt',
+  '.output',
+  '.cache',
+  'out',
+]);
 
 export class PackageParser {
   private readonly logger = createLogger('PackageParser');
@@ -98,6 +108,26 @@ export class PackageParser {
       return undefined;
     }
     return ids[0];
+  }
+
+  private uniqueById<T extends { id: string }>(items: T[]): T[] {
+    return this.uniqueByKey(items, (item) => item.id);
+  }
+
+  private uniqueByKey<T>(items: T[], getKey: (item: T) => string): T[] {
+    const seen = new Set<string>();
+    const unique: T[] = [];
+
+    for (const item of items) {
+      const key = getKey(item);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      unique.push(item);
+    }
+
+    return unique;
   }
 
   private buildParentMemberKey(parentId: string, memberName: string): string {
@@ -227,21 +257,49 @@ export class PackageParser {
     return this.extractVueScriptContent(vueSource);
   }
 
+  private normalizePath(path: string): string {
+    return path.replace(/\\/g, '/');
+  }
+
+  private shouldSkipDirectory(dirName: string): boolean {
+    return dirName.startsWith('.') || ALWAYS_EXCLUDED_DIRECTORIES.has(dirName);
+  }
+
+  private isExcludedPath(fullPath: string): boolean {
+    const relativePath = this.normalizePath(relative(this.packagePath, fullPath));
+    if (relativePath.startsWith('..')) {
+      return true;
+    }
+
+    return relativePath
+      .split('/')
+      .filter((segment) => segment.length > 0)
+      .some((segment) => this.shouldSkipDirectory(segment));
+  }
+
   private async traverseDirectory(dir: string): Promise<string[]> {
+    if (this.isExcludedPath(dir)) {
+      return [];
+    }
+
     const files: string[] = [];
-    const entries = await readdir(dir, { withFileTypes: true });
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return files;
+    }
 
     for (const entry of entries) {
       const fullPath = join(dir, entry.name);
 
       if (entry.isDirectory()) {
-        // Skip node_modules and hidden directories
-        if (entry.name === 'node_modules' || entry.name.startsWith('.')) {
+        if (this.shouldSkipDirectory(entry.name)) {
           continue;
         }
         const subFiles = await this.traverseDirectory(fullPath);
         files.push(...subFiles);
-      } else if (entry.isFile() && this.isAnalyzableSourceFile(entry.name)) {
+      } else if (entry.isFile() && this.isAnalyzableSourceFile(entry.name) && !this.isExcludedPath(fullPath)) {
         files.push(fullPath);
       }
     }
@@ -249,49 +307,101 @@ export class PackageParser {
     return files;
   }
 
+  private getIncludeRoots(tsConfig: Record<string, unknown>, configDir: string): string[] {
+    const include = Array.isArray(tsConfig['include']) ? tsConfig['include'] : [];
+    const roots = new Set<string>();
+
+    include.forEach((pattern) => {
+      if (typeof pattern !== 'string' || pattern.trim().length === 0) {
+        return;
+      }
+
+      const normalizedPattern = this.normalizePath(pattern.trim());
+      const wildcardIndex = normalizedPattern.search(/[*{]/);
+      const base = wildcardIndex >= 0 ? normalizedPattern.slice(0, wildcardIndex) : normalizedPattern;
+      const cleanedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+      const candidate = resolve(configDir, cleanedBase.length > 0 ? cleanedBase : '.');
+      roots.add(candidate);
+    });
+
+    if (roots.size === 0) {
+      roots.add(this.packagePath);
+    }
+
+    return Array.from(roots);
+  }
+
+  private async collectFilesFromTsConfig(): Promise<string[] | null> {
+    const tsConfigPath = ts.findConfigFile(this.packagePath, (fileName) => ts.sys.fileExists(fileName), 'tsconfig.json');
+    if (!tsConfigPath) {
+      return null;
+    }
+
+    const configDir = dirname(tsConfigPath);
+    const configResult = ts.readConfigFile(tsConfigPath, (fileName) => ts.sys.readFile(fileName));
+    if (configResult.error) {
+      this.logger.warn(`Failed to read tsconfig at ${tsConfigPath}, falling back to directory traversal`);
+      return null;
+    }
+
+    const parsedConfig = ts.parseJsonConfigFileContent(configResult.config, ts.sys, configDir, undefined, tsConfigPath);
+    if (parsedConfig.errors.length > 0) {
+      this.logger.warn(`Encountered tsconfig parse errors at ${tsConfigPath}, continuing with available file list`);
+    }
+
+    const fileSet = new Set<string>();
+
+    parsedConfig.fileNames.forEach((fileName) => {
+      const absolutePath = resolve(fileName);
+      if (!this.isAnalyzableSourceFile(absolutePath)) {
+        return;
+      }
+      if (this.isExcludedPath(absolutePath)) {
+        return;
+      }
+      fileSet.add(absolutePath);
+    });
+
+    const includeRoots = this.getIncludeRoots(configResult.config as Record<string, unknown>, configDir);
+    for (const root of includeRoots) {
+      if (this.isExcludedPath(root)) {
+        continue;
+      }
+      const rootedFiles = await this.traverseDirectory(root);
+      rootedFiles.forEach((filePath) => {
+        if (filePath.endsWith('.vue')) {
+          fileSet.add(resolve(filePath));
+        }
+      });
+    }
+
+    return Array.from(fileSet).sort((a, b) => a.localeCompare(b));
+  }
+
+  private async discoverSourceFiles(): Promise<string[]> {
+    const filesFromTsConfig = await this.collectFilesFromTsConfig();
+    if (filesFromTsConfig) {
+      return filesFromTsConfig;
+    }
+    const files = await this.traverseDirectory(this.packagePath);
+    return files.sort((a, b) => a.localeCompare(b));
+  }
+
   async parse(): Promise<ParseResult> {
     const packageId = generatePackageUUID(this.packageName, this.packageVersion);
 
     // Initialize collection maps
     const imports = new Map<string, Import>();
-    const exports = new Map<string, Export>();
-    const packageImports = new Map<string, PackageImport>();
 
     // Read package.json and package-lock.json
-    const result = await readPackage({ cwd: this.packagePath });
-    const pkg = result as unknown as { packageJson: NormalizedPackageJson };
+    const pkg = await readPackage({ cwd: this.packagePath });
     const pkgLock = await this.readPackageLock(this.packagePath);
 
-    // Parse dependencies and collect imports/exports
-    const dependencies = await this.parseDependencies(
-      pkg as PackageDependencies,
-      pkgLock,
-      'dependencies',
-      imports,
-      exports,
-      packageImports
-    );
-    const devDependencies = await this.parseDependencies(
-      pkg as PackageDependencies,
-      pkgLock,
-      'devDependencies',
-      imports,
-      exports,
-      packageImports
-    );
-    const peerDependencies = await this.parseDependencies(
-      pkg as PackageDependencies,
-      pkgLock,
-      'peerDependencies',
-      imports,
-      exports,
-      packageImports
-    );
-
-    // Create exports for this package
-    // if (pkg.packageJson.exports && typeof pkg.packageJson.exports === 'object') {
-    //   this.parseExports(pkg.packageJson.name, pkg.packageJson.exports, exports);
-    // }
+    // Parse dependencies from package.json metadata only (no node_modules introspection)
+    const packageDependencies = pkg as PackageDependencies;
+    const dependencies = this.parseDependencies(packageDependencies, pkgLock, 'dependencies', imports);
+    const devDependencies = this.parseDependencies(packageDependencies, pkgLock, 'devDependencies', imports);
+    const peerDependencies = this.parseDependencies(packageDependencies, pkgLock, 'peerDependencies', imports);
 
     // Create package DTO
     const packageDTO: IPackageCreateDTO = {
@@ -314,7 +424,7 @@ export class PackageParser {
     const parameters: IParameterCreateDTO[] = [];
 
     // Find and parse all supported source files
-    const files = await this.traverseDirectory(this.packagePath);
+    const files = await this.discoverSourceFiles();
     const moduleImports: Import[] = [];
     const moduleExports: Export[] = [];
     const importsWithModules: { import: Import; moduleId: string }[] = [];
@@ -391,23 +501,37 @@ export class PackageParser {
       properties
     );
 
+    const uniqueModules = this.uniqueById(modules);
+    const uniqueClasses = this.uniqueById(classes);
+    const uniqueInterfaces = this.uniqueById(interfaces);
+    const uniqueFunctions = this.uniqueById(functions);
+    const uniqueMethods = this.uniqueById(methods);
+    const uniqueProperties = this.uniqueById(properties);
+    const uniqueParameters = this.uniqueById(parameters);
+    const uniqueModuleImports = this.uniqueByKey(moduleImports, (item) => item.uuid);
+    const uniqueModuleExports = this.uniqueByKey(moduleExports, (item) => item.uuid);
+    const uniqueImportsWithModules = Array.from(
+      new Map(importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
+    );
+    const uniqueSymbolReferences = this.uniqueById(symbolReferences);
+
     return {
       package: packageDTO,
-      modules,
-      classes,
-      interfaces,
-      functions,
-      methods,
-      properties,
-      parameters,
-      imports: [...Array.from(imports.values()), ...moduleImports],
-      exports: [...Array.from(exports.values()), ...moduleExports],
-      importsWithModules,
+      modules: uniqueModules,
+      classes: uniqueClasses,
+      interfaces: uniqueInterfaces,
+      functions: uniqueFunctions,
+      methods: uniqueMethods,
+      properties: uniqueProperties,
+      parameters: uniqueParameters,
+      imports: [...Array.from(imports.values()), ...uniqueModuleImports],
+      exports: uniqueModuleExports,
+      importsWithModules: uniqueImportsWithModules,
       classExtends,
       classImplements,
       interfaceExtends,
       symbolUsages,
-      symbolReferences,
+      symbolReferences: uniqueSymbolReferences,
     };
   }
 
@@ -531,129 +655,42 @@ export class PackageParser {
     return deps;
   }
 
-  private async resolvePackagePath(name: string): Promise<string> {
-    try {
-      // First try to find in node_modules directly
-      const nodeModulesPath = join(this.packagePath, 'node_modules', name);
-      const pkgJsonPath = join(nodeModulesPath, 'package.json');
-
-      try {
-        await readFile(pkgJsonPath, 'utf-8');
-        return nodeModulesPath;
-      } catch {
-        // If not found in direct node_modules, try to find up the tree
-        const result = await readPackageUp({ cwd: this.packagePath, normalize: false });
-        if (result?.packageJson.name === name) {
-          return dirname(result.path);
-        }
-
-        // If still not found, try parent node_modules
-        const parentNodeModules = join(dirname(this.packagePath), 'node_modules', name);
-        await readFile(join(parentNodeModules, 'package.json'), 'utf-8');
-        return parentNodeModules;
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Could not resolve package path for ${name}: ${errorMessage}`);
-      return join(this.packagePath, 'node_modules', name);
-    }
-  }
-
-  private async parseDependencies(
+  private parseDependencies(
     pkg: PackageDependencies,
     pkgLock: PackageLock,
     type: 'dependencies' | 'devDependencies' | 'peerDependencies',
-    _imports: Map<string, Import>,
-    exports: Map<string, Export>,
-    packageImports: Map<string, PackageImport>
-  ): Promise<Map<string, string>> {
+    imports: Map<string, Import>
+  ): Map<string, string> {
     const deps = pkg[type];
     const depsMap = new Map<string, string>();
 
     if (!deps) return depsMap;
 
     for (const [name, version] of Object.entries(deps)) {
-      // Generate UUID for the dependency package
+      if (typeof version !== 'string' || version.length === 0) {
+        continue;
+      }
       const resolution = pkgLock[name]?.version ?? version;
       const dependencyId = generatePackageUUID(name, resolution);
-
-      // Store in dependencies map with UUID as value
       depsMap.set(name, dependencyId);
-
-      const resolved = pkgLock[name]?.resolved ?? '';
-
-      // Create package import
-      const fullPath = await this.resolvePackagePath(name);
-      const relativePath = relative(this.packagePath, fullPath);
-      const uuid = generateImportUUID(fullPath, name);
-
-      const packageImport = new PackageImport(
-        uuid,
-        fullPath,
-        relativePath,
-        name,
-        new Map(),
-        0,
-        version,
-        resolution,
-        resolved,
-        type
-      );
-
-      packageImports.set(packageImport.uuid, packageImport);
-
-      // Try to parse the package's own package.json for exports
-      try {
-        const depPkg = await readPackageUp({ cwd: dirname(fullPath) });
-        if (depPkg?.packageJson.exports) {
-          this.parseExports(depPkg.packageJson.name, depPkg.packageJson.exports, exports);
-        }
-      } catch {
-        // Skip if we can't read the dependency's package.json
+      if (!imports.has(name)) {
+        const relativePath = `node_modules/${name}`;
+        const packageImport = new PackageImport(
+          generateImportUUID(this.packagePath, name),
+          relativePath,
+          relativePath,
+          name,
+          new Map(),
+          0,
+          version,
+          resolution,
+          pkgLock[name]?.resolved,
+          type
+        );
+        imports.set(name, packageImport);
       }
     }
 
     return depsMap;
-  }
-
-  private parseExports(
-    moduleName: string,
-    pkgExports: NormalizedPackageJson['exports'],
-    exports: Map<string, Export>
-  ): void {
-    if (!pkgExports) return;
-
-    // Handle different export formats
-    if (typeof pkgExports === 'string') {
-      // Single export
-      this.addExport(moduleName, 'default', pkgExports, true, exports);
-    } else if (Array.isArray(pkgExports)) {
-      // Array of exports
-      pkgExports.forEach((exp, i) => {
-        const exportName = `export_${String(i)}`;
-        if (typeof exp === 'string') {
-          this.addExport(moduleName, exportName, exp, false, exports);
-        }
-      });
-    } else {
-      // Object of named exports
-      Object.entries(pkgExports).forEach(([key, value]) => {
-        if (typeof value === 'string') {
-          this.addExport(moduleName, key, value, key === '.', exports);
-        }
-      });
-    }
-  }
-
-  private addExport(
-    moduleName: string,
-    exportName: string,
-    exportValue: string,
-    isDefault: boolean,
-    exports: Map<string, Export>
-  ): void {
-    const uuid = generateExportUUID(moduleName, exportName);
-    const exp = new Export(uuid, moduleName, exportName, isDefault, exportValue);
-    exports.set(exp.uuid, exp);
   }
 }

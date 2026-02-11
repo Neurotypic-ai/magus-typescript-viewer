@@ -75,6 +75,11 @@ export class Database {
     await this.ensureColumns('parameters', [
       { name: 'created_at', definition: 'created_at TIMESTAMP DEFAULT current_timestamp' },
     ]);
+
+    // Imports table
+    await this.ensureColumns('imports', [
+      { name: 'specifiers_json', definition: 'specifiers_json TEXT' },
+    ]);
   }
 
   /**

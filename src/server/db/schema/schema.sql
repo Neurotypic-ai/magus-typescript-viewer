@@ -119,6 +119,7 @@ CREATE TABLE imports (
   package_id CHAR(36) NOT NULL REFERENCES packages (id),
   module_id CHAR(36) NOT NULL REFERENCES modules (id),
   source TEXT NOT NULL,
+  specifiers_json TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 

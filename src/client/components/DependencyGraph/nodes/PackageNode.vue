@@ -7,6 +7,13 @@ import type { DependencyProps } from '../types';
 
 const props = defineProps<DependencyProps>();
 
+const nodeData = computed(() => props.data);
+const metadataItems = computed(() => nodeData.value.properties ?? []);
+const subnodeCount = computed(() => {
+  const count = (nodeData.value.subnodes as { count?: number } | undefined)?.count;
+  return typeof count === 'number' ? count : 0;
+});
+
 const baseNodeProps = computed(() => ({
   id: props.id,
   type: props.type,
@@ -16,37 +23,39 @@ const baseNodeProps = computed(() => ({
   ...(props.height !== undefined ? { height: props.height } : {}),
   ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
   ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
+  isContainer: true,
+  showSubnodes: true,
+  subnodesCount: subnodeCount.value,
 }));
-
-const nodeData = computed(() => props.data);
 </script>
 
 <template>
   <BaseNode v-bind="baseNodeProps" badge-text="PACKAGE" :z-index="0" badge-class="package-badge">
-    <template #content>
-      <!-- Package Metadata -->
-      <div v-if="nodeData.properties && nodeData.properties.length > 0" class="package-metadata">
-        <div v-for="(prop, index) in nodeData.properties" :key="index" class="metadata-item">
+    <template #body>
+      <div v-if="metadataItems.length > 0" class="package-metadata">
+        <div v-for="(prop, index) in metadataItems" :key="index" class="metadata-item">
           <span class="metadata-name">{{ prop.name }}:</span>
           <span class="metadata-value">{{ prop.type }}</span>
         </div>
       </div>
+      <div v-else class="package-empty-state">No package metadata</div>
+    </template>
+
+    <template #subnodes>
+      <div class="package-subnodes-hint">Contains {{ subnodeCount }} module nodes</div>
     </template>
   </BaseNode>
 </template>
 
 <style scoped>
-/* Package-specific badge styling */
 .package-badge {
   background-color: var(--background-node-package);
 }
 
-/* Package Metadata */
 .package-metadata {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.75rem 1rem;
 }
 
 .metadata-item {
@@ -64,5 +73,12 @@ const nodeData = computed(() => props.data);
 
 .metadata-value {
   color: var(--text-secondary);
+}
+
+.package-empty-state,
+.package-subnodes-hint {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  opacity: 0.8;
 }
 </style>
