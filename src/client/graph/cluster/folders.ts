@@ -47,9 +47,15 @@ export function clusterByFolder(
       id,
       type: 'group' as DependencyKind,
       position: { x: 0, y: 0 },
+      width: 220,
+      height: 120,
       data: { label: `${pkg}/${dir || 'root'}` },
-      style: { ...getNodeStyle('group') },
-      expandParent: true,
+      style: {
+        ...getNodeStyle('group'),
+        zIndex: 0,
+        overflow: 'visible',
+      },
+      draggable: false,
     });
     return id;
   }
@@ -61,10 +67,11 @@ export function clusterByFolder(
     if (!p || !pkg) return n;
     const dir = getDirname(p);
     const parentId = ensureDirNode(pkg, dir);
+    const { extent: _removedExtent, ...nodeWithoutExtent } = n;
     return {
-      ...n,
+      ...nodeWithoutExtent,
       parentNode: parentId,
-      extent: 'parent',
+      expandParent: true,
       data: { ...(n.data ?? {}), parentId },
     };
   });

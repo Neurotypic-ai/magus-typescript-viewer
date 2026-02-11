@@ -21,12 +21,7 @@ import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
 import type { IPackageCreateDTO } from '../db/repositories/PackageRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
-import type {
-  ClassExtendsRef,
-  ClassImplementsRef,
-  InterfaceExtendsRef,
-  ParseResult,
-} from './ParseResult';
+import type { ParseResult } from './ParseResult';
 
 interface PackageDependencies {
   dependencies?: Record<string, string> | undefined;
@@ -39,6 +34,24 @@ type PackageLock = Record<string, LockfileEntry | undefined>;
 interface LockfileEntry {
   version: string;
   resolved: string;
+}
+
+interface DeferredClassExtendsRef {
+  classId: string;
+  parentName: string;
+  parentId?: string | undefined;
+}
+
+interface DeferredClassImplementsRef {
+  classId: string;
+  interfaceName: string;
+  interfaceId?: string | undefined;
+}
+
+interface DeferredInterfaceExtendsRef {
+  interfaceId: string;
+  parentName: string;
+  parentId?: string | undefined;
 }
 
 const SOURCE_FILE_PATTERN = /\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
@@ -84,6 +97,95 @@ export class PackageParser {
       return undefined;
     }
     return ids[0];
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | undefined {
+    if (typeof value !== 'object' || value === null) {
+      return undefined;
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private asString(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+    return value;
+  }
+
+  private parseClassExtendsRefs(refs: unknown): DeferredClassExtendsRef[] {
+    if (!Array.isArray(refs)) {
+      return [];
+    }
+
+    const parsedRefs: DeferredClassExtendsRef[] = [];
+    for (const ref of refs) {
+      const parsedRef = this.asRecord(ref);
+      if (!parsedRef) {
+        continue;
+      }
+
+      const classId = this.asString(parsedRef['classId']);
+      const parentName = this.asString(parsedRef['parentName']);
+      if (!classId || !parentName) {
+        continue;
+      }
+
+      const parentId = this.asString(parsedRef['parentId']);
+      parsedRefs.push(parentId ? { classId, parentName, parentId } : { classId, parentName });
+    }
+
+    return parsedRefs;
+  }
+
+  private parseClassImplementsRefs(refs: unknown): DeferredClassImplementsRef[] {
+    if (!Array.isArray(refs)) {
+      return [];
+    }
+
+    const parsedRefs: DeferredClassImplementsRef[] = [];
+    for (const ref of refs) {
+      const parsedRef = this.asRecord(ref);
+      if (!parsedRef) {
+        continue;
+      }
+
+      const classId = this.asString(parsedRef['classId']);
+      const interfaceName = this.asString(parsedRef['interfaceName']);
+      if (!classId || !interfaceName) {
+        continue;
+      }
+
+      const interfaceId = this.asString(parsedRef['interfaceId']);
+      parsedRefs.push(interfaceId ? { classId, interfaceName, interfaceId } : { classId, interfaceName });
+    }
+
+    return parsedRefs;
+  }
+
+  private parseInterfaceExtendsRefs(refs: unknown): DeferredInterfaceExtendsRef[] {
+    if (!Array.isArray(refs)) {
+      return [];
+    }
+
+    const parsedRefs: DeferredInterfaceExtendsRef[] = [];
+    for (const ref of refs) {
+      const parsedRef = this.asRecord(ref);
+      if (!parsedRef) {
+        continue;
+      }
+
+      const interfaceId = this.asString(parsedRef['interfaceId']);
+      const parentName = this.asString(parsedRef['parentName']);
+      if (!interfaceId || !parentName) {
+        continue;
+      }
+
+      const parentId = this.asString(parsedRef['parentId']);
+      parsedRefs.push(parentId ? { interfaceId, parentName, parentId } : { interfaceId, parentName });
+    }
+
+    return parsedRefs;
   }
 
   private extractVueScriptContent(source: string): string {
@@ -213,9 +315,9 @@ export class PackageParser {
     const importsWithModules: { import: Import; moduleId: string }[] = [];
 
     // Collect raw relationship refs from all modules (name-based, not yet resolved)
-    const rawClassExtends: ClassExtendsRef[] = [];
-    const rawClassImplements: ClassImplementsRef[] = [];
-    const rawInterfaceExtends: InterfaceExtendsRef[] = [];
+    const rawClassExtends: DeferredClassExtendsRef[] = [];
+    const rawClassImplements: DeferredClassImplementsRef[] = [];
+    const rawInterfaceExtends: DeferredInterfaceExtendsRef[] = [];
 
     for (const file of files) {
       const sourceOverride = await this.getModuleSourceOverride(file);
@@ -238,9 +340,9 @@ export class PackageParser {
       moduleResult.exports.forEach((exp) => moduleExports.push(exp));
 
       // Collect deferred relationship data
-      rawClassExtends.push(...moduleResult.classExtends);
-      rawClassImplements.push(...moduleResult.classImplements);
-      rawInterfaceExtends.push(...moduleResult.interfaceExtends);
+      rawClassExtends.push(...this.parseClassExtendsRefs(moduleResult.classExtends));
+      rawClassImplements.push(...this.parseClassImplementsRefs(moduleResult.classImplements));
+      rawInterfaceExtends.push(...this.parseInterfaceExtendsRefs(moduleResult.interfaceExtends));
     }
 
     // Build name→ID lookup maps for first-pass resolution within this package
@@ -255,18 +357,21 @@ export class PackageParser {
     }
 
     // Resolve relationship IDs when a name maps uniquely within this package.
-    const classExtends: ClassExtendsRef[] = rawClassExtends.map((ref) => ({
-      ...ref,
+    const classExtends: DeferredClassExtendsRef[] = rawClassExtends.map((ref) => ({
+      classId: ref.classId,
+      parentName: ref.parentName,
       parentId: this.resolveUniqueName(classNameToIds, ref.parentName),
     }));
 
-    const classImplements: ClassImplementsRef[] = rawClassImplements.map((ref) => ({
-      ...ref,
+    const classImplements: DeferredClassImplementsRef[] = rawClassImplements.map((ref) => ({
+      classId: ref.classId,
+      interfaceName: ref.interfaceName,
       interfaceId: this.resolveUniqueName(interfaceNameToIds, ref.interfaceName),
     }));
 
-    const interfaceExtends: InterfaceExtendsRef[] = rawInterfaceExtends.map((ref) => ({
-      ...ref,
+    const interfaceExtends: DeferredInterfaceExtendsRef[] = rawInterfaceExtends.map((ref) => ({
+      interfaceId: ref.interfaceId,
+      parentName: ref.parentName,
       parentId: this.resolveUniqueName(interfaceNameToIds, ref.parentName),
     }));
 

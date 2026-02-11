@@ -217,3 +217,155 @@ describe('createGraphEdges options', () => {
     expect(importEdge).toBeDefined();
   });
 });
+
+describe('createGraphEdges class relationships', () => {
+  it('lifts class relationships to module level when requested', () => {
+    const graph: DependencyPackageGraph = {
+      packages: [
+        {
+          id: 'pkg-1',
+          name: 'test-package',
+          version: '1.0.0',
+          path: '/test',
+          created_at: '2024-01-01',
+          modules: {
+            'module-a': {
+              id: 'module-a',
+              name: 'a.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/a.ts' },
+              classes: {
+                A: {
+                  id: 'class-a',
+                  name: 'A',
+                  extends_id: 'class-b',
+                },
+              },
+            },
+            'module-b': {
+              id: 'module-b',
+              name: 'b.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/b.ts' },
+              classes: {
+                B: {
+                  id: 'class-b',
+                  name: 'B',
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const edges = createGraphEdges(graph, { includeClassEdges: false, liftClassEdgesToModuleLevel: true });
+    const liftedEdge = edges.find(
+      (edge) => edge.data?.type === 'inheritance' && edge.source === 'module-a' && edge.target === 'module-b'
+    );
+    expect(liftedEdge).toBeDefined();
+  });
+
+  it('includes class-level relationships when class edges are enabled', () => {
+    const graph: DependencyPackageGraph = {
+      packages: [
+        {
+          id: 'pkg-1',
+          name: 'test-package',
+          version: '1.0.0',
+          path: '/test',
+          created_at: '2024-01-01',
+          modules: {
+            'module-a': {
+              id: 'module-a',
+              name: 'a.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/a.ts' },
+              classes: {
+                A: {
+                  id: 'class-a',
+                  name: 'A',
+                  extends_id: 'class-b',
+                },
+              },
+            },
+            'module-b': {
+              id: 'module-b',
+              name: 'b.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/b.ts' },
+              classes: {
+                B: {
+                  id: 'class-b',
+                  name: 'B',
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const edges = createGraphEdges(graph, { includeClassEdges: true, liftClassEdgesToModuleLevel: false });
+    const classEdge = edges.find(
+      (edge) => edge.data?.type === 'inheritance' && edge.source === 'class-a' && edge.target === 'class-b'
+    );
+    expect(classEdge).toBeDefined();
+  });
+
+  it('deduplicates lifted module relationships', () => {
+    const graph: DependencyPackageGraph = {
+      packages: [
+        {
+          id: 'pkg-1',
+          name: 'test-package',
+          version: '1.0.0',
+          path: '/test',
+          created_at: '2024-01-01',
+          modules: {
+            'module-a': {
+              id: 'module-a',
+              name: 'a.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/a.ts' },
+              classes: {
+                A1: {
+                  id: 'class-a1',
+                  name: 'A1',
+                  extends_id: 'class-b1',
+                },
+                A2: {
+                  id: 'class-a2',
+                  name: 'A2',
+                  extends_id: 'class-b2',
+                },
+              },
+            },
+            'module-b': {
+              id: 'module-b',
+              name: 'b.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/b.ts' },
+              classes: {
+                B1: {
+                  id: 'class-b1',
+                  name: 'B1',
+                },
+                B2: {
+                  id: 'class-b2',
+                  name: 'B2',
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const edges = createGraphEdges(graph, { includeClassEdges: false, liftClassEdgesToModuleLevel: true });
+    const liftedInheritanceEdges = edges.filter(
+      (edge) => edge.data?.type === 'inheritance' && edge.source === 'module-a' && edge.target === 'module-b'
+    );
+    expect(liftedInheritanceEdges).toHaveLength(1);
+  });
+});

@@ -216,7 +216,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
     // Extract positions from the hierarchical layout recursively
     // For VueFlow, nested nodes need RELATIVE positions to their parent, not absolute
-    const positionMap = new Map<string, { x: number; y: number }>();
+    const positionMap = new Map<string, { x: number; y: number; width: number; height: number }>();
 
     function extractPositions(nodes: ElkNode[]): void {
       nodes.forEach((node) => {
@@ -224,7 +224,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         // For nested nodes, use relative positions (as calculated by ELK within the parent)
         const x = node.x ?? 0;
         const y = node.y ?? 0;
-        positionMap.set(node.id, { x, y });
+        const width = node.width ?? defaultWidth;
+        const height = node.height ?? defaultHeight;
+        positionMap.set(node.id, { x, y, width, height });
 
         // Recursively process children with their relative positions
         if (node.children && node.children.length > 0) {
@@ -241,9 +243,25 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     const newNodes = nodes.map((node) => {
       const position = positionMap.get(node.id);
       if (position) {
-        return {
+        const hasChildren = nodes.some((candidate) => (candidate as { parentNode?: string }).parentNode === node.id);
+        const baseNode = {
           ...node,
           position: { x: position.x, y: position.y },
+        };
+
+        if (!hasChildren) {
+          return baseNode;
+        }
+
+        const style = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
+        return {
+          ...baseNode,
+          style: {
+            ...style,
+            width: Math.max(position.width, defaultWidth),
+            height: Math.max(position.height, defaultHeight),
+            overflow: 'visible',
+          },
         };
       }
       return node;

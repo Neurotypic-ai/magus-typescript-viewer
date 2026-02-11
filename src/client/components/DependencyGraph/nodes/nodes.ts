@@ -1,5 +1,6 @@
 import ModuleNode from './ModuleNode.vue';
 import PackageNode from './PackageNode.vue';
+import GroupNode from './GroupNode.vue';
 import SymbolNode from './SymbolNode.vue';
 
 import type { Component } from 'vue';
@@ -16,7 +17,7 @@ export const nodeTypes: Record<string, Component> = Object.freeze({
   enum: SymbolNode,
   type: SymbolNode,
   function: SymbolNode,
-  group: SymbolNode,
+  group: GroupNode,
   property: SymbolNode,
   method: SymbolNode,
 });

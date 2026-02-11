@@ -9,13 +9,23 @@ type ImportDirection = 'importer-to-imported' | 'imported-to-importer';
 
 export interface CreateGraphEdgesOptions {
   includePackageEdges?: boolean;
+  includeClassEdges?: boolean;
+  // Backward-compatible alias for includeClassEdges
   includeSymbolEdges?: boolean;
+  liftClassEdgesToModuleLevel?: boolean;
   importDirection?: ImportDirection;
 }
 
 interface ModulePathLookup {
   packagePathMap: Map<string, Map<string, string>>;
   globalPathMap: Map<string, Set<string>>;
+}
+
+interface ResolvedOptions {
+  includePackageEdges: boolean;
+  includeClassEdges: boolean;
+  liftClassEdgesToModuleLevel: boolean;
+  importDirection: ImportDirection;
 }
 
 const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'] as const;
@@ -56,7 +66,8 @@ function generatePathVariants(normalizedPath: string): string[] {
     variants.push(withoutExt);
   }
 
-  const indexMatch = INDEX_FILE_PATTERN.exec(normalizedPath);
+  // eslint-disable-next-line @typescript-eslint/prefer-regexp-exec
+  const indexMatch = normalizedPath.match(INDEX_FILE_PATTERN);
   if (indexMatch?.[1]) {
     variants.push(indexMatch[1]);
   }
@@ -190,7 +201,7 @@ function resolveModuleId(
   return undefined;
 }
 
-function buildNodeIdSet(data: DependencyPackageGraph, options: Required<CreateGraphEdgesOptions>): Set<string> {
+function buildNodeIdSet(data: DependencyPackageGraph, options: ResolvedOptions): Set<string> {
   const nodeIds = new Set<string>();
 
   data.packages.forEach((pkg) => {
@@ -205,7 +216,7 @@ function buildNodeIdSet(data: DependencyPackageGraph, options: Required<CreateGr
     mapTypeCollection(pkg.modules, (module) => {
       nodeIds.add(module.id);
 
-      if (!options.includeSymbolEdges) {
+      if (!options.includeClassEdges) {
         return;
       }
 
@@ -226,12 +237,76 @@ function buildNodeIdSet(data: DependencyPackageGraph, options: Required<CreateGr
   return nodeIds;
 }
 
+function buildSymbolToModuleMap(data: DependencyPackageGraph): Map<string, string> {
+  const symbolToModuleMap = new Map<string, string>();
+
+  data.packages.forEach((pkg) => {
+    if (!pkg.modules) {
+      return;
+    }
+
+    mapTypeCollection(pkg.modules, (module) => {
+      if (module.classes) {
+        mapTypeCollection(module.classes, (cls) => {
+          symbolToModuleMap.set(cls.id, module.id);
+        });
+      }
+
+      if (module.interfaces) {
+        mapTypeCollection(module.interfaces, (iface) => {
+          symbolToModuleMap.set(iface.id, module.id);
+        });
+      }
+    });
+  });
+
+  return symbolToModuleMap;
+}
+
 function createArrowMarker() {
   return {
     type: MarkerType.ArrowClosed,
     width: 20,
     height: 20,
   };
+}
+
+function createEdge(
+  source: string,
+  target: string,
+  type: DependencyEdgeKind,
+  importName?: string
+): GraphEdge {
+  return {
+    id: `${source}-${target}-${type}`,
+    source,
+    target,
+    hidden: false,
+    data: {
+      type,
+      ...(importName ? { importName } : {}),
+    },
+    style: getEdgeStyle(type),
+    markerEnd: createArrowMarker(),
+  } as GraphEdge;
+}
+
+function addLiftedModuleEdges(
+  classEdges: GraphEdge[],
+  symbolToModuleMap: Map<string, string>,
+  addEdge: (edge: GraphEdge, keyOverride?: string) => void
+): void {
+  classEdges.forEach((edge) => {
+    const type = edge.data?.type;
+    if (!type) return;
+
+    const sourceModuleId = symbolToModuleMap.get(edge.source);
+    const targetModuleId = symbolToModuleMap.get(edge.target);
+    if (!sourceModuleId || !targetModuleId) return;
+    if (sourceModuleId === targetModuleId) return;
+
+    addEdge(createEdge(sourceModuleId, targetModuleId, type), `${sourceModuleId}|${targetModuleId}|${type}|lifted`);
+  });
 }
 
 /**
@@ -241,15 +316,18 @@ export function createGraphEdges(
   data: DependencyPackageGraph,
   options: CreateGraphEdgesOptions = {}
 ): GraphEdge[] {
-  const resolvedOptions: Required<CreateGraphEdgesOptions> = {
+  const resolvedOptions: ResolvedOptions = {
     includePackageEdges: options.includePackageEdges ?? false,
-    includeSymbolEdges: options.includeSymbolEdges ?? true,
+    includeClassEdges: options.includeClassEdges ?? options.includeSymbolEdges ?? false,
+    liftClassEdgesToModuleLevel: options.liftClassEdgesToModuleLevel ?? false,
     importDirection: options.importDirection ?? 'importer-to-imported',
   };
 
   const lookup = buildModulePathLookup(data);
   const validNodeIds = buildNodeIdSet(data, resolvedOptions);
+  const symbolToModuleMap = buildSymbolToModuleMap(data);
   const edgeMap = new Map<string, GraphEdge>();
+  const classRelationshipEdges: GraphEdge[] = [];
 
   const addEdge = (edge: GraphEdge, keyOverride?: string): void => {
     if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {
@@ -270,48 +348,21 @@ export function createGraphEdges(
       if (pkg.dependencies && Object.keys(pkg.dependencies).length > 0) {
         mapTypeCollection(pkg.dependencies, (dep) => {
           if (!dep.id) return;
-
-          addEdge({
-            id: `${pkg.id}-${dep.id}-dependency`,
-            source: pkg.id,
-            target: dep.id,
-            hidden: false,
-            data: { type: 'dependency' as DependencyEdgeKind },
-            style: getEdgeStyle('dependency'),
-            markerEnd: createArrowMarker(),
-          });
+          addEdge(createEdge(pkg.id, dep.id, 'dependency'));
         });
       }
 
       if (pkg.devDependencies && Object.keys(pkg.devDependencies).length > 0) {
         mapTypeCollection(pkg.devDependencies, (dep) => {
           if (!dep.id) return;
-
-          addEdge({
-            id: `${pkg.id}-${dep.id}-devDependency`,
-            source: pkg.id,
-            target: dep.id,
-            hidden: false,
-            data: { type: 'devDependency' as DependencyEdgeKind },
-            style: getEdgeStyle('devDependency'),
-            markerEnd: createArrowMarker(),
-          });
+          addEdge(createEdge(pkg.id, dep.id, 'devDependency'));
         });
       }
 
       if (pkg.peerDependencies && Object.keys(pkg.peerDependencies).length > 0) {
         mapTypeCollection(pkg.peerDependencies, (dep) => {
           if (!dep.id) return;
-
-          addEdge({
-            id: `${pkg.id}-${dep.id}-peerDependency`,
-            source: pkg.id,
-            target: dep.id,
-            hidden: false,
-            data: { type: 'peerDependency' as DependencyEdgeKind },
-            style: getEdgeStyle('peerDependency'),
-            markerEnd: createArrowMarker(),
-          });
+          addEdge(createEdge(pkg.id, dep.id, 'peerDependency'));
         });
       }
     }
@@ -334,53 +385,28 @@ export function createGraphEdges(
             resolvedOptions.importDirection === 'importer-to-imported' ? module.id : importedModuleId;
           const target =
             resolvedOptions.importDirection === 'importer-to-imported' ? importedModuleId : module.id;
-
-          addEdge({
-            id: `${source}-${target}-import`,
-            source,
-            target,
-            hidden: false,
-            data: {
-              type: 'import' as DependencyEdgeKind,
-              importName: imp.name,
-            },
-            style: getEdgeStyle('import'),
-            markerEnd: createArrowMarker(),
-          });
+          addEdge(createEdge(source, target, 'import', imp.name));
         });
-      }
-
-      if (!resolvedOptions.includeSymbolEdges) {
-        return;
       }
 
       if (module.classes && Object.keys(module.classes).length > 0) {
         mapTypeCollection(module.classes, (cls) => {
           if (cls.extends_id) {
-            addEdge({
-              id: `${cls.id}-${cls.extends_id}-inheritance`,
-              source: cls.id,
-              target: cls.extends_id,
-              hidden: false,
-              data: { type: 'inheritance' as DependencyEdgeKind },
-              style: getEdgeStyle('inheritance'),
-              markerEnd: createArrowMarker(),
-            });
+            const inheritanceEdge = createEdge(cls.id, cls.extends_id, 'inheritance');
+            classRelationshipEdges.push(inheritanceEdge);
+            if (resolvedOptions.includeClassEdges) {
+              addEdge(inheritanceEdge);
+            }
           }
 
           if (cls.implemented_interfaces && Object.keys(cls.implemented_interfaces).length > 0) {
             mapTypeCollection(cls.implemented_interfaces, (iface) => {
               if (!iface.id) return;
-
-              addEdge({
-                id: `${cls.id}-${iface.id}-implements`,
-                source: cls.id,
-                target: iface.id,
-                hidden: false,
-                data: { type: 'implements' as DependencyEdgeKind },
-                style: getEdgeStyle('implements'),
-                markerEnd: createArrowMarker(),
-              });
+              const implementsEdge = createEdge(cls.id, iface.id, 'implements');
+              classRelationshipEdges.push(implementsEdge);
+              if (resolvedOptions.includeClassEdges) {
+                addEdge(implementsEdge);
+              }
             });
           }
         });
@@ -391,22 +417,21 @@ export function createGraphEdges(
           if (iface.extended_interfaces && Object.keys(iface.extended_interfaces).length > 0) {
             mapTypeCollection(iface.extended_interfaces, (extended) => {
               if (!extended.id) return;
-
-              addEdge({
-                id: `${iface.id}-${extended.id}-inheritance`,
-                source: iface.id,
-                target: extended.id,
-                hidden: false,
-                data: { type: 'inheritance' as DependencyEdgeKind },
-                style: getEdgeStyle('inheritance'),
-                markerEnd: createArrowMarker(),
-              });
+              const inheritanceEdge = createEdge(iface.id, extended.id, 'inheritance');
+              classRelationshipEdges.push(inheritanceEdge);
+              if (resolvedOptions.includeClassEdges) {
+                addEdge(inheritanceEdge);
+              }
             });
           }
         });
       }
     });
   });
+
+  if (resolvedOptions.liftClassEdgesToModuleLevel) {
+    addLiftedModuleEdges(classRelationshipEdges, symbolToModuleMap, addEdge);
+  }
 
   return Array.from(edgeMap.values());
 }

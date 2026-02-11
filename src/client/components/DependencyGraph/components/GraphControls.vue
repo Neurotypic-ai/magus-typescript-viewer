@@ -2,8 +2,11 @@
 import { Panel, useVueFlow } from '@vue-flow/core';
 import { ref } from 'vue';
 
+import { DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../../../stores/graphSettings';
+
 const emit = defineEmits<{
   'relationship-filter-change': [types: string[]];
+  'node-type-filter-change': [types: string[]];
   'reset-layout': [];
   'layout-change': [config: { algorithm?: string; direction?: string; nodeSpacing?: number; rankSpacing?: number }];
   'toggle-collapse-scc': [value: boolean];
@@ -11,6 +14,7 @@ const emit = defineEmits<{
 }>();
 
 const { zoomIn, zoomOut, fitView } = useVueFlow();
+const graphSettings = useGraphSettings();
 
 // Layout configuration
 const layoutAlgorithm = ref<'layered' | 'radial' | 'force' | 'stress'>('layered');
@@ -31,31 +35,24 @@ const handleFitView = () => {
 };
 
 const handleResetLayout = () => {
+  layoutAlgorithm.value = 'layered';
+  layoutDirection.value = 'LR';
+  nodeSpacing.value = 100;
+  rankSpacing.value = 150;
   emit('reset-layout');
 };
 
-// Relationship types matching the actual edge data types (lowercase)
-const relationshipTypes = [
-  'import',
-  'export',
-  'inheritance',
-  'implements',
-  'contains',
-  'dependency',
-  'devDependency',
-  'peerDependency',
-];
+const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
+const nodeTypes = ['module', 'class', 'interface', 'package'] as const;
 
-// Track which types are currently enabled (all enabled by default)
-const enabledTypes = ref<string[]>([...relationshipTypes]);
+const handleRelationshipFilterChange = (type: string, checked: boolean) => {
+  graphSettings.toggleRelationshipType(type as (typeof DEFAULT_RELATIONSHIP_TYPES)[number], checked);
+  emit('relationship-filter-change', [...graphSettings.enabledRelationshipTypes]);
+};
 
-const handleFilterChange = (type: string, checked: boolean) => {
-  if (checked) {
-    enabledTypes.value = [...enabledTypes.value, type];
-  } else {
-    enabledTypes.value = enabledTypes.value.filter((t) => t !== type);
-  }
-  emit('relationship-filter-change', enabledTypes.value);
+const handleNodeTypeFilterChange = (type: (typeof nodeTypes)[number], checked: boolean) => {
+  graphSettings.toggleNodeType(type, checked);
+  emit('node-type-filter-change', [...graphSettings.enabledNodeTypes]);
 };
 
 const handleAlgorithmChange = (algorithm: 'layered' | 'radial' | 'force' | 'stress') => {
@@ -73,6 +70,16 @@ const handleSpacingChange = () => {
     nodeSpacing: nodeSpacing.value,
     rankSpacing: rankSpacing.value,
   });
+};
+
+const handleCollapseSccToggle = (checked: boolean) => {
+  graphSettings.setCollapseScc(checked);
+  emit('toggle-collapse-scc', checked);
+};
+
+const handleClusterByFolderToggle = (checked: boolean) => {
+  graphSettings.setClusterByFolder(checked);
+  emit('toggle-cluster-folder', checked);
 };
 </script>
 
@@ -194,8 +201,8 @@ const handleSpacingChange = () => {
             <input
               type="checkbox"
               class="cursor-pointer accent-primary-main"
-              @change="(e) => emit('toggle-collapse-scc', (e.target as HTMLInputElement).checked)"
-              checked
+              :checked="graphSettings.collapseScc"
+              @change="(e) => handleCollapseSccToggle((e.target as HTMLInputElement).checked)"
             />
             <span class="text-xs">Collapse cycles (SCC)</span>
           </label>
@@ -205,9 +212,30 @@ const handleSpacingChange = () => {
             <input
               type="checkbox"
               class="cursor-pointer accent-primary-main"
-              @change="(e) => emit('toggle-cluster-folder', (e.target as HTMLInputElement).checked)"
+              :checked="graphSettings.clusterByFolder"
+              @change="(e) => handleClusterByFolderToggle((e.target as HTMLInputElement).checked)"
             />
             <span class="text-xs">Cluster by folder</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Node Types -->
+      <div class="mt-4 pt-4 border-t border-border-default">
+        <h4 class="text-sm font-semibold text-text-primary mb-2">Node Types</h4>
+        <div class="flex flex-col gap-1.5">
+          <label
+            v-for="nodeType in nodeTypes"
+            :key="nodeType"
+            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+          >
+            <input
+              type="checkbox"
+              :checked="graphSettings.enabledNodeTypes.includes(nodeType)"
+              @change="(e) => handleNodeTypeFilterChange(nodeType, (e.target as HTMLInputElement).checked)"
+              class="cursor-pointer accent-primary-main"
+            />
+            <span class="text-xs capitalize">{{ nodeType }}</span>
           </label>
         </div>
       </div>
@@ -223,8 +251,8 @@ const handleSpacingChange = () => {
           >
             <input
               type="checkbox"
-              :checked="enabledTypes.includes(type)"
-              @change="(e) => handleFilterChange(type, (e.target as HTMLInputElement).checked)"
+              :checked="graphSettings.enabledRelationshipTypes.includes(type)"
+              @change="(e) => handleRelationshipFilterChange(type, (e.target as HTMLInputElement).checked)"
               class="cursor-pointer accent-primary-main"
             />
             <span class="text-xs capitalize">{{ type }}</span>

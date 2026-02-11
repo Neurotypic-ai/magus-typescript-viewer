@@ -51,11 +51,7 @@ const { fitView } = useVueFlow();
 let layoutProcessor: WebWorkerLayoutProcessor | null = null;
 let layoutRequestVersion = 0;
 
-const graphEdgeOptions = {
-  includePackageEdges: false,
-  includeSymbolEdges: true,
-  importDirection: 'importer-to-imported' as const,
-};
+const DEFAULT_NODE_TYPE_SET = new Set(['module']);
 
 // Layout configuration state optimized for module import visualization
 const defaultLayoutConfig = {
@@ -216,71 +212,95 @@ const filterEdgesByNodeSet = (graphNodes: DependencyNode[], graphEdges: GraphEdg
   return graphEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
 };
 
-// Initialize graph
-const initializeGraph = async () => {
-  performance.mark('graph-init-start');
+const getEnabledNodeTypes = (): Set<string> => {
+  const configuredTypes = graphSettings.enabledNodeTypes.length
+    ? graphSettings.enabledNodeTypes
+    : Array.from(DEFAULT_NODE_TYPE_SET);
+  const typeSet = new Set(configuredTypes);
 
-  // Initialize layout processor
-  initializeLayoutProcessor();
+  // Keep modules visible when no node types are selected to avoid an empty graph trap.
+  if (typeSet.size === 0) {
+    typeSet.add('module');
+  }
 
-  // Create nodes and edges using extracted utilities
-  // For now, show only modules with their import relationships (no packages, no classes)
+  return typeSet;
+};
+
+const buildGraphStructure = (): { nodes: DependencyNode[]; edges: GraphEdge[] } => {
+  const enabledNodeTypes = getEnabledNodeTypes();
+  const includePackages = enabledNodeTypes.has('package');
+  const includeModules = enabledNodeTypes.has('module');
+  const includeClassNodes = enabledNodeTypes.has('class');
+  const includeInterfaceNodes = enabledNodeTypes.has('interface');
+  const includeClassEdges = includeClassNodes || includeInterfaceNodes;
+
   const graphNodes = createGraphNodes(props.data, {
-    includePackages: false, // No package nodes = cleaner module view
-    includeClasses: false, // No classes = focus on module structure
+    includePackages,
+    includeModules,
+    includeClasses: includeClassEdges,
+    includeClassNodes,
+    includeInterfaceNodes,
+    // Nested symbol nodes inside grouped modules can cause unstable drag constraints.
+    nestSymbolsInModules: !graphSettings.clusterByFolder,
     direction: layoutConfig.direction,
   });
-  let graphEdges = createGraphEdges(props.data, graphEdgeOptions) as unknown as GraphEdge[];
 
-  // Debug: Log edge creation
-  graphLogger.info(`Created ${graphNodes.length} nodes and ${graphEdges.length} edges`);
-  if (graphEdges.length > 0) {
-    graphLogger.info('Sample edges:', graphEdges.slice(0, 3));
-    graphLogger.info('First edge FULL object:', JSON.stringify(graphEdges[0], null, 2));
-    const edgeTypes = [...new Set(graphEdges.map((e) => e.data?.type))];
-    graphLogger.info('Edge types:', edgeTypes);
+  const graphEdges = createGraphEdges(props.data, {
+    includePackageEdges: includePackages,
+    includeClassEdges,
+    liftClassEdgesToModuleLevel: !includeClassEdges,
+    importDirection: 'importer-to-imported',
+  }) as unknown as GraphEdge[];
 
-    // Count edges by type
-    const edgeTypeCounts: Record<string, number> = {};
-    graphEdges.forEach((e) => {
-      const type = e.data?.type ?? 'unknown';
-      edgeTypeCounts[type] = (edgeTypeCounts[type] ?? 0) + 1;
-    });
-    graphLogger.info('Edge counts by type:', edgeTypeCounts);
-
-    graphLogger.info(
-      'All edges have hidden=false:',
-      graphEdges.every((e) => e.hidden === false)
-    );
-
-    // Validate edge connections
-    const filteredEdges = filterEdgesByNodeSet(graphNodes, graphEdges);
-    if (filteredEdges.length !== graphEdges.length) {
-      const invalidEdgeCount = graphEdges.length - filteredEdges.length;
-      graphLogger.warn(`Filtered ${invalidEdgeCount} edges with invalid source/target IDs.`);
-      graphEdges = filteredEdges;
-    } else {
-      graphLogger.info('All edge connections are valid');
-    }
-  } else {
-    graphLogger.warn('No edges created! Check data structure.');
+  const filteredEdges = filterEdgesByNodeSet(graphNodes, graphEdges);
+  if (filteredEdges.length !== graphEdges.length) {
+    const invalidEdgeCount = graphEdges.length - filteredEdges.length;
+    graphLogger.warn(`Filtered ${invalidEdgeCount} edges with invalid source/target IDs.`);
   }
 
-  // Optional transforms: SCC collapse then folder clustering
-  let nodesToLayout = graphNodes as DependencyNode[];
-  let edgesToLayout = graphEdges as GraphEdge[];
+  return {
+    nodes: graphNodes,
+    edges: filteredEdges,
+  };
+};
+
+const applyGraphTransforms = (graphData: { nodes: DependencyNode[]; edges: GraphEdge[] }) => {
+  let transformedNodes = graphData.nodes;
+  let transformedEdges = graphData.edges;
+
   if (graphSettings.collapseScc) {
-    const collapsed = collapseSccs(nodesToLayout, edgesToLayout);
-    nodesToLayout = collapsed.nodes as DependencyNode[];
-    edgesToLayout = collapsed.edges as GraphEdge[];
-  }
-  if (graphSettings.clusterByFolder) {
-    const clustered = clusterByFolder(nodesToLayout, edgesToLayout);
-    nodesToLayout = clustered.nodes as DependencyNode[];
-    edgesToLayout = clustered.edges as GraphEdge[];
+    const collapsed = collapseSccs(transformedNodes, transformedEdges);
+    transformedNodes = collapsed.nodes as DependencyNode[];
+    transformedEdges = collapsed.edges as GraphEdge[];
   }
 
-  await processGraphLayout({ nodes: nodesToLayout, edges: edgesToLayout });
+  if (graphSettings.clusterByFolder) {
+    const clustered = clusterByFolder(transformedNodes, transformedEdges);
+    transformedNodes = clustered.nodes as DependencyNode[];
+    transformedEdges = clustered.edges as GraphEdge[];
+  }
+
+  return { nodes: transformedNodes, edges: transformedEdges };
+};
+
+const applyVisibilityFilters = (graphData: { nodes: DependencyNode[]; edges: GraphEdge[] }) => {
+  const enabledTypes = new Set(graphSettings.enabledRelationshipTypes);
+  const filteredEdges = graphData.edges.map((edge) => ({
+    ...edge,
+    hidden: !enabledTypes.has(edge.data?.type ?? 'default'),
+  }));
+
+  return { nodes: graphData.nodes, edges: filteredEdges };
+};
+
+const initializeGraph = async () => {
+  performance.mark('graph-init-start');
+  initializeLayoutProcessor();
+
+  const baseGraph = buildGraphStructure();
+  const transformedGraph = applyGraphTransforms(baseGraph);
+  const visibleGraph = applyVisibilityFilters(transformedGraph);
+  await processGraphLayout(visibleGraph);
 
   performance.mark('graph-init-end');
   measurePerformance('graph-initialization', 'graph-init-start', 'graph-init-end');
@@ -631,12 +651,28 @@ const handleResetLayout = async (): Promise<void> => {
 
 // Filter handler for relationship types
 const handleRelationshipFilterChange = (types: string[]) => {
+  graphSettings.setEnabledRelationshipTypes(types);
   graphStore['setEdges'](
     edges.value.map((edge: GraphEdge) => ({
       ...edge,
       hidden: !types.includes(edge.data?.type ?? 'default'),
     }))
   );
+};
+
+const handleNodeTypeFilterChange = async (types: string[]) => {
+  graphSettings.setEnabledNodeTypes(types);
+  await initializeGraph();
+};
+
+const handleCollapseSccToggle = async (value: boolean) => {
+  graphSettings.setCollapseScc(value);
+  await initializeGraph();
+};
+
+const handleClusterByFolderToggle = async (value: boolean) => {
+  graphSettings.setClusterByFolder(value);
+  await initializeGraph();
 };
 
 // Layout change handler
@@ -659,18 +695,7 @@ const handleLayoutChange = async (config: {
     layoutConfig.rankSpacing = config.rankSpacing;
   }
 
-  // Recreate layout processor with new config
-  initializeLayoutProcessor();
-
-  // Re-run layout with updated direction for handle positions
-  const graphNodes = createGraphNodes(props.data, {
-    includePackages: false,
-    includeClasses: false,
-    direction: layoutConfig.direction,
-  });
-  const graphEdges = createGraphEdges(props.data, graphEdgeOptions) as unknown as GraphEdge[];
-  const filteredEdges = filterEdgesByNodeSet(graphNodes, graphEdges);
-  await processGraphLayout({ nodes: graphNodes, edges: filteredEdges });
+  await initializeGraph();
 };
 
 // Search result handler
@@ -791,21 +816,12 @@ function toDependencyEdgeKind(type: string | undefined): DependencyEdgeKind {
         type: 'step',
       }" @node-click="onNodeClick" @node-double-click="onNodeDoubleClick" @pane-click="onPaneClick">
       <Background />
-      <GraphControls @relationship-filter-change="handleRelationshipFilterChange" @layout-change="handleLayoutChange"
-        @reset-layout="handleResetLayout"
-        @toggle-collapse-scc="
-          (v: boolean) => {
-            graphSettings.setCollapseScc(v);
-            void initializeGraph();
-          }
-        " @toggle-cluster-folder="
-          (v: boolean) => {
-            graphSettings.setClusterByFolder(v);
-            void initializeGraph();
-          }
-        " />
+      <GraphControls @relationship-filter-change="handleRelationshipFilterChange"
+        @node-type-filter-change="handleNodeTypeFilterChange" @layout-change="handleLayoutChange"
+        @reset-layout="handleResetLayout" @toggle-collapse-scc="handleCollapseSccToggle"
+        @toggle-cluster-folder="handleClusterByFolderToggle" />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
-      <NodeDetails v-if="selectedNode" :node="selectedNode" />
+      <NodeDetails v-if="selectedNode" :node="selectedNode" :data="props.data" :nodes="nodes" :edges="edges" />
 
       <!-- Back to Full Graph button -->
       <Panel v-if="selectedNode" position="bottom-left">

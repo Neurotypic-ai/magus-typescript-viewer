@@ -4,7 +4,13 @@ import { Position } from '@vue-flow/core';
 import { mapTypeCollection } from '../components/DependencyGraph/mapTypeCollection';
 import { getNodeStyle } from '../theme/graphTheme';
 
-import type { DependencyKind, DependencyNode, DependencyPackageGraph } from '../components/DependencyGraph/types';
+import type {
+  DependencyKind,
+  DependencyNode,
+  DependencyPackageGraph,
+  ImportRef,
+  ModuleStructure,
+} from '../components/DependencyGraph/types';
 
 /**
  * Creates empty items that match the expected interface for getMembersAsProperties
@@ -26,9 +32,25 @@ import type { DependencyKind, DependencyNode, DependencyPackageGraph } from '../
  */
 export function createGraphNodes(
   data: DependencyPackageGraph,
-  options: { includePackages?: boolean; includeClasses?: boolean; direction?: 'LR' | 'RL' | 'TB' | 'BT' } = {}
+  options: {
+    includePackages?: boolean;
+    includeModules?: boolean;
+    includeClasses?: boolean;
+    includeClassNodes?: boolean;
+    includeInterfaceNodes?: boolean;
+    nestSymbolsInModules?: boolean;
+    direction?: 'LR' | 'RL' | 'TB' | 'BT';
+  } = {}
 ): DependencyNode[] {
-  const { includePackages = false, includeClasses = false, direction = 'LR' } = options;
+  const {
+    includePackages = false,
+    includeModules = true,
+    includeClasses = false,
+    includeClassNodes = includeClasses,
+    includeInterfaceNodes = includeClasses,
+    nestSymbolsInModules = true,
+    direction = 'LR',
+  } = options;
 
   // Calculate handle positions based on layout direction
   let sourcePosition: Position;
@@ -55,6 +77,57 @@ export function createGraphNodes(
 
   const graphNodes: DependencyNode[] = [];
 
+  const getModuleImports = (module: ModuleStructure): string[] => {
+    if (!module.imports || Object.keys(module.imports).length === 0) return [];
+    return mapTypeCollection(module.imports, (imp: ImportRef) => imp.path ?? imp.name ?? '').filter(Boolean);
+  };
+
+  const getModuleExports = (module: ModuleStructure): string[] => {
+    const exportsValue = (module as { exports?: unknown }).exports;
+    if (!exportsValue) return [];
+
+    if (exportsValue instanceof Map) {
+      return Array.from(exportsValue.values())
+        .map((value) => {
+          if (typeof value === 'string') return value;
+          if (value && typeof value === 'object') {
+            const entry = value as { name?: string; path?: string };
+            return entry.name ?? entry.path ?? '';
+          }
+          return '';
+        })
+        .filter(Boolean);
+    }
+
+    if (Array.isArray(exportsValue)) {
+      return exportsValue
+        .map((value) => {
+          if (typeof value === 'string') return value;
+          if (value && typeof value === 'object') {
+            const entry = value as { name?: string; path?: string };
+            return entry.name ?? entry.path ?? '';
+          }
+          return '';
+        })
+        .filter(Boolean);
+    }
+
+    if (typeof exportsValue === 'object') {
+      return Object.values(exportsValue as Record<string, unknown>)
+        .map((value) => {
+          if (typeof value === 'string') return value;
+          if (value && typeof value === 'object') {
+            const entry = value as { name?: string; path?: string };
+            return entry.name ?? entry.path ?? '';
+          }
+          return '';
+        })
+        .filter(Boolean);
+    }
+
+    return [];
+  };
+
   // Optionally create package nodes
   if (includePackages) {
     data.packages.forEach((pkg) => {
@@ -76,11 +149,12 @@ export function createGraphNodes(
     });
   }
 
-  // Create module nodes
+  // Create module nodes and symbol nodes
   data.packages.forEach((pkg) => {
-    // Add module nodes
-    if (pkg.modules) {
-      mapTypeCollection(pkg.modules, (module) => {
+    if (!pkg.modules) return;
+
+    mapTypeCollection(pkg.modules, (module) => {
+      if (includeModules) {
         const moduleNode: DependencyNode = {
           id: module.id,
           type: 'module' as DependencyKind,
@@ -89,6 +163,8 @@ export function createGraphNodes(
           targetPosition,
           data: {
             label: module.name,
+            imports: getModuleImports(module),
+            exports: getModuleExports(module),
             properties: [
               { name: 'package', type: pkg.name, visibility: 'public' },
               { name: 'path', type: module.source.relativePath || '', visibility: 'public' },
@@ -110,107 +186,114 @@ export function createGraphNodes(
         }
 
         graphNodes.push(moduleNode);
+      }
 
-        // Optionally add class and interface nodes
-        if (includeClasses) {
-          // Add class nodes
-          if (module.classes) {
-            mapTypeCollection(module.classes, (cls) => {
-              // Convert Map/Object to array for properties and methods
-              const properties = cls.properties
-                ? mapTypeCollection(cls.properties, (prop) => ({
-                    name: prop.name,
-                    type: prop.type,
-                    visibility: prop.visibility,
-                  }))
-                : [];
+      const parentForSymbols = includeModules && nestSymbolsInModules ? module.id : undefined;
 
-              const methods = cls.methods
-                ? mapTypeCollection(cls.methods, (method) => {
-                    const returnType: string = (method.returnType as string | undefined) ?? 'void';
-                    const methodName: string = method.name;
-                    const visibility: string = method.visibility;
-                    return {
-                      name: methodName,
-                      returnType,
-                      visibility,
-                      signature: `${methodName}(): ${returnType}`,
-                    };
-                  })
-                : [];
+      // Optionally add class nodes
+      if (includeClassNodes && module.classes) {
+        mapTypeCollection(module.classes, (cls) => {
+          const properties = cls.properties
+            ? mapTypeCollection(cls.properties, (prop) => ({
+                name: prop.name,
+                type: prop.type,
+                visibility: prop.visibility,
+              }))
+            : [];
 
-              graphNodes.push({
-                id: cls.id,
-                type: 'class' as DependencyKind,
-                position: { x: 0, y: 0 },
-                sourcePosition,
-                targetPosition,
-                parentNode: module.id,
-                extent: 'parent' as const,
-                expandParent: true,
-                data: {
-                  parentId: module.id,
-                  label: cls.name,
-                  properties,
-                  methods,
-                },
-                style: {
-                  ...getNodeStyle('class'),
-                },
-              });
-            });
+          const methods = cls.methods
+            ? mapTypeCollection(cls.methods, (method) => {
+                const returnType: string = (method.returnType as string | undefined) ?? 'void';
+                const methodName: string = method.name;
+                const visibility: string = method.visibility;
+                return {
+                  name: methodName,
+                  returnType,
+                  visibility,
+                  signature: `${methodName}(): ${returnType}`,
+                };
+              })
+            : [];
+
+          const classNode: DependencyNode = {
+            id: cls.id,
+            type: 'class' as DependencyKind,
+            position: { x: 0, y: 0 },
+            sourcePosition,
+            targetPosition,
+            data: {
+              ...(parentForSymbols ? { parentId: parentForSymbols } : {}),
+              label: cls.name,
+              properties,
+              methods,
+            },
+            style: {
+              ...getNodeStyle('class'),
+            },
+          };
+
+          if (parentForSymbols) {
+            classNode.parentNode = parentForSymbols;
+            classNode.extent = 'parent' as const;
+            classNode.expandParent = true;
           }
 
-          // Add interface nodes
-          if (module.interfaces) {
-            mapTypeCollection(module.interfaces, (iface) => {
-              // Convert Map/Object to array for properties and methods
-              const properties = iface.properties
-                ? mapTypeCollection(iface.properties, (prop) => ({
-                    name: prop.name,
-                    type: prop.type,
-                    visibility: prop.visibility,
-                  }))
-                : [];
+          graphNodes.push(classNode);
+        });
+      }
 
-              const methods = iface.methods
-                ? mapTypeCollection(iface.methods, (method) => {
-                    const returnType: string = (method.returnType as string | undefined) ?? 'void';
-                    const methodName: string = method.name;
-                    const visibility: string = method.visibility;
-                    return {
-                      name: methodName,
-                      returnType,
-                      visibility,
-                      signature: `${methodName}(): ${returnType}`,
-                    };
-                  })
-                : [];
+      // Optionally add interface nodes
+      if (includeInterfaceNodes && module.interfaces) {
+        mapTypeCollection(module.interfaces, (iface) => {
+          const properties = iface.properties
+            ? mapTypeCollection(iface.properties, (prop) => ({
+                name: prop.name,
+                type: prop.type,
+                visibility: prop.visibility,
+              }))
+            : [];
 
-              graphNodes.push({
-                id: iface.id,
-                type: 'interface' as DependencyKind,
-                position: { x: 0, y: 0 },
-                sourcePosition,
-                targetPosition,
-                parentNode: module.id,
-                extent: 'parent' as const,
-                expandParent: true,
-                data: {
-                  parentId: module.id,
-                  label: iface.name,
-                  properties,
-                  methods,
-                },
-                style: {
-                  ...getNodeStyle('interface'),
-                },
-              });
-            });
+          const methods = iface.methods
+            ? mapTypeCollection(iface.methods, (method) => {
+                const returnType: string = (method.returnType as string | undefined) ?? 'void';
+                const methodName: string = method.name;
+                const visibility: string = method.visibility;
+                return {
+                  name: methodName,
+                  returnType,
+                  visibility,
+                  signature: `${methodName}(): ${returnType}`,
+                };
+              })
+            : [];
+
+          const interfaceNode: DependencyNode = {
+            id: iface.id,
+            type: 'interface' as DependencyKind,
+            position: { x: 0, y: 0 },
+            sourcePosition,
+            targetPosition,
+            data: {
+              ...(parentForSymbols ? { parentId: parentForSymbols } : {}),
+              label: iface.name,
+              properties,
+              methods,
+            },
+            style: {
+              ...getNodeStyle('interface'),
+            },
+          };
+
+          if (parentForSymbols) {
+            interfaceNode.parentNode = parentForSymbols;
+            interfaceNode.extent = 'parent' as const;
+            interfaceNode.expandParent = true;
           }
-        }
-      });
-    }
+
+          graphNodes.push(interfaceNode);
+        });
+      }
+    });
   });
 
   return graphNodes;
