@@ -13,15 +13,19 @@ interface NodeDetailsProps {
 }
 
 interface DisplayMember {
+  id?: string | undefined;
   name: string;
   type: string;
-  visibility?: string;
+  visibility?: string | undefined;
+  usedBy: string[];
 }
 
 interface DisplayMethod {
+  id?: string | undefined;
   name: string;
   returnType: string;
-  visibility?: string;
+  visibility?: string | undefined;
+  usedBy: string[];
 }
 
 interface SymbolSummary {
@@ -33,6 +37,10 @@ interface SymbolSummary {
 
 const props = defineProps<NodeDetailsProps>();
 
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+}
+
 const nodeLabelById = computed(() => {
   const map = new Map<string, string>();
   props.nodes.forEach((node) => {
@@ -40,6 +48,98 @@ const nodeLabelById = computed(() => {
   });
   return map;
 });
+
+const symbolLabelById = computed(() => {
+  const map = new Map<string, string>();
+
+  props.data.packages.forEach((pkg) => {
+    if (!pkg.modules) return;
+
+    mapTypeCollection(pkg.modules, (module) => {
+      map.set(module.id, module.name ?? module.id);
+
+      if (module.classes) {
+        mapTypeCollection(module.classes, (cls) => {
+          const classLabel = cls.name ?? 'Unnamed class';
+          map.set(cls.id, classLabel);
+
+          (cls.properties ?? []).forEach((prop) => {
+            if (!prop.id) return;
+            map.set(prop.id, `${classLabel}.${prop.name ?? 'unnamed'}`);
+          });
+
+          (cls.methods ?? []).forEach((method) => {
+            if (!method.id) return;
+            map.set(method.id, `${classLabel}.${method.name ?? 'unnamed'}()`);
+          });
+        });
+      }
+
+      if (module.interfaces) {
+        mapTypeCollection(module.interfaces, (iface) => {
+          const interfaceLabel = iface.name ?? 'Unnamed interface';
+          map.set(iface.id, interfaceLabel);
+
+          (iface.properties ?? []).forEach((prop) => {
+            if (!prop.id) return;
+            map.set(prop.id, `${interfaceLabel}.${prop.name ?? 'unnamed'}`);
+          });
+
+          (iface.methods ?? []).forEach((method) => {
+            if (!method.id) return;
+            map.set(method.id, `${interfaceLabel}.${method.name ?? 'unnamed'}()`);
+          });
+        });
+      }
+    });
+  });
+
+  return map;
+});
+
+const usageByTargetSymbolId = computed(() => {
+  const usageMap = new Map<string, string[]>();
+
+  props.data.packages.forEach((pkg) => {
+    if (!pkg.modules) return;
+
+    mapTypeCollection(pkg.modules, (module) => {
+      if (!module.symbol_references) return;
+
+      const moduleLabel = module.name ?? module.id;
+      mapTypeCollection(module.symbol_references, (reference) => reference).forEach((reference) => {
+        const targetId = reference.target_symbol_id;
+        if (!targetId) return;
+
+        const sourceLabelById = reference.source_symbol_id
+          ? symbolLabelById.value.get(reference.source_symbol_id)
+          : undefined;
+        const sourceLabel = sourceLabelById ?? reference.source_symbol_name ?? reference.source_symbol_type;
+        const usageLabel = `${sourceLabel} in ${moduleLabel}`;
+
+        const existing = usageMap.get(targetId);
+        if (existing) {
+          if (!existing.includes(usageLabel)) {
+            existing.push(usageLabel);
+          }
+        } else {
+          usageMap.set(targetId, [usageLabel]);
+        }
+      });
+    });
+  });
+
+  usageMap.forEach((labels, targetId) => {
+    usageMap.set(targetId, uniqueSorted(labels));
+  });
+
+  return usageMap;
+});
+
+function getUsedBy(symbolId: string | undefined): string[] {
+  if (!symbolId) return [];
+  return usageByTargetSymbolId.value.get(symbolId) ?? [];
+}
 
 const selectedModule = computed<ModuleStructure | undefined>(() => {
   for (const pkg of props.data.packages) {
@@ -60,14 +160,18 @@ const moduleClasses = computed<SymbolSummary[]>(() => {
     id: cls.id,
     name: cls.name ?? 'Unnamed class',
     properties: (cls.properties ?? []).map((prop) => ({
+      id: prop.id,
       name: prop.name ?? 'unnamed',
       type: prop.type ?? 'unknown',
       visibility: prop.visibility,
+      usedBy: getUsedBy(prop.id),
     })),
     methods: (cls.methods ?? []).map((method) => ({
+      id: method.id,
       name: method.name ?? 'unnamed',
       returnType: method.returnType ?? 'void',
       visibility: method.visibility,
+      usedBy: getUsedBy(method.id),
     })),
   }));
 });
@@ -80,15 +184,41 @@ const moduleInterfaces = computed<SymbolSummary[]>(() => {
     id: iface.id,
     name: iface.name ?? 'Unnamed interface',
     properties: (iface.properties ?? []).map((prop) => ({
+      id: prop.id,
       name: prop.name ?? 'unnamed',
       type: prop.type ?? 'unknown',
       visibility: prop.visibility,
+      usedBy: getUsedBy(prop.id),
     })),
     methods: (iface.methods ?? []).map((method) => ({
+      id: method.id,
       name: method.name ?? 'unnamed',
       returnType: method.returnType ?? 'void',
       visibility: method.visibility,
+      usedBy: getUsedBy(method.id),
     })),
+  }));
+});
+
+const nodeProperties = computed<DisplayMember[]>(() => {
+  const properties = props.node.data?.properties ?? [];
+  return properties.map((prop) => ({
+    id: prop.id,
+    name: prop.name ?? 'unnamed',
+    type: prop.type ?? 'unknown',
+    visibility: prop.visibility,
+    usedBy: getUsedBy(prop.id),
+  }));
+});
+
+const nodeMethods = computed<DisplayMethod[]>(() => {
+  const methods = props.node.data?.methods ?? [];
+  return methods.map((method) => ({
+    id: method.id,
+    name: method.name ?? 'unnamed',
+    returnType: method.returnType ?? 'void',
+    visibility: method.visibility,
+    usedBy: getUsedBy(method.id),
   }));
 });
 
@@ -163,13 +293,19 @@ const moduleExportsMetadata = computed(() => props.node.data?.exports ?? []);
           <summary class="cursor-pointer text-sm text-text-primary">{{ cls.name }}</summary>
           <div class="ml-3 mt-1 space-y-1">
             <div v-if="cls.properties.length > 0" class="text-xs text-text-secondary">
-              <div v-for="prop in cls.properties" :key="`${cls.id}-p-${prop.name}`">
+              <div v-for="(prop, propIndex) in cls.properties" :key="prop.id ?? `${cls.id}-p-${propIndex}`">
                 {{ prop.name }}: {{ prop.type }}
+                <div v-if="prop.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
+                  used by: {{ prop.usedBy.join(', ') }}
+                </div>
               </div>
             </div>
             <div v-if="cls.methods.length > 0" class="text-xs text-text-secondary">
-              <div v-for="method in cls.methods" :key="`${cls.id}-m-${method.name}`">
+              <div v-for="(method, methodIndex) in cls.methods" :key="method.id ?? `${cls.id}-m-${methodIndex}`">
                 {{ method.name }}(): {{ method.returnType }}
+                <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
+                  used by: {{ method.usedBy.join(', ') }}
+                </div>
               </div>
             </div>
           </div>
@@ -182,13 +318,19 @@ const moduleExportsMetadata = computed(() => props.node.data?.exports ?? []);
           <summary class="cursor-pointer text-sm text-text-primary">{{ iface.name }}</summary>
           <div class="ml-3 mt-1 space-y-1">
             <div v-if="iface.properties.length > 0" class="text-xs text-text-secondary">
-              <div v-for="prop in iface.properties" :key="`${iface.id}-p-${prop.name}`">
+              <div v-for="(prop, propIndex) in iface.properties" :key="prop.id ?? `${iface.id}-p-${propIndex}`">
                 {{ prop.name }}: {{ prop.type }}
+                <div v-if="prop.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
+                  used by: {{ prop.usedBy.join(', ') }}
+                </div>
               </div>
             </div>
             <div v-if="iface.methods.length > 0" class="text-xs text-text-secondary">
-              <div v-for="method in iface.methods" :key="`${iface.id}-m-${method.name}`">
+              <div v-for="(method, methodIndex) in iface.methods" :key="method.id ?? `${iface.id}-m-${methodIndex}`">
                 {{ method.name }}(): {{ method.returnType }}
+                <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
+                  used by: {{ method.usedBy.join(', ') }}
+                </div>
               </div>
             </div>
           </div>
@@ -196,30 +338,36 @@ const moduleExportsMetadata = computed(() => props.node.data?.exports ?? []);
       </div>
     </div>
 
-    <div v-if="props.node.data?.properties && props.node.data?.properties.length > 0" class="mb-4">
+    <div v-if="nodeProperties.length > 0" class="mb-4">
       <strong class="text-sm font-semibold text-text-primary block mb-2">Properties</strong>
       <div class="space-y-1">
         <div
-          v-for="(prop, index) in props.node.data.properties"
-          :key="prop.name || `prop-${index}`"
+          v-for="(prop, index) in nodeProperties"
+          :key="prop.id ?? `prop-${index}`"
           class="text-sm text-text-secondary ml-3 font-mono"
         >
-          <span class="text-primary-main">{{ prop.name ?? 'unnamed' }}</span><span class="text-text-muted">:</span>
-          {{ prop.type ?? 'unknown' }}
+          <span class="text-primary-main">{{ prop.name }}</span><span class="text-text-muted">:</span>
+          {{ prop.type }}
+          <div v-if="prop.usedBy.length > 0" class="text-xs text-text-muted ml-1">
+            used by: {{ prop.usedBy.join(', ') }}
+          </div>
         </div>
       </div>
     </div>
 
-    <div v-if="props.node.data?.methods && props.node.data?.methods.length > 0" class="mb-4">
+    <div v-if="nodeMethods.length > 0" class="mb-4">
       <strong class="text-sm font-semibold text-text-primary block mb-2">Methods</strong>
       <div class="space-y-1">
         <div
-          v-for="(method, index) in props.node.data.methods"
-          :key="method.name || `method-${index}`"
+          v-for="(method, index) in nodeMethods"
+          :key="method.id ?? `method-${index}`"
           class="text-sm text-text-secondary ml-3 font-mono"
         >
-          <span class="text-primary-main">{{ method.name ?? 'unnamed' }}</span
-          ><span class="text-text-muted">()</span><span class="text-text-muted">:</span> {{ method.returnType ?? 'void' }}
+          <span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
+          ><span class="text-text-muted">:</span> {{ method.returnType }}
+          <div v-if="method.usedBy.length > 0" class="text-xs text-text-muted ml-1">
+            used by: {{ method.usedBy.join(', ') }}
+          </div>
         </div>
       </div>
     </div>

@@ -45,7 +45,7 @@ import type { IMethodCreateDTO } from '../db/repositories/MethodRepository';
 import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
-import type { ClassExtendsRef, ClassImplementsRef, InterfaceExtendsRef, ParseResult } from './ParseResult';
+import type { ClassExtendsRef, ClassImplementsRef, InterfaceExtendsRef, ParseResult, SymbolUsageRef } from './ParseResult';
 
 export class ModuleParser {
   private j: JSCodeshift;
@@ -125,6 +125,8 @@ export class ModuleParser {
         classExtends: [] as ClassExtendsRef[],
         classImplements: [] as ClassImplementsRef[],
         interfaceExtends: [] as InterfaceExtendsRef[],
+        symbolUsages: [] as SymbolUsageRef[],
+        symbolReferences: [],
       };
 
       this.parseImportsAndExports();
@@ -158,6 +160,8 @@ export class ModuleParser {
         classExtends: [],
         classImplements: [],
         interfaceExtends: [],
+        symbolUsages: [],
+        symbolReferences: [],
       };
     }
   }
@@ -391,6 +395,64 @@ export class ModuleParser {
     };
   }
 
+  private extractSymbolUsages(
+    node: ASTNode,
+    context: {
+      moduleId: string;
+      sourceSymbolId?: string | undefined;
+      sourceSymbolType: 'method' | 'function';
+      sourceSymbolName?: string | undefined;
+      sourceParentName?: string | undefined;
+      sourceParentType?: 'class' | 'interface' | undefined;
+    }
+  ): SymbolUsageRef[] {
+    const usages: SymbolUsageRef[] = [];
+    const seen = new Set<string>();
+
+    this.j(node)
+      .find(this.j.MemberExpression)
+      .forEach((memberPath: ASTPath) => {
+        const member = memberPath.node;
+        if (member.type !== 'MemberExpression') return;
+
+        let targetName: string | undefined;
+        if (member.property.type === 'Identifier') {
+          targetName = member.property.name;
+        } else if ('value' in member.property && typeof member.property.value === 'string') {
+          targetName = member.property.value;
+        }
+        if (!targetName) return;
+
+        let qualifierName: string | undefined;
+        if (member.object.type === 'Identifier') {
+          qualifierName = member.object.name;
+        } else if (member.object.type === 'ThisExpression') {
+          qualifierName = 'this';
+        }
+
+        const isMethodCall = memberPath.name === 'callee';
+        const targetKind = isMethodCall ? 'method' : 'property';
+
+        const dedupeKey = `${targetKind}|${qualifierName ?? ''}|${targetName}`;
+        if (seen.has(dedupeKey)) return;
+        seen.add(dedupeKey);
+
+        usages.push({
+          moduleId: context.moduleId,
+          sourceSymbolId: context.sourceSymbolId,
+          sourceSymbolType: context.sourceSymbolType,
+          sourceSymbolName: context.sourceSymbolName,
+          sourceParentName: context.sourceParentName,
+          sourceParentType: context.sourceParentType,
+          targetName,
+          targetKind,
+          qualifierName,
+        });
+      });
+
+    return usages;
+  }
+
   private parseClassMethods(
     moduleId: string,
     classId: string,
@@ -398,7 +460,11 @@ export class ModuleParser {
     result: ParseResult
   ): IMethodCreateDTO[] {
     try {
-      return this.parseMethods(this.j(node), 'class', classId, moduleId, result);
+      const parentName =
+        node.id && typeof node.id === 'object' && 'name' in node.id && typeof node.id.name === 'string'
+          ? node.id.name
+          : undefined;
+      return this.parseMethods(this.j(node), 'class', classId, moduleId, result, parentName);
     } catch (error: unknown) {
       this.logger.error(`Error parsing class methods: ${String(error)}`);
       return [];
@@ -412,7 +478,8 @@ export class ModuleParser {
     result: ParseResult
   ): IMethodCreateDTO[] {
     try {
-      return this.parseMethods(this.j(node), 'interface', interfaceId, moduleId, result);
+      const parentName = 'name' in node.id && typeof node.id.name === 'string' ? node.id.name : undefined;
+      return this.parseMethods(this.j(node), 'interface', interfaceId, moduleId, result, parentName);
     } catch (error: unknown) {
       this.logger.error(`Error parsing interface methods: ${String(error)}`);
       return [];
@@ -424,7 +491,8 @@ export class ModuleParser {
     parentType: 'class' | 'interface',
     parentId: string,
     moduleId: string,
-    result: ParseResult
+    result: ParseResult,
+    parentName?: string
   ): IMethodCreateDTO[] {
     const methods: IMethodCreateDTO[] = [];
 
@@ -507,6 +575,18 @@ export class ModuleParser {
             is_async: isAsync,
             visibility: 'public', // Default visibility
           });
+
+          const usages = this.extractSymbolUsages(node, {
+            moduleId,
+            sourceSymbolId: methodId,
+            sourceSymbolType: 'method',
+            sourceSymbolName: methodName,
+            sourceParentName: parentName,
+            sourceParentType: parentType,
+          });
+          if (usages.length > 0) {
+            result.symbolUsages.push(...usages);
+          }
 
           // Add parameters to the result object
           if (parameters.length > 0) {
@@ -766,38 +846,70 @@ export class ModuleParser {
   private parseFunctions(moduleId: string, result: ParseResult): void {
     if (!this.root) return;
 
-    // Find all function declarations at module level
-    this.root.find(this.j.FunctionDeclaration).forEach((path) => {
-      try {
-        const node = path.node;
-        if (!node.id) return;
+    const seenFunctionIds = new Set<string>();
 
-        const idName = this.getIdentifierName(node.id);
-        if (!idName) return;
+    const captureFunction = (node: ASTNode): void => {
+      if (node.type !== 'FunctionDeclaration' || !node.id) return;
 
-        const functionName = idName;
-        const functionId = generateFunctionUUID(this.packageId, moduleId, functionName);
+      const idName = this.getIdentifierName(node.id);
+      if (!idName) return;
 
-        // Check if function is exported
-        const isExported = this.exports.has(functionName);
-
-        // Get return type
-        const returnType = this.getReturnTypeFromNode(node);
-
-        const functionDTO: IFunctionCreateDTO = {
-          id: functionId,
-          package_id: this.packageId,
-          module_id: moduleId,
-          name: functionName,
-          return_type: returnType,
-          is_async: node.async ?? false,
-          is_exported: isExported,
-        };
-
-        result.functions.push(functionDTO);
-      } catch (error) {
-        this.logger.error('Error parsing function:', error);
+      const functionName = idName;
+      const functionId = generateFunctionUUID(this.packageId, moduleId, functionName);
+      if (seenFunctionIds.has(functionId)) {
+        return;
       }
+      seenFunctionIds.add(functionId);
+
+      const isExported = this.exports.has(functionName);
+      const returnType = this.getReturnTypeFromNode(node);
+
+      const functionDTO: IFunctionCreateDTO = {
+        id: functionId,
+        package_id: this.packageId,
+        module_id: moduleId,
+        name: functionName,
+        return_type: returnType,
+        is_async: node.async ?? false,
+        is_exported: isExported,
+      };
+
+      result.functions.push(functionDTO);
+
+      const usages = this.extractSymbolUsages(node, {
+        moduleId,
+        sourceSymbolId: functionId,
+        sourceSymbolType: 'function',
+        sourceSymbolName: functionName,
+      });
+      if (usages.length > 0) {
+        result.symbolUsages.push(...usages);
+      }
+    };
+
+    this.root.find(this.j.Program).forEach((programPath: ASTPath) => {
+      const programNode = programPath.node;
+      if (programNode.type !== 'Program') {
+        return;
+      }
+
+      programNode.body.forEach((statement) => {
+        try {
+          if (statement.type === 'FunctionDeclaration') {
+            captureFunction(statement);
+            return;
+          }
+
+          if (
+            (statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration') &&
+            statement.declaration
+          ) {
+            captureFunction(statement.declaration as ASTNode);
+          }
+        } catch (error) {
+          this.logger.error('Error parsing function:', error);
+        }
+      });
     });
   }
 

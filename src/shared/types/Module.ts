@@ -4,6 +4,7 @@ import type { Export } from './Export';
 import type { FileLocation } from './FileLocation';
 import type { Import, PackageImport } from './Import';
 import type { Interface } from './Interface';
+import type { SymbolReference } from './SymbolReference';
 import type { TypeAlias } from './TypeAlias';
 import type { TypeCollection } from './TypeCollection';
 
@@ -75,6 +76,11 @@ export interface IModule {
    * The enums defined in this module.
    */
   readonly enums: TypeCollection<Enum>;
+
+  /**
+   * References from symbols in this module to method/property symbols.
+   */
+  readonly symbol_references: TypeCollection<SymbolReference>;
 }
 
 export class Module implements IModule {
@@ -96,6 +102,7 @@ export class Module implements IModule {
     public readonly packages: TypeCollection<PackageImport> = new Map(),
     public readonly typeAliases: TypeCollection<TypeAlias> = new Map(),
     public readonly enums: TypeCollection<Enum> = new Map(),
-    public readonly referencePaths: string[] = []
+    public readonly referencePaths: string[] = [],
+    public readonly symbol_references: TypeCollection<SymbolReference> = new Map()
   ) {}
 }

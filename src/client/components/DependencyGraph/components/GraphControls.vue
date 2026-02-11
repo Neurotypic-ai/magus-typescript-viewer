@@ -78,6 +78,10 @@ const handleCollapseSccToggle = (checked: boolean) => {
 };
 
 const handleClusterByFolderToggle = (checked: boolean) => {
+  if (checked && graphSettings.collapseScc) {
+    graphSettings.setCollapseScc(false);
+    emit('toggle-collapse-scc', false);
+  }
   graphSettings.setClusterByFolder(checked);
   emit('toggle-cluster-folder', checked);
 };
@@ -202,6 +206,7 @@ const handleClusterByFolderToggle = (checked: boolean) => {
               type="checkbox"
               class="cursor-pointer accent-primary-main"
               :checked="graphSettings.collapseScc"
+              :disabled="graphSettings.clusterByFolder"
               @change="(e) => handleCollapseSccToggle((e.target as HTMLInputElement).checked)"
             />
             <span class="text-xs">Collapse cycles (SCC)</span>

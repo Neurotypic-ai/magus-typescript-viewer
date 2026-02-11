@@ -8,6 +8,7 @@ import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
 import type { IPackageCreateDTO } from '../db/repositories/PackageRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
+import type { ISymbolReferenceCreateDTO } from '../db/repositories/SymbolReferenceRepository';
 
 /**
  * Represents a deferred relationship between a class and its parent class.
@@ -37,6 +38,18 @@ export interface InterfaceExtendsRef {
   parentId?: string | undefined;
 }
 
+export interface SymbolUsageRef {
+  moduleId: string;
+  sourceSymbolId?: string | undefined;
+  sourceSymbolType: 'method' | 'function';
+  sourceSymbolName?: string | undefined;
+  sourceParentName?: string | undefined;
+  sourceParentType?: 'class' | 'interface' | undefined;
+  targetName: string;
+  targetKind: 'method' | 'property';
+  qualifierName?: string | undefined;
+}
+
 export interface ParseResult {
   package?: IPackageCreateDTO | undefined;
   modules: IModuleCreateDTO[];
@@ -56,4 +69,9 @@ export interface ParseResult {
   classImplements: ClassImplementsRef[];
   /** Deferred interface extends relationships (name-based, resolved after all modules are parsed) */
   interfaceExtends: InterfaceExtendsRef[];
+
+  /** Raw symbol usages captured by parser before name resolution */
+  symbolUsages: SymbolUsageRef[];
+  /** Resolved symbol references to persist */
+  symbolReferences: ISymbolReferenceCreateDTO[];
 }

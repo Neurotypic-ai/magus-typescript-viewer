@@ -7,7 +7,7 @@ import { readPackage } from 'read-pkg';
 import { Export } from '../../shared/types/Export';
 import { PackageImport } from '../../shared/types/Import';
 import { createLogger } from '../../shared/utils/logger';
-import { generateExportUUID, generateImportUUID, generatePackageUUID } from '../utils/uuid';
+import { generateExportUUID, generateImportUUID, generatePackageUUID, generateRelationshipUUID } from '../utils/uuid';
 import { ModuleParser } from './ModuleParser';
 
 import type { NormalizedPackageJson } from 'read-pkg';
@@ -21,7 +21,8 @@ import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
 import type { IPackageCreateDTO } from '../db/repositories/PackageRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
-import type { ParseResult } from './ParseResult';
+import type { ISymbolReferenceCreateDTO } from '../db/repositories/SymbolReferenceRepository';
+import type { ParseResult, SymbolUsageRef } from './ParseResult';
 
 interface PackageDependencies {
   dependencies?: Record<string, string> | undefined;
@@ -97,6 +98,10 @@ export class PackageParser {
       return undefined;
     }
     return ids[0];
+  }
+
+  private buildParentMemberKey(parentId: string, memberName: string): string {
+    return `${parentId}:${memberName}`;
   }
 
   private asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -318,6 +323,7 @@ export class PackageParser {
     const rawClassExtends: DeferredClassExtendsRef[] = [];
     const rawClassImplements: DeferredClassImplementsRef[] = [];
     const rawInterfaceExtends: DeferredInterfaceExtendsRef[] = [];
+    const symbolUsages: SymbolUsageRef[] = [];
 
     for (const file of files) {
       const sourceOverride = await this.getModuleSourceOverride(file);
@@ -343,6 +349,7 @@ export class PackageParser {
       rawClassExtends.push(...this.parseClassExtendsRefs(moduleResult.classExtends));
       rawClassImplements.push(...this.parseClassImplementsRefs(moduleResult.classImplements));
       rawInterfaceExtends.push(...this.parseInterfaceExtendsRefs(moduleResult.interfaceExtends));
+      symbolUsages.push(...moduleResult.symbolUsages);
     }
 
     // Build name→ID lookup maps for first-pass resolution within this package
@@ -375,6 +382,15 @@ export class PackageParser {
       parentId: this.resolveUniqueName(interfaceNameToIds, ref.parentName),
     }));
 
+    const symbolReferences = this.resolveSymbolReferences(
+      packageId,
+      symbolUsages,
+      classNameToIds,
+      interfaceNameToIds,
+      methods,
+      properties
+    );
+
     return {
       package: packageDTO,
       modules,
@@ -390,7 +406,87 @@ export class PackageParser {
       classExtends,
       classImplements,
       interfaceExtends,
+      symbolUsages,
+      symbolReferences,
     };
+  }
+
+  private resolveSymbolReferences(
+    packageId: string,
+    symbolUsages: SymbolUsageRef[],
+    classNameToIds: Map<string, string[]>,
+    interfaceNameToIds: Map<string, string[]>,
+    methods: IMethodCreateDTO[],
+    properties: IPropertyCreateDTO[]
+  ): ISymbolReferenceCreateDTO[] {
+    const methodNameToIds = new Map<string, string[]>();
+    const propertyNameToIds = new Map<string, string[]>();
+    const methodByParentAndName = new Map<string, string[]>();
+    const propertyByParentAndName = new Map<string, string[]>();
+
+    methods.forEach((method) => {
+      this.addNameMapping(methodNameToIds, method.name, method.id);
+      this.addNameMapping(methodByParentAndName, this.buildParentMemberKey(method.parent_id, method.name), method.id);
+    });
+
+    properties.forEach((property) => {
+      this.addNameMapping(propertyNameToIds, property.name, property.id);
+      this.addNameMapping(
+        propertyByParentAndName,
+        this.buildParentMemberKey(property.parent_id, property.name),
+        property.id
+      );
+    });
+
+    const referencesById = new Map<string, ISymbolReferenceCreateDTO>();
+
+    symbolUsages.forEach((usage) => {
+      const isMethodAccess = usage.targetKind === 'method';
+      const byNameMap = isMethodAccess ? methodNameToIds : propertyNameToIds;
+      const byParentAndNameMap = isMethodAccess ? methodByParentAndName : propertyByParentAndName;
+
+      let targetParentId: string | undefined;
+      if (usage.qualifierName === 'this' && usage.sourceParentName && usage.sourceParentType) {
+        targetParentId =
+          usage.sourceParentType === 'class'
+            ? this.resolveUniqueName(classNameToIds, usage.sourceParentName)
+            : this.resolveUniqueName(interfaceNameToIds, usage.sourceParentName);
+      } else if (usage.qualifierName) {
+        targetParentId =
+          this.resolveUniqueName(classNameToIds, usage.qualifierName) ??
+          this.resolveUniqueName(interfaceNameToIds, usage.qualifierName);
+      }
+
+      let targetSymbolId: string | undefined;
+      if (targetParentId) {
+        targetSymbolId = this.resolveUniqueName(
+          byParentAndNameMap,
+          this.buildParentMemberKey(targetParentId, usage.targetName)
+        );
+      }
+      targetSymbolId ??= this.resolveUniqueName(byNameMap, usage.targetName);
+      if (!targetSymbolId) {
+        return;
+      }
+
+      const sourceId = usage.sourceSymbolId ?? usage.moduleId;
+      const id = generateRelationshipUUID(sourceId, targetSymbolId, `symbol_${usage.targetKind}`);
+      referencesById.set(id, {
+        id,
+        package_id: packageId,
+        module_id: usage.moduleId,
+        source_symbol_id: usage.sourceSymbolId,
+        source_symbol_type: usage.sourceSymbolType,
+        source_symbol_name: usage.sourceSymbolName,
+        target_symbol_id: targetSymbolId,
+        target_symbol_type: usage.targetKind,
+        target_symbol_name: usage.targetName,
+        access_kind: usage.targetKind,
+        qualifier_name: usage.qualifierName,
+      });
+    });
+
+    return Array.from(referencesById.values());
   }
 
   private async readPackageLock(packageDir: string): Promise<PackageLock> {

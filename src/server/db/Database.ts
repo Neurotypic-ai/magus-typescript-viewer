@@ -95,6 +95,7 @@ export class Database {
       'interface_extends',
       'functions',
       'class_extends',
+      'symbol_references',
     ];
 
     for (const table of requiredTables) {
@@ -118,10 +119,13 @@ export class Database {
     return true;
   }
 
-  public async initializeDatabase(reset = false): Promise<void> {
+  public async initializeDatabase(reset = false, allowSchemaChanges = true): Promise<void> {
     console.log('this.dbPath', this.dbPath);
     if (this.dbPath === ':memory:') {
       console.log('initializing in-memory database');
+      if (!allowSchemaChanges) {
+        throw new Error('Cannot initialize in-memory database in read-only mode without schema changes');
+      }
       await this.adapter.init();
       await this.executeSchema(loadSchema());
       await this.migrateSchemaIfNeeded();
@@ -160,13 +164,23 @@ export class Database {
     // Initialize the adapter (this will create a new database if needed)
     await this.adapter.init();
 
+    const schemaIsValid = await this.verifySchema();
+    const requiresSchemaInitialization = !exists || reset || !schemaIsValid;
+
+    // If schema changes are not allowed (read-only mode), fail early with a clear error.
+    if (requiresSchemaInitialization && !allowSchemaChanges) {
+      throw new Error(
+        `Database schema is missing or outdated at ${path}. Run 'pnpm analyze .' to recreate/update the database before starting the read-only server.`
+      );
+    }
+
     // If the file doesn't exist, or if reset is true, or if schema verification fails,
-    // we need to execute the schema
-    if (!exists || reset || !(await this.verifySchema())) {
+    // we need to execute the schema.
+    if (requiresSchemaInitialization) {
       console.log('Loading and executing schema...');
       await this.executeSchema(loadSchema());
       await this.migrateSchemaIfNeeded();
-    } else {
+    } else if (allowSchemaChanges) {
       // For existing databases with tables present, attempt lightweight migrations
       await this.migrateSchemaIfNeeded();
     }

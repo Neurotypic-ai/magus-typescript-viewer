@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Background } from '@vue-flow/background';
-import { MarkerType, Panel, Position, VueFlow, useVueFlow } from '@vue-flow/core';
+import { MarkerType, Panel, Position, VueFlow, applyNodeChanges, useVueFlow } from '@vue-flow/core';
 import { computed, onUnmounted, watch } from 'vue';
 
 import { createLogger } from '../../../shared/utils/logger';
@@ -27,6 +27,7 @@ import type {
   GraphEdge,
   SearchResult,
 } from './types';
+import type { NodeChange } from '@vue-flow/core';
 
 import '@vue-flow/core/dist/style.css';
 
@@ -268,16 +269,25 @@ const applyGraphTransforms = (graphData: { nodes: DependencyNode[]; edges: Graph
   let transformedNodes = graphData.nodes;
   let transformedEdges = graphData.edges;
 
-  if (graphSettings.collapseScc) {
+  // Folder clustering and SCC collapse compete for parent/edge remapping semantics.
+  // Folder mode takes precedence and disables SCC remapping for deterministic behavior.
+  const folderClusteringEnabled = graphSettings.clusterByFolder;
+  if (!folderClusteringEnabled && graphSettings.collapseScc) {
     const collapsed = collapseSccs(transformedNodes, transformedEdges);
     transformedNodes = collapsed.nodes as DependencyNode[];
     transformedEdges = collapsed.edges as GraphEdge[];
   }
 
-  if (graphSettings.clusterByFolder) {
+  if (folderClusteringEnabled) {
     const clustered = clusterByFolder(transformedNodes, transformedEdges);
     transformedNodes = clustered.nodes as DependencyNode[];
     transformedEdges = clustered.edges as GraphEdge[];
+
+    // Group-only dragging in folder-cluster mode keeps child modules stable.
+    transformedNodes = transformedNodes.map((node) => ({
+      ...node,
+      draggable: node.type === 'group',
+    }));
   }
 
   return { nodes: transformedNodes, edges: transformedEdges };
@@ -666,13 +676,41 @@ const handleNodeTypeFilterChange = async (types: string[]) => {
 };
 
 const handleCollapseSccToggle = async (value: boolean) => {
+  if (graphSettings.clusterByFolder && value) {
+    graphSettings.setCollapseScc(false);
+    return;
+  }
   graphSettings.setCollapseScc(value);
   await initializeGraph();
 };
 
 const handleClusterByFolderToggle = async (value: boolean) => {
+  if (value && graphSettings.collapseScc) {
+    graphSettings.setCollapseScc(false);
+  }
   graphSettings.setClusterByFolder(value);
   await initializeGraph();
+};
+
+const handleNodesChange = (changes: NodeChange[]) => {
+  if (!changes.length) return;
+
+  const nodeTypeById = new Map(nodes.value.map((node) => [node.id, node.type]));
+  const filteredChanges = changes.filter((change) => {
+    if (!graphSettings.clusterByFolder) {
+      return true;
+    }
+
+    if (change.type === 'position' || change.type === 'dimensions') {
+      return nodeTypeById.get(change.id) === 'group';
+    }
+
+    return true;
+  });
+
+  if (!filteredChanges.length) return;
+  const updatedNodes = applyNodeChanges(filteredChanges, nodes.value as any) as unknown as DependencyNode[];
+  graphStore['setNodes'](updatedNodes);
 };
 
 // Layout change handler
@@ -814,7 +852,8 @@ function toDependencyEdgeKind(type: string | undefined): DependencyEdgeKind {
         markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
         zIndex: 1000,
         type: 'step',
-      }" @node-click="onNodeClick" @node-double-click="onNodeDoubleClick" @pane-click="onPaneClick">
+      }" @node-click="onNodeClick" @node-double-click="onNodeDoubleClick" @pane-click="onPaneClick"
+      @nodes-change="handleNodesChange">
       <Background />
       <GraphControls @relationship-filter-change="handleRelationshipFilterChange"
         @node-type-filter-change="handleNodeTypeFilterChange" @layout-change="handleLayoutChange"

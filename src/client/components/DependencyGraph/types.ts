@@ -33,6 +33,7 @@ export type DependencyEdgeKind =
  * Node method format for display
  */
 export interface NodeMethod {
+  id?: string | undefined;
   name: string;
   returnType: string;
   visibility: string;
@@ -43,6 +44,7 @@ export interface NodeMethod {
  * Node property format for display
  */
 export interface NodeProperty {
+  id?: string | undefined;
   name: string;
   type: string;
   visibility: string;
@@ -136,9 +138,24 @@ export interface ModuleStructure {
     [key: string]: unknown;
   };
   imports?: Record<string, ImportRef>;
+  symbol_references?: Record<string, SymbolReferenceRef>;
   classes?: Record<string, ClassStructure>;
   interfaces?: Record<string, InterfaceStructure>;
   [key: string]: unknown;
+}
+
+export interface SymbolReferenceRef {
+  id: string;
+  package_id: string;
+  module_id: string;
+  source_symbol_id?: string | undefined;
+  source_symbol_type: 'module' | 'class' | 'interface' | 'function' | 'method' | 'property';
+  source_symbol_name?: string | undefined;
+  target_symbol_id: string;
+  target_symbol_type: 'method' | 'property';
+  target_symbol_name: string;
+  access_kind: 'method' | 'property';
+  qualifier_name?: string | undefined;
 }
 
 /**

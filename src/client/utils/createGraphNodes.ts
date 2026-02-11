@@ -195,6 +195,7 @@ export function createGraphNodes(
         mapTypeCollection(module.classes, (cls) => {
           const properties = cls.properties
             ? mapTypeCollection(cls.properties, (prop) => ({
+                id: prop.id,
                 name: prop.name,
                 type: prop.type,
                 visibility: prop.visibility,
@@ -207,6 +208,7 @@ export function createGraphNodes(
                 const methodName: string = method.name;
                 const visibility: string = method.visibility;
                 return {
+                  id: method.id,
                   name: methodName,
                   returnType,
                   visibility,
@@ -247,6 +249,7 @@ export function createGraphNodes(
         mapTypeCollection(module.interfaces, (iface) => {
           const properties = iface.properties
             ? mapTypeCollection(iface.properties, (prop) => ({
+                id: prop.id,
                 name: prop.name,
                 type: prop.type,
                 visibility: prop.visibility,
@@ -259,6 +262,7 @@ export function createGraphNodes(
                 const methodName: string = method.name;
                 const visibility: string = method.visibility;
                 return {
+                  id: method.id,
                   name: methodName,
                   returnType,
                   visibility,

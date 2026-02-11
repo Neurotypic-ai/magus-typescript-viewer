@@ -3,10 +3,8 @@ import { ref } from 'vue';
 
 export const DEFAULT_RELATIONSHIP_TYPES = [
   'import',
-  'export',
   'inheritance',
   'implements',
-  'contains',
   'dependency',
   'devDependency',
   'peerDependency',

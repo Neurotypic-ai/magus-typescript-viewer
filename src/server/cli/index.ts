@@ -18,6 +18,7 @@ import { ModuleRepository } from '../db/repositories/ModuleRepository';
 import { PackageRepository } from '../db/repositories/PackageRepository';
 import { ParameterRepository } from '../db/repositories/ParameterRepository';
 import { PropertyRepository } from '../db/repositories/PropertyRepository';
+import { SymbolReferenceRepository } from '../db/repositories/SymbolReferenceRepository';
 import { PackageParser } from '../parsers/PackageParser';
 import { generateRelationshipUUID } from '../utils/uuid';
 
@@ -138,6 +139,7 @@ program
         method: new MethodRepository(adapter),
         parameter: new ParameterRepository(adapter),
         property: new PropertyRepository(adapter),
+        symbolReference: new SymbolReferenceRepository(adapter),
       };
 
       // Parse package.json
@@ -214,6 +216,11 @@ program
           is_default: exp.isDefault,
         };
         await repositories.export.create(exportDTO);
+      }
+
+      // Save symbol references (method/property usage edges)
+      for (const reference of parseResult.symbolReferences) {
+        await repositories.symbolReference.create(reference);
       }
 
       // Save relationship records to junction tables

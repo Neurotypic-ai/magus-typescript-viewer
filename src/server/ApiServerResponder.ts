@@ -8,6 +8,7 @@ import { ImportRepository } from './db/repositories/ImportRepository';
 import { InterfaceRepository } from './db/repositories/InterfaceRepository';
 import { ModuleRepository } from './db/repositories/ModuleRepository';
 import { PackageRepository } from './db/repositories/PackageRepository';
+import { SymbolReferenceRepository } from './db/repositories/SymbolReferenceRepository';
 
 import type { Package } from '../shared/types/Package';
 import type { TypeCollection } from '../shared/types/TypeCollection';
@@ -28,6 +29,7 @@ export class ApiServerResponder {
   private readonly importRepository: ImportRepository;
   private readonly moduleRepository: ModuleRepository;
   private readonly packageRepository: PackageRepository;
+  private readonly symbolReferenceRepository: SymbolReferenceRepository;
 
   constructor(options: ApiServerResponderOptions = {}) {
     const dbPath = options.dbPath ?? 'typescript-viewer.duckdb';
@@ -42,12 +44,13 @@ export class ApiServerResponder {
     this.importRepository = new ImportRepository(this.dbAdapter);
     this.moduleRepository = new ModuleRepository(this.dbAdapter);
     this.packageRepository = new PackageRepository(this.dbAdapter);
+    this.symbolReferenceRepository = new SymbolReferenceRepository(this.dbAdapter);
   }
 
   async initialize(): Promise<void> {
     try {
-      // Initialize database connection (read-only mode, no schema changes or seeding)
-      await this.database.initializeDatabase(false);
+      // Initialize database connection and prevent schema mutations in read-only mode.
+      await this.database.initializeDatabase(false, !this.readOnly);
       this.logger.info(`Database initialized in ${this.readOnly ? 'read-only' : 'read-write'} mode`);
     } catch (error) {
       if (error instanceof RepositoryError) {
@@ -188,6 +191,7 @@ export class ApiServerResponder {
 
           // Load imports for this module
           const imports = new Map();
+          const symbolReferences = new Map();
           try {
             const importsArray = await this.importRepository.findByModuleId(mod.id);
             for (const imp of importsArray) {
@@ -205,6 +209,18 @@ export class ApiServerResponder {
             // Continue with empty imports
           }
 
+          try {
+            const symbolRefs = await this.symbolReferenceRepository.findByModuleId(mod.id);
+            for (const ref of symbolRefs) {
+              symbolReferences.set(ref.id, {
+                ...ref,
+                created_at: new Date(),
+              });
+            }
+          } catch (error) {
+            this.logger.error(`Failed to load symbol references for module ${mod.id}:`, error);
+          }
+
           // Create enriched module
           enrichedModules.push(
             new Module(
@@ -220,7 +236,8 @@ export class ApiServerResponder {
               mod.packages,
               mod.typeAliases,
               mod.enums,
-              mod.referencePaths
+              mod.referencePaths,
+              symbolReferences
             )
           );
         } catch (error) {

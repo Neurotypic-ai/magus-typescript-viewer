@@ -174,3 +174,22 @@ CREATE TABLE functions (
   is_exported BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
+
+-- Symbol-level references to methods/properties discovered by parser analysis
+CREATE TABLE symbol_references (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  source_symbol_id CHAR(36),
+  source_symbol_type TEXT NOT NULL CHECK (source_symbol_type IN ('module', 'class', 'interface', 'function', 'method', 'property')),
+  source_symbol_name TEXT,
+  target_symbol_id CHAR(36) NOT NULL,
+  target_symbol_type TEXT NOT NULL CHECK (target_symbol_type IN ('method', 'property')),
+  target_symbol_name TEXT NOT NULL,
+  access_kind TEXT NOT NULL CHECK (access_kind IN ('method', 'property')),
+  qualifier_name TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+CREATE INDEX idx_symbol_references_module_id ON symbol_references (module_id);
+CREATE INDEX idx_symbol_references_target_symbol_id ON symbol_references (target_symbol_id);

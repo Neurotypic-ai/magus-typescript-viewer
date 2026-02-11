@@ -55,7 +55,7 @@ export function clusterByFolder(
         zIndex: 0,
         overflow: 'visible',
       },
-      draggable: false,
+      draggable: true,
     });
     return id;
   }

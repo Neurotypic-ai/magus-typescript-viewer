@@ -8,6 +8,7 @@ import type { Method } from '../../shared/types/Method';
 import type { Module } from '../../shared/types/Module';
 import type { Package } from '../../shared/types/Package';
 import type { Property as SharedProperty } from '../../shared/types/Property';
+import type { SymbolReference } from '../../shared/types/SymbolReference';
 import type { TypeCollection } from '../../shared/types/TypeCollection';
 import type {
   ClassStructure,
@@ -18,6 +19,7 @@ import type {
   ModuleStructure,
   NodeMethod,
   NodeProperty,
+  SymbolReferenceRef,
 } from '../components/DependencyGraph/types';
 
 // Define the missing structures that are used in the class but not externally defined
@@ -210,6 +212,7 @@ export class GraphDataAssembler {
           relativePath,
         },
         imports: this.transformImportCollection(this.typeCollectionToArray(module.imports)),
+        symbol_references: this.transformSymbolReferenceCollection(this.typeCollectionToArray(module.symbol_references)),
         classes: this.transformClassCollection(this.typeCollectionToArray(module.classes)),
         interfaces: this.transformInterfaceCollection(this.typeCollectionToArray(module.interfaces)),
         created_at: typeof module.created_at === 'string' ? module.created_at : module.created_at.toISOString(),
@@ -286,6 +289,7 @@ export class GraphDataAssembler {
    */
   private transformPropertyCollection(properties: SharedProperty[]): NodeProperty[] {
     return properties.map((prop) => ({
+      id: prop.id,
       name: prop.name,
       type: prop.type,
       visibility: prop.visibility,
@@ -303,6 +307,7 @@ export class GraphDataAssembler {
     return methods.map((method) => {
       const parameters = this.typeCollectionToArray(method.parameters);
       return {
+        id: method.id,
         name: method.name,
         returnType: method.return_type,
         visibility: method.visibility,
@@ -358,6 +363,28 @@ export class GraphDataAssembler {
         (ref as { path?: string }).path = imp.relativePath;
       }
       result[imp.uuid] = ref;
+    });
+    return result;
+  }
+
+  private transformSymbolReferenceCollection(
+    references: SymbolReference[]
+  ): Record<string, SymbolReferenceRef> {
+    const result: Record<string, SymbolReferenceRef> = {};
+    references.forEach((reference) => {
+      result[reference.id] = {
+        id: reference.id,
+        package_id: reference.package_id,
+        module_id: reference.module_id,
+        source_symbol_id: reference.source_symbol_id ?? undefined,
+        source_symbol_type: reference.source_symbol_type,
+        source_symbol_name: reference.source_symbol_name ?? undefined,
+        target_symbol_id: reference.target_symbol_id,
+        target_symbol_type: reference.target_symbol_type,
+        target_symbol_name: reference.target_symbol_name,
+        access_kind: reference.access_kind,
+        qualifier_name: reference.qualifier_name ?? undefined,
+      };
     });
     return result;
   }
