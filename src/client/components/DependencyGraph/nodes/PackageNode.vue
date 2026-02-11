@@ -14,6 +14,11 @@ const subnodeCount = computed(() => {
   return typeof count === 'number' ? count : 0;
 });
 
+const totalSubnodeCount = computed(() => {
+  const total = (nodeData.value.subnodes as { totalCount?: number } | undefined)?.totalCount;
+  return typeof total === 'number' ? total : subnodeCount.value;
+});
+
 const baseNodeProps = computed(() => ({
   id: props.id,
   type: props.type,
@@ -24,7 +29,7 @@ const baseNodeProps = computed(() => ({
   ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
   ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
   isContainer: true,
-  showSubnodes: true,
+  showSubnodes: totalSubnodeCount.value > 0,
   subnodesCount: subnodeCount.value,
 }));
 </script>

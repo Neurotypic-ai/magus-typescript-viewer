@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyEdgeVisibility, buildSymbolDrilldownGraph, filterNodeChangesForFolderMode } from '../buildGraphView';
+import { applyEdgeVisibility, buildOverviewGraph, buildSymbolDrilldownGraph, filterNodeChangesForFolderMode } from '../buildGraphView';
 
 import type { NodeChange } from '@vue-flow/core';
 
@@ -37,6 +37,71 @@ describe('applyEdgeVisibility', () => {
     expect(result.find((edge) => edge.id === 'import-edge')?.hidden).toBe(false);
     expect(result.find((edge) => edge.id === 'inheritance-edge')?.hidden).toBe(true);
     expect(result.find((edge) => edge.id === 'uses-edge')?.hidden).toBe(false);
+  });
+
+  it('keeps contains edges visible regardless of relationship filters', () => {
+    const edges: GraphEdge[] = [
+      {
+        id: 'contains-edge',
+        source: 'a',
+        target: 'b',
+        hidden: false,
+        data: { type: 'contains' },
+      } as GraphEdge,
+    ];
+
+    const result = applyEdgeVisibility(edges, ['import']);
+    expect(result[0]?.hidden).toBe(false);
+  });
+});
+
+describe('buildOverviewGraph', () => {
+  it('filters out test modules when hideTestFiles is enabled and annotates orphan diagnostics', () => {
+    const data: DependencyPackageGraph = {
+      packages: [
+        {
+          id: 'pkg-1',
+          name: 'pkg',
+          version: '1.0.0',
+          path: '/pkg',
+          created_at: '2024-01-01T00:00:00.000Z',
+          modules: {
+            m1: {
+              id: 'module-main',
+              name: 'main.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/main.ts' },
+              imports: {},
+            },
+            m2: {
+              id: 'module-test',
+              name: 'main.test.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/main.test.ts' },
+              imports: {},
+            },
+          },
+        },
+      ],
+    };
+
+    const result = buildOverviewGraph({
+      data,
+      enabledNodeTypes: ['module'],
+      enabledRelationshipTypes: ['import'],
+      direction: 'LR',
+      clusterByFolder: false,
+      collapseScc: false,
+      hideTestFiles: true,
+      memberNodeMode: 'compact',
+      highlightOrphanCurrent: true,
+      highlightOrphanGlobal: true,
+    });
+
+    expect(result.nodes.some((node) => node.id === 'module-test')).toBe(false);
+    const mainNode = result.nodes.find((node) => node.id === 'module-main');
+    expect(mainNode?.data?.diagnostics?.orphanCurrent).toBe(true);
+    expect(mainNode?.data?.diagnostics?.orphanGlobal).toBe(true);
   });
 });
 

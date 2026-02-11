@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Background } from '@vue-flow/background';
 import { MarkerType, Panel, Position, VueFlow, applyNodeChanges, useVueFlow } from '@vue-flow/core';
-import { computed, onUnmounted, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { createLogger } from '../../../shared/utils/logger';
 import { WebWorkerLayoutProcessor } from '../../layout/WebWorkerLayoutProcessor';
@@ -11,16 +11,17 @@ import { getEdgeStyle, getNodeStyle, graphTheme } from '../../theme/graphTheme';
 import { measurePerformance } from '../../utils/performanceMonitoring';
 import {
   applyEdgeVisibility,
-  buildModuleDrilldownGraph,
   buildOverviewGraph,
   buildSymbolDrilldownGraph,
   filterNodeChangesForFolderMode,
   toDependencyEdgeKind,
 } from './buildGraphView';
 import GraphControls from './components/GraphControls.vue';
+import GraphMiniMap from './components/GraphMiniMap.vue';
 import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
+import { useGraphInteractionController } from './useGraphInteractionController';
 
 import type { NodeChange } from '@vue-flow/core';
 import type { DependencyKind, DependencyNode, DependencyPackageGraph, GraphEdge, SearchResult } from './types';
@@ -33,20 +34,32 @@ export interface DependencyGraphProps {
   data: DependencyPackageGraph;
 }
 
+interface LayoutProcessOptions {
+  fitViewToResult?: boolean;
+  fitPadding?: number;
+  fitNodes?: string[];
+  twoPassMeasure?: boolean;
+}
+
 const props = defineProps<DependencyGraphProps>();
 
 const graphStore = useGraphStore();
 const graphSettings = useGraphSettings();
+const interaction = useGraphInteractionController();
+
 const nodes = computed(() => graphStore['nodes']);
 const edges = computed(() => graphStore['edges']);
 const selectedNode = computed(() => graphStore['selectedNode']);
+const scopeMode = computed(() => interaction.scopeMode.value);
+const isLayoutPending = ref(false);
 
-const { fitView } = useVueFlow();
+const { fitView, updateNodeInternals } = useVueFlow();
 
 let layoutProcessor: WebWorkerLayoutProcessor | null = null;
 let layoutRequestVersion = 0;
 
 const DEFAULT_NODE_TYPE_SET = new Set(['module']);
+const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
 
 const defaultLayoutConfig = {
   algorithm: 'layered' as 'layered' | 'radial' | 'force' | 'stress',
@@ -127,60 +140,184 @@ const initializeLayoutProcessor = () => {
   });
 };
 
-onUnmounted(() => {
-  if (layoutProcessor) {
-    layoutProcessor.dispose();
-    layoutProcessor = null;
+const setSelectedNode = (node: DependencyNode | null) => {
+  graphStore['setSelectedNode'](node);
+  interaction.setSelectionNodeId(node?.id ?? null);
+  if (!node) {
+    interaction.setCameraMode('free');
   }
-});
+};
 
-const processGraphLayout = async (graphData: { nodes: DependencyNode[]; edges: GraphEdge[] }) => {
-  if (!layoutProcessor) return null;
+const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: DependencyNode[]; hasChanges: boolean } => {
+  const domNodes = Array.from(document.querySelectorAll<HTMLElement>('.vue-flow__node'));
+  const elementById = new Map<string, HTMLElement>();
+  domNodes.forEach((element) => {
+    const id = element.getAttribute('data-id');
+    if (id) {
+      elementById.set(id, element);
+    }
+  });
+
+  let hasChanges = false;
+  const measuredNodes = layoutedNodes.map((node) => {
+    const shouldMeasure = node.type === 'module' || node.type === 'package' || node.type === 'group' || node.type === 'class' || node.type === 'interface';
+    if (!shouldMeasure) {
+      return node;
+    }
+
+    const element = elementById.get(node.id);
+    if (!element) {
+      return node;
+    }
+
+    // offset* metrics are unscaled by viewport zoom, unlike getBoundingClientRect.
+    const measuredWidth = element.offsetWidth;
+    const measuredHeight = element.offsetHeight;
+    const headerHeight = element.querySelector<HTMLElement>('.base-node-header')?.offsetHeight ?? 0;
+    const bodyHeight = element.querySelector<HTMLElement>('.base-node-body')?.offsetHeight ?? 0;
+    const subnodeSectionHeight = element.querySelector<HTMLElement>('.base-node-subnodes')?.offsetHeight ?? 0;
+
+    // Reserve full visible top content so nested children never overlap card sections.
+    const measuredTopInset = Math.max(96, Math.round(headerHeight + bodyHeight + subnodeSectionHeight + 12));
+
+    const currentTopInset = (node.data?.layoutInsets as { top?: number } | undefined)?.top ?? 0;
+    const currentMeasured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
+    const widthDelta = Math.abs((currentMeasured?.width ?? 0) - measuredWidth);
+    const heightDelta = Math.abs((currentMeasured?.height ?? 0) - measuredHeight);
+    const insetDelta = Math.abs(currentTopInset - measuredTopInset);
+    const changed = widthDelta > 1 || heightDelta > 1 || insetDelta > 1;
+
+    if (!changed) {
+      return node;
+    }
+
+    hasChanges = true;
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        layoutInsets: {
+          top: measuredTopInset,
+        },
+      },
+      measured: {
+        width: measuredWidth,
+        height: measuredHeight,
+      },
+    } as DependencyNode;
+  });
+
+  return {
+    nodes: measuredNodes,
+    hasChanges,
+  };
+};
+
+const normalizeLayoutResult = (resultNodes: DependencyNode[], resultEdges: GraphEdge[]): { nodes: DependencyNode[]; edges: GraphEdge[] } => {
+  const { sourcePosition, targetPosition } = getHandlePositions(layoutConfig.direction);
+
+  const nodesWithHandles = resultNodes.map((node) => ({
+    ...node,
+    sourcePosition,
+    targetPosition,
+  }));
+
+  return {
+    nodes: nodesWithHandles,
+    edges: resultEdges,
+  };
+};
+
+const processGraphLayout = async (
+  graphData: { nodes: DependencyNode[]; edges: GraphEdge[] },
+  options: LayoutProcessOptions = {}
+) => {
+  if (!layoutProcessor) {
+    return null;
+  }
+
   const requestVersion = ++layoutRequestVersion;
+  const fitViewToResult = options.fitViewToResult ?? true;
+  const fitPadding = options.fitPadding ?? 0.1;
+  const twoPassMeasure = options.twoPassMeasure ?? true;
+
+  isLayoutPending.value = true;
 
   try {
     performance.mark('layout-start');
 
-    const result = await layoutProcessor.processLayout(graphData);
+    const firstPassResult = await layoutProcessor.processLayout(graphData);
     if (requestVersion !== layoutRequestVersion) {
       return null;
     }
 
-    const typedNodes = result.nodes as unknown as DependencyNode[];
-    const typedEdges = result.edges as unknown as GraphEdge[];
+    let normalized = normalizeLayoutResult(
+      firstPassResult.nodes as unknown as DependencyNode[],
+      firstPassResult.edges as unknown as GraphEdge[]
+    );
 
-    const { sourcePosition, targetPosition } = getHandlePositions(layoutConfig.direction);
-    const nodesWithCorrectHandles = typedNodes.map((node) => ({
-      ...node,
-      sourcePosition,
-      targetPosition,
-    }));
+    graphStore['setNodes'](normalized.nodes);
+    graphStore['setEdges'](normalized.edges);
 
-    graphStore['setNodes'](nodesWithCorrectHandles);
-    graphStore['setEdges'](typedEdges);
+    await nextTick();
+    updateNodeInternals(normalized.nodes.map((node) => node.id));
 
-    if (requestVersion !== layoutRequestVersion) {
-      return null;
+    if (twoPassMeasure) {
+      const measured = measureLayoutInsets(normalized.nodes);
+      if (measured.hasChanges) {
+        const secondPassResult = await layoutProcessor.processLayout({
+          nodes: measured.nodes,
+          edges: normalized.edges,
+        });
+        if (requestVersion !== layoutRequestVersion) {
+          return null;
+        }
+
+        normalized = normalizeLayoutResult(
+          secondPassResult.nodes as unknown as DependencyNode[],
+          secondPassResult.edges as unknown as GraphEdge[]
+        );
+
+        graphStore['setNodes'](normalized.nodes);
+        graphStore['setEdges'](normalized.edges);
+        await nextTick();
+        updateNodeInternals(normalized.nodes.map((node) => node.id));
+      }
     }
 
-    await fitView({ duration: 150, padding: 0.1 });
+    if (fitViewToResult) {
+      if (options.fitNodes && options.fitNodes.length > 0) {
+        await fitView({
+          duration: 180,
+          padding: fitPadding,
+          nodes: options.fitNodes,
+        });
+      } else {
+        await fitView({
+          duration: 180,
+          padding: fitPadding,
+        });
+      }
+    }
 
     performance.mark('layout-end');
     measurePerformance('graph-layout', 'layout-start', 'layout-end');
 
-    return {
-      nodes: nodesWithCorrectHandles,
-      edges: typedEdges,
-    };
+    return normalized;
   } catch (err) {
     const error = err instanceof Error ? err : new Error('Unknown error during layout processing');
     graphLogger.error('Layout processing failed:', error);
     return null;
+  } finally {
+    if (requestVersion === layoutRequestVersion) {
+      isLayoutPending.value = false;
+    }
   }
 };
 
 const initializeGraph = async () => {
   performance.mark('graph-init-start');
+  interaction.resetInteraction();
   graphStore.setViewMode('overview');
   initializeLayoutProcessor();
 
@@ -191,9 +328,17 @@ const initializeGraph = async () => {
     direction: layoutConfig.direction,
     clusterByFolder: graphSettings.clusterByFolder,
     collapseScc: graphSettings.collapseScc,
+    hideTestFiles: graphSettings.hideTestFiles,
+    memberNodeMode: graphSettings.memberNodeMode,
+    highlightOrphanCurrent: graphSettings.highlightOrphanCurrent,
+    highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
   });
 
-  const layoutResult = await processGraphLayout(overviewGraph);
+  const layoutResult = await processGraphLayout(overviewGraph, {
+    fitViewToResult: true,
+    fitPadding: 0.1,
+    twoPassMeasure: true,
+  });
   if (layoutResult) {
     graphStore.setOverviewSnapshot(layoutResult);
   }
@@ -206,118 +351,98 @@ watch(() => props.data, initializeGraph, { immediate: true });
 
 const onNodeClick = ({ node }: { node: unknown }): void => {
   const clickedNode = node as DependencyNode;
-  graphStore['setSelectedNode'](clickedNode);
-
-  const connectedNodeIds = new Set<string>([clickedNode.id]);
-  edges.value.forEach((edge: GraphEdge) => {
-    if (edge.source === clickedNode.id) {
-      connectedNodeIds.add(edge.target);
-    } else if (edge.target === clickedNode.id) {
-      connectedNodeIds.add(edge.source);
-    }
-  });
-
-  graphStore['setNodes'](
-    nodes.value.map((n: DependencyNode) => {
-      const isConnected = connectedNodeIds.has(n.id);
-      const isClicked = n.id === clickedNode.id;
-
-      return {
-        ...n,
-        style: mergeNodeInteractionStyle(n, {
-          opacity: isConnected ? 1 : 0.3,
-          borderWidth: isClicked ? '3px' : isConnected ? '2px' : '1px',
-          borderColor: isClicked ? '#00ffff' : isConnected ? '#61dafb' : undefined,
-        }),
-      };
-    })
-  );
-
-  const highlightedEdges = edges.value.map((edge: GraphEdge) => {
-    const isConnected = edge.source === clickedNode.id || edge.target === clickedNode.id;
-
-    return {
-      ...edge,
-      style: {
-        ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
-        opacity: isConnected ? 1 : 0.2,
-        strokeWidth: isConnected ? 3 : 1,
-      },
-      animated: isConnected,
-    };
-  });
-
-  graphStore['setEdges'](applyEdgeVisibility(highlightedEdges, graphSettings.activeRelationshipTypes));
+  setSelectedNode(clickedNode);
 };
 
-const onNodeDoubleClick = async ({ node }: { node: unknown }): Promise<void> => {
-  const targetNode = node as DependencyNode;
-  graphStore['setSelectedNode'](targetNode);
-
-  if (targetNode.type === 'module') {
-    graphStore.setViewMode('moduleDrilldown');
-    const detailedGraph = buildModuleDrilldownGraph({
-      data: props.data,
-      selectedNode: targetNode,
-      currentNodes: nodes.value,
-      currentEdges: edges.value,
-      direction: layoutConfig.direction,
-      enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
-    });
-
-    await processGraphLayout(detailedGraph);
-    await fitView({ duration: 300, padding: 0.2 });
+const handleFocusNode = async (nodeId: string): Promise<void> => {
+  const targetNode = nodes.value.find((node) => node.id === nodeId);
+  if (!targetNode) {
     return;
   }
 
-  const connectedNodeIds = new Set<string>([targetNode.id]);
-  const connectedEdges: GraphEdge[] = [];
+  setSelectedNode(targetNode);
+  interaction.setCameraMode('fitSelection');
 
-  edges.value.forEach((edge: GraphEdge) => {
-    if (edge.source === targetNode.id) {
+  await fitView({
+    nodes: [nodeId],
+    duration: 180,
+    padding: 0.4,
+  });
+};
+
+const isolateNeighborhood = async (nodeId: string): Promise<void> => {
+  const snapshot = graphStore.overviewSnapshot;
+  const sourceNodes = snapshot?.nodes ?? nodes.value;
+  const sourceEdges = snapshot?.edges ?? edges.value;
+  const targetNode = sourceNodes.find((node) => node.id === nodeId);
+  if (!targetNode) {
+    return;
+  }
+
+  const connectedNodeIds = new Set<string>([nodeId]);
+  sourceEdges.forEach((edge) => {
+    if (edge.source === nodeId) {
       connectedNodeIds.add(edge.target);
-      connectedEdges.push(edge);
-    } else if (edge.target === targetNode.id) {
+    } else if (edge.target === nodeId) {
       connectedNodeIds.add(edge.source);
-      connectedEdges.push(edge);
     }
   });
 
-  const focusedNodes = nodes.value
-    .filter((graphNode: DependencyNode) => connectedNodeIds.has(graphNode.id))
-    .map((graphNode: DependencyNode) => ({
-      ...graphNode,
-      style: {
-        ...graphNode.style,
-        borderWidth: graphNode.id === targetNode.id ? '3px' : '2px',
-        borderColor: graphNode.id === targetNode.id ? '#00ffff' : '#61dafb',
-      },
+  const isolatedNodes = sourceNodes
+    .filter((node) => connectedNodeIds.has(node.id))
+    .map((node) => ({
+      ...node,
+      style: mergeNodeInteractionStyle(node, {
+        opacity: node.id === nodeId ? 1 : 0.9,
+        borderColor: node.id === nodeId ? '#22d3ee' : undefined,
+        borderWidth: node.id === nodeId ? '2px' : undefined,
+      }),
     }));
 
-  const focusedEdges = applyEdgeVisibility(
-    connectedEdges.map((edge: GraphEdge) => ({
-      ...edge,
-      style: {
-        ...edge.style,
-        stroke: '#00ffff',
-        strokeWidth: 4,
-        opacity: 1,
-      },
-      animated: true,
-    })),
+  const isolatedEdges = applyEdgeVisibility(
+    sourceEdges
+      .filter((edge) => connectedNodeIds.has(edge.source) && connectedNodeIds.has(edge.target))
+      .map((edge) => ({
+        ...edge,
+        style: {
+          ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
+          opacity: 0.9,
+          strokeWidth: edge.source === nodeId || edge.target === nodeId ? 3 : 2,
+        },
+        zIndex: edge.source === nodeId || edge.target === nodeId ? 4 : 1,
+      })),
     graphSettings.activeRelationshipTypes
   );
 
-  await processGraphLayout({
-    nodes: focusedNodes,
-    edges: focusedEdges,
-  });
+  graphStore['setNodes'](isolatedNodes);
+  graphStore['setEdges'](isolatedEdges);
+  graphStore.setViewMode('isolate');
+  interaction.setScopeMode('isolate');
+  setSelectedNode(targetNode);
 
   await fitView({
-    duration: 300,
-    padding: 0.3,
+    duration: 200,
+    padding: 0.35,
     nodes: Array.from(connectedNodeIds),
   });
+};
+
+const handleNodeActionEvent = (event: Event): void => {
+  const customEvent = event as CustomEvent<{ action?: string; nodeId?: string }>;
+  const action = customEvent.detail?.action;
+  const nodeId = customEvent.detail?.nodeId;
+  if (!action || !nodeId) {
+    return;
+  }
+
+  if (action === 'focus') {
+    void handleFocusNode(nodeId);
+    return;
+  }
+
+  if (action === 'isolate') {
+    void isolateNeighborhood(nodeId);
+  }
 };
 
 const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
@@ -326,8 +451,9 @@ const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
     return;
   }
 
-  graphStore['setSelectedNode'](targetNode);
+  setSelectedNode(targetNode);
   graphStore.setViewMode('symbolDrilldown');
+  interaction.setScopeMode('symbolDrilldown');
 
   const symbolGraph = buildSymbolDrilldownGraph({
     data: props.data,
@@ -336,16 +462,24 @@ const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
     enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
   });
 
-  await processGraphLayout(symbolGraph);
-  await fitView({ duration: 300, padding: 0.2 });
+  await processGraphLayout(symbolGraph, {
+    fitViewToResult: true,
+    fitPadding: 0.2,
+    twoPassMeasure: true,
+  });
 };
 
-const onPaneClick = async (): Promise<void> => {
-  graphStore['setSelectedNode'](null);
+const onPaneClick = (): void => {
+  setSelectedNode(null);
+};
+
+const handleReturnToOverview = async (): Promise<void> => {
+  interaction.setScopeMode('overview');
   graphStore.setViewMode('overview');
+  setSelectedNode(null);
 
   if (graphStore.restoreOverviewSnapshot()) {
-    await fitView({ duration: 150, padding: 0.1 });
+    await fitView({ duration: 180, padding: 0.1 });
     return;
   }
 
@@ -359,19 +493,22 @@ const handleResetLayout = async (): Promise<void> => {
   layoutConfig.rankSpacing = defaultLayoutConfig.rankSpacing;
   layoutConfig.edgeSpacing = defaultLayoutConfig.edgeSpacing;
 
-  graphStore.setViewMode('overview');
   await initializeGraph();
 };
 
-const handleRelationshipFilterChange = (types: string[]) => {
+const handleResetView = async (): Promise<void> => {
+  interaction.setCameraMode('free');
+  setSelectedNode(null);
+};
+
+const handleRelationshipFilterChange = async (types: string[]) => {
   graphSettings.setEnabledRelationshipTypes(types);
-  graphStore['setEdges'](applyEdgeVisibility(edges.value, graphSettings.activeRelationshipTypes));
+  await initializeGraph();
 };
 
 const handleNodeTypeFilterChange = async (types: string[]) => {
   graphSettings.setEnabledNodeTypes(types);
-  graphStore.setViewMode('overview');
-  graphStore['setSelectedNode'](null);
+  setSelectedNode(null);
   await initializeGraph();
 };
 
@@ -381,7 +518,6 @@ const handleCollapseSccToggle = async (value: boolean) => {
     return;
   }
   graphSettings.setCollapseScc(value);
-  graphStore.setViewMode('overview');
   await initializeGraph();
 };
 
@@ -390,7 +526,26 @@ const handleClusterByFolderToggle = async (value: boolean) => {
     graphSettings.setCollapseScc(false);
   }
   graphSettings.setClusterByFolder(value);
-  graphStore.setViewMode('overview');
+  await initializeGraph();
+};
+
+const handleHideTestFilesToggle = async (value: boolean) => {
+  graphSettings.setHideTestFiles(value);
+  await initializeGraph();
+};
+
+const handleMemberNodeModeChange = async (value: 'compact' | 'graph') => {
+  graphSettings.setMemberNodeMode(value);
+  await initializeGraph();
+};
+
+const handleOrphanCurrentToggle = async (value: boolean) => {
+  graphSettings.setHighlightOrphanCurrent(value);
+  await initializeGraph();
+};
+
+const handleOrphanGlobalToggle = async (value: boolean) => {
+  graphSettings.setHighlightOrphanGlobal(value);
   await initializeGraph();
 };
 
@@ -423,7 +578,6 @@ const handleLayoutChange = async (config: {
     layoutConfig.rankSpacing = config.rankSpacing;
   }
 
-  graphStore.setViewMode('overview');
   await initializeGraph();
 };
 
@@ -488,7 +642,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
       if (nextNodeId) {
         const nextNode = nodes.value.find((node: DependencyNode) => node.id === nextNodeId);
         if (nextNode) {
-          graphStore['setSelectedNode'](nextNode);
+          setSelectedNode(nextNode);
           void fitView({
             nodes: [nextNode.id],
             duration: 150,
@@ -499,11 +653,23 @@ const handleKeyDown = (event: KeyboardEvent) => {
     }
   }
 };
+
+onMounted(() => {
+  window.addEventListener('dependency-graph-node-action', handleNodeActionEvent as EventListener);
+});
+
+onUnmounted(() => {
+  if (layoutProcessor) {
+    layoutProcessor.dispose();
+    layoutProcessor = null;
+  }
+  window.removeEventListener('dependency-graph-node-action', handleNodeActionEvent as EventListener);
+});
 </script>
 
 <template>
   <div
-    class="h-full w-full"
+    class="dependency-graph-root h-full w-full"
     role="application"
     aria-label="TypeScript dependency graph visualization"
     tabindex="0"
@@ -516,21 +682,21 @@ const handleKeyDown = (event: KeyboardEvent) => {
       :fit-view-on-init="true"
       :min-zoom="0.1"
       :max-zoom="2"
-      :default-viewport="{ x: 0, y: 0, zoom: 0.5 }"
+      :default-viewport="DEFAULT_VIEWPORT"
       :snap-to-grid="true"
       :snap-grid="[15, 15]"
-      :pan-on-scroll="true"
+      :pan-on-scroll="false"
       :zoom-on-scroll="true"
+      :prevent-scrolling="true"
       :zoom-on-double-click="false"
       :elevate-edges-on-select="true"
       :default-edge-options="{
         style: { stroke: '#61dafb', strokeWidth: 3 },
         markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
-        zIndex: 1000,
+        zIndex: 1,
         type: 'step',
       }"
       @node-click="onNodeClick"
-      @node-double-click="onNodeDoubleClick"
       @pane-click="onPaneClick"
       @nodes-change="handleNodesChange"
     >
@@ -541,10 +707,16 @@ const handleKeyDown = (event: KeyboardEvent) => {
         @node-type-filter-change="handleNodeTypeFilterChange"
         @layout-change="handleLayoutChange"
         @reset-layout="handleResetLayout"
+        @reset-view="handleResetView"
         @toggle-collapse-scc="handleCollapseSccToggle"
         @toggle-cluster-folder="handleClusterByFolderToggle"
+        @toggle-hide-test-files="handleHideTestFilesToggle"
+        @member-node-mode-change="handleMemberNodeModeChange"
+        @toggle-orphan-current="handleOrphanCurrentToggle"
+        @toggle-orphan-global="handleOrphanGlobalToggle"
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
+      <GraphMiniMap :nodes="nodes" :edges="edges" :selected-node-id="selectedNode?.id ?? null" />
       <NodeDetails
         v-if="selectedNode"
         :node="selectedNode"
@@ -554,9 +726,13 @@ const handleKeyDown = (event: KeyboardEvent) => {
         @open-symbol-usage="handleOpenSymbolUsageGraph"
       />
 
-      <Panel v-if="selectedNode" position="bottom-left">
+      <Panel v-if="isLayoutPending" position="top-center">
+        <div class="layout-loading-indicator">Updating graph layout...</div>
+      </Panel>
+
+      <Panel v-if="scopeMode !== 'overview'" position="bottom-left">
         <button
-          @click="onPaneClick"
+          @click="handleReturnToOverview"
           class="px-4 py-2 bg-primary-main text-white rounded-md hover:bg-primary-dark transition-colors shadow-lg border border-primary-light"
           aria-label="Return to full graph view"
         >
@@ -566,3 +742,28 @@ const handleKeyDown = (event: KeyboardEvent) => {
     </VueFlow>
   </div>
 </template>
+
+<style scoped>
+.dependency-graph-root :deep(.vue-flow__node) {
+  transition:
+    transform 180ms ease-out,
+    opacity 180ms ease-out;
+}
+
+.dependency-graph-root :deep(.vue-flow__edge-path) {
+  transition:
+    opacity 140ms ease-out,
+    stroke-width 140ms ease-out;
+}
+
+.layout-loading-indicator {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(15, 23, 42, 0.92);
+  border-radius: 0.5rem;
+  color: rgba(226, 232, 240, 0.95);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+}
+</style>

@@ -16,9 +16,14 @@ const emit = defineEmits<{
   'relationship-filter-change': [types: string[]];
   'node-type-filter-change': [types: string[]];
   'reset-layout': [];
+  'reset-view': [];
   'layout-change': [config: { algorithm?: string; direction?: string; nodeSpacing?: number; rankSpacing?: number }];
   'toggle-collapse-scc': [value: boolean];
   'toggle-cluster-folder': [value: boolean];
+  'toggle-hide-test-files': [value: boolean];
+  'member-node-mode-change': [value: 'compact' | 'graph'];
+  'toggle-orphan-current': [value: boolean];
+  'toggle-orphan-global': [value: boolean];
 }>();
 
 const { zoomIn, zoomOut, fitView } = useVueFlow();
@@ -40,6 +45,11 @@ const handleZoomOut = () => {
 
 const handleFitView = () => {
   void fitView({ duration: 150, padding: 0.1 });
+};
+
+const handleResetView = () => {
+  void fitView({ duration: 180, padding: 0.1 });
+  emit('reset-view');
 };
 
 const handleResetLayout = () => {
@@ -100,6 +110,26 @@ const handleClusterByFolderToggle = (checked: boolean) => {
   graphSettings.setClusterByFolder(checked);
   emit('toggle-cluster-folder', checked);
 };
+
+const handleHideTestFilesToggle = (checked: boolean) => {
+  graphSettings.setHideTestFiles(checked);
+  emit('toggle-hide-test-files', checked);
+};
+
+const handleMemberNodeModeChange = (mode: 'compact' | 'graph') => {
+  graphSettings.setMemberNodeMode(mode);
+  emit('member-node-mode-change', mode);
+};
+
+const handleOrphanCurrentToggle = (checked: boolean) => {
+  graphSettings.setHighlightOrphanCurrent(checked);
+  emit('toggle-orphan-current', checked);
+};
+
+const handleOrphanGlobalToggle = (checked: boolean) => {
+  graphSettings.setHighlightOrphanGlobal(checked);
+  emit('toggle-orphan-global', checked);
+};
 </script>
 
 <template>
@@ -129,11 +159,18 @@ const handleClusterByFolderToggle = (checked: boolean) => {
           Fit
         </button>
         <button
+          @click="handleResetView"
+          class="px-3 py-1.5 bg-white/10 text-text-primary rounded hover:bg-white/20 transition-fast border border-border-default text-xs font-semibold"
+          aria-label="Reset view"
+        >
+          Reset View
+        </button>
+        <button
           @click="handleResetLayout"
           class="px-3 py-1.5 bg-white/10 text-text-primary rounded hover:bg-white/20 transition-fast border border-border-default text-xs font-semibold"
           aria-label="Reset layout"
         >
-          Reset
+          Reset Layout
         </button>
       </div>
 
@@ -256,6 +293,77 @@ const handleClusterByFolderToggle = (checked: boolean) => {
               class="cursor-pointer accent-primary-main"
             />
             <span class="text-xs capitalize">{{ nodeType }}</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Node Detail Mode -->
+      <div class="mt-4 pt-4 border-t border-border-default">
+        <h4 class="text-sm font-semibold text-text-primary mb-2">Member Nodes</h4>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            @click="handleMemberNodeModeChange('compact')"
+            :class="[
+              'px-2 py-1.5 text-xs rounded border transition-fast',
+              graphSettings.memberNodeMode === 'compact'
+                ? 'bg-primary-main text-white border-primary-main'
+                : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
+            ]"
+            aria-label="Set member node mode to compact"
+          >
+            Compact
+          </button>
+          <button
+            @click="handleMemberNodeModeChange('graph')"
+            :class="[
+              'px-2 py-1.5 text-xs rounded border transition-fast',
+              graphSettings.memberNodeMode === 'graph'
+                ? 'bg-primary-main text-white border-primary-main'
+                : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
+            ]"
+            aria-label="Set member node mode to graph"
+          >
+            Graph
+          </button>
+        </div>
+      </div>
+
+      <!-- Analysis Filters -->
+      <div class="mt-4 pt-4 border-t border-border-default">
+        <h4 class="text-sm font-semibold text-text-primary mb-2">Analysis</h4>
+        <div class="flex flex-col gap-2">
+          <label
+            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+          >
+            <input
+              type="checkbox"
+              class="cursor-pointer accent-primary-main"
+              :checked="graphSettings.hideTestFiles"
+              @change="(e) => handleHideTestFilesToggle((e.target as HTMLInputElement).checked)"
+            />
+            <span class="text-xs">Hide test files</span>
+          </label>
+          <label
+            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+          >
+            <input
+              type="checkbox"
+              class="cursor-pointer accent-primary-main"
+              :checked="graphSettings.highlightOrphanCurrent"
+              @change="(e) => handleOrphanCurrentToggle((e.target as HTMLInputElement).checked)"
+            />
+            <span class="text-xs">Highlight current-view orphans</span>
+          </label>
+          <label
+            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+          >
+            <input
+              type="checkbox"
+              class="cursor-pointer accent-primary-main"
+              :checked="graphSettings.highlightOrphanGlobal"
+              @change="(e) => handleOrphanGlobalToggle((e.target as HTMLInputElement).checked)"
+            />
+            <span class="text-xs">Highlight global orphans</span>
           </label>
         </div>
       </div>

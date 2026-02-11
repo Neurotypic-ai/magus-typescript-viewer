@@ -5,7 +5,7 @@ import type { Ref } from 'vue';
 
 import type { DependencyNode, GraphEdge } from '../components/DependencyGraph/types';
 
-export type GraphViewMode = 'overview' | 'moduleDrilldown' | 'symbolDrilldown';
+export type GraphViewMode = 'overview' | 'isolate' | 'moduleDrilldown' | 'symbolDrilldown';
 
 // Cache keys for local storage
 const CACHE_VERSION = 'v1';

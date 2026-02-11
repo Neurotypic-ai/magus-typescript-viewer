@@ -76,20 +76,25 @@ describe('createGraphNodes', () => {
       throw new Error('Expected module node data');
     }
     expect(moduleNode.data.subnodes?.count).toBe(2);
+    expect(moduleNode.data.subnodes?.totalCount).toBe(2);
+    expect(moduleNode.data.subnodes?.hiddenCount).toBe(0);
 
     const externalDependencies = moduleNode.data.externalDependencies;
     expect(Array.isArray(externalDependencies)).toBe(true);
     expect(externalDependencies?.[0]?.packageName).toBe('vue');
     expect(externalDependencies?.[0]?.symbols).toEqual(['computed', 'ref']);
+    expect(moduleNode.data.diagnostics?.externalDependencyPackageCount).toBe(1);
+    expect(moduleNode.data.diagnostics?.externalDependencySymbolCount).toBe(2);
   });
 
-  it('sets symbol node subnode counts and parent containment metadata', () => {
+  it('stores class/interface members as metadata in compact mode', () => {
     const nodes = createGraphNodes(createFixtureGraph(), {
       includeModules: true,
       includeClasses: true,
       includeClassNodes: true,
       includeInterfaceNodes: true,
       nestSymbolsInModules: true,
+      memberNodeMode: 'compact',
     });
 
     const classNode = nodes.find((node) => node.id === 'class-1');
@@ -100,13 +105,34 @@ describe('createGraphNodes', () => {
     if (!classNode?.data) {
       throw new Error('Expected class node data');
     }
-    expect(classNode.data.subnodes?.count).toBe(2);
+    expect(classNode.data.members?.totalCount).toBe(2);
+    expect(classNode.data.subnodes).toBeUndefined();
 
     expect(interfaceNode).toBeDefined();
     expect(interfaceNode?.parentNode).toBe('module-a');
     if (!interfaceNode?.data) {
       throw new Error('Expected interface node data');
     }
-    expect(interfaceNode.data.subnodes?.count).toBe(2);
+    expect(interfaceNode.data.members?.totalCount).toBe(2);
+    expect(interfaceNode.data.subnodes).toBeUndefined();
+  });
+
+  it('creates member nodes in graph member mode', () => {
+    const nodes = createGraphNodes(createFixtureGraph(), {
+      includeModules: true,
+      includeClasses: true,
+      includeClassNodes: true,
+      includeInterfaceNodes: true,
+      nestSymbolsInModules: true,
+      memberNodeMode: 'graph',
+    });
+
+    const propertyNode = nodes.find((node) => node.type === 'property' && node.parentNode === 'class-1');
+    const methodNode = nodes.find((node) => node.type === 'method' && node.parentNode === 'class-1');
+    const classNode = nodes.find((node) => node.id === 'class-1');
+
+    expect(classNode?.data?.subnodes?.count).toBe(2);
+    expect(propertyNode).toBeDefined();
+    expect(methodNode).toBeDefined();
   });
 });

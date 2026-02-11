@@ -1,0 +1,3034 @@
+- application "TypeScript dependency graph visualization" [ref=e7]:
+  - generic [ref=e8]:
+    - generic [ref=e10]:
+      - generic:
+        - img
+        - img:
+          - group "Edge from 9bd823ae-7f65-5530-ad8f-a4c74eebbe73 to 04484602-2894-59f9-aed3-da1c6141427b" [ref=e11] [cursor=pointer]
+        - img:
+          - group "Edge from 9bd823ae-7f65-5530-ad8f-a4c74eebbe73 to 78b2bae8-e385-585e-8584-44976a6d86cd" [ref=e14] [cursor=pointer]
+        - img:
+          - group "Edge from a8f71138-f1c2-550e-8461-c7b5f1559289 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e17] [cursor=pointer]
+        - img:
+          - group "Edge from a8f71138-f1c2-550e-8461-c7b5f1559289 to b660e997-9d78-52f3-8488-83a1ba37a614" [ref=e20] [cursor=pointer]
+        - img:
+          - group "Edge from a8f71138-f1c2-550e-8461-c7b5f1559289 to 4f51b9e7-35d9-5c67-a5d8-d273172e66e3" [ref=e23] [cursor=pointer]
+        - img:
+          - group "Edge from a8f71138-f1c2-550e-8461-c7b5f1559289 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e26] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e29] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to a7a37a0f-b798-5d43-ba7a-dbcb3c0e5ef5" [ref=e32] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to 40d93320-b343-5253-899f-15cdc13128f7" [ref=e35] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to d97e19bc-8e5e-58d8-9e1b-509e139f6180" [ref=e38] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to 6fd16834-b7da-5764-b8fd-596bda5e7a39" [ref=e41] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to 04484602-2894-59f9-aed3-da1c6141427b" [ref=e44] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to 78b2bae8-e385-585e-8584-44976a6d86cd" [ref=e47] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to f8315bb3-3e32-52d6-a0a1-f608d3c28e3a" [ref=e50] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to e2e1ec8a-b85e-5376-b8b1-330608c8d7c4" [ref=e53] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e56] [cursor=pointer]
+        - img:
+          - group "Edge from b660e997-9d78-52f3-8488-83a1ba37a614 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e59] [cursor=pointer]
+        - img:
+          - group "Edge from e4cf9ed1-eb02-5dd8-b8d0-2af96964250d to b9a036b5-0dbd-5dab-8aff-cdef8e67c170" [ref=e62] [cursor=pointer]
+        - img:
+          - group "Edge from e4cf9ed1-eb02-5dd8-b8d0-2af96964250d to a6fd08f9-5817-5413-b438-b539d66cfbdb" [ref=e65] [cursor=pointer]
+        - img:
+          - group "Edge from e4cf9ed1-eb02-5dd8-b8d0-2af96964250d to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e68] [cursor=pointer]
+        - img:
+          - group "Edge from e4cf9ed1-eb02-5dd8-b8d0-2af96964250d to 3192d7a6-31fc-5a9f-a337-3a7b27b3e81b" [ref=e71] [cursor=pointer]
+        - img:
+          - group "Edge from e4cf9ed1-eb02-5dd8-b8d0-2af96964250d to 03cc74c3-e4cd-5fd3-8227-bfba7684644b" [ref=e74] [cursor=pointer]
+        - img:
+          - group "Edge from e4cf9ed1-eb02-5dd8-b8d0-2af96964250d to 3c88172d-d955-5234-9078-fad26b6cd74f" [ref=e77] [cursor=pointer]
+        - img:
+          - group "Edge from e4cf9ed1-eb02-5dd8-b8d0-2af96964250d to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e80] [cursor=pointer]
+        - img:
+          - group "Edge from 7691b73f-a73e-5235-9b83-3718b443ea20 to 41efb5e3-4da3-5c2e-aa2a-984ccada3449" [ref=e83] [cursor=pointer]
+        - img:
+          - group "Edge from bdb25aa6-b35f-5f32-afcc-ea4048e4c368 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e86] [cursor=pointer]
+        - img:
+          - group "Edge from 435dc872-a612-5a5d-bf54-d5825a1c7444 to 3c88172d-d955-5234-9078-fad26b6cd74f" [ref=e89] [cursor=pointer]
+        - img:
+          - group "Edge from 435dc872-a612-5a5d-bf54-d5825a1c7444 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e92] [cursor=pointer]
+        - img:
+          - group "Edge from c9d9bbe3-322d-512b-a83d-2cdcdef76818 to 94679c2e-1ab4-5c5a-b940-c03abcc4b009" [ref=e95] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e98] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 2e4347b6-b1ca-5450-9d43-d448d6e42c83" [ref=e101] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 41efb5e3-4da3-5c2e-aa2a-984ccada3449" [ref=e104] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 0d884d63-c48e-56c0-9e2e-7405ecc3566d" [ref=e107] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e110] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 93646ba4-d8f7-59f9-a78f-397695404d68" [ref=e113] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to e4cf9ed1-eb02-5dd8-b8d0-2af96964250d" [ref=e116] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 7691b73f-a73e-5235-9b83-3718b443ea20" [ref=e119] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to bdb25aa6-b35f-5f32-afcc-ea4048e4c368" [ref=e122] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 435dc872-a612-5a5d-bf54-d5825a1c7444" [ref=e125] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to fafb665c-2a39-5044-aca3-2b8b5a7f89c2" [ref=e128] [cursor=pointer]
+        - img:
+          - group "Edge from 94679c2e-1ab4-5c5a-b940-c03abcc4b009 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e131] [cursor=pointer]
+        - img:
+          - group "Edge from 6ae17123-0753-5ebe-9a02-64ae434f76f7 to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e134] [cursor=pointer]
+        - img:
+          - group "Edge from ebea4f99-e12d-568b-9dc2-45d03458f52c to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e137] [cursor=pointer]
+        - img:
+          - group "Edge from ebea4f99-e12d-568b-9dc2-45d03458f52c to 6ae17123-0753-5ebe-9a02-64ae434f76f7" [ref=e140] [cursor=pointer]
+        - img:
+          - group "Edge from ebea4f99-e12d-568b-9dc2-45d03458f52c to 3532f79e-903e-5094-ba4a-349c87032ce5" [ref=e143] [cursor=pointer]
+        - img:
+          - group "Edge from ebea4f99-e12d-568b-9dc2-45d03458f52c to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e146] [cursor=pointer]
+        - img:
+          - group "Edge from 3c88172d-d955-5234-9078-fad26b6cd74f to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e149] [cursor=pointer]
+        - img:
+          - group "Edge from 47a81609-cf2c-5563-b177-4b29804dbe82 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e152] [cursor=pointer]
+        - img:
+          - group "Edge from 865be1c1-0555-5264-843d-359d0b2da009 to 47a81609-cf2c-5563-b177-4b29804dbe82" [ref=e155] [cursor=pointer]
+        - img:
+          - group "Edge from 865be1c1-0555-5264-843d-359d0b2da009 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e158] [cursor=pointer]
+        - img:
+          - group "Edge from cdff4f67-a944-51a0-8d43-cb5e11c604bf to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e161] [cursor=pointer]
+        - img:
+          - group "Edge from 8ca21ed6-06a8-5f04-a940-1de3b0d140d0 to 47a81609-cf2c-5563-b177-4b29804dbe82" [ref=e164] [cursor=pointer]
+        - img:
+          - group "Edge from 8ca21ed6-06a8-5f04-a940-1de3b0d140d0 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e167] [cursor=pointer]
+        - img:
+          - group "Edge from fafb665c-2a39-5044-aca3-2b8b5a7f89c2 to 8ca21ed6-06a8-5f04-a940-1de3b0d140d0" [ref=e170] [cursor=pointer]
+        - img:
+          - group "Edge from fafb665c-2a39-5044-aca3-2b8b5a7f89c2 to 9e5bac6e-0049-5367-83dc-3de9a256835f" [ref=e173] [cursor=pointer]
+        - img:
+          - group "Edge from fafb665c-2a39-5044-aca3-2b8b5a7f89c2 to cdff4f67-a944-51a0-8d43-cb5e11c604bf" [ref=e176] [cursor=pointer]
+        - img:
+          - group "Edge from fafb665c-2a39-5044-aca3-2b8b5a7f89c2 to 198eb626-f7c9-5565-8f93-9a2469586f96" [ref=e179] [cursor=pointer]
+        - img:
+          - group "Edge from 9e5bac6e-0049-5367-83dc-3de9a256835f to 47a81609-cf2c-5563-b177-4b29804dbe82" [ref=e182] [cursor=pointer]
+        - img:
+          - group "Edge from 9e5bac6e-0049-5367-83dc-3de9a256835f to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e185] [cursor=pointer]
+        - img:
+          - group "Edge from 198eb626-f7c9-5565-8f93-9a2469586f96 to 47a81609-cf2c-5563-b177-4b29804dbe82" [ref=e188] [cursor=pointer]
+        - img:
+          - group "Edge from 198eb626-f7c9-5565-8f93-9a2469586f96 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e191] [cursor=pointer]
+        - img:
+          - group "Edge from 4f51b9e7-35d9-5c67-a5d8-d273172e66e3 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e194] [cursor=pointer]
+        - img:
+          - group "Edge from b9a036b5-0dbd-5dab-8aff-cdef8e67c170 to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e197] [cursor=pointer]
+        - img:
+          - group "Edge from b9a036b5-0dbd-5dab-8aff-cdef8e67c170 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e200] [cursor=pointer]
+        - img:
+          - group "Edge from a6fd08f9-5817-5413-b438-b539d66cfbdb to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e203] [cursor=pointer]
+        - img:
+          - group "Edge from a6fd08f9-5817-5413-b438-b539d66cfbdb to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e206] [cursor=pointer]
+        - img:
+          - group "Edge from 2e4347b6-b1ca-5450-9d43-d448d6e42c83 to 6ae17123-0753-5ebe-9a02-64ae434f76f7" [ref=e209] [cursor=pointer]
+        - img:
+          - group "Edge from 2e4347b6-b1ca-5450-9d43-d448d6e42c83 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e212] [cursor=pointer]
+        - img:
+          - group "Edge from 2e4347b6-b1ca-5450-9d43-d448d6e42c83 to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e215] [cursor=pointer]
+        - img:
+          - group "Edge from 0d884d63-c48e-56c0-9e2e-7405ecc3566d to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e218] [cursor=pointer]
+        - img:
+          - group "Edge from 696c6fa7-c1ea-5aef-b8fe-32e99f981c92 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e221] [cursor=pointer]
+        - img:
+          - group "Edge from 3192d7a6-31fc-5a9f-a337-3a7b27b3e81b to 3c88172d-d955-5234-9078-fad26b6cd74f" [ref=e224] [cursor=pointer]
+        - img:
+          - group "Edge from 3192d7a6-31fc-5a9f-a337-3a7b27b3e81b to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e227] [cursor=pointer]
+        - img:
+          - group "Edge from 3192d7a6-31fc-5a9f-a337-3a7b27b3e81b to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e230] [cursor=pointer]
+        - img:
+          - group "Edge from 03cc74c3-e4cd-5fd3-8227-bfba7684644b to 3c88172d-d955-5234-9078-fad26b6cd74f" [ref=e233] [cursor=pointer]
+        - img:
+          - group "Edge from 03cc74c3-e4cd-5fd3-8227-bfba7684644b to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e236] [cursor=pointer]
+        - img:
+          - group "Edge from 03cc74c3-e4cd-5fd3-8227-bfba7684644b to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e239] [cursor=pointer]
+        - img:
+          - group "Edge from 93646ba4-d8f7-59f9-a78f-397695404d68 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e242] [cursor=pointer]
+        - img:
+          - group "Edge from 5a4fd4b9-f206-5f67-a220-aedb2dabd6a3 to 134bf9f2-0f3d-54f1-ab82-d0cb5dd2cfa5" [ref=e245] [cursor=pointer]
+        - img:
+          - group "Edge from 5a4fd4b9-f206-5f67-a220-aedb2dabd6a3 to 696c6fa7-c1ea-5aef-b8fe-32e99f981c92" [ref=e248] [cursor=pointer]
+        - img:
+          - group "Edge from cc72aa97-6d3c-5252-a1f9-572930c3e8b8 to a8f71138-f1c2-550e-8461-c7b5f1559289" [ref=e251] [cursor=pointer]
+        - img:
+          - group "Edge from cc72aa97-6d3c-5252-a1f9-572930c3e8b8 to 93646ba4-d8f7-59f9-a78f-397695404d68" [ref=e254] [cursor=pointer]
+        - img:
+          - group "Edge from 6eb44204-4a7e-5b2c-ab5b-a52e98cba723 to 1d7f6dba-6fcc-50d0-a60a-41158feb8857" [ref=e257] [cursor=pointer]
+        - img:
+          - group "Edge from 6eb44204-4a7e-5b2c-ab5b-a52e98cba723 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e260] [cursor=pointer]
+        - img:
+          - group "Edge from 6eb44204-4a7e-5b2c-ab5b-a52e98cba723 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e263] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to 04484602-2894-59f9-aed3-da1c6141427b" [ref=e266] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e269] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to e319cde6-d478-50cc-830c-48f9fef51b6a" [ref=e272] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to c4a5bb1e-5d9c-5fd2-b528-f10d8b0a61cb" [ref=e275] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e278] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to b013d563-8b5e-53c8-8d77-a53249020f3f" [ref=e281] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to 76f88565-e26c-580e-a293-1cfd48a0fef3" [ref=e284] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to ed4c305f-43ec-5fb3-a0de-4f417a69c2bc" [ref=e287] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to cd5d2189-16b7-5e3d-919a-514844c832d4" [ref=e290] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to b038c623-22ab-5272-aff6-04db60594cc6" [ref=e293] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to bf5ef7b0-baa0-5a6b-86d1-ec800283efbd" [ref=e296] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to 78b2bae8-e385-585e-8584-44976a6d86cd" [ref=e299] [cursor=pointer]
+        - img:
+          - group "Edge from 1d7f6dba-6fcc-50d0-a60a-41158feb8857 to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e302] [cursor=pointer]
+        - img:
+          - group "Edge from 5a9d02fa-5765-5586-959f-ffc4d08286fd to dfb7a4af-b399-545f-a3a1-a84df558cf76" [ref=e305] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to e319cde6-d478-50cc-830c-48f9fef51b6a" [ref=e308] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to c4a5bb1e-5d9c-5fd2-b528-f10d8b0a61cb" [ref=e311] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to b013d563-8b5e-53c8-8d77-a53249020f3f" [ref=e314] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to ff918c27-8480-5394-9873-ced973ad6af5" [ref=e317] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to fb06b291-fb8e-5775-84db-bd45e3f72d66" [ref=e320] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to 76f88565-e26c-580e-a293-1cfd48a0fef3" [ref=e323] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to ed4c305f-43ec-5fb3-a0de-4f417a69c2bc" [ref=e326] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to f733d2fb-6521-5df7-b335-9da0dc419825" [ref=e329] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to cd5d2189-16b7-5e3d-919a-514844c832d4" [ref=e332] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to b038c623-22ab-5272-aff6-04db60594cc6" [ref=e335] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to 1e15e8be-2adf-501d-8666-5c6f317b6fbb" [ref=e338] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to 80465f8f-850a-553d-b41f-9ec2cccb7c32" [ref=e341] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to bf5ef7b0-baa0-5a6b-86d1-ec800283efbd" [ref=e344] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to 1c25f1c1-2237-5b7b-a946-9a04ab6720e4" [ref=e347] [cursor=pointer]
+        - img:
+          - group "Edge from dfb7a4af-b399-545f-a3a1-a84df558cf76 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e350] [cursor=pointer]
+        - img:
+          - group "Edge from c4a5bb1e-5d9c-5fd2-b528-f10d8b0a61cb to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e353] [cursor=pointer]
+        - img:
+          - group "Edge from a1ea5a08-ba66-5bc8-bea4-801377a97387 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e356] [cursor=pointer]
+        - img:
+          - group "Edge from e319cde6-d478-50cc-830c-48f9fef51b6a to 80f9e3bc-4454-50f5-bec4-51a20fca1f2f" [ref=e359] [cursor=pointer]
+        - img:
+          - group "Edge from e319cde6-d478-50cc-830c-48f9fef51b6a to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e362] [cursor=pointer]
+        - img:
+          - group "Edge from d2d6ff19-6554-5d32-a35a-b3a5b17876c5 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e365] [cursor=pointer]
+        - img:
+          - group "Edge from d2d6ff19-6554-5d32-a35a-b3a5b17876c5 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e368] [cursor=pointer]
+        - img:
+          - group "Edge from d2d6ff19-6554-5d32-a35a-b3a5b17876c5 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e371] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to 40d93320-b343-5253-899f-15cdc13128f7" [ref=e374] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e377] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e380] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to f733d2fb-6521-5df7-b335-9da0dc419825" [ref=e383] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to 80465f8f-850a-553d-b41f-9ec2cccb7c32" [ref=e386] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to d97e19bc-8e5e-58d8-9e1b-509e139f6180" [ref=e389] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to 6fd16834-b7da-5764-b8fd-596bda5e7a39" [ref=e392] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to f8315bb3-3e32-52d6-a0a1-f608d3c28e3a" [ref=e395] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e398] [cursor=pointer]
+        - img:
+          - group "Edge from b013d563-8b5e-53c8-8d77-a53249020f3f to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e401] [cursor=pointer]
+        - img:
+          - group "Edge from b64c1cf9-fa88-53a3-819f-101db7ba8334 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e404] [cursor=pointer]
+        - img:
+          - group "Edge from b64c1cf9-fa88-53a3-819f-101db7ba8334 to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e407] [cursor=pointer]
+        - img:
+          - group "Edge from b64c1cf9-fa88-53a3-819f-101db7ba8334 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e410] [cursor=pointer]
+        - img:
+          - group "Edge from b64c1cf9-fa88-53a3-819f-101db7ba8334 to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e413] [cursor=pointer]
+        - img:
+          - group "Edge from b64c1cf9-fa88-53a3-819f-101db7ba8334 to 06ef4780-e89f-5749-8025-3b3f89e0ed44" [ref=e416] [cursor=pointer]
+        - img:
+          - group "Edge from b64c1cf9-fa88-53a3-819f-101db7ba8334 to 77ad04c5-892a-515f-85c9-f0a23971b799" [ref=e419] [cursor=pointer]
+        - img:
+          - group "Edge from ff918c27-8480-5394-9873-ced973ad6af5 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e422] [cursor=pointer]
+        - img:
+          - group "Edge from ff918c27-8480-5394-9873-ced973ad6af5 to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e425] [cursor=pointer]
+        - img:
+          - group "Edge from ff918c27-8480-5394-9873-ced973ad6af5 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e428] [cursor=pointer]
+        - img:
+          - group "Edge from ff918c27-8480-5394-9873-ced973ad6af5 to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e431] [cursor=pointer]
+        - img:
+          - group "Edge from fb06b291-fb8e-5775-84db-bd45e3f72d66 to 1161c002-d87f-577f-b247-a1d2b5f32b61" [ref=e434] [cursor=pointer]
+        - img:
+          - group "Edge from fb06b291-fb8e-5775-84db-bd45e3f72d66 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e437] [cursor=pointer]
+        - img:
+          - group "Edge from fb06b291-fb8e-5775-84db-bd45e3f72d66 to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e440] [cursor=pointer]
+        - img:
+          - group "Edge from fb06b291-fb8e-5775-84db-bd45e3f72d66 to 5a1a537c-1cc0-58b9-b373-c67bb2ef72d7" [ref=e443] [cursor=pointer]
+        - img:
+          - group "Edge from fb06b291-fb8e-5775-84db-bd45e3f72d66 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e446] [cursor=pointer]
+        - img:
+          - group "Edge from 76f88565-e26c-580e-a293-1cfd48a0fef3 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e449] [cursor=pointer]
+        - img:
+          - group "Edge from 76f88565-e26c-580e-a293-1cfd48a0fef3 to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e452] [cursor=pointer]
+        - img:
+          - group "Edge from 76f88565-e26c-580e-a293-1cfd48a0fef3 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e455] [cursor=pointer]
+        - img:
+          - group "Edge from 76f88565-e26c-580e-a293-1cfd48a0fef3 to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e458] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to d97e19bc-8e5e-58d8-9e1b-509e139f6180" [ref=e461] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e464] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e467] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to f733d2fb-6521-5df7-b335-9da0dc419825" [ref=e470] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to 80465f8f-850a-553d-b41f-9ec2cccb7c32" [ref=e473] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to 6fd16834-b7da-5764-b8fd-596bda5e7a39" [ref=e476] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to f8315bb3-3e32-52d6-a0a1-f608d3c28e3a" [ref=e479] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e482] [cursor=pointer]
+        - img:
+          - group "Edge from ed4c305f-43ec-5fb3-a0de-4f417a69c2bc to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e485] [cursor=pointer]
+        - img:
+          - group "Edge from f733d2fb-6521-5df7-b335-9da0dc419825 to 6fd16834-b7da-5764-b8fd-596bda5e7a39" [ref=e488] [cursor=pointer]
+        - img:
+          - group "Edge from f733d2fb-6521-5df7-b335-9da0dc419825 to 5a1a537c-1cc0-58b9-b373-c67bb2ef72d7" [ref=e491] [cursor=pointer]
+        - img:
+          - group "Edge from f733d2fb-6521-5df7-b335-9da0dc419825 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e494] [cursor=pointer]
+        - img:
+          - group "Edge from f733d2fb-6521-5df7-b335-9da0dc419825 to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e497] [cursor=pointer]
+        - img:
+          - group "Edge from f733d2fb-6521-5df7-b335-9da0dc419825 to 4f2daa52-a219-57d2-b33b-9c99d5ce71e1" [ref=e500] [cursor=pointer]
+        - img:
+          - group "Edge from f733d2fb-6521-5df7-b335-9da0dc419825 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e503] [cursor=pointer]
+        - img:
+          - group "Edge from f733d2fb-6521-5df7-b335-9da0dc419825 to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e506] [cursor=pointer]
+        - img:
+          - group "Edge from cd5d2189-16b7-5e3d-919a-514844c832d4 to 04484602-2894-59f9-aed3-da1c6141427b" [ref=e509] [cursor=pointer]
+        - img:
+          - group "Edge from cd5d2189-16b7-5e3d-919a-514844c832d4 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e512] [cursor=pointer]
+        - img:
+          - group "Edge from cd5d2189-16b7-5e3d-919a-514844c832d4 to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e515] [cursor=pointer]
+        - img:
+          - group "Edge from cd5d2189-16b7-5e3d-919a-514844c832d4 to c7d0d639-4bff-51b5-a19c-34c89760d784" [ref=e518] [cursor=pointer]
+        - img:
+          - group "Edge from cd5d2189-16b7-5e3d-919a-514844c832d4 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e521] [cursor=pointer]
+        - img:
+          - group "Edge from cd5d2189-16b7-5e3d-919a-514844c832d4 to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e524] [cursor=pointer]
+        - img:
+          - group "Edge from b038c623-22ab-5272-aff6-04db60594cc6 to 78b2bae8-e385-585e-8584-44976a6d86cd" [ref=e527] [cursor=pointer]
+        - img:
+          - group "Edge from b038c623-22ab-5272-aff6-04db60594cc6 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e530] [cursor=pointer]
+        - img:
+          - group "Edge from b038c623-22ab-5272-aff6-04db60594cc6 to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e533] [cursor=pointer]
+        - img:
+          - group "Edge from b038c623-22ab-5272-aff6-04db60594cc6 to b64c1cf9-fa88-53a3-819f-101db7ba8334" [ref=e536] [cursor=pointer]
+        - img:
+          - group "Edge from b038c623-22ab-5272-aff6-04db60594cc6 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e539] [cursor=pointer]
+        - img:
+          - group "Edge from b038c623-22ab-5272-aff6-04db60594cc6 to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e542] [cursor=pointer]
+        - img:
+          - group "Edge from 1e15e8be-2adf-501d-8666-5c6f317b6fbb to 5a1a537c-1cc0-58b9-b373-c67bb2ef72d7" [ref=e545] [cursor=pointer]
+        - img:
+          - group "Edge from 1e15e8be-2adf-501d-8666-5c6f317b6fbb to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e548] [cursor=pointer]
+        - img:
+          - group "Edge from 1e15e8be-2adf-501d-8666-5c6f317b6fbb to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e551] [cursor=pointer]
+        - img:
+          - group "Edge from 1e15e8be-2adf-501d-8666-5c6f317b6fbb to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e554] [cursor=pointer]
+        - img:
+          - group "Edge from 1e15e8be-2adf-501d-8666-5c6f317b6fbb to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e557] [cursor=pointer]
+        - img:
+          - group "Edge from 80465f8f-850a-553d-b41f-9ec2cccb7c32 to f8315bb3-3e32-52d6-a0a1-f608d3c28e3a" [ref=e560] [cursor=pointer]
+        - img:
+          - group "Edge from 80465f8f-850a-553d-b41f-9ec2cccb7c32 to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e563] [cursor=pointer]
+        - img:
+          - group "Edge from 80465f8f-850a-553d-b41f-9ec2cccb7c32 to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e566] [cursor=pointer]
+        - img:
+          - group "Edge from 80465f8f-850a-553d-b41f-9ec2cccb7c32 to 4f2daa52-a219-57d2-b33b-9c99d5ce71e1" [ref=e569] [cursor=pointer]
+        - img:
+          - group "Edge from 80465f8f-850a-553d-b41f-9ec2cccb7c32 to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e572] [cursor=pointer]
+        - img:
+          - group "Edge from 80465f8f-850a-553d-b41f-9ec2cccb7c32 to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e575] [cursor=pointer]
+        - img:
+          - group "Edge from bf5ef7b0-baa0-5a6b-86d1-ec800283efbd to ec98ad45-6e51-5471-9189-8f128ff35d88" [ref=e578] [cursor=pointer]
+        - img:
+          - group "Edge from bf5ef7b0-baa0-5a6b-86d1-ec800283efbd to d2d6ff19-6554-5d32-a35a-b3a5b17876c5" [ref=e581] [cursor=pointer]
+        - img:
+          - group "Edge from bf5ef7b0-baa0-5a6b-86d1-ec800283efbd to 208c1ba7-930d-5a4d-abc4-86bb85edd90e" [ref=e584] [cursor=pointer]
+        - img:
+          - group "Edge from bf5ef7b0-baa0-5a6b-86d1-ec800283efbd to 063d2bca-a56e-50c1-9ab3-4e0f92428154" [ref=e587] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to 1c25f1c1-2237-5b7b-a946-9a04ab6720e4" [ref=e590] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to e319cde6-d478-50cc-830c-48f9fef51b6a" [ref=e593] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to c4a5bb1e-5d9c-5fd2-b528-f10d8b0a61cb" [ref=e596] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to b013d563-8b5e-53c8-8d77-a53249020f3f" [ref=e599] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to ed4c305f-43ec-5fb3-a0de-4f417a69c2bc" [ref=e602] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to f733d2fb-6521-5df7-b335-9da0dc419825" [ref=e605] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to cd5d2189-16b7-5e3d-919a-514844c832d4" [ref=e608] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to b038c623-22ab-5272-aff6-04db60594cc6" [ref=e611] [cursor=pointer]
+        - img:
+          - group "Edge from 6f15f971-c932-5cd7-9e4b-92ad9b08862c to 80465f8f-850a-553d-b41f-9ec2cccb7c32" [ref=e614] [cursor=pointer]
+        - img:
+          - group "Edge from 06ef4780-e89f-5749-8025-3b3f89e0ed44 to 77ad04c5-892a-515f-85c9-f0a23971b799"
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to 8dfa3be3-9706-5cd7-9760-1524e26a3a40" [ref=e617] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to ceead36c-a199-53a7-b677-ba8a982a9eee" [ref=e620] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to 0bb72621-e265-53ab-86fd-08004b273a6b" [ref=e623] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to 1c25f1c1-2237-5b7b-a946-9a04ab6720e4" [ref=e626] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to c7d0d639-4bff-51b5-a19c-34c89760d784" [ref=e629] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to b013d563-8b5e-53c8-8d77-a53249020f3f" [ref=e632] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to fb06b291-fb8e-5775-84db-bd45e3f72d66" [ref=e635] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to ed4c305f-43ec-5fb3-a0de-4f417a69c2bc" [ref=e638] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to f733d2fb-6521-5df7-b335-9da0dc419825" [ref=e641] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to cd5d2189-16b7-5e3d-919a-514844c832d4" [ref=e644] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to 1e15e8be-2adf-501d-8666-5c6f317b6fbb" [ref=e647] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to 80465f8f-850a-553d-b41f-9ec2cccb7c32" [ref=e650] [cursor=pointer]
+        - img:
+          - group "Edge from b4eda4d7-39c3-5dc4-916f-f73feeda4b00 to e0d607c5-3592-5795-bf0f-97abb8ea46c2" [ref=e653] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to 8dfa3be3-9706-5cd7-9760-1524e26a3a40" [ref=e656] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to ceead36c-a199-53a7-b677-ba8a982a9eee" [ref=e659] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to b013d563-8b5e-53c8-8d77-a53249020f3f" [ref=e662] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to fb06b291-fb8e-5775-84db-bd45e3f72d66" [ref=e665] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to ed4c305f-43ec-5fb3-a0de-4f417a69c2bc" [ref=e668] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to f733d2fb-6521-5df7-b335-9da0dc419825" [ref=e671] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to cd5d2189-16b7-5e3d-919a-514844c832d4" [ref=e674] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to b038c623-22ab-5272-aff6-04db60594cc6" [ref=e677] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to 1e15e8be-2adf-501d-8666-5c6f317b6fbb" [ref=e680] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to 80465f8f-850a-553d-b41f-9ec2cccb7c32" [ref=e683] [cursor=pointer]
+        - img:
+          - group "Edge from e0d607c5-3592-5795-bf0f-97abb8ea46c2 to bf5ef7b0-baa0-5a6b-86d1-ec800283efbd" [ref=e686] [cursor=pointer]
+        - img:
+          - group "Edge from 40d93320-b343-5253-899f-15cdc13128f7 to d97e19bc-8e5e-58d8-9e1b-509e139f6180" [ref=e689] [cursor=pointer]
+        - img:
+          - group "Edge from 40d93320-b343-5253-899f-15cdc13128f7 to 6fd16834-b7da-5764-b8fd-596bda5e7a39" [ref=e692] [cursor=pointer]
+        - img:
+          - group "Edge from 40d93320-b343-5253-899f-15cdc13128f7 to f8315bb3-3e32-52d6-a0a1-f608d3c28e3a" [ref=e695] [cursor=pointer]
+        - img:
+          - group "Edge from 40d93320-b343-5253-899f-15cdc13128f7 to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e698] [cursor=pointer]
+        - img:
+          - group "Edge from 1161c002-d87f-577f-b247-a1d2b5f32b61 to 5a1a537c-1cc0-58b9-b373-c67bb2ef72d7" [ref=e701] [cursor=pointer]
+        - img:
+          - group "Edge from 1161c002-d87f-577f-b247-a1d2b5f32b61 to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e704] [cursor=pointer]
+        - img:
+          - group "Edge from d97e19bc-8e5e-58d8-9e1b-509e139f6180 to 6fd16834-b7da-5764-b8fd-596bda5e7a39" [ref=e707] [cursor=pointer]
+        - img:
+          - group "Edge from d97e19bc-8e5e-58d8-9e1b-509e139f6180 to f8315bb3-3e32-52d6-a0a1-f608d3c28e3a"
+        - img:
+          - group "Edge from d97e19bc-8e5e-58d8-9e1b-509e139f6180 to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e710] [cursor=pointer]
+        - img:
+          - group "Edge from 6fd16834-b7da-5764-b8fd-596bda5e7a39 to 5a1a537c-1cc0-58b9-b373-c67bb2ef72d7" [ref=e713] [cursor=pointer]
+        - img:
+          - group "Edge from 6fd16834-b7da-5764-b8fd-596bda5e7a39 to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e716] [cursor=pointer]
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to 40d93320-b343-5253-899f-15cdc13128f7" [ref=e719] [cursor=pointer]
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to 9db4a1ef-0ff8-5fd5-b877-807929a88630" [ref=e722] [cursor=pointer]
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to 8dfa3be3-9706-5cd7-9760-1524e26a3a40" [ref=e725] [cursor=pointer]
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to c7d0d639-4bff-51b5-a19c-34c89760d784" [ref=e728] [cursor=pointer]
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to ceead36c-a199-53a7-b677-ba8a982a9eee"
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to d97e19bc-8e5e-58d8-9e1b-509e139f6180" [ref=e731] [cursor=pointer]
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to e2e1ec8a-b85e-5376-b8b1-330608c8d7c4" [ref=e734] [cursor=pointer]
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to 7eb07dbe-d51f-56fc-88fe-9b87aef7c326" [ref=e737] [cursor=pointer]
+        - img:
+          - group "Edge from 04484602-2894-59f9-aed3-da1c6141427b to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e740] [cursor=pointer]
+        - img:
+          - group "Edge from 78b2bae8-e385-585e-8584-44976a6d86cd to 04484602-2894-59f9-aed3-da1c6141427b" [ref=e743] [cursor=pointer]
+        - img:
+          - group "Edge from 78b2bae8-e385-585e-8584-44976a6d86cd to 04011ac1-475d-523b-87f1-f88d5c9e3a7e" [ref=e746] [cursor=pointer]
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - img
+        - generic:
+          - group [ref=e749]:
+            - generic [ref=e750]:
+              - generic [ref=e752]:
+                - generic "ApiClient" [ref=e754]
+                - generic [ref=e755]:
+                  - button "Focus camera on node" [ref=e756] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e757] [cursor=pointer]: ⊚
+                - generic [ref=e758]: MODULE
+              - generic [ref=e760]:
+                - button "Metadata −" [ref=e761] [cursor=pointer]:
+                  - generic [ref=e762]: Metadata
+                  - generic [ref=e763]: −
+                - generic [ref=e764]:
+                  - generic [ref=e765]:
+                    - generic [ref=e766]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e767]
+                  - generic [ref=e768]:
+                    - generic [ref=e769]: "path:"
+                    - generic "src/client/api/ApiClient.ts" [ref=e770]
+              - generic [ref=e771]:
+                - generic [ref=e772]:
+                  - generic [ref=e773]: Subnodes
+                  - generic [ref=e774]: "1"
+                - generic [ref=e776]: "Hidden: 1 class"
+          - group [ref=e778]:
+            - generic [ref=e779]:
+              - generic [ref=e781]:
+                - generic "App" [ref=e783]
+                - generic [ref=e784]:
+                  - button "Focus camera on node" [ref=e785] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e786] [cursor=pointer]: ⊚
+                - generic [ref=e787]: MODULE
+              - generic [ref=e788]:
+                - generic [ref=e789]:
+                  - button "Metadata −" [ref=e790] [cursor=pointer]:
+                    - generic [ref=e791]: Metadata
+                    - generic [ref=e792]: −
+                  - generic [ref=e793]:
+                    - generic [ref=e794]:
+                      - generic [ref=e795]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e796]
+                    - generic [ref=e797]:
+                      - generic [ref=e798]: "path:"
+                      - generic "src/client/App.vue" [ref=e799]
+                - generic [ref=e800]:
+                  - button "External Dependencies −" [ref=e801] [cursor=pointer]:
+                    - generic [ref=e802]: External Dependencies
+                    - generic [ref=e803]: −
+                  - generic [ref=e805]:
+                    - generic [ref=e806]: vue
+                    - generic [ref=e807]: defineAsyncComponent, onMounted, onUnmounted, ref
+          - group [ref=e809]:
+            - generic [ref=e810]:
+              - generic [ref=e812]:
+                - generic "GraphDataAssembler" [ref=e814]
+                - generic [ref=e815]:
+                  - button "Focus camera on node" [ref=e816] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e817] [cursor=pointer]: ⊚
+                - generic [ref=e818]: MODULE
+              - generic [ref=e820]:
+                - button "Metadata −" [ref=e821] [cursor=pointer]:
+                  - generic [ref=e822]: Metadata
+                  - generic [ref=e823]: −
+                - generic [ref=e824]:
+                  - generic [ref=e825]:
+                    - generic [ref=e826]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e827]
+                  - generic [ref=e828]:
+                    - generic [ref=e829]: "path:"
+                    - generic "src/client/assemblers/GraphDataAssembler.ts" [ref=e830]
+              - generic [ref=e831]:
+                - generic [ref=e832]:
+                  - generic [ref=e833]: Subnodes
+                  - generic [ref=e834]: "2"
+                - generic [ref=e836]: "Hidden: 2 classes"
+          - group [ref=e838]:
+            - generic [ref=e839]:
+              - generic [ref=e841]:
+                - generic "buildGraphView" [ref=e843]
+                - generic [ref=e844]:
+                  - button "Focus camera on node" [ref=e845] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e846] [cursor=pointer]: ⊚
+                - generic [ref=e847]: MODULE
+              - generic [ref=e848]:
+                - generic [ref=e849]:
+                  - button "Metadata −" [ref=e850] [cursor=pointer]:
+                    - generic [ref=e851]: Metadata
+                    - generic [ref=e852]: −
+                  - generic [ref=e853]:
+                    - generic [ref=e854]:
+                      - generic [ref=e855]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e856]
+                    - generic [ref=e857]:
+                      - generic [ref=e858]: "path:"
+                      - generic "src/client/components/DependencyGraph/buildGraphView.ts" [ref=e859]
+                - generic [ref=e860]:
+                  - button "External Dependencies −" [ref=e861] [cursor=pointer]:
+                    - generic [ref=e862]: External Dependencies
+                    - generic [ref=e863]: −
+                  - generic [ref=e865]:
+                    - generic [ref=e866]: "@vue-flow/core"
+                    - generic [ref=e867]: MarkerType, NodeChange, Position
+              - generic [ref=e868]:
+                - generic [ref=e869]:
+                  - generic [ref=e870]: Subnodes
+                  - generic [ref=e871]: "5"
+                - generic [ref=e873]: "Hidden: 5 interfaces"
+          - group [ref=e875]:
+            - generic [ref=e876]:
+              - generic [ref=e878]:
+                - generic "GraphControls" [ref=e880]
+                - generic [ref=e881]:
+                  - button "Focus camera on node" [ref=e882] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e883] [cursor=pointer]: ⊚
+                - generic [ref=e884]: MODULE
+              - generic [ref=e885]:
+                - generic [ref=e886]:
+                  - button "Metadata −" [ref=e887] [cursor=pointer]:
+                    - generic [ref=e888]: Metadata
+                    - generic [ref=e889]: −
+                  - generic [ref=e890]:
+                    - generic [ref=e891]:
+                      - generic [ref=e892]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e893]
+                    - generic [ref=e894]:
+                      - generic [ref=e895]: "path:"
+                      - generic "src/client/components/DependencyGraph/components/GraphControls.vue" [ref=e896]
+                - generic [ref=e897]:
+                  - button "External Dependencies −" [ref=e898] [cursor=pointer]:
+                    - generic [ref=e899]: External Dependencies
+                    - generic [ref=e900]: −
+                  - generic [ref=e901]:
+                    - generic [ref=e902]:
+                      - generic [ref=e903]: "@vue-flow/core"
+                      - generic [ref=e904]: Panel, useVueFlow
+                    - generic [ref=e905]:
+                      - generic [ref=e906]: vue
+                      - generic [ref=e907]: ref
+              - generic [ref=e908]:
+                - generic [ref=e909]:
+                  - generic [ref=e910]: Subnodes
+                  - generic [ref=e911]: "1"
+                - generic [ref=e913]: "Hidden: 1 interface"
+          - group [ref=e915]:
+            - generic [ref=e916]:
+              - generic [ref=e918]:
+                - generic "GraphSearch" [ref=e920]
+                - generic [ref=e921]:
+                  - button "Focus camera on node" [ref=e922] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e923] [cursor=pointer]: ⊚
+                - generic [ref=e924]: MODULE
+              - generic [ref=e925]:
+                - generic [ref=e926]:
+                  - button "Metadata −" [ref=e927] [cursor=pointer]:
+                    - generic [ref=e928]: Metadata
+                    - generic [ref=e929]: −
+                  - generic [ref=e930]:
+                    - generic [ref=e931]:
+                      - generic [ref=e932]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e933]
+                    - generic [ref=e934]:
+                      - generic [ref=e935]: "path:"
+                      - generic "src/client/components/DependencyGraph/components/GraphSearch.vue" [ref=e936]
+                - generic [ref=e937]:
+                  - button "External Dependencies −" [ref=e938] [cursor=pointer]:
+                    - generic [ref=e939]: External Dependencies
+                    - generic [ref=e940]: −
+                  - generic [ref=e941]:
+                    - generic [ref=e942]:
+                      - generic [ref=e943]: "@vue-flow/core"
+                      - generic [ref=e944]: Panel
+                    - generic [ref=e945]:
+                      - generic [ref=e946]: vue
+                      - generic [ref=e947]: ref
+              - generic [ref=e948]:
+                - generic [ref=e949]:
+                  - generic [ref=e950]: Subnodes
+                  - generic [ref=e951]: "1"
+                - generic [ref=e953]: "Hidden: 1 interface"
+          - group [ref=e955]:
+            - generic [ref=e956]:
+              - generic [ref=e958]:
+                - generic "NodeDetails" [ref=e960]
+                - generic [ref=e961]:
+                  - button "Focus camera on node" [ref=e962] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e963] [cursor=pointer]: ⊚
+                - generic [ref=e964]: MODULE
+              - generic [ref=e965]:
+                - generic [ref=e966]:
+                  - button "Metadata −" [ref=e967] [cursor=pointer]:
+                    - generic [ref=e968]: Metadata
+                    - generic [ref=e969]: −
+                  - generic [ref=e970]:
+                    - generic [ref=e971]:
+                      - generic [ref=e972]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e973]
+                    - generic [ref=e974]:
+                      - generic [ref=e975]: "path:"
+                      - generic "src/client/components/DependencyGraph/components/NodeDetails.vue" [ref=e976]
+                - generic [ref=e977]:
+                  - button "External Dependencies −" [ref=e978] [cursor=pointer]:
+                    - generic [ref=e979]: External Dependencies
+                    - generic [ref=e980]: −
+                  - generic [ref=e982]:
+                    - generic [ref=e983]: vue
+                    - generic [ref=e984]: computed
+              - generic [ref=e985]:
+                - generic [ref=e986]:
+                  - generic [ref=e987]: Subnodes
+                  - generic [ref=e988]: "5"
+                - generic [ref=e990]: "Hidden: 5 interfaces"
+          - group [ref=e992]:
+            - generic [ref=e993]:
+              - generic [ref=e995]:
+                - generic "DependencyGraphLazy" [ref=e997]
+                - generic [ref=e998]:
+                  - button "Focus camera on node" [ref=e999] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1000] [cursor=pointer]: ⊚
+                - generic [ref=e1001]: MODULE
+              - generic [ref=e1002]:
+                - generic [ref=e1003]:
+                  - button "Metadata −" [ref=e1004] [cursor=pointer]:
+                    - generic [ref=e1005]: Metadata
+                    - generic [ref=e1006]: −
+                  - generic [ref=e1007]:
+                    - generic [ref=e1008]:
+                      - generic [ref=e1009]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1010]
+                    - generic [ref=e1011]:
+                      - generic [ref=e1012]: "path:"
+                      - generic "src/client/components/DependencyGraph/DependencyGraphLazy.vue" [ref=e1013]
+                - generic [ref=e1014]:
+                  - button "External Dependencies −" [ref=e1015] [cursor=pointer]:
+                    - generic [ref=e1016]: External Dependencies
+                    - generic [ref=e1017]: −
+                  - generic [ref=e1019]:
+                    - generic [ref=e1020]: vue
+                    - generic [ref=e1021]: onMounted, onUnmounted
+              - generic [ref=e1022]:
+                - generic [ref=e1023]:
+                  - generic [ref=e1024]: Subnodes
+                  - generic [ref=e1025]: "1"
+                - generic [ref=e1027]: "Hidden: 1 class"
+          - group [ref=e1029]:
+            - generic [ref=e1030]:
+              - generic [ref=e1032]:
+                - generic "index" [ref=e1034]
+                - generic [ref=e1035]:
+                  - button "Focus camera on node" [ref=e1036] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1037] [cursor=pointer]: ⊚
+                - generic [ref=e1038]: MODULE
+              - generic [ref=e1039]:
+                - generic [ref=e1040]:
+                  - button "Metadata −" [ref=e1041] [cursor=pointer]:
+                    - generic [ref=e1042]: Metadata
+                    - generic [ref=e1043]: −
+                  - generic [ref=e1044]:
+                    - generic [ref=e1045]:
+                      - generic [ref=e1046]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1047]
+                    - generic [ref=e1048]:
+                      - generic [ref=e1049]: "path:"
+                      - generic "src/client/components/DependencyGraph/index.vue" [ref=e1050]
+                - generic [ref=e1051]:
+                  - button "External Dependencies −" [ref=e1052] [cursor=pointer]:
+                    - generic [ref=e1053]: External Dependencies
+                    - generic [ref=e1054]: −
+                  - generic [ref=e1055]:
+                    - generic [ref=e1056]:
+                      - generic [ref=e1057]: "@vue-flow/background"
+                      - generic [ref=e1058]: Background
+                    - generic [ref=e1059]:
+                      - generic [ref=e1060]: "@vue-flow/core"
+                      - generic [ref=e1061]: (side-effect), applyNodeChanges, MarkerType, NodeChange, Panel, Position (+2 more)
+                    - generic [ref=e1062]:
+                      - generic [ref=e1063]: vue
+                      - generic [ref=e1064]: computed, onUnmounted, watch
+              - generic [ref=e1065]:
+                - generic [ref=e1066]:
+                  - generic [ref=e1067]: Subnodes
+                  - generic [ref=e1068]: "1"
+                - generic [ref=e1070]: "Hidden: 1 interface"
+          - group [ref=e1072]:
+            - generic [ref=e1073]:
+              - generic [ref=e1075]:
+                - generic "config" [ref=e1077]
+                - generic [ref=e1078]:
+                  - button "Focus camera on node" [ref=e1079] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1080] [cursor=pointer]: ⊚
+                - generic [ref=e1081]: MODULE
+              - generic [ref=e1083]:
+                - button "Metadata −" [ref=e1084] [cursor=pointer]:
+                  - generic [ref=e1085]: Metadata
+                  - generic [ref=e1086]: −
+                - generic [ref=e1087]:
+                  - generic [ref=e1088]:
+                    - generic [ref=e1089]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1090]
+                  - generic [ref=e1091]:
+                    - generic [ref=e1092]: "path:"
+                    - generic "src/client/components/DependencyGraph/layout/config.ts" [ref=e1093]
+              - generic [ref=e1094]:
+                - generic [ref=e1095]:
+                  - generic [ref=e1096]: Subnodes
+                  - generic [ref=e1097]: "3"
+                - generic [ref=e1099]: "Hidden: 3 interfaces"
+          - group [ref=e1101]:
+            - generic [ref=e1102]:
+              - generic [ref=e1104]:
+                - generic "errors" [ref=e1106]
+                - generic [ref=e1107]:
+                  - button "Focus camera on node" [ref=e1108] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1109] [cursor=pointer]: ⊚
+                - generic [ref=e1110]: MODULE
+              - generic [ref=e1112]:
+                - button "Metadata −" [ref=e1113] [cursor=pointer]:
+                  - generic [ref=e1114]: Metadata
+                  - generic [ref=e1115]: −
+                - generic [ref=e1116]:
+                  - generic [ref=e1117]:
+                    - generic [ref=e1118]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1119]
+                  - generic [ref=e1120]:
+                    - generic [ref=e1121]: "path:"
+                    - generic "src/client/components/DependencyGraph/layout/errors.ts" [ref=e1122]
+              - generic [ref=e1123]:
+                - generic [ref=e1124]:
+                  - generic [ref=e1125]: Subnodes
+                  - generic [ref=e1126]: "2"
+                - generic [ref=e1128]: "Hidden: 2 classes"
+          - group [ref=e1130]:
+            - generic [ref=e1131]:
+              - generic [ref=e1133]:
+                - generic "processor" [ref=e1135]
+                - generic [ref=e1136]:
+                  - button "Focus camera on node" [ref=e1137] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1138] [cursor=pointer]: ⊚
+                - generic [ref=e1139]: MODULE
+              - generic [ref=e1140]:
+                - generic [ref=e1141]:
+                  - button "Metadata −" [ref=e1142] [cursor=pointer]:
+                    - generic [ref=e1143]: Metadata
+                    - generic [ref=e1144]: −
+                  - generic [ref=e1145]:
+                    - generic [ref=e1146]:
+                      - generic [ref=e1147]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1148]
+                    - generic [ref=e1149]:
+                      - generic [ref=e1150]: "path:"
+                      - generic "src/client/components/DependencyGraph/layout/processor.ts" [ref=e1151]
+                - generic [ref=e1152]:
+                  - button "External Dependencies −" [ref=e1153] [cursor=pointer]:
+                    - generic [ref=e1154]: External Dependencies
+                    - generic [ref=e1155]: −
+                  - generic [ref=e1157]:
+                    - generic [ref=e1158]: "@dagrejs/dagre"
+                    - generic [ref=e1159]: dagre
+              - generic [ref=e1160]:
+                - generic [ref=e1161]:
+                  - generic [ref=e1162]: Subnodes
+                  - generic [ref=e1163]: "1"
+                - generic [ref=e1165]: "Hidden: 1 class"
+          - group [ref=e1167]:
+            - generic [ref=e1168]:
+              - generic [ref=e1170]:
+                - generic "mapTypeCollection" [ref=e1172]
+                - generic [ref=e1173]:
+                  - button "Focus camera on node" [ref=e1174] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1175] [cursor=pointer]: ⊚
+                - generic [ref=e1176]: MODULE
+              - generic [ref=e1178]:
+                - button "Metadata −" [ref=e1179] [cursor=pointer]:
+                  - generic [ref=e1180]: Metadata
+                  - generic [ref=e1181]: −
+                - generic [ref=e1182]:
+                  - generic [ref=e1183]:
+                    - generic [ref=e1184]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1185]
+                  - generic [ref=e1186]:
+                    - generic [ref=e1187]: "path:"
+                    - generic "src/client/components/DependencyGraph/mapTypeCollection.ts" [ref=e1188]
+          - group [ref=e1190]:
+            - generic [ref=e1191]:
+              - generic [ref=e1193]:
+                - generic "BaseNode" [ref=e1195]
+                - generic [ref=e1196]:
+                  - button "Focus camera on node" [ref=e1197] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1198] [cursor=pointer]: ⊚
+                - generic [ref=e1199]: MODULE
+              - generic [ref=e1200]:
+                - generic [ref=e1201]:
+                  - button "Metadata −" [ref=e1202] [cursor=pointer]:
+                    - generic [ref=e1203]: Metadata
+                    - generic [ref=e1204]: −
+                  - generic [ref=e1205]:
+                    - generic [ref=e1206]:
+                      - generic [ref=e1207]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1208]
+                    - generic [ref=e1209]:
+                      - generic [ref=e1210]: "path:"
+                      - generic "src/client/components/DependencyGraph/nodes/BaseNode.vue" [ref=e1211]
+                - generic [ref=e1212]:
+                  - button "External Dependencies −" [ref=e1213] [cursor=pointer]:
+                    - generic [ref=e1214]: External Dependencies
+                    - generic [ref=e1215]: −
+                  - generic [ref=e1216]:
+                    - generic [ref=e1217]:
+                      - generic [ref=e1218]: "@vue-flow/core"
+                      - generic [ref=e1219]: Handle, Position
+                    - generic [ref=e1220]:
+                      - generic [ref=e1221]: vue
+                      - generic [ref=e1222]: computed
+              - generic [ref=e1223]:
+                - generic [ref=e1224]:
+                  - generic [ref=e1225]: Subnodes
+                  - generic [ref=e1226]: "1"
+                - generic [ref=e1228]: "Hidden: 1 interface"
+          - group [ref=e1230]:
+            - generic [ref=e1231]:
+              - generic [ref=e1233]:
+                - generic "DependencyNode" [ref=e1235]
+                - generic [ref=e1236]:
+                  - button "Focus camera on node" [ref=e1237] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1238] [cursor=pointer]: ⊚
+                - generic [ref=e1239]: MODULE
+              - generic [ref=e1240]:
+                - generic [ref=e1241]:
+                  - button "Metadata −" [ref=e1242] [cursor=pointer]:
+                    - generic [ref=e1243]: Metadata
+                    - generic [ref=e1244]: −
+                  - generic [ref=e1245]:
+                    - generic [ref=e1246]:
+                      - generic [ref=e1247]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1248]
+                    - generic [ref=e1249]:
+                      - generic [ref=e1250]: "path:"
+                      - generic "src/client/components/DependencyGraph/nodes/DependencyNode.vue" [ref=e1251]
+                - generic [ref=e1252]:
+                  - button "External Dependencies −" [ref=e1253] [cursor=pointer]:
+                    - generic [ref=e1254]: External Dependencies
+                    - generic [ref=e1255]: −
+                  - generic [ref=e1257]:
+                    - generic [ref=e1258]: vue
+                    - generic [ref=e1259]: computed
+          - group [ref=e1261]:
+            - generic [ref=e1262]:
+              - generic [ref=e1264]:
+                - generic "GroupNode" [ref=e1266]
+                - generic [ref=e1267]:
+                  - button "Focus camera on node" [ref=e1268] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1269] [cursor=pointer]: ⊚
+                - generic [ref=e1270]: MODULE
+              - generic [ref=e1271]:
+                - generic [ref=e1272]:
+                  - button "Metadata −" [ref=e1273] [cursor=pointer]:
+                    - generic [ref=e1274]: Metadata
+                    - generic [ref=e1275]: −
+                  - generic [ref=e1276]:
+                    - generic [ref=e1277]:
+                      - generic [ref=e1278]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1279]
+                    - generic [ref=e1280]:
+                      - generic [ref=e1281]: "path:"
+                      - generic "src/client/components/DependencyGraph/nodes/GroupNode.vue" [ref=e1282]
+                - generic [ref=e1283]:
+                  - button "External Dependencies −" [ref=e1284] [cursor=pointer]:
+                    - generic [ref=e1285]: External Dependencies
+                    - generic [ref=e1286]: −
+                  - generic [ref=e1288]:
+                    - generic [ref=e1289]: vue
+                    - generic [ref=e1290]: computed
+          - group [ref=e1292]:
+            - generic [ref=e1293]:
+              - generic [ref=e1295]:
+                - generic "ModuleNode" [ref=e1297]
+                - generic [ref=e1298]:
+                  - button "Focus camera on node" [ref=e1299] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1300] [cursor=pointer]: ⊚
+                - generic [ref=e1301]: MODULE
+              - generic [ref=e1302]:
+                - generic [ref=e1303]:
+                  - button "Metadata −" [ref=e1304] [cursor=pointer]:
+                    - generic [ref=e1305]: Metadata
+                    - generic [ref=e1306]: −
+                  - generic [ref=e1307]:
+                    - generic [ref=e1308]:
+                      - generic [ref=e1309]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1310]
+                    - generic [ref=e1311]:
+                      - generic [ref=e1312]: "path:"
+                      - generic "src/client/components/DependencyGraph/nodes/ModuleNode.vue" [ref=e1313]
+                - generic [ref=e1314]:
+                  - button "External Dependencies −" [ref=e1315] [cursor=pointer]:
+                    - generic [ref=e1316]: External Dependencies
+                    - generic [ref=e1317]: −
+                  - generic [ref=e1319]:
+                    - generic [ref=e1320]: vue
+                    - generic [ref=e1321]: computed, ref
+          - group [ref=e1323]:
+            - generic [ref=e1324]:
+              - generic [ref=e1326]:
+                - generic "nodes" [ref=e1328]
+                - generic [ref=e1329]:
+                  - button "Focus camera on node" [ref=e1330] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1331] [cursor=pointer]: ⊚
+                - generic [ref=e1332]: MODULE
+              - generic [ref=e1333]:
+                - generic [ref=e1334]:
+                  - button "Metadata −" [ref=e1335] [cursor=pointer]:
+                    - generic [ref=e1336]: Metadata
+                    - generic [ref=e1337]: −
+                  - generic [ref=e1338]:
+                    - generic [ref=e1339]:
+                      - generic [ref=e1340]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1341]
+                    - generic [ref=e1342]:
+                      - generic [ref=e1343]: "path:"
+                      - generic "src/client/components/DependencyGraph/nodes/nodes.ts" [ref=e1344]
+                - generic [ref=e1345]:
+                  - button "External Dependencies −" [ref=e1346] [cursor=pointer]:
+                    - generic [ref=e1347]: External Dependencies
+                    - generic [ref=e1348]: −
+                  - generic [ref=e1350]:
+                    - generic [ref=e1351]: vue
+                    - generic [ref=e1352]: Component
+          - group [ref=e1354]:
+            - generic [ref=e1355]:
+              - generic [ref=e1357]:
+                - generic "PackageNode" [ref=e1359]
+                - generic [ref=e1360]:
+                  - button "Focus camera on node" [ref=e1361] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1362] [cursor=pointer]: ⊚
+                - generic [ref=e1363]: MODULE
+              - generic [ref=e1364]:
+                - generic [ref=e1365]:
+                  - button "Metadata −" [ref=e1366] [cursor=pointer]:
+                    - generic [ref=e1367]: Metadata
+                    - generic [ref=e1368]: −
+                  - generic [ref=e1369]:
+                    - generic [ref=e1370]:
+                      - generic [ref=e1371]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1372]
+                    - generic [ref=e1373]:
+                      - generic [ref=e1374]: "path:"
+                      - generic "src/client/components/DependencyGraph/nodes/PackageNode.vue" [ref=e1375]
+                - generic [ref=e1376]:
+                  - button "External Dependencies −" [ref=e1377] [cursor=pointer]:
+                    - generic [ref=e1378]: External Dependencies
+                    - generic [ref=e1379]: −
+                  - generic [ref=e1381]:
+                    - generic [ref=e1382]: vue
+                    - generic [ref=e1383]: computed
+          - group [ref=e1385]:
+            - generic [ref=e1386]:
+              - generic [ref=e1388]:
+                - generic "SymbolNode" [ref=e1390]
+                - generic [ref=e1391]:
+                  - button "Focus camera on node" [ref=e1392] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1393] [cursor=pointer]: ⊚
+                - generic [ref=e1394]: MODULE
+              - generic [ref=e1395]:
+                - generic [ref=e1396]:
+                  - button "Metadata −" [ref=e1397] [cursor=pointer]:
+                    - generic [ref=e1398]: Metadata
+                    - generic [ref=e1399]: −
+                  - generic [ref=e1400]:
+                    - generic [ref=e1401]:
+                      - generic [ref=e1402]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1403]
+                    - generic [ref=e1404]:
+                      - generic [ref=e1405]: "path:"
+                      - generic "src/client/components/DependencyGraph/nodes/SymbolNode.vue" [ref=e1406]
+                - generic [ref=e1407]:
+                  - button "External Dependencies −" [ref=e1408] [cursor=pointer]:
+                    - generic [ref=e1409]: External Dependencies
+                    - generic [ref=e1410]: −
+                  - generic [ref=e1412]:
+                    - generic [ref=e1413]: vue
+                    - generic [ref=e1414]: computed, ref
+          - group [ref=e1416]:
+            - generic [ref=e1417]:
+              - generic [ref=e1419]:
+                - generic "types" [ref=e1421]
+                - generic [ref=e1422]:
+                  - button "Focus camera on node" [ref=e1423] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1424] [cursor=pointer]: ⊚
+                - generic [ref=e1425]: MODULE
+              - generic [ref=e1426]:
+                - generic [ref=e1427]:
+                  - button "Metadata −" [ref=e1428] [cursor=pointer]:
+                    - generic [ref=e1429]: Metadata
+                    - generic [ref=e1430]: −
+                  - generic [ref=e1431]:
+                    - generic [ref=e1432]:
+                      - generic [ref=e1433]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1434]
+                    - generic [ref=e1435]:
+                      - generic [ref=e1436]: "path:"
+                      - generic "src/client/components/DependencyGraph/types.ts" [ref=e1437]
+                - generic [ref=e1438]:
+                  - button "External Dependencies −" [ref=e1439] [cursor=pointer]:
+                    - generic [ref=e1440]: External Dependencies
+                    - generic [ref=e1441]: −
+                  - generic [ref=e1443]:
+                    - generic [ref=e1444]: "@vue-flow/core"
+                    - generic [ref=e1445]: Edge, Node, Position
+              - generic [ref=e1446]:
+                - generic [ref=e1447]:
+                  - generic [ref=e1448]: Subnodes
+                  - generic [ref=e1449]: "19"
+                - generic [ref=e1451]: "Hidden: 19 interfaces"
+          - group [ref=e1453]:
+            - generic [ref=e1454]:
+              - generic [ref=e1456]:
+                - generic "ErrorBoundary" [ref=e1458]
+                - generic [ref=e1459]:
+                  - button "Focus camera on node" [ref=e1460] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1461] [cursor=pointer]: ⊚
+                - generic [ref=e1462]: MODULE
+              - generic [ref=e1463]:
+                - generic [ref=e1464]:
+                  - button "Metadata −" [ref=e1465] [cursor=pointer]:
+                    - generic [ref=e1466]: Metadata
+                    - generic [ref=e1467]: −
+                  - generic [ref=e1468]:
+                    - generic [ref=e1469]:
+                      - generic [ref=e1470]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1471]
+                    - generic [ref=e1472]:
+                      - generic [ref=e1473]: "path:"
+                      - generic "src/client/components/ErrorBoundary.vue" [ref=e1474]
+                - generic [ref=e1475]:
+                  - button "External Dependencies −" [ref=e1476] [cursor=pointer]:
+                    - generic [ref=e1477]: External Dependencies
+                    - generic [ref=e1478]: −
+                  - generic [ref=e1480]:
+                    - generic [ref=e1481]: vue
+                    - generic [ref=e1482]: onErrorCaptured, ref
+              - generic [ref=e1483]:
+                - generic [ref=e1484]:
+                  - generic [ref=e1485]: Subnodes
+                  - generic [ref=e1486]: "1"
+                - generic [ref=e1488]: "Hidden: 1 class"
+          - group [ref=e1490]:
+            - generic [ref=e1491]:
+              - generic [ref=e1493]:
+                - generic "api" [ref=e1495]
+                - generic [ref=e1496]:
+                  - button "Focus camera on node" [ref=e1497] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1498] [cursor=pointer]: ⊚
+                - generic [ref=e1499]: MODULE
+              - generic [ref=e1501]:
+                - button "Metadata −" [ref=e1502] [cursor=pointer]:
+                  - generic [ref=e1503]: Metadata
+                  - generic [ref=e1504]: −
+                - generic [ref=e1505]:
+                  - generic [ref=e1506]:
+                    - generic [ref=e1507]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1508]
+                  - generic [ref=e1509]:
+                    - generic [ref=e1510]: "path:"
+                    - generic "src/client/config/api.ts" [ref=e1511]
+          - group [ref=e1513]:
+            - generic [ref=e1514]:
+              - generic [ref=e1516]:
+                - generic "folders" [ref=e1518]
+                - generic [ref=e1519]:
+                  - button "Focus camera on node" [ref=e1520] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1521] [cursor=pointer]: ⊚
+                - generic [ref=e1522]: MODULE
+              - generic [ref=e1524]:
+                - button "Metadata −" [ref=e1525] [cursor=pointer]:
+                  - generic [ref=e1526]: Metadata
+                  - generic [ref=e1527]: −
+                - generic [ref=e1528]:
+                  - generic [ref=e1529]:
+                    - generic [ref=e1530]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1531]
+                  - generic [ref=e1532]:
+                    - generic [ref=e1533]: "path:"
+                    - generic "src/client/graph/cluster/folders.ts" [ref=e1534]
+          - group [ref=e1536]:
+            - generic [ref=e1537]:
+              - generic [ref=e1539]:
+                - generic "scc" [ref=e1541]
+                - generic [ref=e1542]:
+                  - button "Focus camera on node" [ref=e1543] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1544] [cursor=pointer]: ⊚
+                - generic [ref=e1545]: MODULE
+              - generic [ref=e1546]:
+                - generic [ref=e1547]:
+                  - button "Metadata −" [ref=e1548] [cursor=pointer]:
+                    - generic [ref=e1549]: Metadata
+                    - generic [ref=e1550]: −
+                  - generic [ref=e1551]:
+                    - generic [ref=e1552]:
+                      - generic [ref=e1553]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1554]
+                    - generic [ref=e1555]:
+                      - generic [ref=e1556]: "path:"
+                      - generic "src/client/graph/cluster/scc.ts" [ref=e1557]
+                - generic [ref=e1558]:
+                  - button "External Dependencies −" [ref=e1559] [cursor=pointer]:
+                    - generic [ref=e1560]: External Dependencies
+                    - generic [ref=e1561]: −
+                  - generic [ref=e1563]:
+                    - generic [ref=e1564]: "@vue-flow/core"
+                    - generic [ref=e1565]: MarkerType
+              - generic [ref=e1566]:
+                - generic [ref=e1567]:
+                  - generic [ref=e1568]: Subnodes
+                  - generic [ref=e1569]: "1"
+                - generic [ref=e1571]: "Hidden: 1 interface"
+          - group [ref=e1573]:
+            - generic [ref=e1574]:
+              - generic [ref=e1576]:
+                - generic "WebWorkerLayoutProcessor" [ref=e1578]
+                - generic [ref=e1579]:
+                  - button "Focus camera on node" [ref=e1580] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1581] [cursor=pointer]: ⊚
+                - generic [ref=e1582]: MODULE
+              - generic [ref=e1583]:
+                - generic [ref=e1584]:
+                  - button "Metadata −" [ref=e1585] [cursor=pointer]:
+                    - generic [ref=e1586]: Metadata
+                    - generic [ref=e1587]: −
+                  - generic [ref=e1588]:
+                    - generic [ref=e1589]:
+                      - generic [ref=e1590]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1591]
+                    - generic [ref=e1592]:
+                      - generic [ref=e1593]: "path:"
+                      - generic "src/client/layout/WebWorkerLayoutProcessor.ts" [ref=e1594]
+                - generic [ref=e1595]:
+                  - button "External Dependencies −" [ref=e1596] [cursor=pointer]:
+                    - generic [ref=e1597]: External Dependencies
+                    - generic [ref=e1598]: −
+                  - generic [ref=e1600]:
+                    - generic [ref=e1601]: "@vue-flow/core"
+                    - generic [ref=e1602]: Edge
+              - generic [ref=e1603]:
+                - generic [ref=e1604]:
+                  - generic [ref=e1605]: Subnodes
+                  - generic [ref=e1606]: "6"
+                - generic [ref=e1608]: "Hidden: 1 class, 5 interfaces"
+          - group [ref=e1610]:
+            - generic [ref=e1611]:
+              - generic [ref=e1613]:
+                - generic "graphSettings" [ref=e1615]
+                - generic [ref=e1616]:
+                  - button "Focus camera on node" [ref=e1617] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1618] [cursor=pointer]: ⊚
+                - generic [ref=e1619]: MODULE
+              - generic [ref=e1620]:
+                - generic [ref=e1621]:
+                  - button "Metadata −" [ref=e1622] [cursor=pointer]:
+                    - generic [ref=e1623]: Metadata
+                    - generic [ref=e1624]: −
+                  - generic [ref=e1625]:
+                    - generic [ref=e1626]:
+                      - generic [ref=e1627]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1628]
+                    - generic [ref=e1629]:
+                      - generic [ref=e1630]: "path:"
+                      - generic "src/client/stores/graphSettings.ts" [ref=e1631]
+                - generic [ref=e1632]:
+                  - button "External Dependencies −" [ref=e1633] [cursor=pointer]:
+                    - generic [ref=e1634]: External Dependencies
+                    - generic [ref=e1635]: −
+                  - generic [ref=e1636]:
+                    - generic [ref=e1637]:
+                      - generic [ref=e1638]: pinia
+                      - generic [ref=e1639]: defineStore
+                    - generic [ref=e1640]:
+                      - generic [ref=e1641]: vue
+                      - generic [ref=e1642]: computed, ref
+              - generic [ref=e1643]:
+                - generic [ref=e1644]:
+                  - generic [ref=e1645]: Subnodes
+                  - generic [ref=e1646]: "1"
+                - generic [ref=e1648]: "Hidden: 1 interface"
+          - group [ref=e1650]:
+            - generic [ref=e1651]:
+              - generic [ref=e1653]:
+                - generic "graphStore" [ref=e1655]
+                - generic [ref=e1656]:
+                  - button "Focus camera on node" [ref=e1657] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1658] [cursor=pointer]: ⊚
+                - generic [ref=e1659]: MODULE
+              - generic [ref=e1660]:
+                - generic [ref=e1661]:
+                  - button "Metadata −" [ref=e1662] [cursor=pointer]:
+                    - generic [ref=e1663]: Metadata
+                    - generic [ref=e1664]: −
+                  - generic [ref=e1665]:
+                    - generic [ref=e1666]:
+                      - generic [ref=e1667]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1668]
+                    - generic [ref=e1669]:
+                      - generic [ref=e1670]: "path:"
+                      - generic "src/client/stores/graphStore.ts" [ref=e1671]
+                - generic [ref=e1672]:
+                  - button "External Dependencies −" [ref=e1673] [cursor=pointer]:
+                    - generic [ref=e1674]: External Dependencies
+                    - generic [ref=e1675]: −
+                  - generic [ref=e1676]:
+                    - generic [ref=e1677]:
+                      - generic [ref=e1678]: pinia
+                      - generic [ref=e1679]: defineStore
+                    - generic [ref=e1680]:
+                      - generic [ref=e1681]: vue
+                      - generic [ref=e1682]: ref, Ref, watch
+              - generic [ref=e1683]:
+                - generic [ref=e1684]:
+                  - generic [ref=e1685]: Subnodes
+                  - generic [ref=e1686]: "1"
+                - generic [ref=e1688]: "Hidden: 1 interface"
+          - group [ref=e1690]:
+            - generic [ref=e1691]:
+              - generic [ref=e1693]:
+                - generic "graphTheme" [ref=e1695]
+                - generic [ref=e1696]:
+                  - button "Focus camera on node" [ref=e1697] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1698] [cursor=pointer]: ⊚
+                - generic [ref=e1699]: MODULE
+              - generic [ref=e1701]:
+                - button "Metadata −" [ref=e1702] [cursor=pointer]:
+                  - generic [ref=e1703]: Metadata
+                  - generic [ref=e1704]: −
+                - generic [ref=e1705]:
+                  - generic [ref=e1706]:
+                    - generic [ref=e1707]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1708]
+                  - generic [ref=e1709]:
+                    - generic [ref=e1710]: "path:"
+                    - generic "src/client/theme/graphTheme.ts" [ref=e1711]
+              - generic [ref=e1712]:
+                - generic [ref=e1713]:
+                  - generic [ref=e1714]: Subnodes
+                  - generic [ref=e1715]: "13"
+                - generic [ref=e1717]: "Hidden: 13 interfaces"
+          - group [ref=e1719]:
+            - generic [ref=e1720]:
+              - generic [ref=e1722]:
+                - generic "createGraphEdges" [ref=e1724]
+                - generic [ref=e1725]:
+                  - button "Focus camera on node" [ref=e1726] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1727] [cursor=pointer]: ⊚
+                - generic [ref=e1728]: MODULE
+              - generic [ref=e1729]:
+                - generic [ref=e1730]:
+                  - button "Metadata −" [ref=e1731] [cursor=pointer]:
+                    - generic [ref=e1732]: Metadata
+                    - generic [ref=e1733]: −
+                  - generic [ref=e1734]:
+                    - generic [ref=e1735]:
+                      - generic [ref=e1736]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1737]
+                    - generic [ref=e1738]:
+                      - generic [ref=e1739]: "path:"
+                      - generic "src/client/utils/createGraphEdges.ts" [ref=e1740]
+                - generic [ref=e1741]:
+                  - button "External Dependencies −" [ref=e1742] [cursor=pointer]:
+                    - generic [ref=e1743]: External Dependencies
+                    - generic [ref=e1744]: −
+                  - generic [ref=e1746]:
+                    - generic [ref=e1747]: "@vue-flow/core"
+                    - generic [ref=e1748]: MarkerType
+              - generic [ref=e1749]:
+                - generic [ref=e1750]:
+                  - generic [ref=e1751]: Subnodes
+                  - generic [ref=e1752]: "3"
+                - generic [ref=e1754]: "Hidden: 3 interfaces"
+          - group [ref=e1756]:
+            - generic [ref=e1757]:
+              - generic [ref=e1759]:
+                - generic "createGraphNodes" [ref=e1761]
+                - generic [ref=e1762]:
+                  - button "Focus camera on node" [ref=e1763] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1764] [cursor=pointer]: ⊚
+                - generic [ref=e1765]: MODULE
+              - generic [ref=e1766]:
+                - generic [ref=e1767]:
+                  - button "Metadata −" [ref=e1768] [cursor=pointer]:
+                    - generic [ref=e1769]: Metadata
+                    - generic [ref=e1770]: −
+                  - generic [ref=e1771]:
+                    - generic [ref=e1772]:
+                      - generic [ref=e1773]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1774]
+                    - generic [ref=e1775]:
+                      - generic [ref=e1776]: "path:"
+                      - generic "src/client/utils/createGraphNodes.ts" [ref=e1777]
+                - generic [ref=e1778]:
+                  - button "External Dependencies −" [ref=e1779] [cursor=pointer]:
+                    - generic [ref=e1780]: External Dependencies
+                    - generic [ref=e1781]: −
+                  - generic [ref=e1783]:
+                    - generic [ref=e1784]: "@vue-flow/core"
+                    - generic [ref=e1785]: Position
+          - group [ref=e1787]:
+            - generic [ref=e1788]:
+              - generic [ref=e1790]:
+                - generic "performanceMonitoring" [ref=e1792]
+                - generic [ref=e1793]:
+                  - button "Focus camera on node" [ref=e1794] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1795] [cursor=pointer]: ⊚
+                - generic [ref=e1796]: MODULE
+              - generic [ref=e1798]:
+                - button "Metadata −" [ref=e1799] [cursor=pointer]:
+                  - generic [ref=e1800]: Metadata
+                  - generic [ref=e1801]: −
+                - generic [ref=e1802]:
+                  - generic [ref=e1803]:
+                    - generic [ref=e1804]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1805]
+                  - generic [ref=e1806]:
+                    - generic [ref=e1807]: "path:"
+                    - generic "src/client/utils/performanceMonitoring.ts" [ref=e1808]
+          - group [ref=e1810]:
+            - generic [ref=e1811]:
+              - generic [ref=e1813]:
+                - generic "GraphLayoutWorker" [ref=e1815]
+                - generic [ref=e1816]:
+                  - button "Focus camera on node" [ref=e1817] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1818] [cursor=pointer]: ⊚
+                - generic [ref=e1819]: MODULE
+              - generic [ref=e1820]:
+                - generic [ref=e1821]:
+                  - button "Metadata −" [ref=e1822] [cursor=pointer]:
+                    - generic [ref=e1823]: Metadata
+                    - generic [ref=e1824]: −
+                  - generic [ref=e1825]:
+                    - generic [ref=e1826]:
+                      - generic [ref=e1827]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1828]
+                    - generic [ref=e1829]:
+                      - generic [ref=e1830]: "path:"
+                      - generic "src/client/workers/GraphLayoutWorker.ts" [ref=e1831]
+                - generic [ref=e1832]:
+                  - button "External Dependencies −" [ref=e1833] [cursor=pointer]:
+                    - generic [ref=e1834]: External Dependencies
+                    - generic [ref=e1835]: −
+                  - generic [ref=e1837]:
+                    - generic [ref=e1838]: "@vue-flow/core"
+                    - generic [ref=e1839]: Edge
+              - generic [ref=e1840]:
+                - generic [ref=e1841]:
+                  - generic [ref=e1842]: Subnodes
+                  - generic [ref=e1843]: "5"
+                - generic [ref=e1845]: "Hidden: 5 interfaces"
+          - group [ref=e1847]:
+            - generic [ref=e1848]:
+              - generic [ref=e1850]:
+                - generic "main" [ref=e1852]
+                - generic [ref=e1853]:
+                  - button "Focus camera on node" [ref=e1854] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1855] [cursor=pointer]: ⊚
+                - generic [ref=e1856]: MODULE
+              - generic [ref=e1857]:
+                - generic [ref=e1858]:
+                  - button "Metadata −" [ref=e1859] [cursor=pointer]:
+                    - generic [ref=e1860]: Metadata
+                    - generic [ref=e1861]: −
+                  - generic [ref=e1862]:
+                    - generic [ref=e1863]:
+                      - generic [ref=e1864]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1865]
+                    - generic [ref=e1866]:
+                      - generic [ref=e1867]: "path:"
+                      - generic "src/main.ts" [ref=e1868]
+                - generic [ref=e1869]:
+                  - button "External Dependencies −" [ref=e1870] [cursor=pointer]:
+                    - generic [ref=e1871]: External Dependencies
+                    - generic [ref=e1872]: −
+                  - generic [ref=e1873]:
+                    - generic [ref=e1874]:
+                      - generic [ref=e1875]: pinia
+                      - generic [ref=e1876]: createPinia
+                    - generic [ref=e1877]:
+                      - generic [ref=e1878]: vue
+                      - generic [ref=e1879]: createApp
+          - group [ref=e1881]:
+            - generic [ref=e1882]:
+              - generic [ref=e1884]:
+                - generic "server" [ref=e1886]
+                - generic [ref=e1887]:
+                  - button "Focus camera on node" [ref=e1888] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1889] [cursor=pointer]: ⊚
+                - generic [ref=e1890]: MODULE
+              - generic [ref=e1891]:
+                - generic [ref=e1892]:
+                  - button "Metadata −" [ref=e1893] [cursor=pointer]:
+                    - generic [ref=e1894]: Metadata
+                    - generic [ref=e1895]: −
+                  - generic [ref=e1896]:
+                    - generic [ref=e1897]:
+                      - generic [ref=e1898]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1899]
+                    - generic [ref=e1900]:
+                      - generic [ref=e1901]: "path:"
+                      - generic "src/server.ts" [ref=e1902]
+                - generic [ref=e1903]:
+                  - button "External Dependencies −" [ref=e1904] [cursor=pointer]:
+                    - generic [ref=e1905]: External Dependencies
+                    - generic [ref=e1906]: −
+                  - generic [ref=e1908]:
+                    - generic [ref=e1909]: node:http
+                    - generic [ref=e1910]: http
+          - group [ref=e1912]:
+            - generic [ref=e1913]:
+              - generic [ref=e1915]:
+                - generic "ApiServerResponder" [ref=e1917]
+                - generic [ref=e1918]:
+                  - button "Focus camera on node" [ref=e1919] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1920] [cursor=pointer]: ⊚
+                - generic [ref=e1921]: MODULE
+              - generic [ref=e1923]:
+                - button "Metadata −" [ref=e1924] [cursor=pointer]:
+                  - generic [ref=e1925]: Metadata
+                  - generic [ref=e1926]: −
+                - generic [ref=e1927]:
+                  - generic [ref=e1928]:
+                    - generic [ref=e1929]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1930]
+                  - generic [ref=e1931]:
+                    - generic [ref=e1932]: "path:"
+                    - generic "src/server/ApiServerResponder.ts" [ref=e1933]
+              - generic [ref=e1934]:
+                - generic [ref=e1935]:
+                  - generic [ref=e1936]: Subnodes
+                  - generic [ref=e1937]: "2"
+                - generic [ref=e1939]: "Hidden: 1 class, 1 interface"
+          - group [ref=e1941]:
+            - generic [ref=e1942]:
+              - generic [ref=e1944]:
+                - generic "typescript-viewer" [ref=e1946]
+                - generic [ref=e1947]:
+                  - button "Focus camera on node" [ref=e1948] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1949] [cursor=pointer]: ⊚
+                - generic [ref=e1950]: MODULE
+              - generic [ref=e1952]:
+                - button "Metadata −" [ref=e1953] [cursor=pointer]:
+                  - generic [ref=e1954]: Metadata
+                  - generic [ref=e1955]: −
+                - generic [ref=e1956]:
+                  - generic [ref=e1957]:
+                    - generic [ref=e1958]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e1959]
+                  - generic [ref=e1960]:
+                    - generic [ref=e1961]: "path:"
+                    - generic "src/server/bin/typescript-viewer.ts" [ref=e1962]
+          - group [ref=e1964]:
+            - generic [ref=e1965]:
+              - generic [ref=e1967]:
+                - generic "index" [ref=e1969]
+                - generic [ref=e1970]:
+                  - button "Focus camera on node" [ref=e1971] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e1972] [cursor=pointer]: ⊚
+                - generic [ref=e1973]: MODULE
+              - generic [ref=e1974]:
+                - generic [ref=e1975]:
+                  - button "Metadata −" [ref=e1976] [cursor=pointer]:
+                    - generic [ref=e1977]: Metadata
+                    - generic [ref=e1978]: −
+                  - generic [ref=e1979]:
+                    - generic [ref=e1980]:
+                      - generic [ref=e1981]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e1982]
+                    - generic [ref=e1983]:
+                      - generic [ref=e1984]: "path:"
+                      - generic "src/server/cli/index.ts" [ref=e1985]
+                - generic [ref=e1986]:
+                  - button "External Dependencies −" [ref=e1987] [cursor=pointer]:
+                    - generic [ref=e1988]: External Dependencies
+                    - generic [ref=e1989]: −
+                  - generic [ref=e1990]:
+                    - generic [ref=e1991]:
+                      - generic [ref=e1992]: chalk
+                      - generic [ref=e1993]: chalk
+                    - generic [ref=e1994]:
+                      - generic [ref=e1995]: commander
+                      - generic [ref=e1996]: Command
+                    - generic [ref=e1997]:
+                      - generic [ref=e1998]: ora
+                      - generic [ref=e1999]: ora
+                    - generic [ref=e2000]:
+                      - generic [ref=e2001]: path
+                      - generic [ref=e2002]: dirname, join
+                    - generic [ref=e2003]:
+                      - generic [ref=e2004]: read-pkg
+                      - generic [ref=e2005]: readPackage
+                    - generic [ref=e2006]:
+                      - generic [ref=e2007]: url
+                      - generic [ref=e2008]: fileURLToPath
+              - generic [ref=e2009]:
+                - generic [ref=e2010]:
+                  - generic [ref=e2011]: Subnodes
+                  - generic [ref=e2012]: "2"
+                - generic [ref=e2014]: "Hidden: 2 interfaces"
+          - group [ref=e2016]:
+            - generic [ref=e2017]:
+              - generic [ref=e2019]:
+                - generic "DuckDBAdapter" [ref=e2021]
+                - generic [ref=e2022]:
+                  - button "Focus camera on node" [ref=e2023] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2024] [cursor=pointer]: ⊚
+                - generic [ref=e2025]: MODULE
+              - generic [ref=e2026]:
+                - generic [ref=e2027]:
+                  - button "Metadata −" [ref=e2028] [cursor=pointer]:
+                    - generic [ref=e2029]: Metadata
+                    - generic [ref=e2030]: −
+                  - generic [ref=e2031]:
+                    - generic [ref=e2032]:
+                      - generic [ref=e2033]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2034]
+                    - generic [ref=e2035]:
+                      - generic [ref=e2036]: "path:"
+                      - generic "src/server/db/adapter/DuckDBAdapter.ts" [ref=e2037]
+                - generic [ref=e2038]:
+                  - button "External Dependencies −" [ref=e2039] [cursor=pointer]:
+                    - generic [ref=e2040]: External Dependencies
+                    - generic [ref=e2041]: −
+                  - generic [ref=e2043]:
+                    - generic [ref=e2044]: "@duckdb/node-api"
+                    - generic [ref=e2045]: DuckDBConnection, DuckDBInstance, DuckDBValue
+              - generic [ref=e2046]:
+                - generic [ref=e2047]:
+                  - generic [ref=e2048]: Subnodes
+                  - generic [ref=e2049]: "2"
+                - generic [ref=e2051]: "Hidden: 1 class, 1 interface"
+          - group [ref=e2053]:
+            - generic [ref=e2054]:
+              - generic [ref=e2056]:
+                - generic "IDatabaseAdapter" [ref=e2058]
+                - generic [ref=e2059]:
+                  - button "Focus camera on node" [ref=e2060] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2061] [cursor=pointer]: ⊚
+                - generic [ref=e2062]: MODULE
+              - generic [ref=e2064]:
+                - button "Metadata −" [ref=e2065] [cursor=pointer]:
+                  - generic [ref=e2066]: Metadata
+                  - generic [ref=e2067]: −
+                - generic [ref=e2068]:
+                  - generic [ref=e2069]:
+                    - generic [ref=e2070]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2071]
+                  - generic [ref=e2072]:
+                    - generic [ref=e2073]: "path:"
+                    - generic "src/server/db/adapter/IDatabaseAdapter.ts" [ref=e2074]
+              - generic [ref=e2075]:
+                - generic [ref=e2076]:
+                  - generic [ref=e2077]: Subnodes
+                  - generic [ref=e2078]: "2"
+                - generic [ref=e2080]: "Hidden: 2 interfaces"
+          - group [ref=e2082]:
+            - generic [ref=e2083]:
+              - generic [ref=e2085]:
+                - generic "MockAdapter" [ref=e2087]
+                - generic [ref=e2088]:
+                  - button "Focus camera on node" [ref=e2089] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2090] [cursor=pointer]: ⊚
+                - generic [ref=e2091]: MODULE
+              - generic [ref=e2092]:
+                - generic [ref=e2093]:
+                  - button "Metadata −" [ref=e2094] [cursor=pointer]:
+                    - generic [ref=e2095]: Metadata
+                    - generic [ref=e2096]: −
+                  - generic [ref=e2097]:
+                    - generic [ref=e2098]:
+                      - generic [ref=e2099]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2100]
+                    - generic [ref=e2101]:
+                      - generic [ref=e2102]: "path:"
+                      - generic "src/server/db/adapter/MockAdapter.ts" [ref=e2103]
+                - generic [ref=e2104]:
+                  - button "External Dependencies −" [ref=e2105] [cursor=pointer]:
+                    - generic [ref=e2106]: External Dependencies
+                    - generic [ref=e2107]: −
+                  - generic [ref=e2109]:
+                    - generic [ref=e2110]: "@duckdb/node-api"
+                    - generic [ref=e2111]: DuckDBType, DuckDBValue
+              - generic [ref=e2112]:
+                - generic [ref=e2113]:
+                  - generic [ref=e2114]: Subnodes
+                  - generic [ref=e2115]: "1"
+                - generic [ref=e2117]: "Hidden: 1 class"
+          - group [ref=e2119]:
+            - generic [ref=e2120]:
+              - generic [ref=e2122]:
+                - generic "Database" [ref=e2124]
+                - generic [ref=e2125]:
+                  - button "Focus camera on node" [ref=e2126] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2127] [cursor=pointer]: ⊚
+                - generic [ref=e2128]: MODULE
+              - generic [ref=e2129]:
+                - generic [ref=e2130]:
+                  - button "Metadata −" [ref=e2131] [cursor=pointer]:
+                    - generic [ref=e2132]: Metadata
+                    - generic [ref=e2133]: −
+                  - generic [ref=e2134]:
+                    - generic [ref=e2135]:
+                      - generic [ref=e2136]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2137]
+                    - generic [ref=e2138]:
+                      - generic [ref=e2139]: "path:"
+                      - generic "src/server/db/Database.ts" [ref=e2140]
+                - generic [ref=e2141]:
+                  - button "External Dependencies −" [ref=e2142] [cursor=pointer]:
+                    - generic [ref=e2143]: External Dependencies
+                    - generic [ref=e2144]: −
+                  - generic [ref=e2145]:
+                    - generic [ref=e2146]:
+                      - generic [ref=e2147]: fs
+                      - generic [ref=e2148]: fs
+                    - generic [ref=e2149]:
+                      - generic [ref=e2150]: path
+                      - generic [ref=e2151]: join
+              - generic [ref=e2152]:
+                - generic [ref=e2153]:
+                  - generic [ref=e2154]: Subnodes
+                  - generic [ref=e2155]: "1"
+                - generic [ref=e2157]: "Hidden: 1 class"
+          - group [ref=e2159]:
+            - generic [ref=e2160]:
+              - generic [ref=e2162]:
+                - generic "RepositoryError" [ref=e2164]
+                - generic [ref=e2165]:
+                  - button "Focus camera on node" [ref=e2166] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2167] [cursor=pointer]: ⊚
+                - generic [ref=e2168]: MODULE
+              - generic [ref=e2170]:
+                - button "Metadata −" [ref=e2171] [cursor=pointer]:
+                  - generic [ref=e2172]: Metadata
+                  - generic [ref=e2173]: −
+                - generic [ref=e2174]:
+                  - generic [ref=e2175]:
+                    - generic [ref=e2176]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2177]
+                  - generic [ref=e2178]:
+                    - generic [ref=e2179]: "path:"
+                    - generic "src/server/db/errors/RepositoryError.ts" [ref=e2180]
+              - generic [ref=e2181]:
+                - generic [ref=e2182]:
+                  - generic [ref=e2183]: Subnodes
+                  - generic [ref=e2184]: "6"
+                - generic [ref=e2186]: "Hidden: 6 classes"
+          - group [ref=e2188]:
+            - generic [ref=e2189]:
+              - generic [ref=e2191]:
+                - generic "BaseRepository" [ref=e2193]
+                - generic [ref=e2194]:
+                  - button "Focus camera on node" [ref=e2195] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2196] [cursor=pointer]: ⊚
+                - generic [ref=e2197]: MODULE
+              - generic [ref=e2199]:
+                - button "Metadata −" [ref=e2200] [cursor=pointer]:
+                  - generic [ref=e2201]: Metadata
+                  - generic [ref=e2202]: −
+                - generic [ref=e2203]:
+                  - generic [ref=e2204]:
+                    - generic [ref=e2205]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2206]
+                  - generic [ref=e2207]:
+                    - generic [ref=e2208]: "path:"
+                    - generic "src/server/db/repositories/BaseRepository.ts" [ref=e2209]
+              - generic [ref=e2210]:
+                - generic [ref=e2211]:
+                  - generic [ref=e2212]: Subnodes
+                  - generic [ref=e2213]: "4"
+                - generic [ref=e2215]: "Hidden: 2 classes, 2 interfaces"
+          - group [ref=e2217]:
+            - generic [ref=e2218]:
+              - generic [ref=e2220]:
+                - generic "ClassRepository" [ref=e2222]
+                - generic [ref=e2223]:
+                  - button "Focus camera on node" [ref=e2224] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2225] [cursor=pointer]: ⊚
+                - generic [ref=e2226]: MODULE
+              - generic [ref=e2227]:
+                - generic [ref=e2228]:
+                  - button "Metadata −" [ref=e2229] [cursor=pointer]:
+                    - generic [ref=e2230]: Metadata
+                    - generic [ref=e2231]: −
+                  - generic [ref=e2232]:
+                    - generic [ref=e2233]:
+                      - generic [ref=e2234]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2235]
+                    - generic [ref=e2236]:
+                      - generic [ref=e2237]: "path:"
+                      - generic "src/server/db/repositories/ClassRepository.ts" [ref=e2238]
+                - generic [ref=e2239]:
+                  - button "External Dependencies −" [ref=e2240] [cursor=pointer]:
+                    - generic [ref=e2241]: External Dependencies
+                    - generic [ref=e2242]: −
+                  - generic [ref=e2244]:
+                    - generic [ref=e2245]: "@duckdb/node-api"
+                    - generic [ref=e2246]: DuckDBValue
+              - generic [ref=e2247]:
+                - generic [ref=e2248]:
+                  - generic [ref=e2249]: Subnodes
+                  - generic [ref=e2250]: "4"
+                - generic [ref=e2252]: "Hidden: 1 class, 3 interfaces"
+          - group [ref=e2254]:
+            - generic [ref=e2255]:
+              - generic [ref=e2257]:
+                - generic "DependencyRepository" [ref=e2259]
+                - generic [ref=e2260]:
+                  - button "Focus camera on node" [ref=e2261] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2262] [cursor=pointer]: ⊚
+                - generic [ref=e2263]: MODULE
+              - generic [ref=e2264]:
+                - generic [ref=e2265]:
+                  - button "Metadata −" [ref=e2266] [cursor=pointer]:
+                    - generic [ref=e2267]: Metadata
+                    - generic [ref=e2268]: −
+                  - generic [ref=e2269]:
+                    - generic [ref=e2270]:
+                      - generic [ref=e2271]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2272]
+                    - generic [ref=e2273]:
+                      - generic [ref=e2274]: "path:"
+                      - generic "src/server/db/repositories/DependencyRepository.ts" [ref=e2275]
+                - generic [ref=e2276]:
+                  - button "External Dependencies −" [ref=e2277] [cursor=pointer]:
+                    - generic [ref=e2278]: External Dependencies
+                    - generic [ref=e2279]: −
+                  - generic [ref=e2281]:
+                    - generic [ref=e2282]: "@duckdb/node-api"
+                    - generic [ref=e2283]: DuckDBValue
+              - generic [ref=e2284]:
+                - generic [ref=e2285]:
+                  - generic [ref=e2286]: Subnodes
+                  - generic [ref=e2287]: "2"
+                - generic [ref=e2289]: "Hidden: 1 class, 1 interface"
+          - group [ref=e2291]:
+            - generic [ref=e2292]:
+              - generic [ref=e2294]:
+                - generic "ExportRepository" [ref=e2296]
+                - generic [ref=e2297]:
+                  - button "Focus camera on node" [ref=e2298] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2299] [cursor=pointer]: ⊚
+                - generic [ref=e2300]: MODULE
+              - generic [ref=e2302]:
+                - button "Metadata −" [ref=e2303] [cursor=pointer]:
+                  - generic [ref=e2304]: Metadata
+                  - generic [ref=e2305]: −
+                - generic [ref=e2306]:
+                  - generic [ref=e2307]:
+                    - generic [ref=e2308]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2309]
+                  - generic [ref=e2310]:
+                    - generic [ref=e2311]: "path:"
+                    - generic "src/server/db/repositories/ExportRepository.ts" [ref=e2312]
+              - generic [ref=e2313]:
+                - generic [ref=e2314]:
+                  - generic [ref=e2315]: Subnodes
+                  - generic [ref=e2316]: "5"
+                - generic [ref=e2318]: "Hidden: 1 class, 4 interfaces"
+          - group [ref=e2320]:
+            - generic [ref=e2321]:
+              - generic [ref=e2323]:
+                - generic "FunctionRepository" [ref=e2325]
+                - generic [ref=e2326]:
+                  - button "Focus camera on node" [ref=e2327] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2328] [cursor=pointer]: ⊚
+                - generic [ref=e2329]: MODULE
+              - generic [ref=e2330]:
+                - generic [ref=e2331]:
+                  - button "Metadata −" [ref=e2332] [cursor=pointer]:
+                    - generic [ref=e2333]: Metadata
+                    - generic [ref=e2334]: −
+                  - generic [ref=e2335]:
+                    - generic [ref=e2336]:
+                      - generic [ref=e2337]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2338]
+                    - generic [ref=e2339]:
+                      - generic [ref=e2340]: "path:"
+                      - generic "src/server/db/repositories/FunctionRepository.ts" [ref=e2341]
+                - generic [ref=e2342]:
+                  - button "External Dependencies −" [ref=e2343] [cursor=pointer]:
+                    - generic [ref=e2344]: External Dependencies
+                    - generic [ref=e2345]: −
+                  - generic [ref=e2347]:
+                    - generic [ref=e2348]: "@duckdb/node-api"
+                    - generic [ref=e2349]: DuckDBValue
+              - generic [ref=e2350]:
+                - generic [ref=e2351]:
+                  - generic [ref=e2352]: Subnodes
+                  - generic [ref=e2353]: "4"
+                - generic [ref=e2355]: "Hidden: 1 class, 3 interfaces"
+          - group [ref=e2357]:
+            - generic [ref=e2358]:
+              - generic [ref=e2360]:
+                - generic "ImportRepository" [ref=e2362]
+                - generic [ref=e2363]:
+                  - button "Focus camera on node" [ref=e2364] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2365] [cursor=pointer]: ⊚
+                - generic [ref=e2366]: MODULE
+              - generic [ref=e2368]:
+                - button "Metadata −" [ref=e2369] [cursor=pointer]:
+                  - generic [ref=e2370]: Metadata
+                  - generic [ref=e2371]: −
+                - generic [ref=e2372]:
+                  - generic [ref=e2373]:
+                    - generic [ref=e2374]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2375]
+                  - generic [ref=e2376]:
+                    - generic [ref=e2377]: "path:"
+                    - generic "src/server/db/repositories/ImportRepository.ts" [ref=e2378]
+              - generic [ref=e2379]:
+                - generic [ref=e2380]:
+                  - generic [ref=e2381]: Subnodes
+                  - generic [ref=e2382]: "5"
+                - generic [ref=e2384]: "Hidden: 1 class, 4 interfaces"
+          - group [ref=e2386]:
+            - generic [ref=e2387]:
+              - generic [ref=e2389]:
+                - generic "InterfaceRepository" [ref=e2391]
+                - generic [ref=e2392]:
+                  - button "Focus camera on node" [ref=e2393] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2394] [cursor=pointer]: ⊚
+                - generic [ref=e2395]: MODULE
+              - generic [ref=e2396]:
+                - generic [ref=e2397]:
+                  - button "Metadata −" [ref=e2398] [cursor=pointer]:
+                    - generic [ref=e2399]: Metadata
+                    - generic [ref=e2400]: −
+                  - generic [ref=e2401]:
+                    - generic [ref=e2402]:
+                      - generic [ref=e2403]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2404]
+                    - generic [ref=e2405]:
+                      - generic [ref=e2406]: "path:"
+                      - generic "src/server/db/repositories/InterfaceRepository.ts" [ref=e2407]
+                - generic [ref=e2408]:
+                  - button "External Dependencies −" [ref=e2409] [cursor=pointer]:
+                    - generic [ref=e2410]: External Dependencies
+                    - generic [ref=e2411]: −
+                  - generic [ref=e2413]:
+                    - generic [ref=e2414]: "@duckdb/node-api"
+                    - generic [ref=e2415]: DuckDBValue
+              - generic [ref=e2416]:
+                - generic [ref=e2417]:
+                  - generic [ref=e2418]: Subnodes
+                  - generic [ref=e2419]: "4"
+                - generic [ref=e2421]: "Hidden: 1 class, 3 interfaces"
+          - group [ref=e2423]:
+            - generic [ref=e2424]:
+              - generic [ref=e2426]:
+                - generic "MethodRepository" [ref=e2428]
+                - generic [ref=e2429]:
+                  - button "Focus camera on node" [ref=e2430] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2431] [cursor=pointer]: ⊚
+                - generic [ref=e2432]: MODULE
+              - generic [ref=e2433]:
+                - generic [ref=e2434]:
+                  - button "Metadata −" [ref=e2435] [cursor=pointer]:
+                    - generic [ref=e2436]: Metadata
+                    - generic [ref=e2437]: −
+                  - generic [ref=e2438]:
+                    - generic [ref=e2439]:
+                      - generic [ref=e2440]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2441]
+                    - generic [ref=e2442]:
+                      - generic [ref=e2443]: "path:"
+                      - generic "src/server/db/repositories/MethodRepository.ts" [ref=e2444]
+                - generic [ref=e2445]:
+                  - button "External Dependencies −" [ref=e2446] [cursor=pointer]:
+                    - generic [ref=e2447]: External Dependencies
+                    - generic [ref=e2448]: −
+                  - generic [ref=e2450]:
+                    - generic [ref=e2451]: "@duckdb/node-api"
+                    - generic [ref=e2452]: DuckDBValue
+              - generic [ref=e2453]:
+                - generic [ref=e2454]:
+                  - generic [ref=e2455]: Subnodes
+                  - generic [ref=e2456]: "4"
+                - generic [ref=e2458]: "Hidden: 1 class, 3 interfaces"
+          - group [ref=e2460]:
+            - generic [ref=e2461]:
+              - generic [ref=e2463]:
+                - generic "ModuleRepository" [ref=e2465]
+                - generic [ref=e2466]:
+                  - button "Focus camera on node" [ref=e2467] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2468] [cursor=pointer]: ⊚
+                - generic [ref=e2469]: MODULE
+              - generic [ref=e2470]:
+                - generic [ref=e2471]:
+                  - button "Metadata −" [ref=e2472] [cursor=pointer]:
+                    - generic [ref=e2473]: Metadata
+                    - generic [ref=e2474]: −
+                  - generic [ref=e2475]:
+                    - generic [ref=e2476]:
+                      - generic [ref=e2477]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2478]
+                    - generic [ref=e2479]:
+                      - generic [ref=e2480]: "path:"
+                      - generic "src/server/db/repositories/ModuleRepository.ts" [ref=e2481]
+                - generic [ref=e2482]:
+                  - button "External Dependencies −" [ref=e2483] [cursor=pointer]:
+                    - generic [ref=e2484]: External Dependencies
+                    - generic [ref=e2485]: −
+                  - generic [ref=e2487]:
+                    - generic [ref=e2488]: "@duckdb/node-api"
+                    - generic [ref=e2489]: DuckDBValue
+              - generic [ref=e2490]:
+                - generic [ref=e2491]:
+                  - generic [ref=e2492]: Subnodes
+                  - generic [ref=e2493]: "4"
+                - generic [ref=e2495]: "Hidden: 1 class, 3 interfaces"
+          - group [ref=e2497]:
+            - generic [ref=e2498]:
+              - generic [ref=e2500]:
+                - generic "PackageRepository" [ref=e2502]
+                - generic [ref=e2503]:
+                  - button "Focus camera on node" [ref=e2504] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2505] [cursor=pointer]: ⊚
+                - generic [ref=e2506]: MODULE
+              - generic [ref=e2507]:
+                - generic [ref=e2508]:
+                  - button "Metadata −" [ref=e2509] [cursor=pointer]:
+                    - generic [ref=e2510]: Metadata
+                    - generic [ref=e2511]: −
+                  - generic [ref=e2512]:
+                    - generic [ref=e2513]:
+                      - generic [ref=e2514]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2515]
+                    - generic [ref=e2516]:
+                      - generic [ref=e2517]: "path:"
+                      - generic "src/server/db/repositories/PackageRepository.ts" [ref=e2518]
+                - generic [ref=e2519]:
+                  - button "External Dependencies −" [ref=e2520] [cursor=pointer]:
+                    - generic [ref=e2521]: External Dependencies
+                    - generic [ref=e2522]: −
+                  - generic [ref=e2524]:
+                    - generic [ref=e2525]: "@duckdb/node-api"
+                    - generic [ref=e2526]: DuckDBValue
+              - generic [ref=e2527]:
+                - generic [ref=e2528]:
+                  - generic [ref=e2529]: Subnodes
+                  - generic [ref=e2530]: "4"
+                - generic [ref=e2532]: "Hidden: 1 class, 3 interfaces"
+          - group [ref=e2534]:
+            - generic [ref=e2535]:
+              - generic [ref=e2537]:
+                - generic "ParameterRepository" [ref=e2539]
+                - generic [ref=e2540]:
+                  - button "Focus camera on node" [ref=e2541] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2542] [cursor=pointer]: ⊚
+                - generic [ref=e2543]: MODULE
+              - generic [ref=e2544]:
+                - generic [ref=e2545]:
+                  - button "Metadata −" [ref=e2546] [cursor=pointer]:
+                    - generic [ref=e2547]: Metadata
+                    - generic [ref=e2548]: −
+                  - generic [ref=e2549]:
+                    - generic [ref=e2550]:
+                      - generic [ref=e2551]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2552]
+                    - generic [ref=e2553]:
+                      - generic [ref=e2554]: "path:"
+                      - generic "src/server/db/repositories/ParameterRepository.ts" [ref=e2555]
+                - generic [ref=e2556]:
+                  - button "External Dependencies −" [ref=e2557] [cursor=pointer]:
+                    - generic [ref=e2558]: External Dependencies
+                    - generic [ref=e2559]: −
+                  - generic [ref=e2561]:
+                    - generic [ref=e2562]: "@duckdb/node-api"
+                    - generic [ref=e2563]: DuckDBValue
+              - generic [ref=e2564]:
+                - generic [ref=e2565]:
+                  - generic [ref=e2566]: Subnodes
+                  - generic [ref=e2567]: "2"
+                - generic [ref=e2569]: "Hidden: 1 class, 1 interface"
+          - group [ref=e2571]:
+            - generic [ref=e2572]:
+              - generic [ref=e2574]:
+                - generic "PropertyRepository" [ref=e2576]
+                - generic [ref=e2577]:
+                  - button "Focus camera on node" [ref=e2578] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2579] [cursor=pointer]: ⊚
+                - generic [ref=e2580]: MODULE
+              - generic [ref=e2581]:
+                - generic [ref=e2582]:
+                  - button "Metadata −" [ref=e2583] [cursor=pointer]:
+                    - generic [ref=e2584]: Metadata
+                    - generic [ref=e2585]: −
+                  - generic [ref=e2586]:
+                    - generic [ref=e2587]:
+                      - generic [ref=e2588]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2589]
+                    - generic [ref=e2590]:
+                      - generic [ref=e2591]: "path:"
+                      - generic "src/server/db/repositories/PropertyRepository.ts" [ref=e2592]
+                - generic [ref=e2593]:
+                  - button "External Dependencies −" [ref=e2594] [cursor=pointer]:
+                    - generic [ref=e2595]: External Dependencies
+                    - generic [ref=e2596]: −
+                  - generic [ref=e2598]:
+                    - generic [ref=e2599]: "@duckdb/node-api"
+                    - generic [ref=e2600]: DuckDBValue
+              - generic [ref=e2601]:
+                - generic [ref=e2602]:
+                  - generic [ref=e2603]: Subnodes
+                  - generic [ref=e2604]: "4"
+                - generic [ref=e2606]: "Hidden: 1 class, 3 interfaces"
+          - group [ref=e2608]:
+            - generic [ref=e2609]:
+              - generic [ref=e2611]:
+                - generic "SymbolReferenceRepository" [ref=e2613]
+                - generic [ref=e2614]:
+                  - button "Focus camera on node" [ref=e2615] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2616] [cursor=pointer]: ⊚
+                - generic [ref=e2617]: MODULE
+              - generic [ref=e2619]:
+                - button "Metadata −" [ref=e2620] [cursor=pointer]:
+                  - generic [ref=e2621]: Metadata
+                  - generic [ref=e2622]: −
+                - generic [ref=e2623]:
+                  - generic [ref=e2624]:
+                    - generic [ref=e2625]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2626]
+                  - generic [ref=e2627]:
+                    - generic [ref=e2628]: "path:"
+                    - generic "src/server/db/repositories/SymbolReferenceRepository.ts" [ref=e2629]
+              - generic [ref=e2630]:
+                - generic [ref=e2631]:
+                  - generic [ref=e2632]: Subnodes
+                  - generic [ref=e2633]: "4"
+                - generic [ref=e2635]: "Hidden: 1 class, 3 interfaces"
+          - group [ref=e2637]:
+            - generic [ref=e2638]:
+              - generic [ref=e2640]:
+                - generic "schema-loader" [ref=e2642]
+                - generic [ref=e2643]:
+                  - button "Focus camera on node" [ref=e2644] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2645] [cursor=pointer]: ⊚
+                - generic [ref=e2646]: MODULE
+              - generic [ref=e2647]:
+                - generic [ref=e2648]:
+                  - button "Metadata −" [ref=e2649] [cursor=pointer]:
+                    - generic [ref=e2650]: Metadata
+                    - generic [ref=e2651]: −
+                  - generic [ref=e2652]:
+                    - generic [ref=e2653]:
+                      - generic [ref=e2654]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2655]
+                    - generic [ref=e2656]:
+                      - generic [ref=e2657]: "path:"
+                      - generic "src/server/db/schema/schema-loader.ts" [ref=e2658]
+                - generic [ref=e2659]:
+                  - button "External Dependencies −" [ref=e2660] [cursor=pointer]:
+                    - generic [ref=e2661]: External Dependencies
+                    - generic [ref=e2662]: −
+                  - generic [ref=e2663]:
+                    - generic [ref=e2664]:
+                      - generic [ref=e2665]: node:fs
+                      - generic [ref=e2666]: readFileSync
+                    - generic [ref=e2667]:
+                      - generic [ref=e2668]: node:url
+                      - generic [ref=e2669]: fileURLToPath
+          - group [ref=e2671]:
+            - generic [ref=e2672]:
+              - generic [ref=e2674]:
+                - generic "demo" [ref=e2676]
+                - generic [ref=e2677]:
+                  - button "Focus camera on node" [ref=e2678] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2679] [cursor=pointer]: ⊚
+                - generic [ref=e2680]: MODULE
+              - generic [ref=e2682]:
+                - button "Metadata −" [ref=e2683] [cursor=pointer]:
+                  - generic [ref=e2684]: Metadata
+                  - generic [ref=e2685]: −
+                - generic [ref=e2686]:
+                  - generic [ref=e2687]:
+                    - generic [ref=e2688]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2689]
+                  - generic [ref=e2690]:
+                    - generic [ref=e2691]: "path:"
+                    - generic "src/server/db/seed/demo.ts" [ref=e2692]
+          - group [ref=e2694]:
+            - generic [ref=e2695]:
+              - generic [ref=e2697]:
+                - generic "DatabaseResults" [ref=e2699]
+                - generic [ref=e2700]:
+                  - button "Focus camera on node" [ref=e2701] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2702] [cursor=pointer]: ⊚
+                - generic [ref=e2703]: MODULE
+              - generic [ref=e2704]:
+                - generic [ref=e2705]:
+                  - button "Metadata −" [ref=e2706] [cursor=pointer]:
+                    - generic [ref=e2707]: Metadata
+                    - generic [ref=e2708]: −
+                  - generic [ref=e2709]:
+                    - generic [ref=e2710]:
+                      - generic [ref=e2711]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2712]
+                    - generic [ref=e2713]:
+                      - generic [ref=e2714]: "path:"
+                      - generic "src/server/db/types/DatabaseResults.ts" [ref=e2715]
+                - generic [ref=e2716]:
+                  - button "External Dependencies −" [ref=e2717] [cursor=pointer]:
+                    - generic [ref=e2718]: External Dependencies
+                    - generic [ref=e2719]: −
+                  - generic [ref=e2721]:
+                    - generic [ref=e2722]: "@duckdb/node-api"
+                    - generic [ref=e2723]: DuckDBValue
+              - generic [ref=e2724]:
+                - generic [ref=e2725]:
+                  - generic [ref=e2726]: Subnodes
+                  - generic [ref=e2727]: "11"
+                - generic [ref=e2729]: "Hidden: 11 interfaces"
+          - group [ref=e2731]:
+            - generic [ref=e2732]:
+              - generic [ref=e2734]:
+                - generic "Dependency" [ref=e2736]
+                - generic [ref=e2737]:
+                  - button "Focus camera on node" [ref=e2738] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2739] [cursor=pointer]: ⊚
+                - generic [ref=e2740]: MODULE
+              - generic [ref=e2742]:
+                - button "Metadata −" [ref=e2743] [cursor=pointer]:
+                  - generic [ref=e2744]: Metadata
+                  - generic [ref=e2745]: −
+                - generic [ref=e2746]:
+                  - generic [ref=e2747]:
+                    - generic [ref=e2748]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2749]
+                  - generic [ref=e2750]:
+                    - generic [ref=e2751]: "path:"
+                    - generic "src/server/db/types/Dependency.ts" [ref=e2752]
+              - generic [ref=e2753]:
+                - generic [ref=e2754]:
+                  - generic [ref=e2755]: Subnodes
+                  - generic [ref=e2756]: "3"
+                - generic [ref=e2758]: "Hidden: 3 interfaces"
+          - group [ref=e2760]:
+            - generic [ref=e2761]:
+              - generic [ref=e2763]:
+                - generic "DependencyType" [ref=e2765]
+                - generic [ref=e2766]:
+                  - button "Focus camera on node" [ref=e2767] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2768] [cursor=pointer]: ⊚
+                - generic [ref=e2769]: MODULE
+              - generic [ref=e2771]:
+                - button "Metadata −" [ref=e2772] [cursor=pointer]:
+                  - generic [ref=e2773]: Metadata
+                  - generic [ref=e2774]: −
+                - generic [ref=e2775]:
+                  - generic [ref=e2776]:
+                    - generic [ref=e2777]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2778]
+                  - generic [ref=e2779]:
+                    - generic [ref=e2780]: "path:"
+                    - generic "src/server/db/types/DependencyType.ts" [ref=e2781]
+          - group [ref=e2783]:
+            - generic [ref=e2784]:
+              - generic [ref=e2786]:
+                - generic "ModuleParser" [ref=e2788]
+                - generic [ref=e2789]:
+                  - button "Focus camera on node" [ref=e2790] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2791] [cursor=pointer]: ⊚
+                - generic [ref=e2792]: MODULE
+              - generic [ref=e2793]:
+                - generic [ref=e2794]:
+                  - button "Metadata −" [ref=e2795] [cursor=pointer]:
+                    - generic [ref=e2796]: Metadata
+                    - generic [ref=e2797]: −
+                  - generic [ref=e2798]:
+                    - generic [ref=e2799]:
+                      - generic [ref=e2800]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2801]
+                    - generic [ref=e2802]:
+                      - generic [ref=e2803]: "path:"
+                      - generic "src/server/parsers/ModuleParser.ts" [ref=e2804]
+                - generic [ref=e2805]:
+                  - button "External Dependencies −" [ref=e2806] [cursor=pointer]:
+                    - generic [ref=e2807]: External Dependencies
+                    - generic [ref=e2808]: −
+                  - generic [ref=e2809]:
+                    - generic [ref=e2810]:
+                      - generic [ref=e2811]: fs
+                      - generic [ref=e2812]: access, readFile
+                    - generic [ref=e2813]:
+                      - generic [ref=e2814]: jscodeshift
+                      - generic [ref=e2815]: ASTNode, ASTPath, ClassDeclaration, ClassProperty, Collection, ExportNamedDeclaration (+11 more)
+                    - generic [ref=e2816]:
+                      - generic [ref=e2817]: path
+                      - generic [ref=e2818]: dirname, join, relative
+              - generic [ref=e2819]:
+                - generic [ref=e2820]:
+                  - generic [ref=e2821]: Subnodes
+                  - generic [ref=e2822]: "1"
+                - generic [ref=e2824]: "Hidden: 1 class"
+          - group [ref=e2826]:
+            - generic [ref=e2827]:
+              - generic [ref=e2829]:
+                - generic "ParseResult" [ref=e2831]
+                - generic [ref=e2832]:
+                  - button "Focus camera on node" [ref=e2833] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2834] [cursor=pointer]: ⊚
+                - generic [ref=e2835]: MODULE
+              - generic [ref=e2837]:
+                - button "Metadata −" [ref=e2838] [cursor=pointer]:
+                  - generic [ref=e2839]: Metadata
+                  - generic [ref=e2840]: −
+                - generic [ref=e2841]:
+                  - generic [ref=e2842]:
+                    - generic [ref=e2843]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2844]
+                  - generic [ref=e2845]:
+                    - generic [ref=e2846]: "path:"
+                    - generic "src/server/parsers/ParseResult.ts" [ref=e2847]
+              - generic [ref=e2848]:
+                - generic [ref=e2849]:
+                  - generic [ref=e2850]: Subnodes
+                  - generic [ref=e2851]: "5"
+                - generic [ref=e2853]: "Hidden: 5 interfaces"
+          - group [ref=e2855]:
+            - generic [ref=e2856]:
+              - generic [ref=e2858]:
+                - generic "uuid" [ref=e2860]
+                - generic [ref=e2861]:
+                  - button "Focus camera on node" [ref=e2862] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2863] [cursor=pointer]: ⊚
+                - generic [ref=e2864]: MODULE
+              - generic [ref=e2865]:
+                - generic [ref=e2866]:
+                  - button "Metadata −" [ref=e2867] [cursor=pointer]:
+                    - generic [ref=e2868]: Metadata
+                    - generic [ref=e2869]: −
+                  - generic [ref=e2870]:
+                    - generic [ref=e2871]:
+                      - generic [ref=e2872]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e2873]
+                    - generic [ref=e2874]:
+                      - generic [ref=e2875]: "path:"
+                      - generic "src/server/utils/uuid.ts" [ref=e2876]
+                - generic [ref=e2877]:
+                  - button "External Dependencies −" [ref=e2878] [cursor=pointer]:
+                    - generic [ref=e2879]: External Dependencies
+                    - generic [ref=e2880]: −
+                  - generic [ref=e2882]:
+                    - generic [ref=e2883]: uuid
+                    - generic [ref=e2884]: v5 as uuidv5
+          - group [ref=e2886]:
+            - generic [ref=e2887]:
+              - generic [ref=e2889]:
+                - generic "Class" [ref=e2891]
+                - generic [ref=e2892]:
+                  - button "Focus camera on node" [ref=e2893] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2894] [cursor=pointer]: ⊚
+                - generic [ref=e2895]: MODULE
+              - generic [ref=e2897]:
+                - button "Metadata −" [ref=e2898] [cursor=pointer]:
+                  - generic [ref=e2899]: Metadata
+                  - generic [ref=e2900]: −
+                - generic [ref=e2901]:
+                  - generic [ref=e2902]:
+                    - generic [ref=e2903]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2904]
+                  - generic [ref=e2905]:
+                    - generic [ref=e2906]: "path:"
+                    - generic "src/shared/types/Class.ts" [ref=e2907]
+              - generic [ref=e2908]:
+                - generic [ref=e2909]:
+                  - generic [ref=e2910]: Subnodes
+                  - generic [ref=e2911]: "2"
+                - generic [ref=e2913]: "Hidden: 1 class, 1 interface"
+          - group [ref=e2915]:
+            - generic [ref=e2916]:
+              - generic [ref=e2918]:
+                - generic "Enum" [ref=e2920]
+                - generic [ref=e2921]:
+                  - button "Focus camera on node" [ref=e2922] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2923] [cursor=pointer]: ⊚
+                - generic [ref=e2924]: MODULE
+              - generic [ref=e2926]:
+                - button "Metadata −" [ref=e2927] [cursor=pointer]:
+                  - generic [ref=e2928]: Metadata
+                  - generic [ref=e2929]: −
+                - generic [ref=e2930]:
+                  - generic [ref=e2931]:
+                    - generic [ref=e2932]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2933]
+                  - generic [ref=e2934]:
+                    - generic [ref=e2935]: "path:"
+                    - generic "src/shared/types/Enum.ts" [ref=e2936]
+              - generic [ref=e2937]:
+                - generic [ref=e2938]:
+                  - generic [ref=e2939]: Subnodes
+                  - generic [ref=e2940]: "2"
+                - generic [ref=e2942]: "Hidden: 1 class, 1 interface"
+          - group [ref=e2944]:
+            - generic [ref=e2945]:
+              - generic [ref=e2947]:
+                - generic "Export" [ref=e2949]
+                - generic [ref=e2950]:
+                  - button "Focus camera on node" [ref=e2951] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2952] [cursor=pointer]: ⊚
+                - generic [ref=e2953]: MODULE
+              - generic [ref=e2955]:
+                - button "Metadata −" [ref=e2956] [cursor=pointer]:
+                  - generic [ref=e2957]: Metadata
+                  - generic [ref=e2958]: −
+                - generic [ref=e2959]:
+                  - generic [ref=e2960]:
+                    - generic [ref=e2961]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2962]
+                  - generic [ref=e2963]:
+                    - generic [ref=e2964]: "path:"
+                    - generic "src/shared/types/Export.ts" [ref=e2965]
+              - generic [ref=e2966]:
+                - generic [ref=e2967]:
+                  - generic [ref=e2968]: Subnodes
+                  - generic [ref=e2969]: "2"
+                - generic [ref=e2971]: "Hidden: 1 class, 1 interface"
+          - group [ref=e2973]:
+            - generic [ref=e2974]:
+              - generic [ref=e2976]:
+                - generic "FileLocation" [ref=e2978]
+                - generic [ref=e2979]:
+                  - button "Focus camera on node" [ref=e2980] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e2981] [cursor=pointer]: ⊚
+                - generic [ref=e2982]: MODULE
+              - generic [ref=e2984]:
+                - button "Metadata −" [ref=e2985] [cursor=pointer]:
+                  - generic [ref=e2986]: Metadata
+                  - generic [ref=e2987]: −
+                - generic [ref=e2988]:
+                  - generic [ref=e2989]:
+                    - generic [ref=e2990]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e2991]
+                  - generic [ref=e2992]:
+                    - generic [ref=e2993]: "path:"
+                    - generic "src/shared/types/FileLocation.ts" [ref=e2994]
+              - generic [ref=e2995]:
+                - generic [ref=e2996]:
+                  - generic [ref=e2997]: Subnodes
+                  - generic [ref=e2998]: "1"
+                - generic [ref=e3000]: "Hidden: 1 interface"
+          - group [ref=e3002]:
+            - generic [ref=e3003]:
+              - generic [ref=e3005]:
+                - generic "Function" [ref=e3007]
+                - generic [ref=e3008]:
+                  - button "Focus camera on node" [ref=e3009] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3010] [cursor=pointer]: ⊚
+                - generic [ref=e3011]: MODULE
+              - generic [ref=e3013]:
+                - button "Metadata −" [ref=e3014] [cursor=pointer]:
+                  - generic [ref=e3015]: Metadata
+                  - generic [ref=e3016]: −
+                - generic [ref=e3017]:
+                  - generic [ref=e3018]:
+                    - generic [ref=e3019]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3020]
+                  - generic [ref=e3021]:
+                    - generic [ref=e3022]: "path:"
+                    - generic "src/shared/types/Function.ts" [ref=e3023]
+              - generic [ref=e3024]:
+                - generic [ref=e3025]:
+                  - generic [ref=e3026]: Subnodes
+                  - generic [ref=e3027]: "2"
+                - generic [ref=e3029]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3031]:
+            - generic [ref=e3032]:
+              - generic [ref=e3034]:
+                - generic "Import" [ref=e3036]
+                - generic [ref=e3037]:
+                  - button "Focus camera on node" [ref=e3038] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3039] [cursor=pointer]: ⊚
+                - generic [ref=e3040]: MODULE
+              - generic [ref=e3042]:
+                - button "Metadata −" [ref=e3043] [cursor=pointer]:
+                  - generic [ref=e3044]: Metadata
+                  - generic [ref=e3045]: −
+                - generic [ref=e3046]:
+                  - generic [ref=e3047]:
+                    - generic [ref=e3048]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3049]
+                  - generic [ref=e3050]:
+                    - generic [ref=e3051]: "path:"
+                    - generic "src/shared/types/Import.ts" [ref=e3052]
+              - generic [ref=e3053]:
+                - generic [ref=e3054]:
+                  - generic [ref=e3055]: Subnodes
+                  - generic [ref=e3056]: "6"
+                - generic [ref=e3058]: "Hidden: 3 classes, 3 interfaces"
+          - group [ref=e3060]:
+            - generic [ref=e3061]:
+              - generic [ref=e3063]:
+                - generic "Interface" [ref=e3065]
+                - generic [ref=e3066]:
+                  - button "Focus camera on node" [ref=e3067] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3068] [cursor=pointer]: ⊚
+                - generic [ref=e3069]: MODULE
+              - generic [ref=e3071]:
+                - button "Metadata −" [ref=e3072] [cursor=pointer]:
+                  - generic [ref=e3073]: Metadata
+                  - generic [ref=e3074]: −
+                - generic [ref=e3075]:
+                  - generic [ref=e3076]:
+                    - generic [ref=e3077]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3078]
+                  - generic [ref=e3079]:
+                    - generic [ref=e3080]: "path:"
+                    - generic "src/shared/types/Interface.ts" [ref=e3081]
+              - generic [ref=e3082]:
+                - generic [ref=e3083]:
+                  - generic [ref=e3084]: Subnodes
+                  - generic [ref=e3085]: "2"
+                - generic [ref=e3087]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3089]:
+            - generic [ref=e3090]:
+              - generic [ref=e3092]:
+                - generic "Method" [ref=e3094]
+                - generic [ref=e3095]:
+                  - button "Focus camera on node" [ref=e3096] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3097] [cursor=pointer]: ⊚
+                - generic [ref=e3098]: MODULE
+              - generic [ref=e3100]:
+                - button "Metadata −" [ref=e3101] [cursor=pointer]:
+                  - generic [ref=e3102]: Metadata
+                  - generic [ref=e3103]: −
+                - generic [ref=e3104]:
+                  - generic [ref=e3105]:
+                    - generic [ref=e3106]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3107]
+                  - generic [ref=e3108]:
+                    - generic [ref=e3109]: "path:"
+                    - generic "src/shared/types/Method.ts" [ref=e3110]
+              - generic [ref=e3111]:
+                - generic [ref=e3112]:
+                  - generic [ref=e3113]: Subnodes
+                  - generic [ref=e3114]: "2"
+                - generic [ref=e3116]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3118]:
+            - generic [ref=e3119]:
+              - generic [ref=e3121]:
+                - generic "Module" [ref=e3123]
+                - generic [ref=e3124]:
+                  - button "Focus camera on node" [ref=e3125] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3126] [cursor=pointer]: ⊚
+                - generic [ref=e3127]: MODULE
+              - generic [ref=e3129]:
+                - button "Metadata −" [ref=e3130] [cursor=pointer]:
+                  - generic [ref=e3131]: Metadata
+                  - generic [ref=e3132]: −
+                - generic [ref=e3133]:
+                  - generic [ref=e3134]:
+                    - generic [ref=e3135]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3136]
+                  - generic [ref=e3137]:
+                    - generic [ref=e3138]: "path:"
+                    - generic "src/shared/types/Module.ts" [ref=e3139]
+              - generic [ref=e3140]:
+                - generic [ref=e3141]:
+                  - generic [ref=e3142]: Subnodes
+                  - generic [ref=e3143]: "2"
+                - generic [ref=e3145]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3147]:
+            - generic [ref=e3148]:
+              - generic [ref=e3150]:
+                - generic "Package" [ref=e3152]
+                - generic [ref=e3153]:
+                  - button "Focus camera on node" [ref=e3154] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3155] [cursor=pointer]: ⊚
+                - generic [ref=e3156]: MODULE
+              - generic [ref=e3158]:
+                - button "Metadata −" [ref=e3159] [cursor=pointer]:
+                  - generic [ref=e3160]: Metadata
+                  - generic [ref=e3161]: −
+                - generic [ref=e3162]:
+                  - generic [ref=e3163]:
+                    - generic [ref=e3164]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3165]
+                  - generic [ref=e3166]:
+                    - generic [ref=e3167]: "path:"
+                    - generic "src/shared/types/Package.ts" [ref=e3168]
+              - generic [ref=e3169]:
+                - generic [ref=e3170]:
+                  - generic [ref=e3171]: Subnodes
+                  - generic [ref=e3172]: "2"
+                - generic [ref=e3174]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3176]:
+            - generic [ref=e3177]:
+              - generic [ref=e3179]:
+                - generic "Parameter" [ref=e3181]
+                - generic [ref=e3182]:
+                  - button "Focus camera on node" [ref=e3183] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3184] [cursor=pointer]: ⊚
+                - generic [ref=e3185]: MODULE
+              - generic [ref=e3187]:
+                - button "Metadata −" [ref=e3188] [cursor=pointer]:
+                  - generic [ref=e3189]: Metadata
+                  - generic [ref=e3190]: −
+                - generic [ref=e3191]:
+                  - generic [ref=e3192]:
+                    - generic [ref=e3193]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3194]
+                  - generic [ref=e3195]:
+                    - generic [ref=e3196]: "path:"
+                    - generic "src/shared/types/Parameter.ts" [ref=e3197]
+              - generic [ref=e3198]:
+                - generic [ref=e3199]:
+                  - generic [ref=e3200]: Subnodes
+                  - generic [ref=e3201]: "2"
+                - generic [ref=e3203]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3205]:
+            - generic [ref=e3206]:
+              - generic [ref=e3208]:
+                - generic "Property" [ref=e3210]
+                - generic [ref=e3211]:
+                  - button "Focus camera on node" [ref=e3212] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3213] [cursor=pointer]: ⊚
+                - generic [ref=e3214]: MODULE
+              - generic [ref=e3216]:
+                - button "Metadata −" [ref=e3217] [cursor=pointer]:
+                  - generic [ref=e3218]: Metadata
+                  - generic [ref=e3219]: −
+                - generic [ref=e3220]:
+                  - generic [ref=e3221]:
+                    - generic [ref=e3222]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3223]
+                  - generic [ref=e3224]:
+                    - generic [ref=e3225]: "path:"
+                    - generic "src/shared/types/Property.ts" [ref=e3226]
+              - generic [ref=e3227]:
+                - generic [ref=e3228]:
+                  - generic [ref=e3229]: Subnodes
+                  - generic [ref=e3230]: "2"
+                - generic [ref=e3232]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3234]:
+            - generic [ref=e3235]:
+              - generic [ref=e3237]:
+                - generic "SymbolReference" [ref=e3239]
+                - generic [ref=e3240]:
+                  - button "Focus camera on node" [ref=e3241] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3242] [cursor=pointer]: ⊚
+                - generic [ref=e3243]: MODULE
+              - generic [ref=e3245]:
+                - button "Metadata −" [ref=e3246] [cursor=pointer]:
+                  - generic [ref=e3247]: Metadata
+                  - generic [ref=e3248]: −
+                - generic [ref=e3249]:
+                  - generic [ref=e3250]:
+                    - generic [ref=e3251]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3252]
+                  - generic [ref=e3253]:
+                    - generic [ref=e3254]: "path:"
+                    - generic "src/shared/types/SymbolReference.ts" [ref=e3255]
+              - generic [ref=e3256]:
+                - generic [ref=e3257]:
+                  - generic [ref=e3258]: Subnodes
+                  - generic [ref=e3259]: "2"
+                - generic [ref=e3261]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3263]:
+            - generic [ref=e3264]:
+              - generic [ref=e3266]:
+                - generic "TypeAlias" [ref=e3268]
+                - generic [ref=e3269]:
+                  - button "Focus camera on node" [ref=e3270] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3271] [cursor=pointer]: ⊚
+                - generic [ref=e3272]: MODULE
+              - generic [ref=e3274]:
+                - button "Metadata −" [ref=e3275] [cursor=pointer]:
+                  - generic [ref=e3276]: Metadata
+                  - generic [ref=e3277]: −
+                - generic [ref=e3278]:
+                  - generic [ref=e3279]:
+                    - generic [ref=e3280]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3281]
+                  - generic [ref=e3282]:
+                    - generic [ref=e3283]: "path:"
+                    - generic "src/shared/types/TypeAlias.ts" [ref=e3284]
+              - generic [ref=e3285]:
+                - generic [ref=e3286]:
+                  - generic [ref=e3287]: Subnodes
+                  - generic [ref=e3288]: "2"
+                - generic [ref=e3290]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3292]:
+            - generic [ref=e3293]:
+              - generic [ref=e3295]:
+                - generic "TypeCollection" [ref=e3297]
+                - generic [ref=e3298]:
+                  - button "Focus camera on node" [ref=e3299] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3300] [cursor=pointer]: ⊚
+                - generic [ref=e3301]: MODULE
+              - generic [ref=e3303]:
+                - button "Metadata −" [ref=e3304] [cursor=pointer]:
+                  - generic [ref=e3305]: Metadata
+                  - generic [ref=e3306]: −
+                - generic [ref=e3307]:
+                  - generic [ref=e3308]:
+                    - generic [ref=e3309]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3310]
+                  - generic [ref=e3311]:
+                    - generic [ref=e3312]: "path:"
+                    - generic "src/shared/types/TypeCollection.ts" [ref=e3313]
+          - group [ref=e3315]:
+            - generic [ref=e3316]:
+              - generic [ref=e3318]:
+                - generic "VariableType" [ref=e3320]
+                - generic [ref=e3321]:
+                  - button "Focus camera on node" [ref=e3322] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3323] [cursor=pointer]: ⊚
+                - generic [ref=e3324]: MODULE
+              - generic [ref=e3326]:
+                - button "Metadata −" [ref=e3327] [cursor=pointer]:
+                  - generic [ref=e3328]: Metadata
+                  - generic [ref=e3329]: −
+                - generic [ref=e3330]:
+                  - generic [ref=e3331]:
+                    - generic [ref=e3332]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3333]
+                  - generic [ref=e3334]:
+                    - generic [ref=e3335]: "path:"
+                    - generic "src/shared/types/VariableType.ts" [ref=e3336]
+          - group [ref=e3338]:
+            - generic [ref=e3339]:
+              - generic [ref=e3341]:
+                - generic "VisibilityType" [ref=e3343]
+                - generic [ref=e3344]:
+                  - button "Focus camera on node" [ref=e3345] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3346] [cursor=pointer]: ⊚
+                - generic [ref=e3347]: MODULE
+              - generic [ref=e3349]:
+                - button "Metadata −" [ref=e3350] [cursor=pointer]:
+                  - generic [ref=e3351]: Metadata
+                  - generic [ref=e3352]: −
+                - generic [ref=e3353]:
+                  - generic [ref=e3354]:
+                    - generic [ref=e3355]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3356]
+                  - generic [ref=e3357]:
+                    - generic [ref=e3358]: "path:"
+                    - generic "src/shared/types/VisibilityType.ts" [ref=e3359]
+          - group [ref=e3361]:
+            - generic [ref=e3362]:
+              - generic [ref=e3364]:
+                - generic "logger" [ref=e3366]
+                - generic [ref=e3367]:
+                  - button "Focus camera on node" [ref=e3368] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3369] [cursor=pointer]: ⊚
+                - generic [ref=e3370]: MODULE
+              - generic [ref=e3372]:
+                - button "Metadata −" [ref=e3373] [cursor=pointer]:
+                  - generic [ref=e3374]: Metadata
+                  - generic [ref=e3375]: −
+                - generic [ref=e3376]:
+                  - generic [ref=e3377]:
+                    - generic [ref=e3378]: "package:"
+                    - generic "magus-typescript-viewer" [ref=e3379]
+                  - generic [ref=e3380]:
+                    - generic [ref=e3381]: "path:"
+                    - generic "src/shared/utils/logger.ts" [ref=e3382]
+              - generic [ref=e3383]:
+                - generic [ref=e3384]:
+                  - generic [ref=e3385]: Subnodes
+                  - generic [ref=e3386]: "2"
+                - generic [ref=e3388]: "Hidden: 1 class, 1 interface"
+          - group [ref=e3390]:
+            - generic [ref=e3391]:
+              - generic [ref=e3393]:
+                - generic "vite.config" [ref=e3395]
+                - generic [ref=e3396]:
+                  - button "Focus camera on node" [ref=e3397] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3398] [cursor=pointer]: ⊚
+                - generic [ref=e3399]: MODULE
+              - generic [ref=e3400]:
+                - generic [ref=e3401]:
+                  - button "Metadata −" [ref=e3402] [cursor=pointer]:
+                    - generic [ref=e3403]: Metadata
+                    - generic [ref=e3404]: −
+                  - generic [ref=e3405]:
+                    - generic [ref=e3406]:
+                      - generic [ref=e3407]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e3408]
+                    - generic [ref=e3409]:
+                      - generic [ref=e3410]: "path:"
+                      - generic "vite.config.ts" [ref=e3411]
+                - generic [ref=e3412]:
+                  - button "External Dependencies −" [ref=e3413] [cursor=pointer]:
+                    - generic [ref=e3414]: External Dependencies
+                    - generic [ref=e3415]: −
+                  - generic [ref=e3416]:
+                    - generic [ref=e3417]:
+                      - generic [ref=e3418]: "@vitejs/plugin-vue"
+                      - generic [ref=e3419]: vue
+                    - generic [ref=e3420]:
+                      - generic [ref=e3421]: url
+                      - generic [ref=e3422]: fileURLToPath
+                    - generic [ref=e3423]:
+                      - generic [ref=e3424]: vite
+                      - generic [ref=e3425]: defineConfig, UserConfigExport
+                    - generic [ref=e3426]:
+                      - generic [ref=e3427]: vite-plugin-node-polyfills
+                      - generic [ref=e3428]: nodePolyfills
+          - group [ref=e3430]:
+            - generic [ref=e3431]:
+              - generic [ref=e3433]:
+                - generic "vitest.config" [ref=e3435]
+                - generic [ref=e3436]:
+                  - button "Focus camera on node" [ref=e3437] [cursor=pointer]: ◉
+                  - button "Isolate node and neighbors" [ref=e3438] [cursor=pointer]: ⊚
+                - generic [ref=e3439]: MODULE
+              - generic [ref=e3440]:
+                - generic [ref=e3441]:
+                  - button "Metadata −" [ref=e3442] [cursor=pointer]:
+                    - generic [ref=e3443]: Metadata
+                    - generic [ref=e3444]: −
+                  - generic [ref=e3445]:
+                    - generic [ref=e3446]:
+                      - generic [ref=e3447]: "package:"
+                      - generic "magus-typescript-viewer" [ref=e3448]
+                    - generic [ref=e3449]:
+                      - generic [ref=e3450]: "path:"
+                      - generic "vitest.config.ts" [ref=e3451]
+                - generic [ref=e3452]:
+                  - button "External Dependencies −" [ref=e3453] [cursor=pointer]:
+                    - generic [ref=e3454]: External Dependencies
+                    - generic [ref=e3455]: −
+                  - generic [ref=e3457]:
+                    - generic [ref=e3458]: vitest
+                    - generic [ref=e3459]: defineConfig, ViteUserConfigExport
+    - img [ref=e3461]
+    - generic [ref=e3464]:
+      - generic [ref=e3465]:
+        - button "Zoom in" [ref=e3466]: +
+        - button "Zoom out" [ref=e3467]: −
+        - button "Fit view to content" [ref=e3468]: Fit
+        - button "Reset view" [ref=e3469]: Reset View
+        - button "Reset layout" [ref=e3470]: Reset Layout
+      - generic [ref=e3471]:
+        - heading "Layout Algorithm" [level=4] [ref=e3472]
+        - generic [ref=e3473]:
+          - button "Set layout algorithm to layered" [ref=e3474]: layered
+          - button "Set layout algorithm to radial" [ref=e3475]: radial
+          - button "Set layout algorithm to force" [ref=e3476]: force
+          - button "Set layout algorithm to stress" [ref=e3477]: stress
+      - generic [ref=e3478]:
+        - heading "Layout Direction" [level=4] [ref=e3479]
+        - generic [ref=e3480]:
+          - button "Set layout direction to LR" [ref=e3481]: LR
+          - button "Set layout direction to RL" [ref=e3482]: RL
+          - button "Set layout direction to TB" [ref=e3483]: TB
+          - button "Set layout direction to BT" [ref=e3484]: BT
+      - generic [ref=e3485]:
+        - heading "Spacing" [level=4] [ref=e3486]
+        - generic [ref=e3487]:
+          - generic [ref=e3488]:
+            - generic [ref=e3489]: "Node Spacing: 100"
+            - slider [ref=e3490] [cursor=pointer]: "100"
+          - generic [ref=e3491]:
+            - generic [ref=e3492]: "Rank Spacing: 150"
+            - slider [ref=e3493] [cursor=pointer]: "150"
+      - generic [ref=e3494]:
+        - heading "Clustering" [level=4] [ref=e3495]
+        - generic [ref=e3496]:
+          - generic [ref=e3497] [cursor=pointer]:
+            - checkbox "Collapse cycles (SCC)" [checked] [ref=e3498]
+            - generic [ref=e3499]: Collapse cycles (SCC)
+          - generic [ref=e3500] [cursor=pointer]:
+            - checkbox "Cluster by folder" [ref=e3501]
+            - generic [ref=e3502]: Cluster by folder
+      - generic [ref=e3503]:
+        - heading "Node Types" [level=4] [ref=e3504]
+        - generic [ref=e3505]:
+          - generic [ref=e3506] [cursor=pointer]:
+            - checkbox "module" [checked] [ref=e3507]
+            - generic [ref=e3508]: module
+          - generic [ref=e3509] [cursor=pointer]:
+            - checkbox "class" [ref=e3510]
+            - generic [ref=e3511]: class
+          - generic [ref=e3512] [cursor=pointer]:
+            - checkbox "interface" [ref=e3513]
+            - generic [ref=e3514]: interface
+          - generic [ref=e3515] [cursor=pointer]:
+            - checkbox "package" [ref=e3516]
+            - generic [ref=e3517]: package
+      - generic [ref=e3518]:
+        - heading "Member Nodes" [level=4] [ref=e3519]
+        - generic [ref=e3520]:
+          - button "Set member node mode to compact" [ref=e3521]: Compact
+          - button "Set member node mode to graph" [ref=e3522]: Graph
+      - generic [ref=e3523]:
+        - heading "Analysis" [level=4] [ref=e3524]
+        - generic [ref=e3525]:
+          - generic [ref=e3526] [cursor=pointer]:
+            - checkbox "Hide test files" [checked] [ref=e3527]
+            - generic [ref=e3528]: Hide test files
+          - generic [ref=e3529] [cursor=pointer]:
+            - checkbox "Highlight current-view orphans" [checked] [ref=e3530]
+            - generic [ref=e3531]: Highlight current-view orphans
+          - generic [ref=e3532] [cursor=pointer]:
+            - checkbox "Highlight global orphans" [ref=e3533]
+            - generic [ref=e3534]: Highlight global orphans
+      - generic [ref=e3535]:
+        - heading "Relationship Types" [level=4] [ref=e3536]
+        - generic [ref=e3537]:
+          - generic [ref=e3538] [cursor=pointer]:
+            - checkbox "import" [checked] [ref=e3539]
+            - generic [ref=e3540]: import
+          - generic [ref=e3541]:
+            - checkbox "inheritance (Requires class or interface nodes)" [checked] [disabled] [ref=e3542] [cursor=pointer]
+            - generic [ref=e3543]: inheritance (Requires class or interface nodes)
+          - generic [ref=e3544]:
+            - checkbox "implements (Requires class or interface nodes)" [checked] [disabled] [ref=e3545] [cursor=pointer]
+            - generic [ref=e3546]: implements (Requires class or interface nodes)
+          - generic [ref=e3547]:
+            - checkbox "dependency (Requires package nodes)" [checked] [disabled] [ref=e3548] [cursor=pointer]
+            - generic [ref=e3549]: dependency (Requires package nodes)
+          - generic [ref=e3550]:
+            - checkbox "devDependency (Requires package nodes)" [checked] [disabled] [ref=e3551] [cursor=pointer]
+            - generic [ref=e3552]: devDependency (Requires package nodes)
+          - generic [ref=e3553]:
+            - checkbox "peerDependency (Requires package nodes)" [checked] [disabled] [ref=e3554] [cursor=pointer]
+            - generic [ref=e3555]: peerDependency (Requires package nodes)
+    - generic [ref=e3557]:
+      - textbox "Search nodes..." [ref=e3558]
+      - button "Search" [ref=e3559]
+    - generic [ref=e3561]:
+      - generic [ref=e3562]: Mini-map
+      - img [ref=e3563] [cursor=pointer]:
+        - button [ref=e3809]
+        - button [ref=e3810]
+        - button [ref=e3811]
+        - button [ref=e3812]
+        - button [ref=e3813]
+        - button [ref=e3814]
+        - button [ref=e3815]
+        - button [ref=e3816]
+        - button [ref=e3817]
+        - button [ref=e3818]
+        - button [ref=e3819]
+        - button [ref=e3820]
+        - button [ref=e3821]
+        - button [ref=e3822]
+        - button [ref=e3823]
+        - button [ref=e3824]
+        - button [ref=e3825]
+        - button [ref=e3826]
+        - button [ref=e3827]
+        - button [ref=e3828]
+        - button [ref=e3829]
+        - button [ref=e3830]
+        - button [ref=e3831]
+        - button [ref=e3832]
+        - button [ref=e3833]
+        - button [ref=e3834]
+        - button [ref=e3835]
+        - button [ref=e3836]
+        - button [ref=e3837]
+        - button [ref=e3838]
+        - button [ref=e3839]
+        - button [ref=e3840]
+        - button [ref=e3841]
+        - button [ref=e3842]
+        - button [ref=e3843]
+        - button [ref=e3844]
+        - button [ref=e3845]
+        - button [ref=e3846]
+        - button [ref=e3847]
+        - button [ref=e3848]
+        - button [ref=e3849]
+        - button [ref=e3850]
+        - button [ref=e3851]
+        - button [ref=e3852]
+        - button [ref=e3853]
+        - button [ref=e3854]
+        - button [ref=e3855]
+        - button [ref=e3856]
+        - button [ref=e3857]
+        - button [ref=e3858]
+        - button [ref=e3859]
+        - button [ref=e3860]
+        - button [ref=e3861]
+        - button [ref=e3862]
+        - button [ref=e3863]
+        - button [ref=e3864]
+        - button [ref=e3865]
+        - button [ref=e3866]
+        - button [ref=e3867]
+        - button [ref=e3868]
+        - button [ref=e3869]
+        - button [ref=e3870]
+        - button [ref=e3871]
+        - button [ref=e3872]
+        - button [ref=e3873]
+        - button [ref=e3874]
+        - button [ref=e3875]
+        - button [ref=e3876]
+        - button [ref=e3877]
+        - button [ref=e3878]
+        - button [ref=e3879]
+        - button [ref=e3880]
+        - button [ref=e3881]
+        - button [ref=e3882]
+        - button [ref=e3883]
+        - button [ref=e3884]
+        - button [ref=e3885]
+        - button [ref=e3886]
+        - button [ref=e3887]
+        - button [ref=e3888]
+        - button [ref=e3889]
+        - button [ref=e3890]
+        - button [ref=e3891]
+        - button [ref=e3892]

@@ -48,16 +48,28 @@ const resolvedSubnodesCount = computed(() => {
   return typeof subnodes?.count === 'number' ? subnodes.count : 0;
 });
 
+const resolvedSubnodesTotalCount = computed(() => {
+  const subnodes = nodeData.value?.subnodes as { totalCount?: number; count?: number } | undefined;
+  if (typeof subnodes?.totalCount === 'number') {
+    return subnodes.totalCount;
+  }
+  return resolvedSubnodesCount.value;
+});
+
+const resolvedSubnodesHiddenCount = computed(() => {
+  const subnodes = nodeData.value?.subnodes as { hiddenCount?: number } | undefined;
+  if (typeof subnodes?.hiddenCount === 'number') {
+    return Math.max(0, subnodes.hiddenCount);
+  }
+  return Math.max(0, resolvedSubnodesTotalCount.value - resolvedSubnodesCount.value);
+});
+
 const shouldShowSubnodes = computed(() => {
   if (typeof props.showSubnodes === 'boolean') {
     return props.showSubnodes;
   }
 
-  if (inferredContainer.value) {
-    return true;
-  }
-
-  return resolvedSubnodesCount.value > 0;
+  return inferredContainer.value && (resolvedSubnodesTotalCount.value > 0 || resolvedSubnodesHiddenCount.value > 0);
 });
 
 const containerStyle = computed(() => {
@@ -77,6 +89,21 @@ const containerStyle = computed(() => {
     zIndex: props.zIndex,
   };
 });
+
+const triggerNodeAction = (action: 'focus' | 'isolate') => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent('dependency-graph-node-action', {
+      detail: {
+        action,
+        nodeId: props.id,
+      },
+    })
+  );
+};
 </script>
 
 <template>
@@ -98,6 +125,26 @@ const containerStyle = computed(() => {
           {{ nodeData.label || 'Unnamed' }}
         </div>
       </div>
+      <div class="base-node-actions">
+        <button
+          type="button"
+          class="base-node-action-button"
+          aria-label="Focus camera on node"
+          title="Focus node"
+          @click.stop="triggerNodeAction('focus')"
+        >
+          ◉
+        </button>
+        <button
+          type="button"
+          class="base-node-action-button"
+          aria-label="Isolate node and neighbors"
+          title="Isolate neighborhood"
+          @click.stop="triggerNodeAction('isolate')"
+        >
+          ⊚
+        </button>
+      </div>
       <div :class="['base-node-badge', badgeClass]">
         {{ badgeText }}
       </div>
@@ -110,7 +157,7 @@ const containerStyle = computed(() => {
     <section v-if="shouldShowSubnodes" class="base-node-subnodes">
       <div class="base-node-subnodes-header">
         <span>Subnodes</span>
-        <span class="base-node-subnodes-count">{{ resolvedSubnodesCount }}</span>
+        <span class="base-node-subnodes-count">{{ resolvedSubnodesTotalCount }}</span>
       </div>
       <div class="base-node-subnodes-content">
         <slot name="subnodes">
@@ -131,7 +178,11 @@ const containerStyle = computed(() => {
   border-radius: 0.5rem;
   border: 1px solid var(--border-default);
   background-color: var(--background-node);
-  transition: all 200ms;
+  transition:
+    transform 180ms ease-out,
+    box-shadow 180ms ease-out,
+    border-color 180ms ease-out,
+    opacity 180ms ease-out;
   cursor: move;
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.1),
@@ -168,9 +219,9 @@ const containerStyle = computed(() => {
 .base-node-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   border-bottom: 1px solid var(--border-default);
-  padding: 0.5rem 0.75rem;
+  padding: 0.45rem 0.5rem;
   min-height: 42px;
 }
 
@@ -190,7 +241,7 @@ const containerStyle = computed(() => {
 }
 
 .base-node-badge {
-  padding: 0.25rem 0.5rem;
+  padding: 0.2rem 0.35rem;
   border-radius: 0.25rem;
   color: var(--text-secondary);
   font-size: 0.625rem;
@@ -201,7 +252,7 @@ const containerStyle = computed(() => {
 }
 
 .base-node-body {
-  padding: 0.5rem 0.75rem;
+  padding: 0.45rem 0.5rem;
   border-bottom: 1px solid rgba(var(--border-default-rgb), 0.35);
 }
 
@@ -215,7 +266,7 @@ const containerStyle = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.5rem;
   font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -229,12 +280,43 @@ const containerStyle = computed(() => {
 }
 
 .base-node-subnodes-content {
-  padding: 0 0.75rem 0.6rem 0.75rem;
+  padding: 0 0.5rem 0.45rem 0.5rem;
 }
 
 .base-node-subnodes-empty {
   font-size: 0.7rem;
   color: var(--text-secondary);
   opacity: 0.75;
+}
+
+.base-node-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.base-node-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 1px solid rgba(var(--border-default-rgb), 0.6);
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease-out,
+    color 140ms ease-out,
+    border-color 140ms ease-out;
+}
+
+.base-node-action-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }
 </style>

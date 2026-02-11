@@ -65,9 +65,33 @@ export interface ExternalDependencyRef {
 
 export interface SubnodeMetadata {
   count: number;
+  totalCount?: number;
+  visibleCount?: number;
+  hiddenCount?: number;
   ids?: string[];
   byType?: Partial<Record<DependencyKind, number>>;
+  byTypeTotal?: Partial<Record<DependencyKind, number>>;
+  byTypeVisible?: Partial<Record<DependencyKind, number>>;
   isContainer?: boolean;
+}
+
+export interface MemberMetadata {
+  totalCount: number;
+  byType?: Partial<Record<'property' | 'method', number>>;
+  mode?: 'compact' | 'graph';
+}
+
+export interface NodeDiagnostics {
+  isTestFile: boolean;
+  orphanCurrent: boolean;
+  orphanGlobal: boolean;
+  externalDependencyPackageCount: number;
+  externalDependencySymbolCount: number;
+  externalDependencyLevel: 'normal' | 'high' | 'critical';
+}
+
+export interface LayoutInsets {
+  top: number;
 }
 
 /**
@@ -84,6 +108,9 @@ export interface DependencyData {
   exports?: string[];
   externalDependencies?: ExternalDependencyRef[];
   subnodes?: SubnodeMetadata;
+  members?: MemberMetadata;
+  diagnostics?: NodeDiagnostics;
+  layoutInsets?: LayoutInsets;
   isContainer?: boolean;
   [key: string]: unknown;
 }

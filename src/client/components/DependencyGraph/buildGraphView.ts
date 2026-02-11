@@ -30,6 +30,10 @@ export interface BuildOverviewGraphOptions {
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   clusterByFolder: boolean;
   collapseScc: boolean;
+  hideTestFiles: boolean;
+  memberNodeMode: 'compact' | 'graph';
+  highlightOrphanCurrent: boolean;
+  highlightOrphanGlobal: boolean;
 }
 
 export interface BuildModuleDrilldownGraphOptions {
@@ -77,7 +81,7 @@ export function applyEdgeVisibility(edges: GraphEdge[], enabledRelationshipTypes
 
     // Uses edges are drill-down edges and should remain visible even when
     // relationship controls are focused on top-level dependency types.
-    if (type === 'uses') {
+    if (type === 'uses' || type === 'contains') {
       return {
         ...edge,
         hidden: false,
@@ -132,6 +136,99 @@ function applyGraphTransforms(
   };
 }
 
+function filterGraphByTestVisibility(graphData: GraphViewData, hideTestFiles: boolean): GraphViewData {
+  if (!hideTestFiles) {
+    return graphData;
+  }
+
+  const filteredNodes = graphData.nodes.filter((node) => node.data?.diagnostics?.isTestFile !== true);
+  return {
+    nodes: filteredNodes,
+    edges: filterEdgesByNodeSet(filteredNodes, graphData.edges),
+  };
+}
+
+function buildDegreeMap(nodes: DependencyNode[], edges: GraphEdge[], includeHiddenEdges = false): Map<string, number> {
+  const degreeMap = new Map<string, number>();
+  nodes.forEach((node) => degreeMap.set(node.id, 0));
+
+  edges.forEach((edge) => {
+    if (!includeHiddenEdges && edge.hidden) {
+      return;
+    }
+
+    if (degreeMap.has(edge.source)) {
+      degreeMap.set(edge.source, (degreeMap.get(edge.source) ?? 0) + 1);
+    }
+    if (degreeMap.has(edge.target)) {
+      degreeMap.set(edge.target, (degreeMap.get(edge.target) ?? 0) + 1);
+    }
+  });
+
+  return degreeMap;
+}
+
+function annotateOrphanDiagnostics(
+  nodes: DependencyNode[],
+  currentDegreeMap: Map<string, number>,
+  globalDegreeMap: Map<string, number>
+): DependencyNode[] {
+  return nodes.map((node) => {
+    const orphanCurrent = (currentDegreeMap.get(node.id) ?? 0) === 0;
+    const orphanGlobal = (globalDegreeMap.get(node.id) ?? 0) === 0;
+    const existingData = node.data ?? { label: node.id };
+    const existingDiagnostics = node.data?.diagnostics;
+
+    return {
+      ...node,
+      data: {
+        ...existingData,
+        label: existingData.label ?? node.id,
+        diagnostics: {
+          isTestFile: existingDiagnostics?.isTestFile === true,
+          orphanCurrent,
+          orphanGlobal,
+          externalDependencyPackageCount: existingDiagnostics?.externalDependencyPackageCount ?? 0,
+          externalDependencySymbolCount: existingDiagnostics?.externalDependencySymbolCount ?? 0,
+          externalDependencyLevel: existingDiagnostics?.externalDependencyLevel ?? 'normal',
+        },
+      },
+    };
+  });
+}
+
+function applyOrphanHighlightStyling(
+  nodes: DependencyNode[],
+  options: Pick<BuildOverviewGraphOptions, 'highlightOrphanCurrent' | 'highlightOrphanGlobal'>
+): DependencyNode[] {
+  return nodes.map((node) => {
+    const diagnostics = node.data?.diagnostics;
+    if (!diagnostics) {
+      return node;
+    }
+
+    const shouldHighlightCurrent = options.highlightOrphanCurrent && diagnostics.orphanCurrent;
+    const shouldHighlightGlobal = options.highlightOrphanGlobal && diagnostics.orphanGlobal;
+    if (!shouldHighlightCurrent && !shouldHighlightGlobal) {
+      return node;
+    }
+
+    const style = (typeof node.style === 'object' ? node.style : {}) as Record<string, string | number | undefined>;
+    const borderColor = shouldHighlightCurrent ? '#f59e0b' : '#ef4444';
+    const shadowColor = shouldHighlightCurrent ? 'rgba(245, 158, 11, 0.45)' : 'rgba(239, 68, 68, 0.45)';
+
+    return {
+      ...node,
+      style: {
+        ...style,
+        borderColor,
+        borderWidth: '2px',
+        boxShadow: `0 0 0 1px ${borderColor}, 0 0 12px ${shadowColor}`,
+      },
+    };
+  });
+}
+
 export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphViewData {
   const enabledNodeTypeSet = new Set(options.enabledNodeTypes);
   if (enabledNodeTypeSet.size === 0) {
@@ -143,6 +240,7 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const includeClassNodes = enabledNodeTypeSet.has('class');
   const includeInterfaceNodes = enabledNodeTypeSet.has('interface');
   const includeClassEdges = includeClassNodes || includeInterfaceNodes;
+  const includeMemberContainmentEdges = includeClassEdges && options.memberNodeMode === 'graph';
 
   const graphNodes = createGraphNodes(options.data, {
     includePackages,
@@ -151,29 +249,42 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     includeClassNodes,
     includeInterfaceNodes,
     nestSymbolsInModules: !options.clusterByFolder,
+    memberNodeMode: options.memberNodeMode,
     direction: options.direction,
   });
 
   const graphEdges = createGraphEdges(options.data, {
     includePackageEdges: includePackages,
     includeClassEdges,
+    includeMemberContainmentEdges,
     liftClassEdgesToModuleLevel: !includeClassEdges,
     importDirection: 'importer-to-imported',
   }) as unknown as GraphEdge[];
 
-  const normalizedGraph = {
+  const unfilteredGraph = {
     nodes: graphNodes,
     edges: filterEdgesByNodeSet(graphNodes, graphEdges),
   };
 
-  const transformedGraph = applyGraphTransforms(normalizedGraph, {
+  const filteredGraph = filterGraphByTestVisibility(unfilteredGraph, options.hideTestFiles);
+
+  const transformedGraph = applyGraphTransforms(filteredGraph, {
     clusterByFolder: options.clusterByFolder,
     collapseScc: options.collapseScc,
   });
 
+  const visibleEdges = applyEdgeVisibility(transformedGraph.edges, options.enabledRelationshipTypes);
+  const currentDegreeMap = buildDegreeMap(transformedGraph.nodes, visibleEdges, false);
+  const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
+  const nodesWithDiagnostics = annotateOrphanDiagnostics(transformedGraph.nodes, currentDegreeMap, globalDegreeMap);
+  const nodesWithHighlighting = applyOrphanHighlightStyling(nodesWithDiagnostics, {
+    highlightOrphanCurrent: options.highlightOrphanCurrent,
+    highlightOrphanGlobal: options.highlightOrphanGlobal,
+  });
+
   return {
-    nodes: transformedGraph.nodes,
-    edges: applyEdgeVisibility(transformedGraph.edges, options.enabledRelationshipTypes),
+    nodes: nodesWithHighlighting,
+    edges: visibleEdges,
   };
 }
 

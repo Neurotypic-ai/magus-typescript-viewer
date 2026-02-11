@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 
@@ -15,15 +15,33 @@ const methods = computed(() => nodeData.value.methods ?? []);
 
 const isMemberNode = computed(() => nodeType.value === 'property' || nodeType.value === 'method');
 
+const membersMeta = computed(
+  () =>
+    (nodeData.value.members as {
+      totalCount?: number;
+      byType?: Partial<Record<'property' | 'method', number>>;
+      mode?: 'compact' | 'graph';
+    } | undefined) ?? {}
+);
+
+const memberMode = computed<'compact' | 'graph'>(() => {
+  const mode = membersMeta.value.mode;
+  return mode === 'graph' ? 'graph' : 'compact';
+});
+
+const memberPropertyCount = computed(() => membersMeta.value.byType?.property ?? properties.value.length);
+const memberMethodCount = computed(() => membersMeta.value.byType?.method ?? methods.value.length);
+const totalMemberCount = computed(
+  () => membersMeta.value.totalCount ?? memberPropertyCount.value + memberMethodCount.value
+);
+
 const inferredSubnodeCount = computed(() => {
   const explicitCount = (nodeData.value.subnodes as { count?: number } | undefined)?.count;
   if (typeof explicitCount === 'number') {
     return explicitCount;
   }
-  return properties.value.length + methods.value.length;
+  return 0;
 });
-
-const hasMembers = computed(() => properties.value.length > 0 || methods.value.length > 0);
 
 const baseNodeProps = computed(() => ({
   id: props.id,
@@ -34,14 +52,12 @@ const baseNodeProps = computed(() => ({
   ...(props.height !== undefined ? { height: props.height } : {}),
   ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
   ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
-  isContainer: !isMemberNode.value && (nodeData.value.isContainer === true || inferredSubnodeCount.value > 0),
-  showSubnodes: !isMemberNode.value && inferredSubnodeCount.value > 0,
+  isContainer:
+    !isMemberNode.value && memberMode.value === 'graph' && (nodeData.value.isContainer === true || inferredSubnodeCount.value > 0),
+  showSubnodes: !isMemberNode.value && memberMode.value === 'graph' && inferredSubnodeCount.value > 0,
   subnodesCount: inferredSubnodeCount.value,
-  zIndex: 2,
+  zIndex: isMemberNode.value ? 3 : 2,
 }));
-
-const showProperties = ref(true);
-const showMethods = ref(true);
 
 const badgeClass = computed(() => {
   switch (nodeType.value) {
@@ -59,12 +75,6 @@ const badgeClass = computed(() => {
 });
 
 const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase());
-
-function visibilityToken(visibility: string | undefined): string {
-  if (visibility === 'public') return '+';
-  if (visibility === 'protected') return '#';
-  return '-';
-}
 </script>
 
 <template>
@@ -72,51 +82,27 @@ function visibilityToken(visibility: string | undefined): string {
     v-bind="baseNodeProps"
     :badge-text="badgeText"
     :badge-class="badgeClass"
-    min-width="240px"
-    max-width="420px"
+    min-width="230px"
+    max-width="380px"
   >
     <template #body>
       <div v-if="isMemberNode" class="member-node-body">
-        <span v-if="nodeType === 'property'" class="member-type">property</span>
-        <span v-else-if="nodeType === 'method'" class="member-type">method</span>
+        <span class="member-type">{{ nodeType }}</span>
       </div>
 
-      <div v-else-if="hasMembers" class="symbol-summary">
-        <span>{{ properties.length }} properties</span>
+      <div v-else-if="totalMemberCount > 0" class="symbol-summary">
+        <span class="summary-label">Members:</span>
+        <span>{{ memberPropertyCount }} properties</span>
         <span>•</span>
-        <span>{{ methods.length }} methods</span>
+        <span>{{ memberMethodCount }} methods</span>
       </div>
 
       <div v-else class="symbol-empty-state">No members</div>
     </template>
 
     <template #subnodes>
-      <div v-if="properties.length > 0" class="member-section">
-        <button class="member-section-toggle" type="button" @click="showProperties = !showProperties">
-          <span>Properties ({{ properties.length }})</span>
-          <span>{{ showProperties ? '−' : '+' }}</span>
-        </button>
-        <div v-if="showProperties" class="member-list">
-          <div v-for="(prop, index) in properties" :key="prop.id ?? `prop-${index}`" class="member-item">
-            <span class="member-visibility">{{ visibilityToken(prop.visibility) }}</span>
-            <span class="member-name">{{ prop.name }}</span>
-            <span class="member-type-hint">: {{ prop.type }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="methods.length > 0" class="member-section">
-        <button class="member-section-toggle" type="button" @click="showMethods = !showMethods">
-          <span>Methods ({{ methods.length }})</span>
-          <span>{{ showMethods ? '−' : '+' }}</span>
-        </button>
-        <div v-if="showMethods" class="member-list">
-          <div v-for="(method, index) in methods" :key="method.id ?? `method-${index}`" class="member-item">
-            <span class="member-visibility">{{ visibilityToken(method.visibility) }}</span>
-            <span class="member-name">{{ method.name }}()</span>
-            <span class="member-type-hint">: {{ method.returnType }}</span>
-          </div>
-        </div>
+      <div v-if="memberMode === 'graph' && totalMemberCount > 0" class="member-graph-hint">
+        Member nodes are rendered directly in the graph.
       </div>
     </template>
   </BaseNode>
@@ -150,7 +136,8 @@ function visibilityToken(visibility: string | undefined): string {
 
 .member-node-body,
 .symbol-summary,
-.symbol-empty-state {
+.symbol-empty-state,
+.member-graph-hint {
   color: var(--text-secondary);
   font-size: 0.72rem;
 }
@@ -163,58 +150,16 @@ function visibilityToken(visibility: string | undefined): string {
 
 .symbol-summary {
   display: flex;
-  gap: 0.35rem;
+  gap: 0.3rem;
   align-items: center;
 }
 
-.member-section + .member-section {
-  margin-top: 0.35rem;
-}
-
-.member-section-toggle {
-  width: 100%;
-  border: none;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 0.3rem;
-  color: var(--text-secondary);
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.3rem 0.45rem;
-  cursor: pointer;
-}
-
-.member-list {
-  margin-top: 0.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.member-item {
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  font-size: 0.72rem;
-}
-
-.member-visibility {
-  width: 0.7rem;
-  color: var(--text-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-}
-
-.member-name {
+.summary-label {
   color: var(--text-primary);
   font-weight: 600;
 }
 
-.member-type-hint {
-  color: var(--text-secondary);
-  word-break: break-word;
+.member-graph-hint {
+  opacity: 0.8;
 }
 </style>

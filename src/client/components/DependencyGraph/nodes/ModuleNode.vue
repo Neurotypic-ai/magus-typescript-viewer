@@ -15,9 +15,62 @@ const externalDependencies = computed<ExternalDependencyRef[]>(() => {
   return Array.isArray(metadata) ? metadata : [];
 });
 
+const diagnostics = computed(() => nodeData.value.diagnostics as {
+  externalDependencyLevel?: 'normal' | 'high' | 'critical';
+} | undefined);
+
 const subnodeCount = computed(() => {
   const count = (nodeData.value.subnodes as { count?: number } | undefined)?.count;
   return typeof count === 'number' ? count : 0;
+});
+
+const subnodeMeta = computed(() => (nodeData.value.subnodes as {
+  totalCount?: number;
+  visibleCount?: number;
+  hiddenCount?: number;
+  byTypeTotal?: Partial<Record<'class' | 'interface', number>>;
+  byTypeVisible?: Partial<Record<'class' | 'interface', number>>;
+} | undefined));
+
+const totalSubnodeCount = computed(() => {
+  const total = subnodeMeta.value?.totalCount;
+  if (typeof total === 'number') {
+    return total;
+  }
+  return subnodeCount.value;
+});
+
+const hiddenSubnodeCount = computed(() => {
+  const hidden = subnodeMeta.value?.hiddenCount;
+  if (typeof hidden === 'number') {
+    return Math.max(0, hidden);
+  }
+  return Math.max(0, totalSubnodeCount.value - subnodeCount.value);
+});
+
+const hiddenSubnodeSummary = computed(() => {
+  if (hiddenSubnodeCount.value === 0) {
+    return '';
+  }
+
+  const byTypeTotal = subnodeMeta.value?.byTypeTotal ?? {};
+  const byTypeVisible = subnodeMeta.value?.byTypeVisible ?? {};
+  const hiddenClassCount = Math.max(0, (byTypeTotal.class ?? 0) - (byTypeVisible.class ?? 0));
+  const hiddenInterfaceCount = Math.max(0, (byTypeTotal.interface ?? 0) - (byTypeVisible.interface ?? 0));
+  const segments: string[] = [];
+
+  if (hiddenClassCount > 0) {
+    segments.push(`${hiddenClassCount} class${hiddenClassCount === 1 ? '' : 'es'}`);
+  }
+  if (hiddenInterfaceCount > 0) {
+    segments.push(`${hiddenInterfaceCount} interface${hiddenInterfaceCount === 1 ? '' : 's'}`);
+  }
+
+  if (segments.length === 0) {
+    return `${hiddenSubnodeCount.value} hidden`;
+  }
+
+  return `Hidden: ${segments.join(', ')}`;
 });
 
 const baseNodeProps = computed(() => ({
@@ -30,28 +83,44 @@ const baseNodeProps = computed(() => ({
   ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
   ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
   isContainer: true,
-  showSubnodes: true,
+  showSubnodes: totalSubnodeCount.value > 0 || hiddenSubnodeCount.value > 0,
   subnodesCount: subnodeCount.value,
 }));
 
 const showMetadata = ref(true);
 const showExternalDeps = ref(true);
+const showAllExternalDeps = ref(false);
+
+const visibleExternalDependencies = computed(() => {
+  return showAllExternalDeps.value ? externalDependencies.value : externalDependencies.value.slice(0, 8);
+});
+
+const hiddenExternalDependencyCount = computed(() => Math.max(0, externalDependencies.value.length - 8));
 </script>
 
 <template>
-  <BaseNode v-bind="baseNodeProps" badge-text="MODULE">
+  <BaseNode
+    v-bind="baseNodeProps"
+    badge-text="MODULE"
+    :class="[
+      diagnostics?.externalDependencyLevel === 'high' && 'module-node--high-deps',
+      diagnostics?.externalDependencyLevel === 'critical' && 'module-node--critical-deps',
+    ]"
+  >
     <template #body>
       <div v-if="metadataItems.length > 0" class="module-section">
         <button class="module-section-toggle" type="button" @click="showMetadata = !showMetadata">
           <span>Metadata</span>
           <span>{{ showMetadata ? '−' : '+' }}</span>
         </button>
-        <div v-if="showMetadata" class="module-section-content">
-          <div v-for="(prop, index) in metadataItems" :key="`metadata-${index}`" class="metadata-item">
-            <span class="metadata-key">{{ prop.name }}:</span>
-            <span class="metadata-value" :title="prop.type">{{ prop.type }}</span>
+        <Transition name="section-collapse">
+          <div v-if="showMetadata" class="module-section-content">
+            <div v-for="(prop, index) in metadataItems" :key="`metadata-${index}`" class="metadata-item">
+              <span class="metadata-key">{{ prop.name }}:</span>
+              <span class="metadata-value" :title="prop.type">{{ prop.type }}</span>
+            </div>
           </div>
-        </div>
+        </Transition>
       </div>
 
       <div v-if="externalDependencies.length > 0" class="module-section">
@@ -59,16 +128,29 @@ const showExternalDeps = ref(true);
           <span>External Dependencies</span>
           <span>{{ showExternalDeps ? '−' : '+' }}</span>
         </button>
-        <div v-if="showExternalDeps" class="module-section-content">
-          <div
-            v-for="dependency in externalDependencies"
-            :key="dependency.packageName"
-            class="external-dependency"
-          >
-            <div class="external-dependency-name">{{ dependency.packageName }}</div>
-            <div class="external-dependency-symbols">{{ dependency.symbols.join(', ') }}</div>
+        <Transition name="section-collapse">
+          <div v-if="showExternalDeps" class="module-section-content">
+            <div
+              v-for="dependency in visibleExternalDependencies"
+              :key="dependency.packageName"
+              class="external-dependency"
+            >
+              <div class="external-dependency-name">{{ dependency.packageName }}</div>
+              <div class="external-dependency-symbols">
+                {{ dependency.symbols.slice(0, 6).join(', ') }}
+                <span v-if="dependency.symbols.length > 6"> (+{{ dependency.symbols.length - 6 }} more)</span>
+              </div>
+            </div>
+            <button
+              v-if="hiddenExternalDependencyCount > 0 && !showAllExternalDeps"
+              type="button"
+              class="dependency-more-button"
+              @click="showAllExternalDeps = true"
+            >
+              +{{ hiddenExternalDependencyCount }} more packages
+            </button>
           </div>
-        </div>
+        </Transition>
       </div>
 
       <div v-if="metadataItems.length === 0 && externalDependencies.length === 0" class="module-empty-state">
@@ -80,7 +162,7 @@ const showExternalDeps = ref(true);
       <div v-if="subnodeCount > 0" class="subnode-hint">
         Child class/interface nodes are laid out in this module container.
       </div>
-      <div v-else class="subnode-hint">No class/interface subnodes for current filters.</div>
+      <div v-if="hiddenSubnodeSummary" class="subnode-hint">{{ hiddenSubnodeSummary }}</div>
     </template>
   </BaseNode>
 </template>
@@ -156,5 +238,44 @@ const showExternalDeps = ref(true);
   color: var(--text-secondary);
   font-size: 0.7rem;
   opacity: 0.8;
+}
+
+.dependency-more-button {
+  border: 1px solid rgba(var(--border-default-rgb), 0.5);
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.4rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-size: 0.66rem;
+  cursor: pointer;
+}
+
+.dependency-more-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.module-node--high-deps :deep(.base-node-container) {
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, 0.6),
+    0 0 12px rgba(245, 158, 11, 0.25);
+}
+
+.module-node--critical-deps :deep(.base-node-container) {
+  box-shadow:
+    0 0 0 1px rgba(239, 68, 68, 0.7),
+    0 0 14px rgba(239, 68, 68, 0.3);
+}
+
+.section-collapse-enter-active,
+.section-collapse-leave-active {
+  transition:
+    opacity 160ms ease-out,
+    transform 160ms ease-out;
+}
+
+.section-collapse-enter-from,
+.section-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-2px);
 }
 </style>

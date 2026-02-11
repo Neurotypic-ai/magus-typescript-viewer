@@ -47,8 +47,8 @@ const handleKeyDown = (event: KeyboardEvent) => {
 </script>
 
 <template>
-  <Panel position="top-left" class="mt-24">
-    <div class="flex gap-2 bg-background-paper p-2 rounded-lg border border-gray-700 shadow-lg">
+  <Panel position="top-right" class="mt-2 mr-2">
+    <div class="flex gap-2 bg-background-paper p-2 rounded-lg border border-gray-700 shadow-lg max-w-sm">
       <input
         v-model="searchQuery"
         type="text"

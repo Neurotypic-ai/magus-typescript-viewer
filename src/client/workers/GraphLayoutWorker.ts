@@ -126,13 +126,13 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
             const d = dep as { packageName?: string; symbols?: string[] };
             estHeight += 42;
             const pkgName = d.packageName ?? '';
-            const symbols = Array.isArray(d.symbols) ? d.symbols.join(', ') : '';
+            const symbols = Array.isArray(d.symbols) ? d.symbols.slice(0, 6).join(', ') : '';
             maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(pkgName, 48));
             maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(symbols, 48));
           }
         }
 
-        hintWidth = Math.max(hintWidth, maxContentWidth);
+        hintWidth = Math.min(520, Math.max(hintWidth, maxContentWidth));
         hintHeight = Math.max(hintHeight, estHeight);
 
       } else if (node.type === 'class' || node.type === 'interface') {
@@ -201,6 +201,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
     // Build hierarchical structure for ELK
     const nodeMap = new Map<string, ElkNode>();
+    const inputNodeById = new Map(nodes.map((node) => [node.id, node]));
     const rootNodes: ElkNode[] = [];
     const childIdsByParent = new Map<string, string[]>();
 
@@ -231,12 +232,16 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     nodeMap.forEach((elkNode) => {
       const hasChildren = childIdsByParent.has(elkNode.id);
       if (hasChildren) {
+        const sourceNode = inputNodeById.get(elkNode.id);
+        const layoutInsets = sourceNode?.data?.layoutInsets as { top?: number } | undefined;
+        const topInset = typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : 120;
+
         elkNode.layoutOptions = {
           // Child nodes inside containers should stack vertically regardless of global direction.
           'elk.algorithm': 'layered',
           'elk.direction': 'DOWN',
           // Reserve top area for node header/body/subnodes labels.
-          'elk.padding': '[top=120,left=24,bottom=24,right=24]',
+          'elk.padding': `[top=${String(topInset)},left=24,bottom=24,right=24]`,
           'elk.spacing.nodeNode': '24',
           'elk.layered.spacing.nodeNodeBetweenLayers': '24',
           'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
@@ -394,7 +399,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // Post-processing: ensure children don't overlap and parents contain all children.
     // ELK should handle this, but we add a safety net.
     const CONTAINER_HORIZONTAL_PADDING = 48;
-    const CONTAINER_TOP_PADDING = 120; // space for header/body content
+    const DEFAULT_CONTAINER_TOP_PADDING = 120; // space for header/body content
     const CONTAINER_BOTTOM_PADDING = 48;
 
     // Group nodes by parent so we only compare siblings in the sweep.
@@ -444,11 +449,16 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
      * and past the left padding boundary.
      */
     function enforceMinPositions(): void {
-      childIdsByParent.forEach((childIds) => {
+      childIdsByParent.forEach((childIds, parentId) => {
+        const parentSourceNode = inputNodeById.get(parentId);
+        const layoutInsets = parentSourceNode?.data?.layoutInsets as { top?: number } | undefined;
+        const containerTopPadding =
+          typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : DEFAULT_CONTAINER_TOP_PADDING;
+
         for (const childId of childIds) {
           const box = positionMap.get(childId);
           if (!box) continue;
-          if (box.y < CONTAINER_TOP_PADDING) box.y = CONTAINER_TOP_PADDING;
+          if (box.y < containerTopPadding) box.y = containerTopPadding;
           if (box.x < CONTAINER_HORIZONTAL_PADDING) box.x = CONTAINER_HORIZONTAL_PADDING;
         }
       });
