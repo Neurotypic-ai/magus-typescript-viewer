@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import type { Page } from '@playwright/test';
+
 /**
  * Baseline E2E tests for the TypeScript Dependency Graph Viewer.
  *
@@ -144,8 +146,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
 
     // The viewport translate values should differ after the minimap click.
     const positionChanged =
-      Math.abs(viewportAfter.x - viewportBefore.x) > 1 ||
-      Math.abs(viewportAfter.y - viewportBefore.y) > 1;
+      Math.abs(viewportAfter.x - viewportBefore.x) > 1 || Math.abs(viewportAfter.y - viewportBefore.y) > 1;
     expect(positionChanged).toBe(true);
   });
 
@@ -311,29 +312,29 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
  * Vue Flow applies a CSS transform on `.vue-flow__viewport` like:
  *   transform: translate(Xpx, Ypx) scale(Z)
  */
-async function getViewportZoom(page: import('@playwright/test').Page): Promise<number> {
+async function getViewportZoom(page: Page): Promise<number> {
   const transform = await page.locator('.vue-flow__viewport').getAttribute('style');
   if (!transform) return 1;
-  const scaleMatch = transform.match(/scale\(([^)]+)\)/);
-  return scaleMatch?.[1] ? parseFloat(scaleMatch[1]) : 1;
+  const scaleMatch = /scale\(([^)]+)\)/.exec(transform) ?? [];
+  return parseFloat(scaleMatch[1] ?? '1');
 }
 
 /**
  * Extract the full viewport transform { x, y, zoom } from the Vue Flow
  * viewport element's inline style.
+ * @param page - The Playwright page object.
+ * @returns The viewport transform { x, y, zoom }.
  */
-async function getViewportTransform(
-  page: import('@playwright/test').Page,
-): Promise<{ x: number; y: number; zoom: number }> {
+async function getViewportTransform(page: Page): Promise<{ x: number; y: number; zoom: number }> {
   const style = await page.locator('.vue-flow__viewport').getAttribute('style');
   if (!style) return { x: 0, y: 0, zoom: 1 };
 
-  const translateMatch = style.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
-  const scaleMatch = style.match(/scale\(([^)]+)\)/);
+  const translateMatch = /translate\(([^,]+)px,\s*([^)]+)px\)/.exec(style) ?? [];
+  const scaleMatch = /scale\(([^)]+)\)/.exec(style) ?? [];
 
   return {
-    x: translateMatch?.[1] ? parseFloat(translateMatch[1]) : 0,
-    y: translateMatch?.[2] ? parseFloat(translateMatch[2]) : 0,
-    zoom: scaleMatch?.[1] ? parseFloat(scaleMatch[1]) : 1,
+    x: parseFloat(translateMatch[1] ?? '0'),
+    y: parseFloat(translateMatch[2] ?? '0'),
+    zoom: parseFloat(scaleMatch[1] ?? '1'),
   };
 }

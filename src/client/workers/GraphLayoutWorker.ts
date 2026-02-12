@@ -132,6 +132,43 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
           }
         }
 
+        // Embedded symbols in compact mode (expanded by default)
+        const symbols = data?.['symbols'];
+        if (Array.isArray(symbols) && symbols.length > 0) {
+          // Type-category CollapsibleSection headers (Classes, Interfaces)
+          const typeCategories = new Set(
+            (symbols as { type?: string }[]).map(s => s.type).filter(Boolean),
+          );
+          estHeight += typeCategories.size * 28;
+
+          for (const sym of symbols) {
+            const s = sym as { name?: string; properties?: unknown[]; methods?: unknown[] };
+            estHeight += 34; // Symbol card header (badge + name + toggle)
+            const props = Array.isArray(s.properties) ? s.properties : [];
+            const methods = Array.isArray(s.methods) ? s.methods : [];
+            if (props.length > 0) {
+              estHeight += 28 + props.length * 22; // Section header + per-property
+            }
+            if (methods.length > 0) {
+              estHeight += 28 + methods.length * 24; // Section header + per-method
+            }
+            // Width from symbol name and member text
+            if (typeof s.name === 'string') {
+              maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(s.name, 100));
+            }
+            for (const p of props) {
+              const prop = p as { name?: string; type?: string };
+              const propText = `${prop.name ?? ''}: ${prop.type ?? ''}`;
+              maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(propText, 80));
+            }
+            for (const m of methods) {
+              const method = m as { name?: string; returnType?: string };
+              const sig = `${method.name ?? ''}(): ${method.returnType ?? ''}`;
+              maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(sig, 80));
+            }
+          }
+        }
+
         hintWidth = Math.min(520, Math.max(hintWidth, maxContentWidth));
         hintHeight = Math.max(hintHeight, estHeight);
 
@@ -585,15 +622,14 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // rendered size exactly matches the worker's positionMap — this prevents
     // content-driven sizing from exceeding the worker's estimates and causing overlaps.
     //
-    // CRITICAL: Strip `expandParent` and `extent` from output nodes.
-    // These Vue Flow properties cause it to auto-expand parents and clamp child
-    // positions AFTER the worker runs, overriding the carefully computed layout.
-    // The worker already handles parent expansion (expandParentsBottomUp) and
-    // child containment (enforceMinPositions), so Vue Flow must not interfere.
+    // CRITICAL: Strip `expandParent` from output nodes — it causes Vue Flow to
+    // auto-expand parents AFTER the worker runs, overriding the computed layout.
+    // Keep `extent` so Vue Flow enforces drag containment at runtime (extent: 'parent'
+    // prevents users from dragging child nodes outside their parent boundaries).
     const newNodes = nodes.map((node) => {
       const position = positionMap.get(node.id);
-      // Destructure out expandParent and extent so they don't reach Vue Flow.
-      const { expandParent: _ep, extent: _ext, ...nodeBase } = node;
+      // Strip expandParent but preserve extent for drag containment.
+      const { expandParent: _ep, ...nodeBase } = node;
 
       if (position) {
         const hasChildren = nodes.some((candidate) => (candidate as { parentNode?: string }).parentNode === node.id);

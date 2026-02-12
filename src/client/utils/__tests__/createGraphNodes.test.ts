@@ -128,9 +128,11 @@ describe('createGraphNodes', () => {
     const classNode = nodes.find((node) => node.id === 'class-1');
     expect(classNode).toBeDefined();
     expect(classNode?.parentNode).toBe('module-a');
+    expect(classNode?.draggable).toBe(true);
     if (!classNode?.data) {
       throw new Error('Expected class node data');
     }
+    expect(classNode.data.collapsible).toBe(false);
     expect(classNode.data.members?.totalCount).toBe(2);
     expect(classNode.data.properties).toHaveLength(1);
     expect(classNode.data.methods).toHaveLength(1);
@@ -139,9 +141,11 @@ describe('createGraphNodes', () => {
     const interfaceNode = nodes.find((node) => node.id === 'iface-1');
     expect(interfaceNode).toBeDefined();
     expect(interfaceNode?.parentNode).toBe('module-a');
+    expect(interfaceNode?.draggable).toBe(true);
     if (!interfaceNode?.data) {
       throw new Error('Expected interface node data');
     }
+    expect(interfaceNode.data.collapsible).toBe(false);
     expect(interfaceNode.data.members?.totalCount).toBe(2);
 
     // No property/method VueFlow nodes in graph mode — members are shown

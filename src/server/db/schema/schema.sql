@@ -192,5 +192,30 @@ CREATE TABLE symbol_references (
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
+-- Indexes for classes and interfaces (queried by module_id in ApiServerResponder)
+CREATE INDEX idx_classes_module_id ON classes (module_id);
+CREATE INDEX idx_interfaces_module_id ON interfaces (module_id);
+
+-- Indexes for methods and properties (queried by parent_id in N+1 patterns)
+CREATE INDEX idx_methods_parent ON methods (parent_id, parent_type);
+CREATE INDEX idx_methods_module_id ON methods (module_id);
+CREATE INDEX idx_properties_parent ON properties (parent_id, parent_type);
+CREATE INDEX idx_properties_module_id ON properties (module_id);
+
+-- Indexes for imports, exports, functions (queried by module_id)
+CREATE INDEX idx_imports_module_id ON imports (module_id);
+CREATE INDEX idx_exports_module_id ON exports (module_id);
+CREATE INDEX idx_functions_module_id ON functions (module_id);
+
+-- Indexes for parameters (queried by method_id)
+CREATE INDEX idx_parameters_method_id ON parameters (method_id);
+
+-- Indexes for junction tables (queried during relationship lookups)
+CREATE INDEX idx_class_implements_class_id ON class_implements (class_id);
+CREATE INDEX idx_class_implements_interface_id ON class_implements (interface_id);
+CREATE INDEX idx_interface_extends_interface_id ON interface_extends (interface_id);
+CREATE INDEX idx_class_extends_class_id ON class_extends (class_id);
+
+-- Indexes for symbol references
 CREATE INDEX idx_symbol_references_module_id ON symbol_references (module_id);
 CREATE INDEX idx_symbol_references_target_symbol_id ON symbol_references (target_symbol_id);

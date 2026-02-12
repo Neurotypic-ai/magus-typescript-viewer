@@ -30,22 +30,22 @@ todos:
     content:
       'Phase 5: Spike @vue-flow/minimap to evaluate parity with custom GraphMiniMap (type colors, selected highlight,
       viewport drag, click-on-node centering). Document findings. Migrate only if parity confirmed.'
-    status: pending
+    status: completed
   - id: phase-6-interaction-eval
     content:
       'Phase 6: Test Vue Flow native panOnScroll + zoomOnPinch on macOS against custom wheelIntent behavior. Keep custom
       handler if native fails Mac UX matrix. Remove only confirmed-redundant code.'
-    status: pending
+    status: completed
   - id: phase-7-toolbar-eval
     content:
       'Phase 7: Spike @vue-flow/node-toolbar for focus/isolate actions. Compare discoverability, keyboard reachability,
       and dense-graph usability against current inline buttons. Adopt only if superior.'
-    status: pending
+    status: completed
   - id: phase-8-verify
     content:
       'Phase 8: Run Playwright baseline suite, WCAG keyboard/focus audit, and visual regression check. All Phase 1 tests
       must pass. Commit.'
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -378,3 +378,71 @@ When adding new `@vue-flow/*` packages:
 - Add to `manualChunks['flow-vendor']` in [vite.config.ts](vite.config.ts) (line 49)
 - Add to `optimizeDeps.include` in [vite.config.ts](vite.config.ts) (line 55)
 - Import the package's CSS file (e.g., `@vue-flow/minimap/dist/style.css`)
+
+## Spike Evaluation Results
+
+### Phase 5: @vue-flow/minimap — Implemented behind feature flag
+
+**Checklist results:**
+
+| #   | Check                                         | Result                                                  |
+| --- | --------------------------------------------- | ------------------------------------------------------- |
+| 1   | `nodeColor` function reproduces custom colors | ✅ Pass                                                 |
+| 2   | `nodeStrokeColor` highlights selected node    | ✅ Pass                                                 |
+| 3   | `pannable` + `zoomable` viewport drag         | ✅ Pass                                                 |
+| 4   | `nodeClick` event for click-to-center         | ✅ Pass                                                 |
+| 5   | Individual node click centering               | ✅ Pass (via `nodeClick` event → `handleFocusNode`)     |
+| 6   | Edge rendering in minimap                     | ❌ Fail — official minimap renders nodes only, no edges |
+
+**Decision:** Implemented behind `VITE_USE_BUILTIN_MINIMAP=true` feature flag. Default is `false` (custom minimap with
+edge rendering). The official minimap is a viable replacement for use cases where edge rendering in the minimap is not
+critical.
+
+**Files changed:** `index.vue` (conditional rendering), `vite.config.ts` (build chunks)
+
+### Phase 6: Vue Flow native interaction — Custom handler retained
+
+**Test matrix analysis:**
+
+| Gesture                              | Vue Flow native                            | Custom handler                                      | Verdict                                        |
+| ------------------------------------ | ------------------------------------------ | --------------------------------------------------- | ---------------------------------------------- |
+| Two-finger trackpad scroll → Pan     | `panOnScroll: true`                        | `classifyWheelIntent('trackpadScroll')` → `panBy()` | Both work, custom more precise                 |
+| Pinch-to-zoom → Cursor-centered zoom | `zoomOnPinch: true` (uses `event.ctrlKey`) | Custom `setViewport()` with cursor math             | Custom zoom is cursor-centered with exact math |
+| Mouse wheel → Zoom                   | `zoomOnScroll: true`                       | `classifyWheelIntent('mouseWheel')` → `zoomTo()`    | Both work                                      |
+| Overlay scroll isolation             | `noWheelClassName` on overlay              | `data-graph-overlay-scrollable` check               | Both work, now using both                      |
+
+**Decision:** Keep the custom `handleWheel` + `classifyWheelIntent` handler. Reasons:
+
+1. The custom handler provides precise cursor-centered zoom via `setViewport()` math that Vue Flow's d3-zoom may not
+   exactly replicate
+2. The `classifyWheelIntent` heuristic distinguishes trackpad scroll vs mouse wheel using delta magnitude, which is more
+   nuanced than d3-zoom's `ctrlKey` check
+3. Cannot verify removal without testing on physical Mac hardware across Chrome, Safari, and Firefox
+4. Risk of UX regression outweighs benefit of removing ~40 lines of code
+
+**Defense-in-depth:** Added `nowheel` class to `NodeDetails` overlay alongside existing `data-graph-overlay-scrollable`
+attribute.
+
+**Files changed:** `NodeDetails.vue` (added `nowheel` class)
+
+### Phase 7: @vue-flow/node-toolbar — Inline buttons retained
+
+**Evaluation results:**
+
+| #   | Check                            | Result                                                                                     |
+| --- | -------------------------------- | ------------------------------------------------------------------------------------------ |
+| 1   | Toolbar positions correctly      | ✅ Works (Top/Bottom/Left/Right with offset)                                               |
+| 2   | Z-index stacking in dense graphs | ⚠️ Auto-calculated but may occlude neighboring nodes                                       |
+| 3   | Visibility behavior              | ❌ Only shows on single-node selection; current inline buttons are always visible on hover |
+| 4   | Keyboard tab reachability        | ❌ Not built-in — no tabindex, no ARIA, no focus management                                |
+| 5   | Screen reader announcement       | ❌ Not built-in — must implement in slot content                                           |
+
+**Decision:** Keep current inline action buttons in `BaseNode.vue` header. Reasons:
+
+1. **Discoverability**: Inline buttons are always visible in the node header; toolbar only appears on selection
+2. **Keyboard accessibility**: NodeToolbar has no built-in keyboard navigation; inline buttons are naturally
+   tab-reachable
+3. **Dense graph UX**: Floating toolbar may occlude neighboring nodes in dense layouts
+4. **WCAG compliance**: Current inline buttons already have proper `aria-label` attributes and are focus-visible
+
+**Files changed:** None (decision to keep current implementation)

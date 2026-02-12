@@ -433,8 +433,10 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
                   method: methods.length,
                 },
               },
+              collapsible: false,
               diagnostics: createDiagnostics({ isTestFile: isModuleTestFile }),
             },
+            draggable: true,
             style: {
               ...getNodeStyle('class'),
               zIndex: 3,
@@ -478,8 +480,10 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
                   method: methods.length,
                 },
               },
+              collapsible: false,
               diagnostics: createDiagnostics({ isTestFile: isModuleTestFile }),
             },
+            draggable: true,
             style: {
               ...getNodeStyle('interface'),
               zIndex: 3,

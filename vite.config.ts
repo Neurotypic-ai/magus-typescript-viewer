@@ -46,13 +46,13 @@ const config: UserConfigExport = defineConfig({
       output: {
         manualChunks: {
           'vue-vendor': ['vue', 'pinia'],
-          'flow-vendor': ['@vue-flow/core', '@vue-flow/background', '@vue-flow/controls'],
+          'flow-vendor': ['@vue-flow/core', '@vue-flow/background', '@vue-flow/controls', '@vue-flow/minimap'],
         },
       },
     },
   },
   optimizeDeps: {
-    include: ['vue', 'pinia', '@vue-flow/core', '@vue-flow/background', '@vue-flow/controls'],
+    include: ['vue', 'pinia', '@vue-flow/core', '@vue-flow/background', '@vue-flow/controls', '@vue-flow/minimap'],
   },
   resolve: {
     dedupe: ['vue'],

@@ -28,6 +28,8 @@ interface GraphStore {
   setOverviewSnapshot: (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => void;
   restoreOverviewSnapshot: () => boolean;
   clearCache: () => void;
+  suspendCacheWrites: () => void;
+  resumeCacheWrites: () => void;
 }
 
 function debounce<T extends (...args: any[]) => void>(
@@ -56,6 +58,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
   const cacheKey = ref<string | null>(null);
   const viewMode = ref<GraphViewMode>('overview');
   const overviewSnapshot = ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>(null);
+  const cacheWriteSuspended = ref(false);
 
   // Load cached data from localStorage on initialization
   const loadCache = () => {

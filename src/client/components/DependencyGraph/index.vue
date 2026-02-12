@@ -2,6 +2,7 @@
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { MarkerType, Panel, Position, VueFlow, applyNodeChanges, useVueFlow } from '@vue-flow/core';
+import { MiniMap } from '@vue-flow/minimap';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
 import { createLogger } from '../../../shared/utils/logger';
@@ -27,10 +28,12 @@ import { useGraphInteractionController } from './useGraphInteractionController';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 
 import type { NodeChange } from '@vue-flow/core';
+
 import type { DependencyKind, DependencyNode, DependencyPackageGraph, GraphEdge, SearchResult } from './types';
 
 import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/core/dist/style.css';
+import '@vue-flow/minimap/dist/style.css';
 
 const graphLogger = createLogger('DependencyGraph');
 
@@ -67,6 +70,23 @@ let layoutRequestVersion = 0;
 
 const DEFAULT_NODE_TYPE_SET = new Set(['module']);
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
+
+const useBuiltinMinimap = import.meta.env['VITE_USE_BUILTIN_MINIMAP'] === 'true';
+
+const minimapNodeColor = (node: { type?: string }): string => {
+  if (node.type === 'package') return 'rgba(20, 184, 166, 0.55)';
+  if (node.type === 'module') return 'rgba(59, 130, 246, 0.5)';
+  if (node.type === 'class' || node.type === 'interface') return 'rgba(217, 119, 6, 0.45)';
+  return 'rgba(148, 163, 184, 0.4)';
+};
+
+const minimapNodeStrokeColor = (node: { id?: string }): string => {
+  return node.id === selectedNode.value?.id ? '#22d3ee' : 'rgba(226, 232, 240, 0.5)';
+};
+
+const handleMinimapNodeClick = (params: { node: { id: string } }): void => {
+  void handleFocusNode(params.node.id);
+};
 
 const defaultLayoutConfig = {
   algorithm: 'layered' as 'layered' | 'radial' | 'force' | 'stress',
@@ -108,7 +128,8 @@ const mergeNodeInteractionStyle = (
   node: DependencyNode,
   interactionStyle: Record<string, string | number | undefined>
 ): Record<string, string | number | undefined> => {
-  const currentStyle = typeof node.style === 'object' ? (node.style as Record<string, string | number | undefined>) : {};
+  const currentStyle =
+    typeof node.style === 'object' ? (node.style as Record<string, string | number | undefined>) : {};
   const baseStyle = getNodeStyle(node.type as DependencyKind);
 
   const preservedSizing = {
@@ -147,12 +168,59 @@ const initializeLayoutProcessor = () => {
   });
 };
 
+const applySelectionHighlight = (selected: DependencyNode | null): void => {
+  // Isolation mode manages its own styles
+  if (interaction.scopeMode.value === 'isolate') return;
+
+  const connectedNodeIds = new Set<string>();
+  const connectedEdgeIds = new Set<string>();
+
+  if (selected) {
+    connectedNodeIds.add(selected.id);
+    for (const edge of edges.value) {
+      if (!edge.hidden && (edge.source === selected.id || edge.target === selected.id)) {
+        connectedEdgeIds.add(edge.id);
+        connectedNodeIds.add(edge.source);
+        connectedNodeIds.add(edge.target);
+      }
+    }
+  }
+
+  const hasSelection = selected !== null;
+
+  const updatedNodes = nodes.value.map((node) => {
+    let nodeClass: string | undefined;
+
+    if (hasSelection) {
+      if (node.id === selected.id) nodeClass = 'selection-target';
+      else if (connectedNodeIds.has(node.id)) nodeClass = 'selection-connected';
+      else nodeClass = 'selection-dimmed';
+    }
+
+    if (node.class === nodeClass) return node;
+    return { ...node, class: nodeClass };
+  });
+
+  const updatedEdges = edges.value.map((edge) => {
+    let edgeClass: string | undefined;
+    if (hasSelection) {
+      edgeClass = connectedEdgeIds.has(edge.id) ? 'edge-selection-highlighted' : 'edge-selection-dimmed';
+    }
+    if (edge.class === edgeClass) return edge;
+    return { ...edge, class: edgeClass };
+  });
+
+  graphStore['setNodes'](updatedNodes);
+  graphStore['setEdges'](updatedEdges);
+};
+
 const setSelectedNode = (node: DependencyNode | null) => {
   graphStore['setSelectedNode'](node);
   interaction.setSelectionNodeId(node?.id ?? null);
   if (!node) {
     interaction.setCameraMode('free');
   }
+  applySelectionHighlight(node);
 };
 
 const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: DependencyNode[]; hasChanges: boolean } => {
@@ -167,7 +235,12 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
 
   let hasChanges = false;
   const measuredNodes = layoutedNodes.map((node) => {
-    const shouldMeasure = node.type === 'module' || node.type === 'package' || node.type === 'group' || node.type === 'class' || node.type === 'interface';
+    const shouldMeasure =
+      node.type === 'module' ||
+      node.type === 'package' ||
+      node.type === 'group' ||
+      node.type === 'class' ||
+      node.type === 'interface';
     if (!shouldMeasure) {
       return node;
     }
@@ -220,7 +293,10 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
   };
 };
 
-const normalizeLayoutResult = (resultNodes: DependencyNode[], resultEdges: GraphEdge[]): { nodes: DependencyNode[]; edges: GraphEdge[] } => {
+const normalizeLayoutResult = (
+  resultNodes: DependencyNode[],
+  resultEdges: GraphEdge[]
+): { nodes: DependencyNode[]; edges: GraphEdge[] } => {
   const { sourcePosition, targetPosition } = getHandlePositions(layoutConfig.direction);
 
   const nodesWithHandles = resultNodes.map((node) => ({
@@ -398,6 +474,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     .filter((node) => connectedNodeIds.has(node.id))
     .map((node) => ({
       ...node,
+      class: undefined,
       style: mergeNodeInteractionStyle(node, {
         opacity: node.id === nodeId ? 1 : 0.9,
         borderColor: node.id === nodeId ? '#22d3ee' : undefined,
@@ -586,7 +663,10 @@ const handleNodesChange = (changes: NodeChange[]) => {
   const filteredChanges = filterNodeChangesForFolderMode(changes, nodes.value, graphSettings.clusterByFolder);
   if (!filteredChanges.length) return;
 
-  const updatedNodes = applyNodeChanges(filteredChanges, nodes.value as unknown as never[]) as unknown as DependencyNode[];
+  const updatedNodes = applyNodeChanges(
+    filteredChanges,
+    nodes.value as unknown as never[]
+  ) as unknown as DependencyNode[];
   graphStore['setNodes'](updatedNodes);
 };
 
@@ -615,6 +695,7 @@ const handleLayoutChange = async (config: {
 const handleSearchResult = (result: SearchResult) => {
   let searchedNodes = nodes.value.map((node: DependencyNode) => ({
     ...node,
+    class: undefined,
     selected: result.nodes.some((searchNode) => searchNode.id === node.id),
     style: mergeNodeInteractionStyle(node, {
       opacity: result.nodes.length === 0 ? 1 : result.nodes.some((searchNode) => searchNode.id === node.id) ? 1 : 0.2,
@@ -638,6 +719,7 @@ const handleSearchResult = (result: SearchResult) => {
 
   const searchedEdges = edges.value.map((edge: GraphEdge) => ({
     ...edge,
+    class: undefined,
     selected: result.edges.some((searchEdge) => searchEdge.id === edge.id),
     style: {
       ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
@@ -685,12 +767,77 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 };
 
+// --- Hover z-index elevation (direct DOM for performance) ---
+let hoveredNodeId: string | null = null;
+const HOVER_Z = '9999';
+
+const elevateNodeAndChildren = (nodeId: string): void => {
+  const root = graphRootRef.value;
+  if (!root) return;
+
+  const el = root.querySelector<HTMLElement>(`.vue-flow__node[data-id="${CSS.escape(nodeId)}"]`);
+  if (el) {
+    el.dataset['prevZ'] = el.style.zIndex;
+    el.style.zIndex = HOVER_Z;
+  }
+  for (const n of nodes.value) {
+    if (n.parentNode === nodeId) {
+      const child = root.querySelector<HTMLElement>(`.vue-flow__node[data-id="${CSS.escape(n.id)}"]`);
+      if (child) {
+        child.dataset['prevZ'] = child.style.zIndex;
+        child.style.zIndex = HOVER_Z;
+      }
+    }
+  }
+};
+
+const restoreHoverZIndex = (nodeId: string): void => {
+  const root = graphRootRef.value;
+  if (!root) return;
+
+  const el = root.querySelector<HTMLElement>(`.vue-flow__node[data-id="${CSS.escape(nodeId)}"]`);
+  if (el?.dataset['prevZ'] !== undefined) {
+    el.style.zIndex = el.dataset['prevZ'];
+    delete el.dataset['prevZ'];
+  }
+  for (const n of nodes.value) {
+    if (n.parentNode === nodeId) {
+      const child = root.querySelector<HTMLElement>(`.vue-flow__node[data-id="${CSS.escape(n.id)}"]`);
+      if (child?.dataset['prevZ'] !== undefined) {
+        child.style.zIndex = child.dataset['prevZ'];
+        delete child.dataset['prevZ'];
+      }
+    }
+  }
+};
+
+const onNodeMouseEnter = ({ node }: { node: unknown }): void => {
+  const entered = node as DependencyNode;
+  if (hoveredNodeId && hoveredNodeId !== entered.id) {
+    restoreHoverZIndex(hoveredNodeId);
+  }
+  hoveredNodeId = entered.id;
+  elevateNodeAndChildren(entered.id);
+};
+
+const onNodeMouseLeave = ({ node }: { node: unknown }): void => {
+  const left = node as DependencyNode;
+  if (hoveredNodeId === left.id) {
+    restoreHoverZIndex(left.id);
+    hoveredNodeId = null;
+  }
+};
+
 onMounted(() => {
   graphRootRef.value?.addEventListener('wheel', handleWheel, { passive: false });
 });
 
 onUnmounted(() => {
   graphRootRef.value?.removeEventListener('wheel', handleWheel);
+  if (hoveredNodeId) {
+    restoreHoverZIndex(hoveredNodeId);
+    hoveredNodeId = null;
+  }
   if (layoutProcessor) {
     layoutProcessor.dispose();
     layoutProcessor = null;
@@ -731,6 +878,8 @@ onUnmounted(() => {
       @node-click="onNodeClick"
       @pane-click="onPaneClick"
       @nodes-change="handleNodesChange"
+      @node-mouse-enter="onNodeMouseEnter"
+      @node-mouse-leave="onNodeMouseLeave"
     >
       <Background />
       <GraphControls
@@ -747,7 +896,21 @@ onUnmounted(() => {
         @toggle-orphan-global="handleOrphanGlobalToggle"
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
-      <GraphMiniMap :nodes="nodes" :edges="edges" :selected-node-id="selectedNode?.id ?? null" />
+      <MiniMap
+        v-if="useBuiltinMinimap"
+        position="bottom-right"
+        :pannable="true"
+        :zoomable="true"
+        :node-color="minimapNodeColor"
+        :node-stroke-color="minimapNodeStrokeColor"
+        :node-stroke-width="1.5"
+        :mask-color="'rgba(7, 10, 18, 0.85)'"
+        :mask-stroke-color="'rgba(34, 211, 238, 0.6)'"
+        :mask-stroke-width="1.5"
+        aria-label="Graph minimap"
+        @node-click="handleMinimapNodeClick"
+      />
+      <GraphMiniMap v-else :nodes="nodes" :edges="edges" :selected-node-id="selectedNode?.id ?? null" />
       <Controls position="bottom-right" :show-interactive="false" />
 
       <Panel v-if="isLayoutPending" position="top-center">
@@ -787,6 +950,72 @@ onUnmounted(() => {
     opacity 140ms ease-out,
     stroke-width 140ms ease-out;
 }
+
+/* ── Selection highlighting ── */
+
+/* Selected (clicked) node */
+.dependency-graph-root :deep(.vue-flow__node.selection-target) {
+  z-index: 11 !important;
+}
+
+.dependency-graph-root :deep(.vue-flow__node.selection-target .base-node-container) {
+  border-color: #22d3ee !important;
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.3),
+    0 0 20px rgba(34, 211, 238, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Nodes connected to the selection */
+.dependency-graph-root :deep(.vue-flow__node.selection-connected) {
+  z-index: 10 !important;
+}
+
+.dependency-graph-root :deep(.vue-flow__node.selection-connected .base-node-container) {
+  border-color: rgba(34, 211, 238, 0.5) !important;
+  box-shadow:
+    0 0 12px rgba(34, 211, 238, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Dimmed non-connected nodes */
+.dependency-graph-root :deep(.vue-flow__node.selection-dimmed) {
+  opacity: 0.25 !important;
+  transition: opacity 180ms ease-out !important;
+}
+
+/* Connected edges — pulse glow via filter: drop-shadow using currentColor
+   so each edge type (import=cyan, extends=green, implements=orange) gets
+   a matching glow automatically. */
+.dependency-graph-root :deep(.vue-flow__edge.edge-selection-highlighted .vue-flow__edge-path) {
+  stroke-width: 2.5px !important;
+  filter: drop-shadow(0 0 4px currentColor);
+  animation: edge-pulse 2s ease-in-out infinite !important;
+}
+
+/* Dimmed non-connected edges */
+.dependency-graph-root :deep(.vue-flow__edge.edge-selection-dimmed .vue-flow__edge-path) {
+  opacity: 0.1 !important;
+}
+
+@keyframes edge-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dependency-graph-root :deep(.vue-flow__edge.edge-selection-highlighted .vue-flow__edge-path) {
+    animation: none !important;
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+}
+
+/* ── Layout loading ── */
 
 .layout-loading-indicator {
   padding: 0.45rem 0.75rem;

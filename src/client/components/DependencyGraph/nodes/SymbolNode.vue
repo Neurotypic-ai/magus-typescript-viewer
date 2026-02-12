@@ -21,6 +21,18 @@ const memberPropertyCount = computed(() => properties.value.length);
 const memberMethodCount = computed(() => methods.value.length);
 const totalMemberCount = computed(() => memberPropertyCount.value + memberMethodCount.value);
 
+const isCollapsible = computed(() => {
+  // Top-level nodes (no parent) can't be collapsed
+  if (!props.parentNodeId) return false;
+  return nodeData.value.collapsible === true;
+});
+const isCollapsed = ref(false);
+const toggleCollapsed = () => {
+  if (isCollapsible.value) {
+    isCollapsed.value = !isCollapsed.value;
+  }
+};
+
 const baseNodeProps = computed(() => buildBaseNodeProps(props, {
   zIndex: isMemberNode.value ? 4 : 3,
 }));
@@ -80,47 +92,62 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
     max-width="380px"
   >
     <template #body>
-      <div v-if="isMemberNode" class="member-node-body">
-        <span class="member-type">{{ nodeType }}</span>
-      </div>
+      <!-- Collapse toggle for collapsible symbol nodes -->
+      <button
+        v-if="isCollapsible"
+        class="symbol-collapse-toggle nodrag"
+        type="button"
+        @click.stop="toggleCollapsed"
+      >
+        <span>{{ isCollapsed ? 'Show members' : 'Hide members' }} ({{ totalMemberCount }})</span>
+        <span>{{ isCollapsed ? '+' : '\u2212' }}</span>
+      </button>
 
-      <div v-else-if="totalMemberCount > 0" class="symbol-members">
-        <CollapsibleSection
-          v-if="memberPropertyCount > 0"
-          title="Properties"
-          :count="memberPropertyCount"
-          :default-open="showProperties"
-        >
-          <div
-            v-for="(prop, index) in properties"
-            :key="`prop-${index}`"
-            class="member-item"
-          >
-            <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
-            <span class="member-name">{{ formatProperty(prop).name }}</span>
-            <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
+      <Transition name="section-collapse">
+        <div v-if="!isCollapsed" class="symbol-body-content">
+          <div v-if="isMemberNode" class="member-node-body">
+            <span class="member-type">{{ nodeType }}</span>
           </div>
-        </CollapsibleSection>
 
-        <CollapsibleSection
-          v-if="memberMethodCount > 0"
-          title="Methods"
-          :count="memberMethodCount"
-          :default-open="showMethods"
-        >
-          <div
-            v-for="(method, index) in methods"
-            :key="`method-${index}`"
-            class="member-item"
-          >
-            <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
-            <span class="member-name">{{ formatMethod(method).name }}()</span>
-            <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
+          <div v-else-if="totalMemberCount > 0" class="symbol-members">
+            <CollapsibleSection
+              v-if="memberPropertyCount > 0"
+              title="Properties"
+              :count="memberPropertyCount"
+              :default-open="showProperties"
+            >
+              <div
+                v-for="(prop, index) in properties"
+                :key="`prop-${index}`"
+                class="member-item"
+              >
+                <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
+                <span class="member-name">{{ formatProperty(prop).name }}</span>
+                <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
+              </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              v-if="memberMethodCount > 0"
+              title="Methods"
+              :count="memberMethodCount"
+              :default-open="showMethods"
+            >
+              <div
+                v-for="(method, index) in methods"
+                :key="`method-${index}`"
+                class="member-item"
+              >
+                <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
+                <span class="member-name">{{ formatMethod(method).name }}()</span>
+                <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
+              </div>
+            </CollapsibleSection>
           </div>
-        </CollapsibleSection>
-      </div>
 
-      <div v-else class="symbol-empty-state">No members</div>
+          <div v-else class="symbol-empty-state">No members</div>
+        </div>
+      </Transition>
     </template>
   </BaseNode>
 </template>
@@ -149,6 +176,33 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
 .type-default {
   background-color: rgba(255, 255, 255, 0.1);
   color: var(--text-secondary);
+}
+
+.symbol-collapse-toggle {
+  width: 100%;
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  margin-bottom: 0.35rem;
+}
+
+.symbol-collapse-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.symbol-body-content {
+  display: flex;
+  flex-direction: column;
 }
 
 .member-node-body,

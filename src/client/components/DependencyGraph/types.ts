@@ -124,6 +124,7 @@ export interface DependencyData {
   diagnostics?: NodeDiagnostics;
   layoutInsets?: LayoutInsets;
   isContainer?: boolean;
+  collapsible?: boolean;
   [key: string]: unknown;
 }
 

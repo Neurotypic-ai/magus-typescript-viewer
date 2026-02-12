@@ -124,14 +124,15 @@ export class WebWorkerLayoutProcessor {
    * @returns A promise that resolves with the processed layout
    */
   public processLayout(graphData: { nodes: DependencyNode[]; edges: Edge[] }): Promise<LayoutResult> {
-    // Create a deep copy of nodes and edges to avoid mutation
-    const nodes = JSON.parse(JSON.stringify(graphData.nodes)) as DependencyNode[];
-    const edges = JSON.parse(JSON.stringify(graphData.edges)) as Edge[];
-
-    // If worker is not supported or failed to initialize, use fallback
+    // postMessage() already performs a structured clone, so no need to deep-copy here.
+    // For the fallback path (no worker), use structuredClone to protect against mutation.
     if (!this.workerSupported || !this.worker) {
+      const nodes = structuredClone(graphData.nodes);
+      const edges = structuredClone(graphData.edges);
       return this.fallbackProcessLayout(nodes, edges);
     }
+
+    const { nodes, edges } = graphData;
 
     // Use the web worker
     return new Promise((resolve, reject) => {

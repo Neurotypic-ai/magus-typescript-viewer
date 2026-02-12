@@ -217,6 +217,29 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
     return this.retrieveByModuleId(moduleId);
   }
 
+  /**
+   * Batch-retrieve all imports whose module_id is in the given list.
+   */
+  async retrieveByModuleIds(moduleIds: string[]): Promise<IImportCreateDTO[]> {
+    if (moduleIds.length === 0) return [];
+    try {
+      const placeholders = moduleIds.map(() => '?').join(', ');
+      const results = await this.executeQuery<IImportRow>(
+        'retrieveByModuleIds',
+        `SELECT * FROM imports WHERE module_id IN (${placeholders})`,
+        moduleIds
+      );
+      return results.map((row) => this.mapToEntity(row));
+    } catch (error) {
+      throw new RepositoryError(
+        `Failed to retrieve imports by module IDs: ${error instanceof Error ? error.message : String(error)}`,
+        'retrieveByModuleIds',
+        this.errorTag,
+        error instanceof Error ? error : undefined
+      );
+    }
+  }
+
   private mapToEntity(row: IImportRow): IImportCreateDTO {
     return {
       id: row.id,

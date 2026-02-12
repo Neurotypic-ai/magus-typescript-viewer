@@ -22,6 +22,21 @@ const embeddedSymbols = computed<EmbeddedSymbol[]>(() => {
   return Array.isArray(symbols) ? symbols : [];
 });
 
+const embeddedClasses = computed(() => embeddedSymbols.value.filter(s => s.type === 'class'));
+const embeddedInterfaces = computed(() => embeddedSymbols.value.filter(s => s.type === 'interface'));
+
+const collapsedSymbols = ref<Set<string>>(new Set());
+const toggleSymbol = (id: string) => {
+  const next = new Set(collapsedSymbols.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  collapsedSymbols.value = next;
+};
+const isSymbolCollapsed = (id: string) => collapsedSymbols.value.has(id);
+
 const diagnostics = computed(() => nodeData.value.diagnostics as {
   externalDependencyLevel?: 'normal' | 'high' | 'critical';
 } | undefined);
@@ -179,48 +194,120 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
         </Transition>
       </div>
 
-      <!-- Embedded symbols in compact mode -->
+      <!-- Embedded symbols in compact mode — type-grouped hierarchy -->
       <div v-if="embeddedSymbols.length > 0" class="module-symbols">
+        <!-- Classes category -->
         <CollapsibleSection
-          v-for="symbol in embeddedSymbols"
-          :key="symbol.id"
-          :title="`${symbol.type.toUpperCase()}: ${symbol.name}`"
-          :count="symbol.properties.length + symbol.methods.length"
-          :default-open="false"
+          v-if="embeddedClasses.length > 0"
+          :title="`Classes`"
+          :count="embeddedClasses.length"
+          :default-open="true"
         >
-          <CollapsibleSection
-            v-if="symbol.properties.length > 0"
-            title="Properties"
-            :count="symbol.properties.length"
-            :default-open="true"
+          <div
+            v-for="symbol in embeddedClasses"
+            :key="symbol.id"
+            class="symbol-card"
           >
-            <div
-              v-for="(prop, index) in symbol.properties"
-              :key="`prop-${symbol.id}-${index}`"
-              class="member-item"
-            >
-              <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
-              <span class="member-name">{{ formatProperty(prop).name }}</span>
-              <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
-            </div>
-          </CollapsibleSection>
+            <button class="symbol-card-header nodrag" type="button" @click.stop="toggleSymbol(symbol.id)">
+              <span class="symbol-card-badge type-class">CLASS</span>
+              <span class="symbol-card-name">{{ symbol.name }}</span>
+              <span class="symbol-card-count">{{ symbol.properties.length + symbol.methods.length }}</span>
+              <span class="symbol-card-toggle">{{ isSymbolCollapsed(symbol.id) ? '+' : '\u2212' }}</span>
+            </button>
+            <Transition name="section-collapse">
+              <div v-if="!isSymbolCollapsed(symbol.id)" class="symbol-card-body">
+                <CollapsibleSection
+                  v-if="symbol.properties.length > 0"
+                  title="Properties"
+                  :count="symbol.properties.length"
+                  :default-open="true"
+                >
+                  <div
+                    v-for="(prop, index) in symbol.properties"
+                    :key="`prop-${symbol.id}-${index}`"
+                    class="member-item"
+                  >
+                    <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
+                    <span class="member-name">{{ formatProperty(prop).name }}</span>
+                    <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
+                  </div>
+                </CollapsibleSection>
+                <CollapsibleSection
+                  v-if="symbol.methods.length > 0"
+                  title="Methods"
+                  :count="symbol.methods.length"
+                  :default-open="true"
+                >
+                  <div
+                    v-for="(method, index) in symbol.methods"
+                    :key="`method-${symbol.id}-${index}`"
+                    class="member-item"
+                  >
+                    <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
+                    <span class="member-name">{{ formatMethod(method).name }}()</span>
+                    <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
+                  </div>
+                </CollapsibleSection>
+              </div>
+            </Transition>
+          </div>
+        </CollapsibleSection>
 
-          <CollapsibleSection
-            v-if="symbol.methods.length > 0"
-            title="Methods"
-            :count="symbol.methods.length"
-            :default-open="true"
+        <!-- Interfaces category -->
+        <CollapsibleSection
+          v-if="embeddedInterfaces.length > 0"
+          :title="`Interfaces`"
+          :count="embeddedInterfaces.length"
+          :default-open="true"
+        >
+          <div
+            v-for="symbol in embeddedInterfaces"
+            :key="symbol.id"
+            class="symbol-card"
           >
-            <div
-              v-for="(method, index) in symbol.methods"
-              :key="`method-${symbol.id}-${index}`"
-              class="member-item"
-            >
-              <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
-              <span class="member-name">{{ formatMethod(method).name }}()</span>
-              <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
-            </div>
-          </CollapsibleSection>
+            <button class="symbol-card-header nodrag" type="button" @click.stop="toggleSymbol(symbol.id)">
+              <span class="symbol-card-badge type-interface">INTERFACE</span>
+              <span class="symbol-card-name">{{ symbol.name }}</span>
+              <span class="symbol-card-count">{{ symbol.properties.length + symbol.methods.length }}</span>
+              <span class="symbol-card-toggle">{{ isSymbolCollapsed(symbol.id) ? '+' : '\u2212' }}</span>
+            </button>
+            <Transition name="section-collapse">
+              <div v-if="!isSymbolCollapsed(symbol.id)" class="symbol-card-body">
+                <CollapsibleSection
+                  v-if="symbol.properties.length > 0"
+                  title="Properties"
+                  :count="symbol.properties.length"
+                  :default-open="true"
+                >
+                  <div
+                    v-for="(prop, index) in symbol.properties"
+                    :key="`prop-${symbol.id}-${index}`"
+                    class="member-item"
+                  >
+                    <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
+                    <span class="member-name">{{ formatProperty(prop).name }}</span>
+                    <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
+                  </div>
+                </CollapsibleSection>
+                <CollapsibleSection
+                  v-if="symbol.methods.length > 0"
+                  title="Methods"
+                  :count="symbol.methods.length"
+                  :default-open="true"
+                >
+                  <div
+                    v-for="(method, index) in symbol.methods"
+                    :key="`method-${symbol.id}-${index}`"
+                    class="member-item"
+                  >
+                    <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
+                    <span class="member-name">{{ formatMethod(method).name }}()</span>
+                    <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
+                  </div>
+                </CollapsibleSection>
+              </div>
+            </Transition>
+          </div>
         </CollapsibleSection>
       </div>
 
@@ -330,6 +417,81 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
   flex-direction: column;
   gap: 0.35rem;
   margin-top: 0.5rem;
+}
+
+.symbol-card {
+  border: 1px solid rgba(var(--border-default-rgb), 0.4);
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.symbol-card-header {
+  width: 100%;
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.symbol-card-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.symbol-card-badge {
+  padding: 0.1rem 0.25rem;
+  border-radius: 0.2rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.symbol-card-name {
+  color: var(--text-primary);
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.symbol-card-count {
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.62rem;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.symbol-card-toggle {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.symbol-card-body {
+  padding: 0.35rem 0.5rem 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.type-class {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: rgb(147, 197, 253);
+}
+
+.type-interface {
+  background-color: rgba(168, 85, 247, 0.2);
+  color: rgb(216, 180, 254);
 }
 
 .member-item {

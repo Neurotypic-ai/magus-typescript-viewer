@@ -286,6 +286,41 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
     return this.propertyRepository.retrieveByParent(interfaceId, 'interface');
   }
 
+  /**
+   * Batch-retrieve all interfaces whose module_id is in the given list.
+   * Returns lightweight rows (without hydrated methods/properties/extended interfaces)
+   * for in-memory distribution by the caller.
+   */
+  async retrieveByModuleIds(moduleIds: string[]): Promise<Interface[]> {
+    if (moduleIds.length === 0) return [];
+    try {
+      const placeholders = moduleIds.map(() => '?').join(', ');
+      const results = await this.executeQuery<IClassOrInterfaceRow>(
+        'retrieveByModuleIds',
+        `SELECT i.* FROM interfaces i WHERE i.module_id IN (${placeholders})`,
+        moduleIds
+      );
+      return results.map(
+        (iface) =>
+          new Interface(
+            iface.id,
+            iface.package_id,
+            iface.module_id,
+            iface.name,
+            new Date(iface.created_at),
+            new Map<string, Method>(),
+            new Map<string, Property>(),
+            new Map<string, Interface>()
+          )
+      );
+    } catch (error) {
+      if (error instanceof RepositoryError) {
+        throw error;
+      }
+      throw new RepositoryError('Failed to retrieve interfaces by module IDs', 'retrieveByModuleIds', this.errorTag, error as Error);
+    }
+  }
+
   async createWithMethods(dto: IInterfaceCreateDTO, methods: IMethodCreateDTO[]): Promise<Interface> {
     try {
       // First create the interface

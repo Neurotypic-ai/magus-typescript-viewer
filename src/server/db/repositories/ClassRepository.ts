@@ -309,6 +309,42 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
     return this.propertyRepository.retrieveByParent(classId, 'class');
   }
 
+  /**
+   * Batch-retrieve all classes whose module_id is in the given list.
+   * Returns raw rows (without hydrated methods/properties/interfaces) for
+   * in-memory distribution by the caller.
+   */
+  async retrieveByModuleIds(moduleIds: string[]): Promise<Class[]> {
+    if (moduleIds.length === 0) return [];
+    try {
+      const placeholders = moduleIds.map(() => '?').join(', ');
+      const results = await this.executeQuery<IClassOrInterfaceRow>(
+        'retrieveByModuleIds',
+        `SELECT c.* FROM classes c WHERE c.module_id IN (${placeholders})`,
+        moduleIds
+      );
+      return results.map(
+        (cls) =>
+          new Class(
+            cls.id,
+            cls.package_id,
+            cls.module_id,
+            cls.name,
+            new Date(cls.created_at),
+            new Map<string, Method>(),
+            new Map<string, Property>(),
+            new Map<string, Interface>(),
+            cls.extends_id ?? undefined
+          )
+      );
+    } catch (error) {
+      if (error instanceof RepositoryError) {
+        throw error;
+      }
+      throw new RepositoryError('Failed to retrieve classes by module IDs', 'retrieveByModuleIds', this.errorTag, error as Error);
+    }
+  }
+
   async createWithMethods(dto: IClassCreateDTO, methods: IMethodCreateDTO[]): Promise<Class> {
     try {
       // First create the class
