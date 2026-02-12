@@ -190,8 +190,24 @@ body {
   color: var(--color-text-primary) !important;
 }
 
+.vue-flow__controls button svg {
+  fill: var(--color-text-secondary) !important;
+}
+
+.vue-flow__controls button:hover svg {
+  fill: var(--color-text-primary) !important;
+}
+
 .vue-flow__controls button:last-child {
   border-bottom: none !important;
+}
+
+/* Built-in minimap dark theme */
+.vue-flow__minimap {
+  background: rgba(7, 10, 18, 0.9) !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(148, 163, 184, 0.35) !important;
+  backdrop-filter: blur(4px);
 }
 
 .vue-flow__panel {

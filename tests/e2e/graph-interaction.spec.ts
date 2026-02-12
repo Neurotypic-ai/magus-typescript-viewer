@@ -87,8 +87,26 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     const firstNode = page.locator('.vue-flow__node').first();
     await firstNode.click();
 
-    // Vue Flow adds the `.selected` class to the wrapper node element.
-    await expect(firstNode).toHaveClass(/selected/);
+    // Selection can be represented by VueFlow's default `.selected` class or
+    // by the app's custom `selection-target` class.
+    await expect(firstNode).toHaveClass(/(selected|selection-target)/);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 5. Node click toggle deselects
+  // ---------------------------------------------------------------------------
+  test('clicking the same node twice clears selection and closes details', async ({ page }) => {
+    const firstNode = page.locator('.vue-flow__node').first();
+    const detailsPanel = page.locator('[role="dialog"][aria-labelledby="node-details-title"]');
+
+    await firstNode.click();
+    await expect(firstNode).toHaveClass(/(selected|selection-target)/);
+    await expect(detailsPanel).toBeVisible();
+
+    await firstNode.click();
+
+    await expect(page.locator('.vue-flow__node.selected, .vue-flow__node.selection-target')).toHaveCount(0);
+    await expect(detailsPanel).toHaveCount(0);
   });
 
   // ---------------------------------------------------------------------------
@@ -97,15 +115,18 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   test('clicking the pane deselects all nodes', async ({ page }) => {
     // Select a node first.
     const firstNode = page.locator('.vue-flow__node').first();
+    const detailsPanel = page.locator('[role="dialog"][aria-labelledby="node-details-title"]');
     await firstNode.click();
-    await expect(firstNode).toHaveClass(/selected/);
+    await expect(firstNode).toHaveClass(/(selected|selection-target)/);
+    await expect(detailsPanel).toBeVisible();
 
     // Click on the pane background to deselect.
     await page.locator('.vue-flow__pane').click();
 
     // No node should have the selected class anymore.
-    const selectedNodes = page.locator('.vue-flow__node.selected');
+    const selectedNodes = page.locator('.vue-flow__node.selected, .vue-flow__node.selection-target');
     await expect(selectedNodes).toHaveCount(0);
+    await expect(detailsPanel).toHaveCount(0);
   });
 
   // ---------------------------------------------------------------------------

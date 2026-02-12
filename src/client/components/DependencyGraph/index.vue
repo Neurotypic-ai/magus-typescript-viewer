@@ -19,7 +19,6 @@ import {
   toDependencyEdgeKind,
 } from './buildGraphView';
 import GraphControls from './components/GraphControls.vue';
-import GraphMiniMap from './components/GraphMiniMap.vue';
 import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
@@ -60,7 +59,7 @@ const selectedNode = computed(() => graphStore['selectedNode']);
 const scopeMode = computed(() => interaction.scopeMode.value);
 const isLayoutPending = ref(false);
 
-const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport } = useVueFlow();
+const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport, removeSelectedElements } = useVueFlow();
 
 const isMac = computed(() => isMacPlatform());
 const graphRootRef = ref<HTMLElement | null>(null);
@@ -142,17 +141,15 @@ let resizeObserver: ResizeObserver | null = null;
 
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
 
-const useBuiltinMinimap = import.meta.env['VITE_USE_BUILTIN_MINIMAP'] === 'true';
-
 const minimapNodeColor = (node: { type?: string }): string => {
-  if (node.type === 'package') return 'rgba(20, 184, 166, 0.55)';
-  if (node.type === 'module') return 'rgba(59, 130, 246, 0.5)';
-  if (node.type === 'class' || node.type === 'interface') return 'rgba(217, 119, 6, 0.45)';
-  return 'rgba(148, 163, 184, 0.4)';
+  if (node.type === 'package') return 'rgba(20, 184, 166, 0.8)';
+  if (node.type === 'module') return 'rgba(59, 130, 246, 0.75)';
+  if (node.type === 'class' || node.type === 'interface') return 'rgba(217, 119, 6, 0.7)';
+  return 'rgba(148, 163, 184, 0.6)';
 };
 
 const minimapNodeStrokeColor = (node: { id?: string }): string => {
-  return node.id === selectedNode.value?.id ? '#22d3ee' : 'rgba(226, 232, 240, 0.5)';
+  return node.id === selectedNode.value?.id ? '#22d3ee' : 'rgba(226, 232, 240, 0.8)';
 };
 
 const handleMinimapNodeClick = (params: { node: { id: string } }): void => {
@@ -233,16 +230,16 @@ const stripNodeClass = (node: DependencyNode): DependencyNode => {
   if (node.class === undefined) {
     return node;
   }
-  const { class: _class, ...nodeWithoutClass } = node as DependencyNode & { class?: unknown };
-  return nodeWithoutClass as DependencyNode;
+  // VueFlow merges node updates; omitting `class` can leave stale internal classes.
+  // Overwrite explicitly to clear previous selection classes.
+  return { ...node, class: '' } as DependencyNode;
 };
 
 const stripEdgeClass = (edge: GraphEdge): GraphEdge => {
   if (edge.class === undefined) {
     return edge;
   }
-  const { class: _class, ...edgeWithoutClass } = edge as GraphEdge & { class?: unknown };
-  return edgeWithoutClass as GraphEdge;
+  return { ...edge, class: '' } as GraphEdge;
 };
 
 const initializeLayoutProcessor = () => {
@@ -313,8 +310,19 @@ const setSelectedNode = (node: DependencyNode | null) => {
   interaction.setSelectionNodeId(node?.id ?? null);
   if (!node) {
     interaction.setCameraMode('free');
+    removeSelectedElements();
   }
   applySelectionHighlight(node);
+};
+
+const reconcileSelectedNodeAfterStructuralChange = (updatedNodes: DependencyNode[]): void => {
+  const currentSelection = selectedNode.value;
+  if (!currentSelection) {
+    return;
+  }
+
+  const refreshedSelection = updatedNodes.find((node) => node.id === currentSelection.id) ?? null;
+  setSelectedNode(refreshedSelection);
 };
 
 const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: DependencyNode[]; hasChanges: boolean } => {
@@ -659,7 +667,11 @@ watch(
 
 const onNodeClick = ({ node }: { node: unknown }): void => {
   const clickedNode = node as DependencyNode;
-  setSelectedNode(clickedNode);
+  if (selectedNode.value?.id === clickedNode.id) {
+    setSelectedNode(null);
+  } else {
+    setSelectedNode(clickedNode);
+  }
 };
 
 const handleFocusNode = async (nodeId: string): Promise<void> => {
@@ -702,6 +714,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
       const baseNode = stripNodeClass(node);
       return {
         ...baseNode,
+        selected: node.id === nodeId,
         style: mergeNodeInteractionStyle(baseNode, {
           opacity: node.id === nodeId ? 1 : 0.9,
           borderColor: node.id === nodeId ? '#22d3ee' : undefined,
@@ -891,11 +904,16 @@ const handleNodesChange = (changes: NodeChange[]) => {
   const filteredChanges = filterNodeChangesForFolderMode(changes, nodes.value, graphSettings.clusterByFolder);
   if (!filteredChanges.length) return;
 
+  // Keep app-managed selection as the single source of truth.
+  const structuralChanges = filteredChanges.filter((change) => change.type !== 'select');
+  if (!structuralChanges.length) return;
+
   const updatedNodes = applyNodeChanges(
-    filteredChanges,
+    structuralChanges,
     nodes.value as unknown as never[]
   ) as unknown as DependencyNode[];
   graphStore['setNodes'](updatedNodes);
+  reconcileSelectedNodeAfterStructuralChange(updatedNodes);
 };
 
 const handleLayoutChange = async (config: {
@@ -1050,6 +1068,11 @@ const handleSearchResult = (result: SearchResult) => {
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && selectedNode.value) {
+    setSelectedNode(null);
+    return;
+  }
+
   if (
     selectedNode.value &&
     (event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'ArrowDown')
@@ -1149,6 +1172,7 @@ const onNodeMouseLeave = ({ node }: { node: unknown }): void => {
 
 onMounted(() => {
   graphRootRef.value?.addEventListener('wheel', handleWheel, { passive: false });
+  document.addEventListener('keydown', handleKeyDown);
 
   // Cache the .vue-flow container element and its rect to avoid DOM queries in handleWheel
   const flowContainer = graphRootRef.value?.querySelector('.vue-flow') as HTMLElement | null;
@@ -1164,6 +1188,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   graphRootRef.value?.removeEventListener('wheel', handleWheel);
+  document.removeEventListener('keydown', handleKeyDown);
   resizeObserver?.disconnect();
   resizeObserver = null;
   cachedFlowContainer = null;
@@ -1186,7 +1211,6 @@ onUnmounted(() => {
     role="application"
     aria-label="TypeScript dependency graph visualization"
     tabindex="0"
-    @keydown="handleKeyDown"
   >
     <VueFlow
       :nodes="nodes"
@@ -1231,21 +1255,19 @@ onUnmounted(() => {
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <MiniMap
-        v-if="useBuiltinMinimap"
         position="bottom-right"
         :pannable="true"
         :zoomable="true"
         :node-color="minimapNodeColor"
         :node-stroke-color="minimapNodeStrokeColor"
-        :node-stroke-width="1.5"
-        :mask-color="'rgba(7, 10, 18, 0.85)'"
+        :node-stroke-width="2"
+        :mask-color="'rgba(7, 10, 18, 0.75)'"
         :mask-stroke-color="'rgba(34, 211, 238, 0.6)'"
         :mask-stroke-width="1.5"
         aria-label="Graph minimap"
         @node-click="handleMinimapNodeClick"
       />
-      <GraphMiniMap v-else :nodes="nodes" :edges="edges" :selected-node-id="selectedNode?.id ?? null" />
-      <Controls position="bottom-right" :show-interactive="false" />
+      <Controls position="bottom-left" :show-interactive="false" />
 
       <Panel v-if="isLayoutPending" position="top-center">
         <div class="layout-loading-indicator">Updating graph layout...</div>
