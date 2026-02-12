@@ -71,10 +71,47 @@ let graphInitPromise: Promise<void> | null = null;
 let graphInitQueued = false;
 const nodeMeasurementCache = new Map<string, { width: number; height: number; topInset: number }>();
 
+interface SearchHighlightState {
+  hasResults: boolean;
+  hasPath: boolean;
+  matchingNodeIds: Set<string>;
+  pathNodeIds: Set<string>;
+  matchingEdgeIds: Set<string>;
+}
+
+const searchHighlightState: SearchHighlightState = {
+  hasResults: false,
+  hasPath: false,
+  matchingNodeIds: new Set<string>(),
+  pathNodeIds: new Set<string>(),
+  matchingEdgeIds: new Set<string>(),
+};
+
 // Layout result cache keyed by hash of node IDs + edge IDs + config.
 // Prevents expensive ELK re-layout when only toggling visual settings.
 const layoutCache = new Map<string, { nodes: DependencyNode[]; edges: GraphEdge[] }>();
 const MAX_LAYOUT_CACHE_ENTRIES = 8;
+
+const addSetDiff = (target: Set<string>, previous: Set<string>, next: Set<string>): void => {
+  previous.forEach((id) => {
+    if (!next.has(id)) {
+      target.add(id);
+    }
+  });
+  next.forEach((id) => {
+    if (!previous.has(id)) {
+      target.add(id);
+    }
+  });
+};
+
+const resetSearchHighlightState = (): void => {
+  searchHighlightState.hasResults = false;
+  searchHighlightState.hasPath = false;
+  searchHighlightState.matchingNodeIds = new Set<string>();
+  searchHighlightState.pathNodeIds = new Set<string>();
+  searchHighlightState.matchingEdgeIds = new Set<string>();
+};
 
 function computeLayoutCacheKey(
   nodes: DependencyNode[],
@@ -545,6 +582,7 @@ const processGraphLayout = async (
 
 const initializeGraph = async () => {
   performance.mark('graph-init-start');
+  resetSearchHighlightState();
   interaction.resetInteraction();
   graphStore.setViewMode('overview');
   initializeLayoutProcessor();
@@ -869,8 +907,40 @@ const handleSearchResult = (result: SearchResult) => {
   const hasResults = matchingNodeIds.size > 0;
   const hasPath = pathNodeIds.size > 0;
 
+  const shouldRefreshAllNodes =
+    hasResults !== searchHighlightState.hasResults || (hasResults && searchHighlightState.hasResults && hasPath !== searchHighlightState.hasPath);
+  const shouldRefreshAllEdges = hasResults !== searchHighlightState.hasResults;
+
+  const nodeIdsToUpdate = new Set<string>();
+  if (shouldRefreshAllNodes) {
+    nodes.value.forEach((node) => nodeIdsToUpdate.add(node.id));
+  } else {
+    addSetDiff(nodeIdsToUpdate, searchHighlightState.matchingNodeIds, matchingNodeIds);
+    addSetDiff(nodeIdsToUpdate, searchHighlightState.pathNodeIds, pathNodeIds);
+  }
+
+  const edgeIdsToUpdate = new Set<string>();
+  if (shouldRefreshAllEdges) {
+    edges.value.forEach((edge) => edgeIdsToUpdate.add(edge.id));
+  } else {
+    addSetDiff(edgeIdsToUpdate, searchHighlightState.matchingEdgeIds, matchingEdgeIds);
+  }
+
   let nodesChanged = false;
-  const searchedNodes = nodes.value.map((node: DependencyNode) => {
+  let searchedNodes = nodes.value;
+  const nodeIndexById = new Map(nodes.value.map((node, index) => [node.id, index]));
+
+  nodeIdsToUpdate.forEach((nodeId) => {
+    const nodeIndex = nodeIndexById.get(nodeId);
+    if (nodeIndex === undefined) {
+      return;
+    }
+
+    const node = searchedNodes[nodeIndex];
+    if (!node) {
+      return;
+    }
+
     const isMatch = matchingNodeIds.has(node.id);
     const isOnPath = hasPath && pathNodeIds.has(node.id);
     const opacity = !hasResults ? 1 : hasPath ? (isOnPath ? 1 : 0.2) : isMatch ? 1 : 0.2;
@@ -886,11 +956,15 @@ const handleSearchResult = (result: SearchResult) => {
     const classChanged = node.class !== undefined;
 
     if (!selectionChanged && !opacityChanged && !borderWidthChanged && !classChanged) {
-      return node;
+      return;
     }
 
-    nodesChanged = true;
-    return {
+    if (!nodesChanged) {
+      searchedNodes = [...searchedNodes];
+      nodesChanged = true;
+    }
+
+    searchedNodes[nodeIndex] = {
       ...node,
       class: undefined,
       selected: isMatch,
@@ -906,7 +980,20 @@ const handleSearchResult = (result: SearchResult) => {
   }
 
   let edgesChanged = false;
-  const searchedEdges = edges.value.map((edge: GraphEdge) => {
+  let searchedEdges = edges.value;
+  const edgeIndexById = new Map(edges.value.map((edge, index) => [edge.id, index]));
+
+  edgeIdsToUpdate.forEach((edgeId) => {
+    const edgeIndex = edgeIndexById.get(edgeId);
+    if (edgeIndex === undefined) {
+      return;
+    }
+
+    const edge = searchedEdges[edgeIndex];
+    if (!edge) {
+      return;
+    }
+
     const isMatch = matchingEdgeIds.has(edge.id);
     const opacity = !hasResults ? 1 : isMatch ? 1 : 0.2;
     const currentStyle = typeof edge.style === 'object' ? (edge.style as Record<string, unknown>) : {};
@@ -916,11 +1003,15 @@ const handleSearchResult = (result: SearchResult) => {
     const classChanged = edge.class !== undefined;
 
     if (!selectionChanged && !opacityChanged && !classChanged) {
-      return edge;
+      return;
     }
 
-    edgesChanged = true;
-    return {
+    if (!edgesChanged) {
+      searchedEdges = [...searchedEdges];
+      edgesChanged = true;
+    }
+
+    searchedEdges[edgeIndex] = {
       ...edge,
       class: undefined,
       selected: isMatch,
@@ -934,6 +1025,12 @@ const handleSearchResult = (result: SearchResult) => {
   if (edgesChanged) {
     graphStore['setEdges'](applyEdgeVisibility(searchedEdges, graphSettings.activeRelationshipTypes));
   }
+
+  searchHighlightState.hasResults = hasResults;
+  searchHighlightState.hasPath = hasPath;
+  searchHighlightState.matchingNodeIds = new Set(matchingNodeIds);
+  searchHighlightState.pathNodeIds = new Set(pathNodeIds);
+  searchHighlightState.matchingEdgeIds = new Set(matchingEdgeIds);
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Panel, useVueFlow } from '@vue-flow/core';
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import type { DependencyNode, GraphEdge } from '../types';
 
@@ -19,6 +19,7 @@ const MAX_WIDTH = 220;
 const MAX_HEIGHT = 160;
 const MIN_SIZE = 80;
 const MAP_PADDING = 12;
+const MAX_RENDERED_EDGES = 1200;
 
 function parseNodeSize(node: DependencyNode): { width: number; height: number } {
   const style = (typeof node.style === 'object' ? node.style : {}) as Record<string, unknown>;
@@ -104,6 +105,52 @@ const normalizedNodes = computed(() => {
   });
 });
 
+const nodeById = computed(() => {
+  return new Map(props.nodes.map((node) => [node.id, node]));
+});
+
+function sampleEdges(edges: GraphEdge[], maxEdges: number): GraphEdge[] {
+  if (edges.length <= maxEdges) {
+    return edges;
+  }
+
+  const stride = Math.max(1, Math.ceil(edges.length / maxEdges));
+  const sampled: GraphEdge[] = [];
+  for (let index = 0; index < edges.length && sampled.length < maxEdges; index += stride) {
+    const edge = edges[index];
+    if (edge) {
+      sampled.push(edge);
+    }
+  }
+  return sampled;
+}
+
+const visibleEdgeCount = computed(() => {
+  return props.edges.reduce((count, edge) => (edge.hidden !== true ? count + 1 : count), 0);
+});
+
+const minimapEdges = computed(() => {
+  const visibleEdges = props.edges.filter((edge) => edge.hidden !== true);
+  if (visibleEdges.length <= MAX_RENDERED_EDGES) {
+    return visibleEdges;
+  }
+
+  const selectedNodeId = props.selectedNodeId;
+  if (!selectedNodeId) {
+    return sampleEdges(visibleEdges, MAX_RENDERED_EDGES);
+  }
+
+  const prioritized = visibleEdges.filter((edge) => edge.source === selectedNodeId || edge.target === selectedNodeId);
+  if (prioritized.length >= MAX_RENDERED_EDGES) {
+    return sampleEdges(prioritized, MAX_RENDERED_EDGES);
+  }
+
+  const remaining = visibleEdges.filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId);
+  return [...prioritized, ...sampleEdges(remaining, MAX_RENDERED_EDGES - prioritized.length)];
+});
+
+const isEdgeSamplingActive = computed(() => minimapEdges.value.length < visibleEdgeCount.value);
+
 const normalizedEdges = computed(() => {
   const nodeMap = new Map(
     normalizedNodes.value.map((node) => [
@@ -115,8 +162,7 @@ const normalizedEdges = computed(() => {
     ])
   );
 
-  return props.edges
-    .filter((edge) => edge.hidden !== true)
+  return minimapEdges.value
     .map((edge) => {
       const source = nodeMap.get(edge.source);
       const target = nodeMap.get(edge.target);
@@ -135,11 +181,24 @@ const normalizedEdges = computed(() => {
     .filter((edge): edge is { id: string; x1: number; y1: number; x2: number; y2: number } => Boolean(edge));
 });
 
+const viewportContainerSize = ref({
+  width: typeof window !== 'undefined' ? window.innerWidth : 1,
+  height: typeof window !== 'undefined' ? window.innerHeight : 1,
+});
+let flowContainer: HTMLElement | null = null;
+let flowContainerResizeObserver: ResizeObserver | null = null;
+
+const updateViewportContainerSize = (): void => {
+  viewportContainerSize.value = {
+    width: flowContainer?.clientWidth ?? window.innerWidth,
+    height: flowContainer?.clientHeight ?? window.innerHeight,
+  };
+};
+
 const viewportRect = computed(() => {
   const vp = viewport.value;
-  const containerEl = document.querySelector('.vue-flow') as HTMLElement | null;
-  const cw = containerEl?.clientWidth ?? window.innerWidth;
-  const ch = containerEl?.clientHeight ?? window.innerHeight;
+  const cw = viewportContainerSize.value.width;
+  const ch = viewportContainerSize.value.height;
   const scale = mapScale.value;
 
   return {
@@ -190,7 +249,7 @@ function handleMapClick(event: MouseEvent): void {
 }
 
 function centerOnNode(nodeId: string): void {
-  const targetNode = props.nodes.find((node) => node.id === nodeId);
+  const targetNode = nodeById.value.get(nodeId);
   if (!targetNode) {
     return;
   }
@@ -263,9 +322,27 @@ function handleViewportDragEnd(): void {
   window.removeEventListener('mouseup', handleViewportDragEnd);
 }
 
+onMounted(() => {
+  flowContainer = document.querySelector('.vue-flow') as HTMLElement | null;
+  updateViewportContainerSize();
+
+  if (flowContainer) {
+    flowContainerResizeObserver = new ResizeObserver(() => {
+      updateViewportContainerSize();
+    });
+    flowContainerResizeObserver.observe(flowContainer);
+  }
+
+  window.addEventListener('resize', updateViewportContainerSize);
+});
+
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleViewportDragMove);
   window.removeEventListener('mouseup', handleViewportDragEnd);
+  window.removeEventListener('resize', updateViewportContainerSize);
+  flowContainerResizeObserver?.disconnect();
+  flowContainerResizeObserver = null;
+  flowContainer = null;
 });
 </script>
 
@@ -273,6 +350,9 @@ onBeforeUnmount(() => {
   <Panel position="bottom-right" class="mb-2 mr-2">
     <div class="graph-mini-map" :style="{ width: mapDimensions.width + 16 + 'px' }">
       <div class="graph-mini-map-title">Mini-map</div>
+      <div v-if="isEdgeSamplingActive" class="graph-mini-map-caption">
+        Edges sampled: {{ normalizedEdges.length }} / {{ visibleEdgeCount }}
+      </div>
       <svg
         :width="mapDimensions.width"
         :height="mapDimensions.height"
@@ -337,6 +417,13 @@ onBeforeUnmount(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.graph-mini-map-caption {
+  color: rgba(148, 163, 184, 0.85);
+  font-size: 10px;
+  line-height: 1.2;
   margin-bottom: 6px;
 }
 
