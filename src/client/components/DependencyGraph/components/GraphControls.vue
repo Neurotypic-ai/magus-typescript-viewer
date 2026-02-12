@@ -52,17 +52,24 @@ const getRelationshipAvailability = (type: string) => props.relationshipAvailabi
 const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
 const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
 
+const toggleListItem = (values: string[], value: string, enabled: boolean): string[] => {
+  if (enabled) {
+    return values.includes(value) ? values : [...values, value];
+  }
+  return values.filter((item) => item !== value);
+};
+
 const handleRelationshipFilterChange = (type: string, checked: boolean) => {
   if (isRelationshipDisabled(type)) {
     return;
   }
-  graphSettings.toggleRelationshipType(type as (typeof DEFAULT_RELATIONSHIP_TYPES)[number], checked);
-  emit('relationship-filter-change', [...graphSettings.enabledRelationshipTypes]);
+  const nextTypes = toggleListItem(graphSettings.enabledRelationshipTypes, type, checked);
+  emit('relationship-filter-change', nextTypes);
 };
 
 const handleNodeTypeFilterChange = (type: (typeof nodeTypes)[number], checked: boolean) => {
-  graphSettings.toggleNodeType(type, checked);
-  emit('node-type-filter-change', [...graphSettings.enabledNodeTypes]);
+  const nextTypes = toggleListItem(graphSettings.enabledNodeTypes, type, checked);
+  emit('node-type-filter-change', nextTypes);
 };
 
 const handleAlgorithmChange = (algorithm: 'layered' | 'radial' | 'force' | 'stress') => {
@@ -83,31 +90,22 @@ const handleSpacingChange = () => {
 };
 
 const handleCollapseSccToggle = (checked: boolean) => {
-  graphSettings.setCollapseScc(checked);
   emit('toggle-collapse-scc', checked);
 };
 
 const handleClusterByFolderToggle = (checked: boolean) => {
-  if (checked && graphSettings.collapseScc) {
-    graphSettings.setCollapseScc(false);
-    emit('toggle-collapse-scc', false);
-  }
-  graphSettings.setClusterByFolder(checked);
   emit('toggle-cluster-folder', checked);
 };
 
 const handleHideTestFilesToggle = (checked: boolean) => {
-  graphSettings.setHideTestFiles(checked);
   emit('toggle-hide-test-files', checked);
 };
 
 const handleMemberNodeModeChange = (mode: 'compact' | 'graph') => {
-  graphSettings.setMemberNodeMode(mode);
   emit('member-node-mode-change', mode);
 };
 
 const handleOrphanGlobalToggle = (checked: boolean) => {
-  graphSettings.setHighlightOrphanGlobal(checked);
   emit('toggle-orphan-global', checked);
 };
 </script>

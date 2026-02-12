@@ -35,6 +35,112 @@ interface SymbolSummary {
   methods: DisplayMethod[];
 }
 
+interface GraphDetailsIndex {
+  moduleById: Map<string, ModuleStructure>;
+  usageByTargetSymbolId: Map<string, string[]>;
+}
+
+const graphDetailsIndexCache = new WeakMap<DependencyPackageGraph, GraphDetailsIndex>();
+
+function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex {
+  const moduleById = new Map<string, ModuleStructure>();
+  const symbolLabelById = new Map<string, string>();
+  const usageByTargetSymbolIdSets = new Map<string, Set<string>>();
+
+  data.packages.forEach((pkg) => {
+    if (!pkg.modules) {
+      return;
+    }
+
+    mapTypeCollection(pkg.modules, (module) => {
+      moduleById.set(module.id, module);
+      symbolLabelById.set(module.id, module.name ?? module.id);
+
+      if (module.classes) {
+        mapTypeCollection(module.classes, (cls) => {
+          const classLabel = cls.name ?? 'Unnamed class';
+          symbolLabelById.set(cls.id, classLabel);
+
+          if (cls.properties) {
+            mapTypeCollection(cls.properties, (prop) => {
+              if (!prop.id) return;
+              symbolLabelById.set(prop.id, `${classLabel}.${prop.name ?? 'unnamed'}`);
+            });
+          }
+
+          if (cls.methods) {
+            mapTypeCollection(cls.methods, (method) => {
+              if (!method.id) return;
+              symbolLabelById.set(method.id, `${classLabel}.${method.name ?? 'unnamed'}()`);
+            });
+          }
+        });
+      }
+
+      if (module.interfaces) {
+        mapTypeCollection(module.interfaces, (iface) => {
+          const interfaceLabel = iface.name ?? 'Unnamed interface';
+          symbolLabelById.set(iface.id, interfaceLabel);
+
+          if (iface.properties) {
+            mapTypeCollection(iface.properties, (prop) => {
+              if (!prop.id) return;
+              symbolLabelById.set(prop.id, `${interfaceLabel}.${prop.name ?? 'unnamed'}`);
+            });
+          }
+
+          if (iface.methods) {
+            mapTypeCollection(iface.methods, (method) => {
+              if (!method.id) return;
+              symbolLabelById.set(method.id, `${interfaceLabel}.${method.name ?? 'unnamed'}()`);
+            });
+          }
+        });
+      }
+    });
+  });
+
+  data.packages.forEach((pkg) => {
+    if (!pkg.modules) {
+      return;
+    }
+
+    mapTypeCollection(pkg.modules, (module) => {
+      if (!module.symbol_references) {
+        return;
+      }
+
+      const moduleLabel = module.name ?? module.id;
+      mapTypeCollection(module.symbol_references, (reference) => reference).forEach((reference) => {
+        const targetId = reference.target_symbol_id;
+        if (!targetId) {
+          return;
+        }
+
+        const sourceLabelById = reference.source_symbol_id
+          ? symbolLabelById.get(reference.source_symbol_id)
+          : undefined;
+        const sourceLabel = sourceLabelById ?? reference.source_symbol_name ?? reference.source_symbol_type;
+        const usageLabel = `${sourceLabel} in ${moduleLabel}`;
+
+        const usageSet = usageByTargetSymbolIdSets.get(targetId) ?? new Set<string>();
+        usageSet.add(usageLabel);
+        usageByTargetSymbolIdSets.set(targetId, usageSet);
+      });
+    });
+  });
+
+  const usageByTargetSymbolId = new Map<string, string[]>();
+  usageByTargetSymbolIdSets.forEach((usageLabels, targetId) => {
+    usageByTargetSymbolId.set(targetId, uniqueSorted(Array.from(usageLabels)));
+  });
+
+  return {
+    moduleById,
+    usageByTargetSymbolId,
+  };
+}
+
 const props = defineProps<NodeDetailsProps>();
 const emit = defineEmits<{
   'open-symbol-usage': [nodeId: string];
@@ -43,6 +149,17 @@ const emit = defineEmits<{
 function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
+
+const graphDetailsIndex = computed<GraphDetailsIndex>(() => {
+  const cached = graphDetailsIndexCache.get(props.data);
+  if (cached) {
+    return cached;
+  }
+
+  const index = buildGraphDetailsIndex(props.data);
+  graphDetailsIndexCache.set(props.data, index);
+  return index;
+});
 
 const nodeLabelById = computed(() => {
   const map = new Map<string, string>();
@@ -73,121 +190,13 @@ const edgesByTarget = computed(() => {
   return map;
 });
 
-// Only needs class/interface detail when the selected node is a module, class, or interface
-const needsSymbolLabels = computed(() => {
-  const nodeType = props.node.type;
-  return nodeType === 'module' || nodeType === 'class' || nodeType === 'interface'
-    || nodeType === 'method' || nodeType === 'property';
-});
-
-const symbolLabelById = computed(() => {
-  const map = new Map<string, string>();
-
-  // Skip expensive deep traversal when the selected node doesn't need symbol labels
-  if (!needsSymbolLabels.value) return map;
-
-  props.data.packages.forEach((pkg) => {
-    if (!pkg.modules) return;
-
-    mapTypeCollection(pkg.modules, (module) => {
-      map.set(module.id, module.name ?? module.id);
-
-      if (module.classes) {
-        mapTypeCollection(module.classes, (cls) => {
-          const classLabel = cls.name ?? 'Unnamed class';
-          map.set(cls.id, classLabel);
-
-          (cls.properties ?? []).forEach((prop) => {
-            if (!prop.id) return;
-            map.set(prop.id, `${classLabel}.${prop.name ?? 'unnamed'}`);
-          });
-
-          (cls.methods ?? []).forEach((method) => {
-            if (!method.id) return;
-            map.set(method.id, `${classLabel}.${method.name ?? 'unnamed'}()`);
-          });
-        });
-      }
-
-      if (module.interfaces) {
-        mapTypeCollection(module.interfaces, (iface) => {
-          const interfaceLabel = iface.name ?? 'Unnamed interface';
-          map.set(iface.id, interfaceLabel);
-
-          (iface.properties ?? []).forEach((prop) => {
-            if (!prop.id) return;
-            map.set(prop.id, `${interfaceLabel}.${prop.name ?? 'unnamed'}`);
-          });
-
-          (iface.methods ?? []).forEach((method) => {
-            if (!method.id) return;
-            map.set(method.id, `${interfaceLabel}.${method.name ?? 'unnamed'}()`);
-          });
-        });
-      }
-    });
-  });
-
-  return map;
-});
-
-const usageByTargetSymbolId = computed(() => {
-  const usageMap = new Map<string, string[]>();
-
-  // Only compute usage map when the selected node could have usages
-  // (modules show class/interface usages, classes/interfaces/methods/properties have direct usages)
-  if (!needsSymbolLabels.value) return usageMap;
-
-  props.data.packages.forEach((pkg) => {
-    if (!pkg.modules) return;
-
-    mapTypeCollection(pkg.modules, (module) => {
-      if (!module.symbol_references) return;
-
-      const moduleLabel = module.name ?? module.id;
-      mapTypeCollection(module.symbol_references, (reference) => reference).forEach((reference) => {
-        const targetId = reference.target_symbol_id;
-        if (!targetId) return;
-
-        const sourceLabelById = reference.source_symbol_id
-          ? symbolLabelById.value.get(reference.source_symbol_id)
-          : undefined;
-        const sourceLabel = sourceLabelById ?? reference.source_symbol_name ?? reference.source_symbol_type;
-        const usageLabel = `${sourceLabel} in ${moduleLabel}`;
-
-        const existing = usageMap.get(targetId);
-        if (existing) {
-          if (!existing.includes(usageLabel)) {
-            existing.push(usageLabel);
-          }
-        } else {
-          usageMap.set(targetId, [usageLabel]);
-        }
-      });
-    });
-  });
-
-  usageMap.forEach((labels, targetId) => {
-    usageMap.set(targetId, uniqueSorted(labels));
-  });
-
-  return usageMap;
-});
-
 function getUsedBy(symbolId: string | undefined): string[] {
   if (!symbolId) return [];
-  return usageByTargetSymbolId.value.get(symbolId) ?? [];
+  return graphDetailsIndex.value.usageByTargetSymbolId.get(symbolId) ?? [];
 }
 
 const selectedModule = computed<ModuleStructure | undefined>(() => {
-  for (const pkg of props.data.packages) {
-    if (!pkg.modules) continue;
-    const matched = mapTypeCollection(pkg.modules, (module) => module).find((module) => module.id === props.node.id);
-    if (matched) {
-      return matched;
-    }
-  }
-  return undefined;
+  return graphDetailsIndex.value.moduleById.get(props.node.id);
 });
 
 const moduleClasses = computed<SymbolSummary[]>(() => {
@@ -261,56 +270,56 @@ const nodeMethods = computed<DisplayMethod[]>(() => {
 });
 
 function labelsFromNodeIds(ids: string[]): string[] {
-  return ids.filter(Boolean).map((id) => nodeLabelById.value.get(id) ?? id);
+  const labels = ids.filter(Boolean).map((id) => nodeLabelById.value.get(id) ?? id);
+  return uniqueSorted(labels);
 }
 
-const imports = computed(() => {
+const nodeRelationships = computed(() => {
+  const outgoingByType = new Map<string, string[]>();
+  const incomingByType = new Map<string, string[]>();
+
   const sourceEdges = edgesBySource.value.get(props.node.id) ?? [];
-  const importedIds = sourceEdges
-    .filter((edge) => edge.data?.type === 'import')
-    .map((edge) => edge.target);
-  return labelsFromNodeIds(importedIds);
-});
+  sourceEdges.forEach((edge) => {
+    const edgeType = edge.data?.type;
+    if (!edgeType) {
+      return;
+    }
+    const targets = outgoingByType.get(edgeType) ?? [];
+    targets.push(edge.target);
+    outgoingByType.set(edgeType, targets);
+  });
 
-const importedBy = computed(() => {
   const targetEdges = edgesByTarget.value.get(props.node.id) ?? [];
-  const importerIds = targetEdges
-    .filter((edge) => edge.data?.type === 'import')
-    .map((edge) => edge.source);
-  return labelsFromNodeIds(importerIds);
+  targetEdges.forEach((edge) => {
+    const edgeType = edge.data?.type;
+    if (!edgeType) {
+      return;
+    }
+    const sources = incomingByType.get(edgeType) ?? [];
+    sources.push(edge.source);
+    incomingByType.set(edgeType, sources);
+  });
+
+  return {
+    outgoingByType,
+    incomingByType,
+  };
 });
 
-const extendsTargets = computed(() => {
-  const sourceEdges = edgesBySource.value.get(props.node.id) ?? [];
-  const ids = sourceEdges
-    .filter((edge) => edge.data?.type === 'inheritance')
-    .map((edge) => edge.target);
-  return labelsFromNodeIds(ids);
-});
+function labelsForOutgoingType(type: string): string[] {
+  return labelsFromNodeIds(nodeRelationships.value.outgoingByType.get(type) ?? []);
+}
 
-const inheritedBy = computed(() => {
-  const targetEdges = edgesByTarget.value.get(props.node.id) ?? [];
-  const ids = targetEdges
-    .filter((edge) => edge.data?.type === 'inheritance')
-    .map((edge) => edge.source);
-  return labelsFromNodeIds(ids);
-});
+function labelsForIncomingType(type: string): string[] {
+  return labelsFromNodeIds(nodeRelationships.value.incomingByType.get(type) ?? []);
+}
 
-const implementsTargets = computed(() => {
-  const sourceEdges = edgesBySource.value.get(props.node.id) ?? [];
-  const ids = sourceEdges
-    .filter((edge) => edge.data?.type === 'implements')
-    .map((edge) => edge.target);
-  return labelsFromNodeIds(ids);
-});
-
-const implementedBy = computed(() => {
-  const targetEdges = edgesByTarget.value.get(props.node.id) ?? [];
-  const ids = targetEdges
-    .filter((edge) => edge.data?.type === 'implements')
-    .map((edge) => edge.source);
-  return labelsFromNodeIds(ids);
-});
+const imports = computed(() => labelsForOutgoingType('import'));
+const importedBy = computed(() => labelsForIncomingType('import'));
+const extendsTargets = computed(() => labelsForOutgoingType('inheritance'));
+const inheritedBy = computed(() => labelsForIncomingType('inheritance'));
+const implementsTargets = computed(() => labelsForOutgoingType('implements'));
+const implementedBy = computed(() => labelsForIncomingType('implements'));
 
 const moduleImportsMetadata = computed(() => props.node.data?.imports ?? []);
 const moduleExportsMetadata = computed(() => props.node.data?.exports ?? []);

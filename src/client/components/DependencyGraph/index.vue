@@ -67,6 +67,33 @@ const graphRootRef = ref<HTMLElement | null>(null);
 
 let layoutProcessor: WebWorkerLayoutProcessor | null = null;
 let layoutRequestVersion = 0;
+let graphInitPromise: Promise<void> | null = null;
+let graphInitQueued = false;
+const nodeMeasurementCache = new Map<string, { width: number; height: number; topInset: number }>();
+
+// Layout result cache keyed by hash of node IDs + edge IDs + config.
+// Prevents expensive ELK re-layout when only toggling visual settings.
+const layoutCache = new Map<string, { nodes: DependencyNode[]; edges: GraphEdge[] }>();
+const MAX_LAYOUT_CACHE_ENTRIES = 8;
+
+function computeLayoutCacheKey(
+  nodes: DependencyNode[],
+  edgeList: GraphEdge[],
+  config: typeof layoutConfig
+): string {
+  // Build a fast hash from node/edge IDs + layout direction/algorithm
+  const nodeIds = nodes.map((n) => n.id).sort().join(',');
+  const edgeIds = edgeList.map((e) => e.id).sort().join(',');
+  return `${config.algorithm}:${config.direction}:${config.nodeSpacing}:${config.rankSpacing}:${config.edgeSpacing}:${nodeIds.length}:${edgeIds.length}:${simpleHash(nodeIds)}:${simpleHash(edgeIds)}`;
+}
+
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return hash >>> 0;
+}
 
 // Cached DOM references for handleWheel (Issue #19: avoid querySelector/getBoundingClientRect per event)
 let cachedFlowContainer: HTMLElement | null = null;
@@ -101,6 +128,16 @@ const defaultLayoutConfig = {
   edgeSpacing: 30,
 };
 const layoutConfig = { ...defaultLayoutConfig };
+
+const getLayoutProcessorConfig = () => ({
+  algorithm: layoutConfig.algorithm,
+  direction: layoutConfig.direction,
+  nodeSpacing: layoutConfig.nodeSpacing,
+  rankSpacing: layoutConfig.rankSpacing,
+  edgeSpacing: layoutConfig.edgeSpacing,
+  theme: graphTheme,
+  animationDuration: 150,
+});
 
 const getHandlePositions = (
   direction: 'LR' | 'RL' | 'TB' | 'BT'
@@ -164,19 +201,12 @@ const mergeNodeInteractionStyle = (
 const initializeLayoutProcessor = () => {
   layoutRequestVersion += 1;
 
-  if (layoutProcessor) {
-    layoutProcessor.dispose();
+  if (!layoutProcessor) {
+    layoutProcessor = new WebWorkerLayoutProcessor(getLayoutProcessorConfig());
+    return;
   }
 
-  layoutProcessor = new WebWorkerLayoutProcessor({
-    algorithm: layoutConfig.algorithm,
-    direction: layoutConfig.direction,
-    nodeSpacing: layoutConfig.nodeSpacing,
-    rankSpacing: layoutConfig.rankSpacing,
-    edgeSpacing: layoutConfig.edgeSpacing,
-    theme: graphTheme,
-    animationDuration: 150,
-  });
+  layoutProcessor.updateConfig(getLayoutProcessorConfig());
 };
 
 const applySelectionHighlight = (selected: DependencyNode | null): void => {
@@ -235,39 +265,34 @@ const setSelectedNode = (node: DependencyNode | null) => {
 };
 
 const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: DependencyNode[]; hasChanges: boolean } => {
-  const domNodes = Array.from(document.querySelectorAll<HTMLElement>('.vue-flow__node'));
-  const elementById = new Map<string, HTMLElement>();
-  domNodes.forEach((element) => {
-    const id = element.getAttribute('data-id');
-    if (id) {
-      elementById.set(id, element);
-    }
-  });
+  const measurableNodes = layoutedNodes.filter(
+    (node) => node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true
+  );
+  if (measurableNodes.length === 0) {
+    return { nodes: layoutedNodes, hasChanges: false };
+  }
 
-  // Batch all DOM reads first (prevents interleaved read-write reflows)
-  const measurements = new Map<
-    string,
-    { width: number; height: number; headerH: number; bodyH: number; subnodesH: number }
-  >();
-  for (const [id, element] of elementById) {
-    measurements.set(id, {
+  // Batch only container-node measurements (much smaller set than all graph nodes).
+  const measurements = new Map<string, { width: number; height: number; headerH: number; bodyH: number; subnodesH: number }>();
+  measurableNodes.forEach((node) => {
+    const escapedId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(node.id) : node.id;
+    const element = document.querySelector<HTMLElement>(`.vue-flow__node[data-id="${escapedId}"]`);
+    if (!element) {
+      return;
+    }
+
+    measurements.set(node.id, {
       width: element.offsetWidth,
       height: element.offsetHeight,
       headerH: element.querySelector<HTMLElement>('.base-node-header')?.offsetHeight ?? 0,
       bodyH: element.querySelector<HTMLElement>('.base-node-body')?.offsetHeight ?? 0,
       subnodesH: element.querySelector<HTMLElement>('.base-node-subnodes')?.offsetHeight ?? 0,
     });
-  }
+  });
 
-  // Now build result nodes (no DOM reads, just computation)
   let hasChanges = false;
   const measuredNodes = layoutedNodes.map((node) => {
-    const shouldMeasure =
-      node.type === 'module' ||
-      node.type === 'package' ||
-      node.type === 'group' ||
-      node.type === 'class' ||
-      node.type === 'interface';
+    const shouldMeasure = node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true;
     if (!shouldMeasure) {
       return node;
     }
@@ -285,13 +310,18 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
     const widthDelta = Math.abs((currentMeasured?.width ?? 0) - m.width);
     const heightDelta = Math.abs((currentMeasured?.height ?? 0) - m.height);
     const insetDelta = Math.abs(currentTopInset - measuredTopInset);
-    const changed = widthDelta > 1 || heightDelta > 1 || insetDelta > 1;
+    const cached = nodeMeasurementCache.get(node.id);
+    const cacheDeltaWidth = Math.abs((cached?.width ?? 0) - m.width);
+    const cacheDeltaHeight = Math.abs((cached?.height ?? 0) - m.height);
+    const cacheDeltaInset = Math.abs((cached?.topInset ?? 0) - measuredTopInset);
+    const changed = widthDelta > 1 || heightDelta > 1 || insetDelta > 1 || cacheDeltaWidth > 1 || cacheDeltaHeight > 1 || cacheDeltaInset > 1;
 
     if (!changed) {
       return node;
     }
 
     hasChanges = true;
+    nodeMeasurementCache.set(node.id, { width: m.width, height: m.height, topInset: measuredTopInset });
     return {
       ...node,
       data: {
@@ -311,6 +341,51 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
     nodes: measuredNodes,
     hasChanges,
   };
+};
+
+const toDimensionValue = (value: unknown): number | undefined => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const collectNodesNeedingInternalsUpdate = (previous: DependencyNode[], next: DependencyNode[]): string[] => {
+  const previousById = new Map(previous.map((node) => [node.id, node]));
+  const changedIds: string[] = [];
+
+  next.forEach((node) => {
+    const prev = previousById.get(node.id);
+    if (!prev) {
+      changedIds.push(node.id);
+      return;
+    }
+
+    if (prev.sourcePosition !== node.sourcePosition || prev.targetPosition !== node.targetPosition || prev.parentNode !== node.parentNode) {
+      changedIds.push(node.id);
+      return;
+    }
+
+    const prevMeasured = (prev as { measured?: { width?: number; height?: number } }).measured;
+    const nextMeasured = (node as { measured?: { width?: number; height?: number } }).measured;
+    const prevStyle = typeof prev.style === 'object' ? (prev.style as Record<string, unknown>) : {};
+    const nextStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
+
+    const prevWidth = prevMeasured?.width ?? toDimensionValue(prevStyle['width']) ?? prev.width ?? 0;
+    const prevHeight = prevMeasured?.height ?? toDimensionValue(prevStyle['height']) ?? prev.height ?? 0;
+    const nextWidth = nextMeasured?.width ?? toDimensionValue(nextStyle['width']) ?? node.width ?? 0;
+    const nextHeight = nextMeasured?.height ?? toDimensionValue(nextStyle['height']) ?? node.height ?? 0;
+
+    if (Math.abs(prevWidth - nextWidth) > 1 || Math.abs(prevHeight - nextHeight) > 1) {
+      changedIds.push(node.id);
+    }
+  });
+
+  return changedIds;
 };
 
 const normalizeLayoutResult = (
@@ -353,6 +428,32 @@ const processGraphLayout = async (
   try {
     performance.mark('layout-start');
 
+    // Check layout cache to avoid expensive ELK re-computation
+    const cacheKey = computeLayoutCacheKey(graphData.nodes, graphData.edges as GraphEdge[], layoutConfig);
+    const cached = layoutCache.get(cacheKey);
+    if (cached) {
+      const previousNodes = graphStore['nodes'];
+      graphStore['setNodes'](cached.nodes);
+      graphStore['setEdges'](cached.edges);
+      await nextTick();
+      const changedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, cached.nodes);
+      if (changedNodeIds.length > 0) {
+        updateNodeInternals(changedNodeIds);
+      }
+
+      if (fitViewToResult) {
+        await fitView({
+          duration: 180,
+          padding: fitPadding,
+          ...(options.fitNodes?.length ? { nodes: options.fitNodes } : {}),
+        });
+      }
+
+      performance.mark('layout-end');
+      measurePerformance('graph-layout', 'layout-start', 'layout-end');
+      return cached;
+    }
+
     const firstPassResult = await layoutProcessor.processLayout(graphData);
     if (requestVersion !== layoutRequestVersion) {
       return null;
@@ -364,15 +465,20 @@ const processGraphLayout = async (
     );
 
     // First pass commit - needed to render DOM for measurement
+    const previousNodes = graphStore['nodes'];
     graphStore['setNodes'](normalized.nodes);
     graphStore['setEdges'](normalized.edges);
 
     await nextTick();
-    updateNodeInternals(normalized.nodes.map((node) => node.id));
+    const firstPassChangedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, normalized.nodes);
+    if (firstPassChangedNodeIds.length > 0) {
+      updateNodeInternals(firstPassChangedNodeIds);
+    }
 
     if (twoPassMeasure) {
       const measured = measureLayoutInsets(normalized.nodes);
       if (measured.hasChanges) {
+        const firstPassNodes = normalized.nodes;
         const secondPassResult = await layoutProcessor.processLayout({
           nodes: measured.nodes,
           edges: normalized.edges,
@@ -390,7 +496,10 @@ const processGraphLayout = async (
         graphStore['setNodes'](normalized.nodes);
         graphStore['setEdges'](normalized.edges);
         await nextTick();
-        updateNodeInternals(normalized.nodes.map((node) => node.id));
+        const secondPassChangedNodeIds = collectNodesNeedingInternalsUpdate(firstPassNodes, normalized.nodes);
+        if (secondPassChangedNodeIds.length > 0) {
+          updateNodeInternals(secondPassChangedNodeIds);
+        }
       }
     }
 
@@ -408,6 +517,14 @@ const processGraphLayout = async (
         });
       }
     }
+
+    // Cache the result for future identical graph+config combinations
+    if (layoutCache.size >= MAX_LAYOUT_CACHE_ENTRIES) {
+      // Evict oldest entry (first inserted)
+      const firstKey = layoutCache.keys().next().value;
+      if (firstKey !== undefined) layoutCache.delete(firstKey);
+    }
+    layoutCache.set(cacheKey, { nodes: normalized.nodes, edges: normalized.edges });
 
     performance.mark('layout-end');
     measurePerformance('graph-layout', 'layout-start', 'layout-end');
@@ -457,7 +574,34 @@ const initializeGraph = async () => {
   measurePerformance('graph-initialization', 'graph-init-start', 'graph-init-end');
 };
 
-watch(() => props.data, initializeGraph, { immediate: true });
+const requestGraphInitialization = async (): Promise<void> => {
+  graphInitQueued = true;
+  if (graphInitPromise) {
+    await graphInitPromise;
+    return;
+  }
+
+  graphInitPromise = (async () => {
+    while (graphInitQueued) {
+      graphInitQueued = false;
+      await initializeGraph();
+    }
+  })();
+
+  try {
+    await graphInitPromise;
+  } finally {
+    graphInitPromise = null;
+  }
+};
+
+watch(
+  () => props.data,
+  () => {
+    void requestGraphInitialization();
+  },
+  { immediate: true }
+);
 
 const onNodeClick = ({ node }: { node: unknown }): void => {
   const clickedNode = node as DependencyNode;
@@ -622,7 +766,7 @@ const handleReturnToOverview = async (): Promise<void> => {
     return;
   }
 
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleResetLayout = async (): Promise<void> => {
@@ -632,7 +776,7 @@ const handleResetLayout = async (): Promise<void> => {
   layoutConfig.rankSpacing = defaultLayoutConfig.rankSpacing;
   layoutConfig.edgeSpacing = defaultLayoutConfig.edgeSpacing;
 
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleResetView = async (): Promise<void> => {
@@ -642,13 +786,13 @@ const handleResetView = async (): Promise<void> => {
 
 const handleRelationshipFilterChange = async (types: string[]) => {
   graphSettings.setEnabledRelationshipTypes(types);
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleNodeTypeFilterChange = async (types: string[]) => {
   graphSettings.setEnabledNodeTypes(types);
   setSelectedNode(null);
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleCollapseSccToggle = async (value: boolean) => {
@@ -657,7 +801,7 @@ const handleCollapseSccToggle = async (value: boolean) => {
     return;
   }
   graphSettings.setCollapseScc(value);
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleClusterByFolderToggle = async (value: boolean) => {
@@ -665,22 +809,22 @@ const handleClusterByFolderToggle = async (value: boolean) => {
     graphSettings.setCollapseScc(false);
   }
   graphSettings.setClusterByFolder(value);
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleHideTestFilesToggle = async (value: boolean) => {
   graphSettings.setHideTestFiles(value);
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleMemberNodeModeChange = async (value: 'compact' | 'graph') => {
   graphSettings.setMemberNodeMode(value);
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleOrphanGlobalToggle = async (value: boolean) => {
   graphSettings.setHighlightOrphanGlobal(value);
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleNodesChange = (changes: NodeChange[]) => {
@@ -715,48 +859,81 @@ const handleLayoutChange = async (config: {
     layoutConfig.rankSpacing = config.rankSpacing;
   }
 
-  await initializeGraph();
+  await requestGraphInitialization();
 };
 
 const handleSearchResult = (result: SearchResult) => {
-  // Pre-build Sets for O(1) lookups instead of O(n) .some() per node/edge
   const matchingNodeIds = new Set(result.nodes.map((n) => n.id));
   const pathNodeIds = new Set(result.path?.map((n) => n.id) ?? []);
   const matchingEdgeIds = new Set(result.edges.map((e) => e.id));
   const hasResults = matchingNodeIds.size > 0;
   const hasPath = pathNodeIds.size > 0;
 
+  let nodesChanged = false;
   const searchedNodes = nodes.value.map((node: DependencyNode) => {
     const isMatch = matchingNodeIds.has(node.id);
     const isOnPath = hasPath && pathNodeIds.has(node.id);
     const opacity = !hasResults ? 1 : hasPath ? (isOnPath ? 1 : 0.2) : isMatch ? 1 : 0.2;
     const borderWidth =
       hasPath && isOnPath ? graphTheme.edges.sizes.width.selected : hasPath ? graphTheme.edges.sizes.width.default : undefined;
+    const currentStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
+    const currentOpacity = toDimensionValue(currentStyle['opacity']) ?? 1;
+    const currentBorderWidth = currentStyle['borderWidth'];
 
+    const selectionChanged = Boolean(node.selected) !== isMatch;
+    const opacityChanged = Math.abs(currentOpacity - opacity) > 0.001;
+    const borderWidthChanged = String(currentBorderWidth ?? '') !== String(borderWidth ?? '');
+    const classChanged = node.class !== undefined;
+
+    if (!selectionChanged && !opacityChanged && !borderWidthChanged && !classChanged) {
+      return node;
+    }
+
+    nodesChanged = true;
     return {
       ...node,
       class: undefined,
       selected: isMatch,
       style: mergeNodeInteractionStyle(node, {
         opacity,
-        ...(borderWidth !== undefined ? { borderWidth } : {}),
+        borderWidth,
       }),
     };
   });
 
-  graphStore['setNodes'](searchedNodes);
+  if (nodesChanged) {
+    graphStore['setNodes'](searchedNodes);
+  }
 
-  const searchedEdges = edges.value.map((edge: GraphEdge) => ({
-    ...edge,
-    class: undefined,
-    selected: matchingEdgeIds.has(edge.id),
-    style: {
-      ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
-      opacity: !hasResults ? 1 : matchingEdgeIds.has(edge.id) ? 1 : 0.2,
-    },
-  }));
+  let edgesChanged = false;
+  const searchedEdges = edges.value.map((edge: GraphEdge) => {
+    const isMatch = matchingEdgeIds.has(edge.id);
+    const opacity = !hasResults ? 1 : isMatch ? 1 : 0.2;
+    const currentStyle = typeof edge.style === 'object' ? (edge.style as Record<string, unknown>) : {};
+    const currentOpacity = toDimensionValue(currentStyle['opacity']) ?? 1;
+    const selectionChanged = Boolean(edge.selected) !== isMatch;
+    const opacityChanged = Math.abs(currentOpacity - opacity) > 0.001;
+    const classChanged = edge.class !== undefined;
 
-  graphStore['setEdges'](applyEdgeVisibility(searchedEdges, graphSettings.activeRelationshipTypes));
+    if (!selectionChanged && !opacityChanged && !classChanged) {
+      return edge;
+    }
+
+    edgesChanged = true;
+    return {
+      ...edge,
+      class: undefined,
+      selected: isMatch,
+      style: {
+        ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
+        opacity,
+      },
+    };
+  });
+
+  if (edgesChanged) {
+    graphStore['setEdges'](applyEdgeVisibility(searchedEdges, graphSettings.activeRelationshipTypes));
+  }
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
@@ -902,7 +1079,7 @@ onUnmounted(() => {
       :nodes="nodes"
       :edges="edges"
       :node-types="nodeTypes as any"
-      :fit-view-on-init="true"
+      :fit-view-on-init="false"
       :min-zoom="0.1"
       :max-zoom="2"
       :default-viewport="DEFAULT_VIEWPORT"

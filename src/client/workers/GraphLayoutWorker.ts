@@ -28,20 +28,32 @@ interface LayoutConfig {
   animationDuration?: number;
 }
 
+let elkInstancePromise: Promise<{ layout: (graph: unknown) => Promise<any> }> | null = null;
+
+async function getElkInstance(): Promise<{ layout: (graph: unknown) => Promise<any> }> {
+  if (!elkInstancePromise) {
+    elkInstancePromise = (async () => {
+      const { default: ELK } = await import('elkjs/lib/elk-api.js');
+      const workerUrl = new URL('elkjs/lib/elk-worker.min.js', import.meta.url).href;
+      return new ELK({ workerUrl }) as { layout: (graph: unknown) => Promise<any> };
+    })();
+  }
+
+  try {
+    return await elkInstancePromise;
+  } catch (error) {
+    // Reset cache if initialization fails so a later request can retry.
+    elkInstancePromise = null;
+    throw error;
+  }
+}
+
 // Handle messages from the main thread using ELK layered layout
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   const { nodes, edges, config } = event.data.payload;
 
   try {
-    // Import ELK API (will spawn its own worker)
-    const { default: ELK } = await import('elkjs/lib/elk-api.js');
-
-    // Create ELK instance with worker URL (allows ELK to spawn subworker)
-    // Use new URL() for proper Vite bundling
-    const workerUrl = new URL('elkjs/lib/elk-worker.min.js', import.meta.url).href;
-    const elk = new ELK({
-      workerUrl,
-    });
+    const elk = await getElkInstance();
 
     const defaultWidth = 200;
     const defaultHeight = 120;
@@ -239,6 +251,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // Build hierarchical structure for ELK
     const nodeMap = new Map<string, ElkNode>();
     const inputNodeById = new Map(nodes.map((node) => [node.id, node]));
+    const nodeIdSet = new Set(nodes.map((node) => node.id));
     const rootNodes: ElkNode[] = [];
     const childIdsByParent = new Map<string, string[]>();
 
@@ -307,7 +320,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // Containment is handled by ELK's hierarchy structure, not as edges
     const validEdges = edges.filter((edge) => {
       const edgeType = (edge.data as { type?: string } | undefined)?.type;
-      const isValid = nodes.some((n) => n.id === edge.source) && nodes.some((n) => n.id === edge.target);
+      const isValid = nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target);
       const isNotContainment = edgeType !== 'contains';
       return isValid && isNotContainment;
     });
@@ -627,13 +640,14 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // The original `extent` may be a Vue reactive Proxy (from prior layout passes),
     // which can't survive structured clone via postMessage. Instead, re-apply a fresh
     // `extent: 'parent'` string on child nodes so Vue Flow enforces drag containment.
+    const parentNodeIds = new Set(childIdsByParent.keys());
     const newNodes = nodes.map((node) => {
       const position = positionMap.get(node.id);
       const { expandParent: _ep, extent: _ext, ...nodeBase } = node;
       const isChild = !!(node as { parentNode?: string }).parentNode;
 
       if (position) {
-        const hasChildren = nodes.some((candidate) => (candidate as { parentNode?: string }).parentNode === node.id);
+        const hasChildren = parentNodeIds.has(node.id);
         const style = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
         return {
           ...nodeBase,

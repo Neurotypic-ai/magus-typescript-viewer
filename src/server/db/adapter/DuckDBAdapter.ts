@@ -70,7 +70,7 @@ function convertToRow(duckDBRow: unknown, columnNames: string[]): DatabaseRow {
 export class DuckDBAdapter implements IDatabaseAdapter {
   private db!: DuckDBInstance;
   private availableConnections: DuckDBConnection[] = [];
-  private waitingForConnection: Array<(conn: DuckDBConnection) => void> = [];
+  private waitingForConnection: ((conn: DuckDBConnection) => void)[] = [];
   private isInitialized = false;
   private readonly poolSize: number;
 

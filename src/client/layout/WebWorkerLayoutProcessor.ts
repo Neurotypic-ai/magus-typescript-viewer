@@ -4,6 +4,7 @@
  */
 
 import { defaultLayoutConfig } from '../components/DependencyGraph/layout/config';
+import { isProxy, toRaw } from 'vue';
 
 import type { Edge } from '@vue-flow/core';
 
@@ -62,42 +63,86 @@ export interface WebWorkerLayoutConfig {
  */
 export class WebWorkerLayoutProcessor {
   private worker: Worker | null = null;
-  private config: LayoutConfig;
+  private config!: LayoutConfig;
   private workerSupported: boolean;
   private currentRequestId = 0;
   private static readonly LAYOUT_TIMEOUT_MS = 15_000;
+  private static toRawCollection<T extends object>(collection: T[]): T[] {
+    const rawCollection = isProxy(collection) ? (toRaw(collection) as T[]) : collection;
+    let hadProxyValues = isProxy(rawCollection);
 
-  constructor(config?: WebWorkerLayoutConfig) {
-    // Map the default config to the worker's expected format
+    const normalized = rawCollection.map((item) => {
+      if (isProxy(item)) {
+        hadProxyValues = true;
+        return toRaw(item) as T;
+      }
+      return item;
+    });
+
+    // If we had proxies, clone once to ensure only cloneable values are posted.
+    return hadProxyValues ? WebWorkerLayoutProcessor.cloneIsolated(normalized) : normalized;
+  }
+
+  private static cloneIsolated<T>(value: T): T {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(value);
+    }
+    return JSON.parse(JSON.stringify(value)) as T;
+  }
+
+  private static prepareWorkerPayload(graphData: { nodes: DependencyNode[]; edges: Edge[] }): {
+    nodes: DependencyNode[];
+    edges: Edge[];
+  } {
+    return {
+      nodes: WebWorkerLayoutProcessor.toRawCollection(graphData.nodes),
+      edges: WebWorkerLayoutProcessor.toRawCollection(graphData.edges),
+    };
+  }
+
+  private static prepareFallbackPayload(graphData: { nodes: DependencyNode[]; edges: Edge[] }): {
+    nodes: DependencyNode[];
+    edges: Edge[];
+  } {
+    return {
+      nodes: WebWorkerLayoutProcessor.cloneIsolated(WebWorkerLayoutProcessor.toRawCollection(graphData.nodes)),
+      edges: WebWorkerLayoutProcessor.cloneIsolated(WebWorkerLayoutProcessor.toRawCollection(graphData.edges)),
+    };
+  }
+
+  private static mapDirection(direction: string): 'DOWN' | 'UP' | 'RIGHT' | 'LEFT' {
+    switch (direction) {
+      case 'TB':
+        return 'DOWN';
+      case 'BT':
+        return 'UP';
+      case 'RL':
+        return 'LEFT';
+      case 'LR':
+      default:
+        return 'RIGHT';
+    }
+  }
+
+  private applyConfig(config?: WebWorkerLayoutConfig): void {
     const mergedConfig = {
       ...defaultLayoutConfig,
       ...config,
     };
 
-    // Map TB/BT/LR/RL to ELK's DOWN/UP/RIGHT/LEFT
-    const mapDirection = (dir: string): 'DOWN' | 'UP' | 'RIGHT' | 'LEFT' => {
-      switch (dir) {
-        case 'TB':
-          return 'DOWN';
-        case 'BT':
-          return 'UP';
-        case 'RL':
-          return 'LEFT';
-        case 'LR':
-        default:
-          return 'RIGHT';
-      }
-    };
-
     this.config = {
       algorithm: mergedConfig.algorithm ?? 'layered',
-      direction: mapDirection(mergedConfig.direction ?? 'LR'),
+      direction: WebWorkerLayoutProcessor.mapDirection(mergedConfig.direction ?? 'LR'),
       nodesep: mergedConfig.nodeSpacing ?? 100,
       ranksep: mergedConfig.rankSpacing ?? 150,
       edgesep: mergedConfig.edgeSpacing ?? 50,
       theme: mergedConfig.theme ?? defaultLayoutConfig.theme,
       animationDuration: mergedConfig.animationDuration,
     } as LayoutConfig;
+  }
+
+  constructor(config?: WebWorkerLayoutConfig) {
+    this.applyConfig(config);
 
     // Check if web workers are supported
     this.workerSupported = typeof Worker !== 'undefined';
@@ -106,6 +151,15 @@ export class WebWorkerLayoutProcessor {
     if (this.workerSupported) {
       this.initWorker();
     }
+  }
+
+  /**
+   * Updates processor config without recreating the worker.
+   * Also increments request id to invalidate stale in-flight responses.
+   */
+  public updateConfig(config: WebWorkerLayoutConfig): void {
+    this.applyConfig(config);
+    this.currentRequestId += 1;
   }
 
   /**
@@ -126,15 +180,13 @@ export class WebWorkerLayoutProcessor {
    * @returns A promise that resolves with the processed layout
    */
   public processLayout(graphData: { nodes: DependencyNode[]; edges: Edge[] }): Promise<LayoutResult> {
-    // postMessage() already performs a structured clone, so no need to deep-copy here.
-    // For the fallback path (no worker), use structuredClone to protect against mutation.
-    if (!this.workerSupported || !this.worker) {
-      const nodes = structuredClone(graphData.nodes);
-      const edges = structuredClone(graphData.edges);
-      return this.fallbackProcessLayout(nodes, edges);
-    }
+    // Normalize to plain objects so postMessage can structured-clone them.
+    const { nodes, edges } = WebWorkerLayoutProcessor.prepareWorkerPayload(graphData);
 
-    const { nodes, edges } = graphData;
+    if (!this.workerSupported || !this.worker) {
+      const fallbackPayload = WebWorkerLayoutProcessor.prepareFallbackPayload(graphData);
+      return this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges);
+    }
 
     // Increment request ID to allow cancellation of stale requests
     const requestId = ++this.currentRequestId;
@@ -180,7 +232,8 @@ export class WebWorkerLayoutProcessor {
         this.worker?.removeEventListener('error', onError);
         console.error('Layout worker error:', error);
         // Fall back to synchronous processing
-        this.fallbackProcessLayout(structuredClone(graphData.nodes), structuredClone(graphData.edges))
+        const fallbackPayload = WebWorkerLayoutProcessor.prepareFallbackPayload(graphData);
+        this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges)
           .then(resolve)
           .catch(reject);
       };
@@ -199,7 +252,17 @@ export class WebWorkerLayoutProcessor {
         },
       };
 
-      this.worker.postMessage(message);
+      try {
+        this.worker.postMessage(message);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        this.worker.removeEventListener('message', onMessage);
+        this.worker.removeEventListener('error', onError);
+        const fallbackPayload = WebWorkerLayoutProcessor.prepareFallbackPayload(graphData);
+        this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges)
+          .then(resolve)
+          .catch(reject);
+      }
     });
   }
 

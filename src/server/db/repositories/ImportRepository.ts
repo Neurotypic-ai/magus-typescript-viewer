@@ -92,7 +92,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
 
   async create(dto: IImportCreateDTO): Promise<IImportCreateDTO> {
     try {
-      const params: Array<string | null> = [
+      const params: (string | null)[] = [
         dto.id,
         dto.package_id,
         dto.module_id,
