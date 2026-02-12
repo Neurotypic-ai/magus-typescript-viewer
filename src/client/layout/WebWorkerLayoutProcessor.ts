@@ -67,48 +67,64 @@ export class WebWorkerLayoutProcessor {
   private workerSupported: boolean;
   private currentRequestId = 0;
   private static readonly LAYOUT_TIMEOUT_MS = 15_000;
-  private static toWorkerSafeCollection<T extends object>(collection: T[]): T[] {
-    if (isProxy(collection)) {
-      return toRaw(collection) as T[];
-    }
 
-    let hasProxyItems = false;
-    const normalized = collection.map((item) => {
-      if (isProxy(item)) {
-        hasProxyItems = true;
-        return toRaw(item) as T;
+  /**
+   * Deep-clone a value while stripping Vue reactive proxies at every level.
+   * Produces a plain-object tree that is safe for both `postMessage`
+   * (structured-clone algorithm) and `structuredClone()`.
+   */
+  private static toCloneSafe<T>(value: T): T {
+    const seen = new WeakMap<object, unknown>();
+
+    const clone = (input: unknown): unknown => {
+      if (input === null || typeof input !== 'object') return input;
+
+      const raw = isProxy(input as object) ? (toRaw(input as object) as object) : (input as object);
+      const cached = seen.get(raw);
+      if (cached !== undefined) return cached;
+
+      if (Array.isArray(raw)) {
+        const out: unknown[] = [];
+        seen.set(raw, out);
+        for (const item of raw) out.push(clone(item));
+        return out;
       }
-      return item;
-    });
 
-    return hasProxyItems ? normalized : collection;
-  }
+      if (raw instanceof Date) return new Date(raw.getTime());
 
-  private static cloneForFallback<T>(value: T): T {
-    if (typeof structuredClone === 'function') {
-      return structuredClone(value);
-    }
-    return JSON.parse(JSON.stringify(value)) as T;
-  }
+      if (raw instanceof Map) {
+        const out = new Map<unknown, unknown>();
+        seen.set(raw, out);
+        raw.forEach((v, k) => out.set(clone(k), clone(v)));
+        return out;
+      }
 
-  private static prepareWorkerPayload(graphData: { nodes: DependencyNode[]; edges: Edge[] }): {
-    nodes: DependencyNode[];
-    edges: Edge[];
-  } {
-    return {
-      nodes: WebWorkerLayoutProcessor.toWorkerSafeCollection(graphData.nodes),
-      edges: WebWorkerLayoutProcessor.toWorkerSafeCollection(graphData.edges),
+      if (raw instanceof Set) {
+        const out = new Set<unknown>();
+        seen.set(raw, out);
+        raw.forEach((v) => out.add(clone(v)));
+        return out;
+      }
+
+      // Plain object — copy enumerable own properties
+      const out: Record<string, unknown> = {};
+      seen.set(raw, out);
+      for (const [key, nested] of Object.entries(raw as Record<string, unknown>)) {
+        out[key] = clone(nested);
+      }
+      return out;
     };
+
+    return clone(value) as T;
   }
 
-  private static prepareFallbackPayload(graphData: { nodes: DependencyNode[]; edges: Edge[] }): {
+  private static preparePayload(graphData: { nodes: DependencyNode[]; edges: Edge[] }): {
     nodes: DependencyNode[];
     edges: Edge[];
   } {
-    const payload = WebWorkerLayoutProcessor.prepareWorkerPayload(graphData);
     return {
-      nodes: WebWorkerLayoutProcessor.cloneForFallback(payload.nodes),
-      edges: WebWorkerLayoutProcessor.cloneForFallback(payload.edges),
+      nodes: WebWorkerLayoutProcessor.toCloneSafe(graphData.nodes),
+      edges: WebWorkerLayoutProcessor.toCloneSafe(graphData.edges),
     };
   }
 
@@ -183,10 +199,10 @@ export class WebWorkerLayoutProcessor {
    */
   public processLayout(graphData: { nodes: DependencyNode[]; edges: Edge[] }): Promise<LayoutResult> {
     // Normalize to plain objects so postMessage can structured-clone them.
-    const { nodes, edges } = WebWorkerLayoutProcessor.prepareWorkerPayload(graphData);
+    const { nodes, edges } = WebWorkerLayoutProcessor.preparePayload(graphData);
 
     if (!this.workerSupported || !this.worker) {
-      const fallbackPayload = WebWorkerLayoutProcessor.prepareFallbackPayload(graphData);
+      const fallbackPayload = WebWorkerLayoutProcessor.preparePayload(graphData);
       return this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges);
     }
 
@@ -234,7 +250,7 @@ export class WebWorkerLayoutProcessor {
         this.worker?.removeEventListener('error', onError);
         console.error('Layout worker error:', error);
         // Fall back to synchronous processing
-        const fallbackPayload = WebWorkerLayoutProcessor.prepareFallbackPayload(graphData);
+        const fallbackPayload = WebWorkerLayoutProcessor.preparePayload(graphData);
         this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges)
           .then(resolve)
           .catch(reject);
@@ -250,7 +266,7 @@ export class WebWorkerLayoutProcessor {
         payload: {
           nodes,
           edges,
-          config: this.config,
+          config: WebWorkerLayoutProcessor.toCloneSafe(this.config),
         },
       };
 
@@ -260,7 +276,7 @@ export class WebWorkerLayoutProcessor {
         clearTimeout(timeoutId);
         this.worker.removeEventListener('message', onMessage);
         this.worker.removeEventListener('error', onError);
-        const fallbackPayload = WebWorkerLayoutProcessor.prepareFallbackPayload(graphData);
+        const fallbackPayload = WebWorkerLayoutProcessor.preparePayload(graphData);
         this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges)
           .then(resolve)
           .catch(reject);

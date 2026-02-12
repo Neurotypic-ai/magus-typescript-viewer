@@ -317,7 +317,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
       // First delete dependencies
       await this.executeQuery<IPackageRow>(
         'delete dependencies',
-        'DELETE FROM package_dependencies WHERE package_id = ? OR dependency_id = ?',
+        'DELETE FROM dependencies WHERE source_id = ? OR target_id = ?',
         [id, id]
       );
 

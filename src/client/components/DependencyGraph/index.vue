@@ -91,6 +91,7 @@ const searchHighlightState: SearchHighlightState = {
 // Prevents expensive ELK re-layout when only toggling visual settings.
 const layoutCache = new Map<string, { nodes: DependencyNode[]; edges: GraphEdge[] }>();
 const MAX_LAYOUT_CACHE_ENTRIES = 8;
+const TWO_PASS_MEASURE_NODE_THRESHOLD = 240;
 
 const addSetDiff = (target: Set<string>, previous: Set<string>, next: Set<string>): void => {
   previous.forEach((id) => {
@@ -112,6 +113,8 @@ const resetSearchHighlightState = (): void => {
   searchHighlightState.pathNodeIds = new Set<string>();
   searchHighlightState.matchingEdgeIds = new Set<string>();
 };
+
+const shouldRunTwoPassMeasure = (nodeCount: number): boolean => nodeCount <= TWO_PASS_MEASURE_NODE_THRESHOLD;
 
 function computeLayoutCacheKey(
   nodes: DependencyNode[],
@@ -137,7 +140,6 @@ let cachedFlowContainer: HTMLElement | null = null;
 let cachedContainerRect: DOMRect | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
-const DEFAULT_NODE_TYPE_SET = new Set(['module']);
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
 
 const useBuiltinMinimap = import.meta.env['VITE_USE_BUILTIN_MINIMAP'] === 'true';
@@ -192,15 +194,7 @@ const getHandlePositions = (
 };
 
 const getEnabledNodeTypes = (): Set<string> => {
-  const configuredTypes = graphSettings.enabledNodeTypes.length
-    ? graphSettings.enabledNodeTypes
-    : Array.from(DEFAULT_NODE_TYPE_SET);
-
-  const typeSet = new Set(configuredTypes);
-  if (typeSet.size === 0) {
-    typeSet.add('module');
-  }
-  return typeSet;
+  return new Set(graphSettings.enabledNodeTypes);
 };
 
 const mergeNodeInteractionStyle = (
@@ -476,7 +470,7 @@ const processGraphLayout = async (
   const requestVersion = ++layoutRequestVersion;
   const fitViewToResult = options.fitViewToResult ?? true;
   const fitPadding = options.fitPadding ?? 0.1;
-  const twoPassMeasure = options.twoPassMeasure ?? true;
+  const twoPassMeasure = options.twoPassMeasure ?? shouldRunTwoPassMeasure(graphData.nodes.length);
 
   isLayoutPending.value = true;
 
@@ -624,7 +618,7 @@ const initializeGraph = async () => {
   const layoutResult = await processGraphLayout(overviewGraph, {
     fitViewToResult: true,
     fitPadding: 0.1,
-    twoPassMeasure: true,
+    twoPassMeasure: shouldRunTwoPassMeasure(overviewGraph.nodes.length),
   });
   if (layoutResult) {
     graphStore.setOverviewSnapshot(layoutResult);
@@ -744,11 +738,13 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   });
 };
 
-// Provide node actions to child nodes via injection (replaces global CustomEvent)
-provide(NODE_ACTIONS_KEY, {
+const nodeActions = {
   focusNode: (nodeId: string) => void handleFocusNode(nodeId),
   isolateNeighborhood: (nodeId: string) => void isolateNeighborhood(nodeId),
-});
+};
+
+// Provide node actions to child nodes via injection (replaces global CustomEvent)
+provide(NODE_ACTIONS_KEY, nodeActions);
 
 const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
   const targetNode = nodes.value.find((node) => node.id === nodeId) ?? selectedNode.value;
@@ -770,7 +766,7 @@ const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
   await processGraphLayout(symbolGraph, {
     fitViewToResult: true,
     fitPadding: 0.2,
-    twoPassMeasure: true,
+    twoPassMeasure: shouldRunTwoPassMeasure(symbolGraph.nodes.length),
   });
 };
 

@@ -32,16 +32,15 @@ export function measurePerformance(name: string, startMark: string, endMark: str
     if (entries.length > 0 && entries[0]) {
       const duration = entries[0].duration;
       perfLogger.info(`${name} took ${duration.toFixed(2)}ms`);
-
-      // Clean up
-      performance.clearMarks(startMark);
-      performance.clearMarks(endMark);
-      performance.clearMeasures(name);
-
       return duration;
     }
   } catch (error) {
     perfLogger.error(`Failed to measure ${name}:`, error);
+  } finally {
+    // Always clear marks/measures to prevent timeline growth on errors/missing entries.
+    performance.clearMarks(startMark);
+    performance.clearMarks(endMark);
+    performance.clearMeasures(name);
   }
 
   return 0;

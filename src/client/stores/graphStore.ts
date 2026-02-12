@@ -12,6 +12,8 @@ const CACHE_VERSION = 'v1';
 const NODES_CACHE_KEY = `${CACHE_VERSION}:typescript-viewer-nodes`;
 const EDGES_CACHE_KEY = `${CACHE_VERSION}:typescript-viewer-edges`;
 const CACHE_DEBOUNCE_MS = 500;
+const MAX_CACHEABLE_NODE_COUNT = 1200;
+const MAX_CACHEABLE_EDGE_COUNT = 5000;
 
 interface GraphStore {
   nodes: Ref<DependencyNode[]>;
@@ -79,6 +81,10 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
   };
 
   const writeCache = debounce((nodesToCache: DependencyNode[], edgesToCache: GraphEdge[]) => {
+    if (nodesToCache.length > MAX_CACHEABLE_NODE_COUNT || edgesToCache.length > MAX_CACHEABLE_EDGE_COUNT) {
+      return;
+    }
+
     const doWrite = () => {
       try {
         if (nodesToCache.length > 0) {

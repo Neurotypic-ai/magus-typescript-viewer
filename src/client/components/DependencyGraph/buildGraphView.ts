@@ -198,15 +198,15 @@ function annotateOrphanDiagnostics(
 
 export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphViewData {
   const enabledNodeTypeSet = new Set(options.enabledNodeTypes);
-  if (enabledNodeTypeSet.size === 0) {
-    enabledNodeTypeSet.add('module');
-  }
 
   const includePackages = enabledNodeTypeSet.has('package');
   const includeModules = enabledNodeTypeSet.has('module');
   const includeClassNodes = enabledNodeTypeSet.has('class');
   const includeInterfaceNodes = enabledNodeTypeSet.has('interface');
   const includeClassEdges = includeClassNodes || includeInterfaceNodes;
+  const symbolNodesRequested = includeClassNodes || includeInterfaceNodes;
+  const resolvedMemberNodeMode: 'compact' | 'graph' =
+    !includeModules && symbolNodesRequested ? 'graph' : options.memberNodeMode;
 
   const graphNodes = createGraphNodes(options.data, {
     includePackages,
@@ -215,13 +215,13 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     includeClassNodes,
     includeInterfaceNodes,
     nestSymbolsInModules: !options.clusterByFolder,
-    memberNodeMode: options.memberNodeMode,
+    memberNodeMode: resolvedMemberNodeMode,
     direction: options.direction,
   });
 
   // In compact mode, class/interface VueFlow nodes don't exist, so class-level
   // edges (inheritance, implements) would have dangling targets — skip them.
-  const includeClassEdgesInGraph = includeClassEdges && options.memberNodeMode === 'graph';
+  const includeClassEdgesInGraph = includeClassEdges && resolvedMemberNodeMode === 'graph';
 
   const graphEdges = createGraphEdges(options.data, {
     includePackageEdges: includePackages,
