@@ -14,42 +14,36 @@ function isTimestampValue(value: unknown): value is DuckDBTimestampValue {
   return typeof value === 'object' && value !== null && 'micros' in value;
 }
 
-function stringifyValue(value: unknown): string {
+function normalizeValue(value: unknown): unknown {
   if (value === null || value === undefined) {
-    return '';
-  }
-  if (typeof value === 'string') {
     return value;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  if (value instanceof Map) {
-    const obj: Record<string, string> = {};
-    for (const [k, v] of value.entries()) {
-      obj[String(k)] = stringifyValue(v);
-    }
-    return JSON.stringify(obj);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(stringifyValue).join(', ')}]`;
   }
   if (isTimestampValue(value)) {
     const milliseconds = Number(value.micros) / 1000;
     return new Date(milliseconds).toISOString();
   }
-  try {
-    const obj = value as Record<string, unknown>;
-    const entries = Object.entries(obj)
-      .map(([k, v]) => `${k}:${stringifyValue(v)}`)
-      .join(', ');
-    return `{${entries}}`;
-  } catch {
-    return '[Complex Object]';
+  if (value instanceof Date) {
+    return value.toISOString();
   }
+  if (typeof value === 'bigint') {
+    const numeric = Number(value);
+    return Number.isSafeInteger(numeric) ? numeric : value.toString();
+  }
+  return value;
+}
+
+function toStringId(value: unknown): string {
+  if (value === null || value === undefined) {
+    throw new Error('Row is missing required id field');
+  }
+  const normalized = normalizeValue(value);
+  if (typeof normalized === 'string') {
+    return normalized;
+  }
+  if (typeof normalized === 'number' || typeof normalized === 'boolean') {
+    return String(normalized);
+  }
+  return JSON.stringify(normalized);
 }
 
 function convertToRow(duckDBRow: unknown, columnNames: string[]): DatabaseRow {
@@ -59,18 +53,15 @@ function convertToRow(duckDBRow: unknown, columnNames: string[]): DatabaseRow {
 
   // DuckDB returns rows as arrays, with column names in the metadata
   const id = duckDBRow[0];
-  if (id === undefined || id === null) {
-    throw new Error('Row is missing required id field');
-  }
 
   return {
-    id: stringifyValue(id),
+    id: toStringId(id),
     ...Object.fromEntries(
       duckDBRow
         .slice(1)
         .map((value, index) => [
           columnNames[index + 1] ?? `column_${(index + 1).toString()}`,
-          value !== null ? stringifyValue(value) : null,
+          value !== null ? normalizeValue(value) : null,
         ])
     ),
   };
