@@ -83,6 +83,18 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
     this.propertyRepository = new PropertyRepository(adapter);
   }
 
+  /**
+   * Batch-insert multiple classes at once. Ignores duplicates.
+   */
+  async createBatch(items: IClassCreateDTO[]): Promise<void> {
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, name, extends_id)',
+      5,
+      items,
+      (dto) => [dto.id, dto.package_id, dto.module_id, dto.name, dto.extends_id ?? null]
+    );
+  }
+
   async create(dto: IClassCreateDTO): Promise<Class> {
     try {
       const results = await this.executeQuery<IClassOrInterfaceRow>(

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import { Panel } from '@vue-flow/core';
 
@@ -18,18 +18,26 @@ const emit = defineEmits<{
 
 const searchQuery = ref('');
 
+// Debounce timer for search input
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
 const handleSearch = () => {
   if (!searchQuery.value) {
     emit('search-result', { nodes: [], edges: [], path: [] });
     return;
   }
 
+  // Lowercase query once instead of per-node
+  const query = searchQuery.value.toLowerCase();
   const matchingNodes = props.nodes.filter((node) =>
-    node.data?.label.toLowerCase().includes(searchQuery.value.toLowerCase())
+    node.data?.label.toLowerCase().includes(query)
   );
 
+  // Build a Set of matching node IDs for O(1) lookups instead of O(n*m) .some()
+  const matchingNodeIds = new Set(matchingNodes.map((n) => n.id));
+
   const relatedEdges = props.edges.filter((edge) =>
-    matchingNodes.some((node) => node.id === edge.source || node.id === edge.target)
+    matchingNodeIds.has(edge.source) || matchingNodeIds.has(edge.target)
   );
 
   emit('search-result', {
@@ -39,11 +47,19 @@ const handleSearch = () => {
   });
 };
 
+// Enter key triggers immediate search (bypasses debounce)
 const handleKeyDown = (event: KeyboardEvent) => {
   if (event.key === 'Enter') {
+    if (searchTimeout) clearTimeout(searchTimeout);
     handleSearch();
   }
 };
+
+// Watch searchQuery with 300ms debounce for auto-search on typing
+watch(searchQuery, () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(handleSearch, 300);
+});
 </script>
 
 <template>

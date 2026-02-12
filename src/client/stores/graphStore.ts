@@ -79,16 +79,24 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
   };
 
   const writeCache = debounce((nodesToCache: DependencyNode[], edgesToCache: GraphEdge[]) => {
-    try {
-      if (nodesToCache.length > 0) {
-        localStorage.setItem(NODES_CACHE_KEY, JSON.stringify(nodesToCache));
+    const doWrite = () => {
+      try {
+        if (nodesToCache.length > 0) {
+          localStorage.setItem(NODES_CACHE_KEY, JSON.stringify(nodesToCache));
+        }
+        if (edgesToCache.length > 0) {
+          localStorage.setItem(EDGES_CACHE_KEY, JSON.stringify(edgesToCache));
+        }
+      } catch {
+        // Silently fail if cache storage fails
       }
+    };
 
-      if (edgesToCache.length > 0) {
-        localStorage.setItem(EDGES_CACHE_KEY, JSON.stringify(edgesToCache));
-      }
-    } catch {
-      // Silently fail if cache storage fails
+    // Defer heavy JSON.stringify to idle time so it doesn't block interactions
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(doWrite, { timeout: 2000 });
+    } else {
+      setTimeout(doWrite, 0);
     }
   }, CACHE_DEBOUNCE_MS);
 
@@ -96,7 +104,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
   // Shallow watch is sufficient since setNodes/setEdges replace the entire array reference.
   // Avoids expensive deep comparison on large graphs (drag/hover would trigger O(n×m) diffs).
   watch([nodes, edges, cacheKey], ([newNodes, newEdges, newCacheKey]) => {
-    if (!newCacheKey) return;
+    if (!newCacheKey || cacheWriteSuspended.value) return;
     writeCache(newNodes, newEdges);
   });
 
@@ -170,5 +178,11 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     setOverviewSnapshot,
     restoreOverviewSnapshot,
     clearCache,
+    suspendCacheWrites: () => {
+      cacheWriteSuspended.value = true;
+    },
+    resumeCacheWrites: () => {
+      cacheWriteSuspended.value = false;
+    },
   };
 });

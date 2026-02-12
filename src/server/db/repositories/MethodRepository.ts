@@ -78,6 +78,29 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
     super(adapter, '[MethodRepository]', 'methods');
   }
 
+  /**
+   * Batch-insert multiple methods at once. Ignores duplicates.
+   */
+  async createBatch(items: IMethodCreateDTO[]): Promise<void> {
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, parent_id, parent_type, name, return_type, is_static, is_async, visibility)',
+      10,
+      items,
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.parent_id,
+        dto.parent_type,
+        dto.name,
+        dto.return_type,
+        dto.is_static,
+        dto.is_async,
+        dto.visibility,
+      ]
+    );
+  }
+
   async create(dto: IMethodCreateDTO): Promise<Method> {
     try {
       const params: (string | boolean)[] = [
@@ -218,6 +241,106 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
     } catch (error) {
       this.logger.error('Failed to delete method', error);
       throw new RepositoryError('Failed to delete method', 'delete', this.errorTag, error as Error);
+    }
+  }
+
+  /**
+   * Batch-retrieve all methods for multiple parent IDs of a given type.
+   * Returns a Map keyed by parent_id, each value is a Map<string, Method>.
+   */
+  async retrieveByParentIds(
+    parentIds: string[],
+    parentType: 'class' | 'interface'
+  ): Promise<Map<string, Map<string, Method>>> {
+    const result = new Map<string, Map<string, Method>>();
+    if (parentIds.length === 0) return result;
+
+    // Initialise empty maps for every requested parent
+    for (const pid of parentIds) {
+      result.set(pid, new Map<string, Method>());
+    }
+
+    try {
+      const placeholders = parentIds.map(() => '?').join(', ');
+      const methods = await this.executeQuery<IMethodRow>(
+        'retrieveByParentIds',
+        `SELECT m.* FROM methods m WHERE m.parent_id IN (${placeholders}) AND m.parent_type = ?`,
+        [...parentIds, parentType]
+      );
+
+      if (methods.length === 0) return result;
+
+      // Batch-fetch parameters for all retrieved methods
+      const methodIds = methods.map((m) => m.id);
+      const paramPlaceholders = methodIds.map(() => '?').join(', ');
+      const parameters = await this.executeQuery<IParameterRow>(
+        'retrieveByParentIds parameters',
+        `SELECT p.* FROM parameters p WHERE p.method_id IN (${paramPlaceholders})`,
+        methodIds as DuckDBValue[]
+      );
+
+      // Group parameters by method_id
+      const paramsByMethod = new Map<string, IParameterRow[]>();
+      for (const p of parameters) {
+        let arr = paramsByMethod.get(p.method_id);
+        if (!arr) {
+          arr = [];
+          paramsByMethod.set(p.method_id, arr);
+        }
+        arr.push(p);
+      }
+
+      // Build method maps
+      for (const method of methods) {
+        const methodParameters = new Map<string, Parameter>();
+        const methodParams = paramsByMethod.get(method.id) ?? [];
+        for (const p of methodParams) {
+          methodParameters.set(
+            p.id,
+            new Parameter(
+              p.id,
+              p.package_id,
+              p.module_id,
+              p.method_id,
+              p.name,
+              new Date(p.created_at),
+              p.type,
+              Boolean(p.is_optional),
+              Boolean(p.is_rest),
+              p.default_value ?? undefined
+            )
+          );
+        }
+
+        const methodObj = new Method(
+          method.id,
+          method.package_id,
+          method.module_id,
+          method.parent_id,
+          method.name,
+          new Date((method as unknown as { created_at?: string }).created_at ?? new Date().toISOString()),
+          methodParameters,
+          method.return_type,
+          method.is_static,
+          method.is_async,
+          method.visibility as VisibilityType
+        );
+
+        const parentMap = result.get(method.parent_id);
+        if (parentMap) {
+          parentMap.set(method.id, methodObj);
+        }
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to retrieve methods by parent IDs', error);
+      throw new RepositoryError(
+        'Failed to retrieve methods by parent IDs',
+        'retrieveByParentIds',
+        this.errorTag,
+        error as Error
+      );
     }
   }
 

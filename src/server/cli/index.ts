@@ -242,82 +242,65 @@ program
       const packageParser = new PackageParser(dir, pkgJson.name, pkgJson.version);
       const parseResult = await packageParser.parse();
 
-      // Save all entities using repositories
+      // Save all entities using batch inserts within a transaction
       spinner.text = 'Saving to database...';
 
-      // Save package first
-      if (parseResult.package) {
-        await repositories.package.create(parseResult.package);
-      }
+      await adapter.transaction(async () => {
+        // Save package first
+        if (parseResult.package) {
+          await repositories.package.create(parseResult.package);
+        }
 
-      // Save modules
-      for (const module of dedupeById(parseResult.modules)) {
-        await repositories.module.create(module);
-      }
+        // Batch-insert modules
+        await repositories.module.createBatch(dedupeById(parseResult.modules));
 
-      // Save classes
-      for (const cls of dedupeById(parseResult.classes)) {
-        await repositories.class.create(cls);
-      }
+        // Batch-insert classes
+        await repositories.class.createBatch(dedupeById(parseResult.classes));
 
-      // Save interfaces
-      for (const iface of dedupeById(parseResult.interfaces)) {
-        await repositories.interface.create(iface);
-      }
+        // Batch-insert interfaces
+        await repositories.interface.createBatch(dedupeById(parseResult.interfaces));
 
-      // Save functions
-      for (const func of dedupeById(parseResult.functions)) {
-        await repositories.function.create(func);
-      }
-      // Save methods
-      for (const method of dedupeById(parseResult.methods)) {
-        await repositories.method.create(method);
-      }
+        // Batch-insert functions
+        await repositories.function.createBatch(dedupeById(parseResult.functions));
 
-      // Save parameters
-      for (const param of dedupeById(parseResult.parameters)) {
-        await repositories.parameter.create(param);
-      }
+        // Batch-insert methods
+        await repositories.method.createBatch(dedupeById(parseResult.methods));
 
-      // Save properties
-      for (const prop of dedupeById(parseResult.properties)) {
-        await repositories.property.create(prop);
-      }
+        // Batch-insert parameters
+        await repositories.parameter.createBatch(dedupeById(parseResult.parameters));
 
-      // Save imports with module context (use relativePath for client-side resolution)
-      if (parseResult.importsWithModules) {
-        const dedupedImports = Array.from(
-          new Map(parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
-        );
+        // Batch-insert properties
+        await repositories.property.createBatch(dedupeById(parseResult.properties));
 
-        for (const { import: imp, moduleId } of dedupedImports) {
-          const importDTO = {
+        // Batch-insert imports with module context (use relativePath for client-side resolution)
+        if (parseResult.importsWithModules) {
+          const dedupedImports = Array.from(
+            new Map(parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
+          );
+
+          const importDTOs = dedupedImports.map(({ import: imp, moduleId }) => ({
             id: imp.uuid,
             package_id: parseResult.package?.id ?? '',
             module_id: moduleId,
             source: imp.relativePath,
             specifiers_json: serializeImportSpecifiers(imp),
-          };
-          await repositories.import.create(importDTO);
+          }));
+          await repositories.import.createBatch(importDTOs);
         }
-      }
 
-      // Save exports
-      for (const exp of dedupeBy(parseResult.exports, (row) => row.uuid)) {
-        const exportDTO = {
+        // Batch-insert exports
+        const exportDTOs = dedupeBy(parseResult.exports, (row) => row.uuid).map((exp) => ({
           id: exp.uuid,
           package_id: parseResult.package?.id ?? '',
           module_id: exp.module,
           name: exp.name,
           is_default: exp.isDefault,
-        };
-        await repositories.export.create(exportDTO);
-      }
+        }));
+        await repositories.export.createBatch(exportDTOs);
 
-      // Save symbol references (method/property usage edges)
-      for (const reference of dedupeById(parseResult.symbolReferences)) {
-        await repositories.symbolReference.create(reference);
-      }
+        // Batch-insert symbol references
+        await repositories.symbolReference.createBatch(dedupeById(parseResult.symbolReferences));
+      });
 
       // Save relationship records to junction tables
       spinner.text = 'Saving relationships...';
@@ -328,24 +311,54 @@ program
         interfaceExtends: { resolved: 0, ambiguous: 0, unresolved: 0 },
       };
 
-      // Cross-package resolution: query DB for all known classes/interfaces
-      // to resolve any names that weren't found within this package
-      const allClassRows = await adapter.query<{ id: string; name: string }>(
-        'SELECT id, name FROM classes'
-      );
-      const allInterfaceRows = await adapter.query<{ id: string; name: string }>(
-        'SELECT id, name FROM interfaces'
-      );
+      // Cross-package resolution: only fetch classes/interfaces whose names
+      // match unresolved references (Issue #18: avoid full-table scans)
+      const unresolvedClassNames = [
+        ...new Set(
+          parseResult.classExtends
+            .filter((ref) => !ref.parentId)
+            .map((ref) => ref.parentName)
+        ),
+      ];
+      const unresolvedInterfaceNames = [
+        ...new Set([
+          ...parseResult.classImplements
+            .filter((ref) => !ref.interfaceId)
+            .map((ref) => ref.interfaceName),
+          ...parseResult.interfaceExtends
+            .filter((ref) => !ref.parentId)
+            .map((ref) => ref.parentName),
+        ]),
+      ];
+
       const globalClassMap = new Map<string, string[]>();
-      for (const row of allClassRows) {
-        addNameToMap(globalClassMap, row.name, row.id);
-      }
-      const globalInterfaceMap = new Map<string, string[]>();
-      for (const row of allInterfaceRows) {
-        addNameToMap(globalInterfaceMap, row.name, row.id);
+      if (unresolvedClassNames.length > 0) {
+        const placeholders = unresolvedClassNames.map(() => '?').join(', ');
+        const classRows = await adapter.query<{ id: string; name: string }>(
+          `SELECT id, name FROM classes WHERE name IN (${placeholders})`,
+          unresolvedClassNames
+        );
+        for (const row of classRows) {
+          addNameToMap(globalClassMap, row.name, row.id);
+        }
       }
 
-      // Save class_extends records
+      const globalInterfaceMap = new Map<string, string[]>();
+      if (unresolvedInterfaceNames.length > 0) {
+        const placeholders = unresolvedInterfaceNames.map(() => '?').join(', ');
+        const interfaceRows = await adapter.query<{ id: string; name: string }>(
+          `SELECT id, name FROM interfaces WHERE name IN (${placeholders})`,
+          unresolvedInterfaceNames
+        );
+        for (const row of interfaceRows) {
+          addNameToMap(globalInterfaceMap, row.name, row.id);
+        }
+      }
+
+      // Resolve relationships and batch-insert them
+      const classExtendsInserts: string[][] = [];
+      const classExtendsUpdates: { id: string; extendsId: string }[] = [];
+
       for (const ref of parseResult.classExtends) {
         const resolution = resolveFromNameMap(ref.parentId, ref.parentName, globalClassMap);
         if (!resolution.id) {
@@ -359,13 +372,13 @@ program
         }
 
         const relId = generateRelationshipUUID(ref.classId, resolution.id, 'class_extends');
-        await safeInsert(adapter, 'class_extends', '(id, class_id, parent_id)', [relId, ref.classId, resolution.id]);
-        await safeUpdate(adapter, 'classes', 'extends_id', resolution.id, ref.classId);
+        classExtendsInserts.push([relId, ref.classId, resolution.id]);
+        classExtendsUpdates.push({ id: ref.classId, extendsId: resolution.id });
         relationshipCount++;
         relationStats.classExtends.resolved++;
       }
 
-      // Save class_implements records
+      const classImplementsInserts: string[][] = [];
       for (const ref of parseResult.classImplements) {
         const resolution = resolveFromNameMap(ref.interfaceId, ref.interfaceName, globalInterfaceMap);
         if (!resolution.id) {
@@ -374,12 +387,12 @@ program
         }
 
         const relId = generateRelationshipUUID(ref.classId, resolution.id, 'class_implements');
-        await safeInsert(adapter, 'class_implements', '(id, class_id, interface_id)', [relId, ref.classId, resolution.id]);
+        classImplementsInserts.push([relId, ref.classId, resolution.id]);
         relationshipCount++;
         relationStats.classImplements.resolved++;
       }
 
-      // Save interface_extends records
+      const interfaceExtendsInserts: string[][] = [];
       for (const ref of parseResult.interfaceExtends) {
         const resolution = resolveFromNameMap(ref.parentId, ref.parentName, globalInterfaceMap);
         if (!resolution.id) {
@@ -393,14 +406,74 @@ program
         }
 
         const relId = generateRelationshipUUID(ref.interfaceId, resolution.id, 'interface_extends');
-        await safeInsert(adapter, 'interface_extends', '(id, interface_id, extended_id)', [
-          relId,
-          ref.interfaceId,
-          resolution.id,
-        ]);
+        interfaceExtendsInserts.push([relId, ref.interfaceId, resolution.id]);
         relationshipCount++;
         relationStats.interfaceExtends.resolved++;
       }
+
+      // Batch-insert all relationship records in a transaction
+      await adapter.transaction(async () => {
+        // Batch-insert class_extends
+        const CHUNK_SIZE = 500;
+        for (let i = 0; i < classExtendsInserts.length; i += CHUNK_SIZE) {
+          const chunk = classExtendsInserts.slice(i, i + CHUNK_SIZE);
+          const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
+          const params = chunk.flat();
+          try {
+            await adapter.query(`INSERT INTO class_extends (id, class_id, parent_id) VALUES ${placeholders}`, params);
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : '';
+            if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
+              throw error;
+            }
+            // Fall back to individual inserts for duplicates
+            for (const row of chunk) {
+              await safeInsert(adapter, 'class_extends', '(id, class_id, parent_id)', row);
+            }
+          }
+        }
+
+        // Batch-update classes.extends_id
+        for (const { id, extendsId } of classExtendsUpdates) {
+          await safeUpdate(adapter, 'classes', 'extends_id', extendsId, id);
+        }
+
+        // Batch-insert class_implements
+        for (let i = 0; i < classImplementsInserts.length; i += CHUNK_SIZE) {
+          const chunk = classImplementsInserts.slice(i, i + CHUNK_SIZE);
+          const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
+          const params = chunk.flat();
+          try {
+            await adapter.query(`INSERT INTO class_implements (id, class_id, interface_id) VALUES ${placeholders}`, params);
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : '';
+            if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
+              throw error;
+            }
+            for (const row of chunk) {
+              await safeInsert(adapter, 'class_implements', '(id, class_id, interface_id)', row);
+            }
+          }
+        }
+
+        // Batch-insert interface_extends
+        for (let i = 0; i < interfaceExtendsInserts.length; i += CHUNK_SIZE) {
+          const chunk = interfaceExtendsInserts.slice(i, i + CHUNK_SIZE);
+          const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
+          const params = chunk.flat();
+          try {
+            await adapter.query(`INSERT INTO interface_extends (id, interface_id, extended_id) VALUES ${placeholders}`, params);
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : '';
+            if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
+              throw error;
+            }
+            for (const row of chunk) {
+              await safeInsert(adapter, 'interface_extends', '(id, interface_id, extended_id)', row);
+            }
+          }
+        }
+      });
 
       spinner.succeed(chalk.green('Analysis complete!'));
       console.log();

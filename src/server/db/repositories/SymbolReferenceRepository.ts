@@ -54,6 +54,30 @@ export class SymbolReferenceRepository extends BaseRepository<
     super(adapter, '[SymbolReferenceRepository]', 'symbol_references');
   }
 
+  /**
+   * Batch-insert multiple symbol references at once. Ignores duplicates.
+   */
+  async createBatch(items: ISymbolReferenceCreateDTO[]): Promise<void> {
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, source_symbol_id, source_symbol_type, source_symbol_name, target_symbol_id, target_symbol_type, target_symbol_name, access_kind, qualifier_name)',
+      11,
+      items,
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.source_symbol_id ?? null,
+        dto.source_symbol_type,
+        dto.source_symbol_name ?? null,
+        dto.target_symbol_id,
+        dto.target_symbol_type,
+        dto.target_symbol_name,
+        dto.access_kind,
+        dto.qualifier_name ?? null,
+      ]
+    );
+  }
+
   async create(dto: ISymbolReferenceCreateDTO): Promise<ISymbolReferenceCreateDTO> {
     try {
       await this.executeQuery<ISymbolReferenceRow>(
@@ -170,6 +194,32 @@ export class SymbolReferenceRepository extends BaseRepository<
 
   async findByModuleId(moduleId: string): Promise<ISymbolReferenceCreateDTO[]> {
     return this.retrieveByModuleId(moduleId);
+  }
+
+  /**
+   * Batch-retrieve all symbol references whose module_id is in the given list.
+   */
+  async retrieveByModuleIds(moduleIds: string[]): Promise<ISymbolReferenceCreateDTO[]> {
+    if (moduleIds.length === 0) return [];
+    try {
+      const placeholders = moduleIds.map(() => '?').join(', ');
+      const rows = await this.executeQuery<ISymbolReferenceRow>(
+        'retrieveByModuleIds',
+        `SELECT * FROM symbol_references WHERE module_id IN (${placeholders})`,
+        moduleIds
+      );
+      return rows.map((row) => this.mapRow(row));
+    } catch (error) {
+      if (error instanceof RepositoryError) {
+        throw error;
+      }
+      throw new RepositoryError(
+        `Failed to retrieve symbol references by module IDs: ${error instanceof Error ? error.message : String(error)}`,
+        'retrieveByModuleIds',
+        this.errorTag,
+        error instanceof Error ? error : undefined
+      );
+    }
   }
 
   private mapRow(row: ISymbolReferenceRow): ISymbolReferenceCreateDTO {

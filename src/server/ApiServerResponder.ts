@@ -6,8 +6,10 @@ import { RepositoryError } from './db/errors/RepositoryError';
 import { ClassRepository } from './db/repositories/ClassRepository';
 import { ImportRepository } from './db/repositories/ImportRepository';
 import { InterfaceRepository } from './db/repositories/InterfaceRepository';
+import { MethodRepository } from './db/repositories/MethodRepository';
 import { ModuleRepository } from './db/repositories/ModuleRepository';
 import { PackageRepository } from './db/repositories/PackageRepository';
+import { PropertyRepository } from './db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from './db/repositories/SymbolReferenceRepository';
 
 import type { Package } from '../shared/types/Package';
@@ -16,6 +18,22 @@ import type { TypeCollection } from '../shared/types/TypeCollection';
 export interface ApiServerResponderOptions {
   dbPath?: string;
   readOnly?: boolean;
+}
+
+interface PackagesResponseItem {
+  id: string;
+  name: string;
+  version: string;
+  path: string;
+  created_at: Date;
+  dependencies: TypeCollection<Package>;
+  devDependencies: TypeCollection<Package>;
+  peerDependencies: TypeCollection<Package>;
+  modules: string[];
+}
+
+interface GraphResponseItem extends Omit<PackagesResponseItem, 'modules'> {
+  modules: Module[];
 }
 
 type PersistedImportSpecifier = {
@@ -97,8 +115,10 @@ export class ApiServerResponder {
   private readonly classRepository: ClassRepository;
   private readonly interfaceRepository: InterfaceRepository;
   private readonly importRepository: ImportRepository;
+  private readonly methodRepository: MethodRepository;
   private readonly moduleRepository: ModuleRepository;
   private readonly packageRepository: PackageRepository;
+  private readonly propertyRepository: PropertyRepository;
   private readonly symbolReferenceRepository: SymbolReferenceRepository;
 
   constructor(options: ApiServerResponderOptions = {}) {
@@ -112,8 +132,10 @@ export class ApiServerResponder {
     this.classRepository = new ClassRepository(this.dbAdapter);
     this.interfaceRepository = new InterfaceRepository(this.dbAdapter);
     this.importRepository = new ImportRepository(this.dbAdapter);
+    this.methodRepository = new MethodRepository(this.dbAdapter);
     this.moduleRepository = new ModuleRepository(this.dbAdapter);
     this.packageRepository = new PackageRepository(this.dbAdapter);
+    this.propertyRepository = new PropertyRepository(this.dbAdapter);
     this.symbolReferenceRepository = new SymbolReferenceRepository(this.dbAdapter);
   }
 
@@ -136,30 +158,46 @@ export class ApiServerResponder {
   }
 
   async getPackages(): Promise<
-    {
-      id: string;
-      name: string;
-      version: string;
-      path: string;
-      created_at: Date;
-      dependencies: TypeCollection<Package>;
-      devDependencies: TypeCollection<Package>;
-      peerDependencies: TypeCollection<Package>;
-      modules: string[];
-    }[]
+    PackagesResponseItem[]
   > {
     try {
       const packages = await this.packageRepository.retrieve();
+      return packages.map((pkg) => ({
+        id: pkg.id,
+        name: pkg.name,
+        version: pkg.version,
+        path: pkg.path,
+        created_at: pkg.created_at,
+        dependencies: pkg.dependencies,
+        devDependencies: pkg.devDependencies,
+        peerDependencies: pkg.peerDependencies,
+        // Intentionally omitted to avoid a package-level N+1 module lookup.
+        modules: [],
+      }));
+    } catch (error) {
+      this.logger.error('Failed to get packages, returning empty list', error);
+      return [];
+    }
+  }
 
-      // Fetch module IDs for each package
-      const packagesWithModuleIds = await Promise.all(
-        packages.map(async (pkg) => {
+  async getGraph(): Promise<{ packages: GraphResponseItem[] }> {
+    try {
+      const packages = await this.packageRepository.retrieve();
+      const PACKAGE_CONCURRENCY = 4;
+      const queue = packages.map((pkg, index) => ({ pkg, index }));
+      const responses = new Map<number, GraphResponseItem>();
+
+      const worker = async (): Promise<void> => {
+        while (queue.length > 0) {
+          const next = queue.shift();
+          if (!next) {
+            return;
+          }
+          const { pkg, index } = next;
+
           try {
-            const modules = await this.moduleRepository.retrieveAll(pkg.id);
-            const moduleIds = modules.map((mod) => mod.id);
-
-            // Return plain object with moduleIds array
-            return {
+            const modules = await this.getModules(pkg.id);
+            responses.set(index, {
               id: pkg.id,
               name: pkg.name,
               version: pkg.version,
@@ -168,11 +206,11 @@ export class ApiServerResponder {
               dependencies: pkg.dependencies,
               devDependencies: pkg.devDependencies,
               peerDependencies: pkg.peerDependencies,
-              modules: moduleIds,
-            };
+              modules,
+            });
           } catch (error) {
-            this.logger.error(`Failed to get module IDs for package ${pkg.id}`, error);
-            return {
+            this.logger.error(`Failed to build graph package payload for ${pkg.id}`, error);
+            responses.set(index, {
               id: pkg.id,
               name: pkg.name,
               version: pkg.version,
@@ -182,120 +220,164 @@ export class ApiServerResponder {
               devDependencies: pkg.devDependencies,
               peerDependencies: pkg.peerDependencies,
               modules: [],
-            };
+            });
           }
-        })
-      );
+        }
+      };
 
-      return packagesWithModuleIds;
+      const workerCount = Math.min(PACKAGE_CONCURRENCY, Math.max(1, queue.length));
+      await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+      return {
+        packages: packages.map((_, index) => responses.get(index)).filter((item): item is GraphResponseItem => Boolean(item)),
+      };
     } catch (error) {
-      this.logger.error('Failed to get packages, returning empty list', error);
-      return [];
+      this.logger.error('Failed to build graph payload, returning empty graph', error);
+      return { packages: [] };
     }
   }
 
   async getModules(packageId: string): Promise<Module[]> {
     try {
       const modules = await this.moduleRepository.retrieveAll(packageId);
-      const enrichedModules: Module[] = [];
+      if (modules.length === 0) return [];
 
-      // Process modules sequentially to avoid overwhelming the database
+      // Collect all module IDs upfront
+      const moduleIds = modules.map((m) => m.id);
+
+      // Batch-fetch all classes and interfaces for all modules in one query each
+      const [allClasses, allInterfaces, allImports, allSymbolRefs] = await Promise.all([
+        this.classRepository.retrieveByModuleIds(moduleIds),
+        this.interfaceRepository.retrieveByModuleIds(moduleIds),
+        this.importRepository.retrieveByModuleIds(moduleIds),
+        this.symbolReferenceRepository.retrieveByModuleIds(moduleIds),
+      ]);
+
+      // Collect all class IDs and interface IDs for batch method/property retrieval
+      const classIds = allClasses.map((c) => c.id);
+      const interfaceIds = allInterfaces.map((i) => i.id);
+
+      // Batch-fetch all methods and properties for all classes and interfaces
+      const [classMethodsMap, classPropertiesMap, ifaceMethodsMap, ifacePropertiesMap] = await Promise.all([
+        this.methodRepository.retrieveByParentIds(classIds, 'class'),
+        this.propertyRepository.retrieveByParentIds(classIds, 'class'),
+        this.methodRepository.retrieveByParentIds(interfaceIds, 'interface'),
+        this.propertyRepository.retrieveByParentIds(interfaceIds, 'interface'),
+      ]);
+
+      // Group classes by module_id
+      const classesByModule = new Map<string, typeof allClasses>();
+      for (const cls of allClasses) {
+        let arr = classesByModule.get(cls.module_id);
+        if (!arr) {
+          arr = [];
+          classesByModule.set(cls.module_id, arr);
+        }
+        arr.push(cls);
+      }
+
+      // Group interfaces by module_id
+      const interfacesByModule = new Map<string, typeof allInterfaces>();
+      for (const iface of allInterfaces) {
+        let arr = interfacesByModule.get(iface.module_id);
+        if (!arr) {
+          arr = [];
+          interfacesByModule.set(iface.module_id, arr);
+        }
+        arr.push(iface);
+      }
+
+      // Group imports by module_id
+      const importsByModule = new Map<string, typeof allImports>();
+      for (const imp of allImports) {
+        let arr = importsByModule.get(imp.module_id);
+        if (!arr) {
+          arr = [];
+          importsByModule.set(imp.module_id, arr);
+        }
+        arr.push(imp);
+      }
+
+      // Group symbol references by module_id
+      const symbolRefsByModule = new Map<string, typeof allSymbolRefs>();
+      for (const ref of allSymbolRefs) {
+        let arr = symbolRefsByModule.get(ref.module_id);
+        if (!arr) {
+          arr = [];
+          symbolRefsByModule.set(ref.module_id, arr);
+        }
+        arr.push(ref);
+      }
+
+      // Build enriched modules from in-memory data
+      const enrichedModules: Module[] = [];
       for (const mod of modules) {
         try {
-          // Load classes first
+          // Build classes map for this module
           const classes = new Map();
-          const classesArray = await this.classRepository.retrieve(undefined, mod.id);
-
-          // Process each class sequentially
-          for (const cls of classesArray) {
-            try {
-              // Use repository methods directly
-              const methods = await this.classRepository.retrieveMethods(cls.id);
-              const properties = await this.classRepository.retrieveProperties(cls.id);
-
-              // Create class with its methods and properties
-              classes.set(cls.id, {
-                id: cls.id,
-                package_id: cls.package_id,
-                module_id: cls.module_id,
-                name: cls.name,
-                created_at: cls.created_at,
-                methods,
-                properties,
-                implemented_interfaces: cls.implemented_interfaces,
-                extends_id: cls.extends_id,
-              });
-            } catch (error) {
-              this.logger.error(`Failed to process class ${cls.id} in module ${mod.id}:`, error);
-              // Continue with next class
-            }
+          const moduleClasses = classesByModule.get(mod.id) ?? [];
+          for (const cls of moduleClasses) {
+            const methods = classMethodsMap.get(cls.id) ?? new Map();
+            const properties = classPropertiesMap.get(cls.id) ?? new Map();
+            classes.set(cls.id, {
+              id: cls.id,
+              package_id: cls.package_id,
+              module_id: cls.module_id,
+              name: cls.name,
+              created_at: cls.created_at,
+              methods,
+              properties,
+              implemented_interfaces: cls.implemented_interfaces,
+              extends_id: cls.extends_id,
+            });
           }
 
-          // Load interfaces
+          // Build interfaces map for this module
           const interfaces = new Map();
-          const interfacesArray = await this.interfaceRepository.retrieve(undefined, mod.id);
-
-          // Process each interface sequentially
-          for (const iface of interfacesArray) {
-            try {
-              // Use repository methods directly
-              const methods = await this.interfaceRepository.retrieveMethods(iface.id);
-              const properties = await this.interfaceRepository.retrieveProperties(iface.id);
-
-              // Create interface with its methods and properties
-              interfaces.set(iface.id, {
-                id: iface.id,
-                package_id: iface.package_id,
-                module_id: iface.module_id,
-                name: iface.name,
-                created_at: iface.created_at,
-                methods,
-                properties,
-                extended_interfaces: iface.extended_interfaces,
-              });
-            } catch (error) {
-              this.logger.error(`Failed to process interface ${iface.id} in module ${mod.id}:`, error);
-              // Continue with next interface
-            }
+          const moduleInterfaces = interfacesByModule.get(mod.id) ?? [];
+          for (const iface of moduleInterfaces) {
+            const methods = ifaceMethodsMap.get(iface.id) ?? new Map();
+            const properties = ifacePropertiesMap.get(iface.id) ?? new Map();
+            interfaces.set(iface.id, {
+              id: iface.id,
+              package_id: iface.package_id,
+              module_id: iface.module_id,
+              name: iface.name,
+              created_at: iface.created_at,
+              methods,
+              properties,
+              extended_interfaces: iface.extended_interfaces,
+            });
           }
 
-          // Load imports for this module
+          // Build imports map for this module
           const imports = new Map();
+          const moduleImports = importsByModule.get(mod.id) ?? [];
+          for (const imp of moduleImports) {
+            const specifiers = parseImportSpecifiers(imp.specifiers_json);
+            const packageName = inferExternalPackageName(imp.source);
+            imports.set(imp.id, {
+              uuid: imp.id,
+              fullPath: imp.source,
+              relativePath: imp.source,
+              name: imp.source,
+              specifiers,
+              isExternal: Boolean(packageName),
+              ...(packageName ? { packageName } : {}),
+              depth: 0,
+            });
+          }
+
+          // Build symbol references map for this module
           const symbolReferences = new Map();
-          try {
-            const importsArray = await this.importRepository.findByModuleId(mod.id);
-            for (const imp of importsArray) {
-              const specifiers = parseImportSpecifiers(imp.specifiers_json);
-              const packageName = inferExternalPackageName(imp.source);
-              imports.set(imp.id, {
-                uuid: imp.id,
-                fullPath: imp.source,
-                relativePath: imp.source,
-                name: imp.source,
-                specifiers,
-                isExternal: Boolean(packageName),
-                ...(packageName ? { packageName } : {}),
-                depth: 0,
-              });
-            }
-          } catch (error) {
-            this.logger.error(`Failed to load imports for module ${mod.id}:`, error);
-            // Continue with empty imports
+          const moduleSymbolRefs = symbolRefsByModule.get(mod.id) ?? [];
+          for (const ref of moduleSymbolRefs) {
+            symbolReferences.set(ref.id, {
+              ...ref,
+              created_at: new Date(),
+            });
           }
 
-          try {
-            const symbolRefs = await this.symbolReferenceRepository.findByModuleId(mod.id);
-            for (const ref of symbolRefs) {
-              symbolReferences.set(ref.id, {
-                ...ref,
-                created_at: new Date(),
-              });
-            }
-          } catch (error) {
-            this.logger.error(`Failed to load symbol references for module ${mod.id}:`, error);
-          }
-
-          // Create enriched module
           enrichedModules.push(
             new Module(
               mod.id,

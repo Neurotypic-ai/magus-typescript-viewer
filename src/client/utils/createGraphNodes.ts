@@ -64,21 +64,21 @@ function createDiagnostics(params: {
 function toNodeProperty(property: NodeProperty | Record<string, unknown>): NodeProperty {
   return {
     id: typeof property.id === 'string' ? property.id : undefined,
-    name: JSON.stringify(property.name ?? 'unknown'),
-    type: JSON.stringify(property.type ?? 'unknown'),
-    visibility: JSON.stringify(property.visibility ?? 'public'),
+    name: String(property.name ?? 'unknown'),
+    type: String(property.type ?? 'unknown'),
+    visibility: String(property.visibility ?? 'public'),
   };
 }
 
 function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod {
-  const methodName = JSON.stringify(method.name ?? 'unknown');
-  const returnType = JSON.stringify(method.returnType ?? 'void');
+  const methodName = String(method.name ?? 'unknown');
+  const returnType = String(method.returnType ?? 'void');
 
   return {
     id: typeof method.id === 'string' ? method.id : undefined,
     name: methodName,
     returnType,
-    visibility: JSON.stringify(method.visibility ?? 'public'),
+    visibility: String(method.visibility ?? 'public'),
     signature:
       typeof method.signature === 'string' && method.signature.length > 0
         ? method.signature

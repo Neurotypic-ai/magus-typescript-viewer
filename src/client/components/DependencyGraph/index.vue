@@ -68,6 +68,11 @@ const graphRootRef = ref<HTMLElement | null>(null);
 let layoutProcessor: WebWorkerLayoutProcessor | null = null;
 let layoutRequestVersion = 0;
 
+// Cached DOM references for handleWheel (Issue #19: avoid querySelector/getBoundingClientRect per event)
+let cachedFlowContainer: HTMLElement | null = null;
+let cachedContainerRect: DOMRect | null = null;
+let resizeObserver: ResizeObserver | null = null;
+
 const DEFAULT_NODE_TYPE_SET = new Set(['module']);
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
 
@@ -130,6 +135,12 @@ const mergeNodeInteractionStyle = (
 ): Record<string, string | number | undefined> => {
   const currentStyle =
     typeof node.style === 'object' ? (node.style as Record<string, string | number | undefined>) : {};
+
+  // If no interaction changes vs current style, return existing style unchanged (same reference = no reactivity trigger)
+  if (Object.keys(interactionStyle).every((key) => currentStyle[key] === interactionStyle[key])) {
+    return currentStyle;
+  }
+
   const baseStyle = getNodeStyle(node.type as DependencyKind);
 
   const preservedSizing = {
@@ -233,6 +244,22 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
     }
   });
 
+  // Batch all DOM reads first (prevents interleaved read-write reflows)
+  const measurements = new Map<
+    string,
+    { width: number; height: number; headerH: number; bodyH: number; subnodesH: number }
+  >();
+  for (const [id, element] of elementById) {
+    measurements.set(id, {
+      width: element.offsetWidth,
+      height: element.offsetHeight,
+      headerH: element.querySelector<HTMLElement>('.base-node-header')?.offsetHeight ?? 0,
+      bodyH: element.querySelector<HTMLElement>('.base-node-body')?.offsetHeight ?? 0,
+      subnodesH: element.querySelector<HTMLElement>('.base-node-subnodes')?.offsetHeight ?? 0,
+    });
+  }
+
+  // Now build result nodes (no DOM reads, just computation)
   let hasChanges = false;
   const measuredNodes = layoutedNodes.map((node) => {
     const shouldMeasure =
@@ -245,25 +272,18 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
       return node;
     }
 
-    const element = elementById.get(node.id);
-    if (!element) {
+    const m = measurements.get(node.id);
+    if (!m) {
       return node;
     }
 
-    // offset* metrics are unscaled by viewport zoom, unlike getBoundingClientRect.
-    const measuredWidth = element.offsetWidth;
-    const measuredHeight = element.offsetHeight;
-    const headerHeight = element.querySelector<HTMLElement>('.base-node-header')?.offsetHeight ?? 0;
-    const bodyHeight = element.querySelector<HTMLElement>('.base-node-body')?.offsetHeight ?? 0;
-    const subnodeSectionHeight = element.querySelector<HTMLElement>('.base-node-subnodes')?.offsetHeight ?? 0;
-
     // Reserve full visible top content so nested children never overlap card sections.
-    const measuredTopInset = Math.max(96, Math.round(headerHeight + bodyHeight + subnodeSectionHeight + 12));
+    const measuredTopInset = Math.max(96, Math.round(m.headerH + m.bodyH + m.subnodesH + 12));
 
     const currentTopInset = (node.data?.layoutInsets as { top?: number } | undefined)?.top ?? 0;
     const currentMeasured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
-    const widthDelta = Math.abs((currentMeasured?.width ?? 0) - measuredWidth);
-    const heightDelta = Math.abs((currentMeasured?.height ?? 0) - measuredHeight);
+    const widthDelta = Math.abs((currentMeasured?.width ?? 0) - m.width);
+    const heightDelta = Math.abs((currentMeasured?.height ?? 0) - m.height);
     const insetDelta = Math.abs(currentTopInset - measuredTopInset);
     const changed = widthDelta > 1 || heightDelta > 1 || insetDelta > 1;
 
@@ -281,8 +301,8 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
         },
       },
       measured: {
-        width: measuredWidth,
-        height: measuredHeight,
+        width: m.width,
+        height: m.height,
       },
     } as DependencyNode;
   });
@@ -326,6 +346,10 @@ const processGraphLayout = async (
 
   isLayoutPending.value = true;
 
+  // Suspend cache writes during layout passes to prevent expensive JSON.stringify
+  // on intermediate state (first-pass nodes that will be replaced by second-pass)
+  graphStore.suspendCacheWrites();
+
   try {
     performance.mark('layout-start');
 
@@ -339,6 +363,7 @@ const processGraphLayout = async (
       firstPassResult.edges as unknown as GraphEdge[]
     );
 
+    // First pass commit - needed to render DOM for measurement
     graphStore['setNodes'](normalized.nodes);
     graphStore['setEdges'](normalized.edges);
 
@@ -361,6 +386,7 @@ const processGraphLayout = async (
           secondPassResult.edges as unknown as GraphEdge[]
         );
 
+        // Single final commit replaces the first-pass data
         graphStore['setNodes'](normalized.nodes);
         graphStore['setEdges'](normalized.edges);
         await nextTick();
@@ -392,6 +418,8 @@ const processGraphLayout = async (
     graphLogger.error('Layout processing failed:', error);
     return null;
   } finally {
+    // Resume cache writes so the final state gets persisted
+    graphStore.resumeCacheWrites();
     if (requestVersion === layoutRequestVersion) {
       isLayoutPending.value = false;
     }
@@ -556,11 +584,9 @@ const handleWheel = (event: WheelEvent): void => {
     const vp = getViewport();
     const factor = event.deltaY > 0 ? 0.95 : 1.05;
     const newZoom = Math.max(0.1, Math.min(2, vp.zoom * factor));
-    const container = graphRootRef.value?.querySelector('.vue-flow') as HTMLElement | null;
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      const cursorX = event.clientX - rect.left;
-      const cursorY = event.clientY - rect.top;
+    if (cachedFlowContainer && cachedContainerRect) {
+      const cursorX = event.clientX - cachedContainerRect.left;
+      const cursorY = event.clientY - cachedContainerRect.top;
       const scale = newZoom / vp.zoom;
       void setViewport(
         { x: cursorX - (cursorX - vp.x) * scale, y: cursorY - (cursorY - vp.y) * scale, zoom: newZoom },
@@ -693,37 +719,40 @@ const handleLayoutChange = async (config: {
 };
 
 const handleSearchResult = (result: SearchResult) => {
-  let searchedNodes = nodes.value.map((node: DependencyNode) => ({
-    ...node,
-    class: undefined,
-    selected: result.nodes.some((searchNode) => searchNode.id === node.id),
-    style: mergeNodeInteractionStyle(node, {
-      opacity: result.nodes.length === 0 ? 1 : result.nodes.some((searchNode) => searchNode.id === node.id) ? 1 : 0.2,
-    }),
-  }));
+  // Pre-build Sets for O(1) lookups instead of O(n) .some() per node/edge
+  const matchingNodeIds = new Set(result.nodes.map((n) => n.id));
+  const pathNodeIds = new Set(result.path?.map((n) => n.id) ?? []);
+  const matchingEdgeIds = new Set(result.edges.map((e) => e.id));
+  const hasResults = matchingNodeIds.size > 0;
+  const hasPath = pathNodeIds.size > 0;
 
-  if (result.path) {
-    searchedNodes = searchedNodes.map((node: DependencyNode) => ({
+  const searchedNodes = nodes.value.map((node: DependencyNode) => {
+    const isMatch = matchingNodeIds.has(node.id);
+    const isOnPath = hasPath && pathNodeIds.has(node.id);
+    const opacity = !hasResults ? 1 : hasPath ? (isOnPath ? 1 : 0.2) : isMatch ? 1 : 0.2;
+    const borderWidth =
+      hasPath && isOnPath ? graphTheme.edges.sizes.width.selected : hasPath ? graphTheme.edges.sizes.width.default : undefined;
+
+    return {
       ...node,
-      selected: result.nodes.some((searchNode) => searchNode.id === node.id),
+      class: undefined,
+      selected: isMatch,
       style: mergeNodeInteractionStyle(node, {
-        opacity: result.path?.some((pathNode) => pathNode.id === node.id) ? 1 : 0.2,
-        borderWidth: result.path?.some((pathNode) => pathNode.id === node.id)
-          ? graphTheme.edges.sizes.width.selected
-          : graphTheme.edges.sizes.width.default,
+        opacity,
+        ...(borderWidth !== undefined ? { borderWidth } : {}),
       }),
-    }));
-  }
+    };
+  });
 
   graphStore['setNodes'](searchedNodes);
 
   const searchedEdges = edges.value.map((edge: GraphEdge) => ({
     ...edge,
     class: undefined,
-    selected: result.edges.some((searchEdge) => searchEdge.id === edge.id),
+    selected: matchingEdgeIds.has(edge.id),
     style: {
       ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
-      opacity: result.edges.length === 0 ? 1 : result.edges.some((searchEdge) => searchEdge.id === edge.id) ? 1 : 0.2,
+      opacity: !hasResults ? 1 : matchingEdgeIds.has(edge.id) ? 1 : 0.2,
     },
   }));
 
@@ -830,10 +859,25 @@ const onNodeMouseLeave = ({ node }: { node: unknown }): void => {
 
 onMounted(() => {
   graphRootRef.value?.addEventListener('wheel', handleWheel, { passive: false });
+
+  // Cache the .vue-flow container element and its rect to avoid DOM queries in handleWheel
+  const flowContainer = graphRootRef.value?.querySelector('.vue-flow') as HTMLElement | null;
+  if (flowContainer) {
+    cachedFlowContainer = flowContainer;
+    cachedContainerRect = flowContainer.getBoundingClientRect();
+    resizeObserver = new ResizeObserver(() => {
+      cachedContainerRect = cachedFlowContainer?.getBoundingClientRect() ?? null;
+    });
+    resizeObserver.observe(flowContainer);
+  }
 });
 
 onUnmounted(() => {
   graphRootRef.value?.removeEventListener('wheel', handleWheel);
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  cachedFlowContainer = null;
+  cachedContainerRect = null;
   if (hoveredNodeId) {
     restoreHoverZIndex(hoveredNodeId);
     hoveredNodeId = null;

@@ -52,8 +52,39 @@ const nodeLabelById = computed(() => {
   return map;
 });
 
+// Pre-compute edge indexes once instead of filtering all edges 6+ times
+const edgesBySource = computed(() => {
+  const map = new Map<string, GraphEdge[]>();
+  for (const edge of props.edges) {
+    const existing = map.get(edge.source);
+    if (existing) existing.push(edge);
+    else map.set(edge.source, [edge]);
+  }
+  return map;
+});
+
+const edgesByTarget = computed(() => {
+  const map = new Map<string, GraphEdge[]>();
+  for (const edge of props.edges) {
+    const existing = map.get(edge.target);
+    if (existing) existing.push(edge);
+    else map.set(edge.target, [edge]);
+  }
+  return map;
+});
+
+// Only needs class/interface detail when the selected node is a module, class, or interface
+const needsSymbolLabels = computed(() => {
+  const nodeType = props.node.type;
+  return nodeType === 'module' || nodeType === 'class' || nodeType === 'interface'
+    || nodeType === 'method' || nodeType === 'property';
+});
+
 const symbolLabelById = computed(() => {
   const map = new Map<string, string>();
+
+  // Skip expensive deep traversal when the selected node doesn't need symbol labels
+  if (!needsSymbolLabels.value) return map;
 
   props.data.packages.forEach((pkg) => {
     if (!pkg.modules) return;
@@ -102,6 +133,10 @@ const symbolLabelById = computed(() => {
 
 const usageByTargetSymbolId = computed(() => {
   const usageMap = new Map<string, string[]>();
+
+  // Only compute usage map when the selected node could have usages
+  // (modules show class/interface usages, classes/interfaces/methods/properties have direct usages)
+  if (!needsSymbolLabels.value) return usageMap;
 
   props.data.packages.forEach((pkg) => {
     if (!pkg.modules) return;
@@ -230,43 +265,49 @@ function labelsFromNodeIds(ids: string[]): string[] {
 }
 
 const imports = computed(() => {
-  const importedIds = props.edges
-    .filter((edge) => edge.data?.type === 'import' && edge.source === props.node.id)
+  const sourceEdges = edgesBySource.value.get(props.node.id) ?? [];
+  const importedIds = sourceEdges
+    .filter((edge) => edge.data?.type === 'import')
     .map((edge) => edge.target);
   return labelsFromNodeIds(importedIds);
 });
 
 const importedBy = computed(() => {
-  const importerIds = props.edges
-    .filter((edge) => edge.data?.type === 'import' && edge.target === props.node.id)
+  const targetEdges = edgesByTarget.value.get(props.node.id) ?? [];
+  const importerIds = targetEdges
+    .filter((edge) => edge.data?.type === 'import')
     .map((edge) => edge.source);
   return labelsFromNodeIds(importerIds);
 });
 
 const extendsTargets = computed(() => {
-  const ids = props.edges
-    .filter((edge) => edge.data?.type === 'inheritance' && edge.source === props.node.id)
+  const sourceEdges = edgesBySource.value.get(props.node.id) ?? [];
+  const ids = sourceEdges
+    .filter((edge) => edge.data?.type === 'inheritance')
     .map((edge) => edge.target);
   return labelsFromNodeIds(ids);
 });
 
 const inheritedBy = computed(() => {
-  const ids = props.edges
-    .filter((edge) => edge.data?.type === 'inheritance' && edge.target === props.node.id)
+  const targetEdges = edgesByTarget.value.get(props.node.id) ?? [];
+  const ids = targetEdges
+    .filter((edge) => edge.data?.type === 'inheritance')
     .map((edge) => edge.source);
   return labelsFromNodeIds(ids);
 });
 
 const implementsTargets = computed(() => {
-  const ids = props.edges
-    .filter((edge) => edge.data?.type === 'implements' && edge.source === props.node.id)
+  const sourceEdges = edgesBySource.value.get(props.node.id) ?? [];
+  const ids = sourceEdges
+    .filter((edge) => edge.data?.type === 'implements')
     .map((edge) => edge.target);
   return labelsFromNodeIds(ids);
 });
 
 const implementedBy = computed(() => {
-  const ids = props.edges
-    .filter((edge) => edge.data?.type === 'implements' && edge.target === props.node.id)
+  const targetEdges = edgesByTarget.value.get(props.node.id) ?? [];
+  const ids = targetEdges
+    .filter((edge) => edge.data?.type === 'implements')
     .map((edge) => edge.source);
   return labelsFromNodeIds(ids);
 });

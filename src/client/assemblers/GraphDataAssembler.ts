@@ -48,6 +48,14 @@ import type {
 
 const assemblerLogger = createLogger('GraphDataAssembler');
 
+interface GraphApiPackagePayload extends Package {
+  modules?: Module[];
+}
+
+interface GraphApiPayload {
+  packages?: GraphApiPackagePayload[];
+}
+
 // Cache for memoizing the graph data
 class GraphDataCache {
   private static instance: GraphDataCache | null = null;
@@ -118,6 +126,22 @@ export class GraphDataAssembler {
   }
 
   /**
+   * Converts API package payload (with optional module arrays) to DependencyPackageGraph
+   */
+  private buildGraphDataFromPackages(packages: GraphApiPackagePayload[]): DependencyPackageGraph {
+    const enrichedPackages = packages.map((pkg) => {
+      const modules = Array.isArray(pkg.modules) ? pkg.modules : [];
+      const enrichedModules = this.transformModules(modules);
+      return {
+        ...this.transformPackage(pkg),
+        modules: Object.fromEntries(enrichedModules.map((module) => [module.id, module])),
+      };
+    });
+
+    return this.createGraphData(enrichedPackages);
+  }
+
+  /**
    * Assembles graph data from the API with caching and abort controller support
    * @param signal Optional AbortSignal to cancel the fetch operations
    * @returns A Promise resolving to the dependency package graph
@@ -135,53 +159,63 @@ export class GraphDataAssembler {
       // Use a timeout signal if none provided (30s default)
       const fetchSignal = signal ?? AbortSignal.timeout(30_000);
 
-      assemblerLogger.debug('Fetching packages data...');
-      const packagesResponse = await fetch(this.buildUrl('/packages'), { signal: fetchSignal });
-      if (!packagesResponse.ok) {
-        throw new Error(`HTTP error! status: ${packagesResponse.status.toString()}`);
+      let graphData: DependencyPackageGraph | null = null;
+
+      assemblerLogger.debug('Fetching graph payload from /graph...');
+      const graphResponse = await fetch(this.buildUrl('/graph'), { signal: fetchSignal });
+      if (graphResponse.ok) {
+        const graphPayload = (await graphResponse.json()) as GraphApiPayload;
+        if (Array.isArray(graphPayload.packages)) {
+          assemblerLogger.debug('Fetched graph payload packages:', graphPayload.packages.length);
+          graphData = this.buildGraphDataFromPackages(graphPayload.packages);
+        }
+      } else {
+        assemblerLogger.warn(`Graph endpoint unavailable (${graphResponse.status.toString()}), falling back to legacy fetch.`);
       }
-      const packages = (await packagesResponse.json()) as Package[];
-      assemblerLogger.debug('Fetched packages:', packages.length);
 
-      // Fetch modules for each package — use allSettled so one failure doesn't kill the graph
-      assemblerLogger.debug('Fetching modules for each package...');
-      const results = await Promise.allSettled(
-        packages.map(async (pkg) => {
-          assemblerLogger.debug(`Fetching modules for package: ${pkg.name}`);
-          const modulesResponse = await fetch(
-            this.buildUrl(`/modules?packageId=${pkg.id}`),
-            { signal: fetchSignal }
+      if (!graphData) {
+        assemblerLogger.debug('Fetching packages data via legacy endpoints...');
+        const packagesResponse = await fetch(this.buildUrl('/packages'), { signal: fetchSignal });
+        if (!packagesResponse.ok) {
+          throw new Error(`HTTP error! status: ${packagesResponse.status.toString()}`);
+        }
+        const packages = (await packagesResponse.json()) as Package[];
+        assemblerLogger.debug('Fetched packages:', packages.length);
+
+        assemblerLogger.debug('Fetching modules for each package...');
+        const results = await Promise.allSettled(
+          packages.map(async (pkg) => {
+            const modulesResponse = await fetch(this.buildUrl(`/modules?packageId=${pkg.id}`), { signal: fetchSignal });
+            if (!modulesResponse.ok) {
+              throw new Error(`HTTP error! status: ${modulesResponse.status.toString()}`);
+            }
+            const modules = (await modulesResponse.json()) as Module[];
+            return {
+              ...pkg,
+              modules,
+            } as GraphApiPackagePayload;
+          })
+        );
+
+        const graphPackages = results
+          .filter((result) => {
+            if (result.status === 'rejected') {
+              assemblerLogger.warn('Failed to fetch modules for a package:', result.reason);
+              return false;
+            }
+            return true;
+          })
+          .map(
+            (result) =>
+              (
+                result as PromiseFulfilledResult<
+                  (typeof results)[number] extends PromiseSettledResult<infer T> ? T : never
+                >
+              ).value
           );
-          if (!modulesResponse.ok) {
-            throw new Error(`HTTP error! status: ${modulesResponse.status.toString()}`);
-          }
-          const modules = (await modulesResponse.json()) as Module[];
-          assemblerLogger.debug(`Fetched ${modules.length.toString()} modules for package: ${pkg.name}`);
 
-          // Transform the module data
-          const enrichedModules = this.transformModules(modules);
-
-          // Transform the package data and include modules
-          return {
-            ...this.transformPackage(pkg),
-            modules: Object.fromEntries(enrichedModules.map((m) => [m.id, m])),
-          };
-        })
-      );
-
-      // Collect successful results, log failures
-      const enrichedPackages = results
-        .filter((r) => {
-          if (r.status === 'rejected') {
-            assemblerLogger.warn('Failed to fetch modules for a package:', r.reason);
-            return false;
-          }
-          return true;
-        })
-        .map((r) => (r as PromiseFulfilledResult<(typeof results)[number] extends PromiseSettledResult<infer T> ? T : never>).value);
-
-      // Create the final graph data
-      const graphData = this.createGraphData(enrichedPackages);
+        graphData = this.buildGraphDataFromPackages(graphPackages);
+      }
 
       // Store in cache
       this.cache.set(cacheKey, graphData);

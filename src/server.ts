@@ -36,7 +36,7 @@ function sendResource(res: http.ServerResponse, resource: unknown) {
   res.writeHead(200, {
     'Content-Type': 'application/json',
   });
-  res.end(JSON.stringify(resource, mapReplacer, 2));
+  res.end(JSON.stringify(resource, mapReplacer));
 }
 
 function sendError(res: http.ServerResponse, statusCode: number, message: string) {
@@ -97,22 +97,6 @@ function handleServerError(error: unknown, res: http.ServerResponse): void {
   sendError(res, 500, error instanceof Error ? error.message : 'Internal server error');
 }
 
-// Add request throttling
-let lastRequestTime = Date.now();
-const THROTTLE_DELAY = 100; // 100ms delay between requests
-
-async function processRequest<T>(handler: () => Promise<T>): Promise<T> {
-  const now = Date.now();
-  const timeSinceLastRequest = now - lastRequestTime;
-
-  if (timeSinceLastRequest < THROTTLE_DELAY) {
-    await new Promise((resolve) => setTimeout(resolve, THROTTLE_DELAY - timeSinceLastRequest));
-  }
-
-  lastRequestTime = Date.now();
-  return handler();
-}
-
 const server = http.createServer((req, res) => {
   // Apply CORS headers immediately for all requests
   applyCorsHeaders(res);
@@ -130,10 +114,17 @@ const server = http.createServer((req, res) => {
       if (req.url === '/packages' && req.method === 'GET') {
         // Get all packages (be permissive on errors)
         try {
-          resource = await processRequest(() => apiServerResponder.getPackages());
+          resource = await apiServerResponder.getPackages();
         } catch (routeErr) {
           logger.error('Error in /packages route, returning empty array', routeErr);
           resource = [];
+        }
+      } else if (req.url === '/graph' && req.method === 'GET') {
+        try {
+          resource = await apiServerResponder.getGraph();
+        } catch (routeErr) {
+          logger.error('Error in /graph route, returning empty graph payload', routeErr);
+          resource = { packages: [] };
         }
       } else if (req.url?.startsWith('/modules') && req.method === 'GET') {
         let packageId: string | undefined;
@@ -155,7 +146,7 @@ const server = http.createServer((req, res) => {
 
         // Get modules, optionally filtered by packageId
         try {
-          resource = await processRequest(() => apiServerResponder.getModules(packageId));
+          resource = await apiServerResponder.getModules(packageId);
         } catch (routeErr) {
           logger.error('Error in /modules route, returning empty array', routeErr);
           resource = [];

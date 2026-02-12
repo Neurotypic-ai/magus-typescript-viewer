@@ -65,6 +65,30 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
     super(adapter, '[ParameterRepository]', 'parameters');
   }
 
+  /**
+   * Batch-insert multiple parameters at once. Ignores duplicates.
+   */
+  async createBatch(items: IParameterCreateDTO[]): Promise<void> {
+    const now = new Date().toISOString();
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, method_id, name, type, is_optional, is_rest, default_value, created_at)',
+      10,
+      items,
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.method_id,
+        dto.name,
+        dto.type,
+        dto.is_optional ? 1 : 0,
+        dto.is_rest ? 1 : 0,
+        dto.default_value ?? '',
+        now,
+      ]
+    );
+  }
+
   async create(dto: IParameterCreateDTO): Promise<Parameter> {
     try {
       const now = new Date().toISOString();

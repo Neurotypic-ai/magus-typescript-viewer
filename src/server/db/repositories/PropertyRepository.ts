@@ -101,6 +101,29 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
     super(adapter, '[PropertyRepository]', 'properties');
   }
 
+  /**
+   * Batch-insert multiple properties at once. Ignores duplicates.
+   */
+  async createBatch(items: IPropertyCreateDTO[]): Promise<void> {
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, parent_id, parent_type, name, type, is_static, is_readonly, visibility)',
+      10,
+      items,
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.parent_id,
+        dto.parent_type,
+        dto.name,
+        dto.type,
+        dto.is_static,
+        dto.is_readonly,
+        dto.visibility,
+      ]
+    );
+  }
+
   async create(dto: IPropertyCreateDTO): Promise<Property> {
     try {
       const params: (string | boolean)[] = [
@@ -230,6 +253,62 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
     } catch (error) {
       this.logger.error('Failed to delete property', error);
       throw new RepositoryError('Failed to delete property', 'delete', this.errorTag, error as Error);
+    }
+  }
+
+  /**
+   * Batch-retrieve all properties for multiple parent IDs of a given type.
+   * Returns a Map keyed by parent_id, each value is a Map<string, Property>.
+   */
+  async retrieveByParentIds(
+    parentIds: string[],
+    parentType: 'class' | 'interface'
+  ): Promise<Map<string, Map<string, Property>>> {
+    const result = new Map<string, Map<string, Property>>();
+    if (parentIds.length === 0) return result;
+
+    // Initialise empty maps for every requested parent
+    for (const pid of parentIds) {
+      result.set(pid, new Map<string, Property>());
+    }
+
+    try {
+      const placeholders = parentIds.map(() => '?').join(', ');
+      const properties = await this.executeQuery<IPropertyRow>(
+        'retrieveByParentIds',
+        `SELECT * FROM properties WHERE parent_id IN (${placeholders}) AND parent_type = ?`,
+        [...parentIds, parentType]
+      );
+
+      for (const prop of properties) {
+        const propObj = new Property(
+          prop.id,
+          prop.package_id,
+          prop.module_id,
+          prop.parent_id,
+          prop.name,
+          new Date(prop.created_at),
+          prop.type,
+          prop.is_static,
+          prop.is_readonly,
+          prop.visibility as VisibilityType
+        );
+
+        const parentMap = result.get(prop.parent_id);
+        if (parentMap) {
+          parentMap.set(prop.id, propObj);
+        }
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to retrieve properties by parent IDs', error);
+      throw new RepositoryError(
+        'Failed to retrieve properties by parent IDs',
+        'retrieveByParentIds',
+        this.errorTag,
+        error as Error
+      );
     }
   }
 

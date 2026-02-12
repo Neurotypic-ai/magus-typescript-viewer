@@ -76,6 +76,19 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
     this.propertyRepository = new PropertyRepository(adapter);
   }
 
+  /**
+   * Batch-insert multiple interfaces at once. Ignores duplicates.
+   */
+  async createBatch(items: IInterfaceCreateDTO[]): Promise<void> {
+    const now = new Date().toISOString();
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, name, created_at)',
+      5,
+      items,
+      (dto) => [dto.id, dto.package_id, dto.module_id, dto.name, now]
+    );
+  }
+
   async create(dto: IInterfaceCreateDTO): Promise<Interface> {
     try {
       const now = new Date().toISOString();

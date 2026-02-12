@@ -68,6 +68,27 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
     super(adapter, '[ModuleRepository]', 'modules');
   }
 
+  /**
+   * Batch-insert multiple modules at once. Ignores duplicates.
+   */
+  async createBatch(items: IModuleCreateDTO[]): Promise<void> {
+    await this.executeBatchInsert(
+      '(id, package_id, name, source, directory, filename, relative_path, is_barrel)',
+      8,
+      items,
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.name,
+        JSON.stringify(dto.source),
+        dto.source.directory,
+        dto.source.filename,
+        dto.source.relativePath,
+        Boolean(dto.source.isBarrel ?? false) ? 1 : 0,
+      ]
+    );
+  }
+
   async create(dto: IModuleCreateDTO): Promise<Module> {
     try {
       const results = await this.executeQuery<IModuleRow>(

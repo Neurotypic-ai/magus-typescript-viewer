@@ -41,12 +41,13 @@ const config: UserConfigExport = defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         manualChunks: {
           'vue-vendor': ['vue', 'pinia'],
           'flow-vendor': ['@vue-flow/core', '@vue-flow/background', '@vue-flow/controls', '@vue-flow/minimap'],
+          'elk-vendor': ['elkjs'],
         },
       },
     },

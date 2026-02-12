@@ -53,6 +53,32 @@ interface DeferredInterfaceExtendsRef {
   parentId?: string | undefined;
 }
 
+/**
+ * Runs an async mapping function over items with bounded concurrency.
+ * Workers pull from a shared index to keep all slots busy.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length) as R[];
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      const item = items[index];
+      if (item !== undefined) {
+        results[index] = await fn(item);
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
 const SOURCE_FILE_PATTERN = /\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
 const VUE_SCRIPT_BLOCK_PATTERN = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
 const ALWAYS_EXCLUDED_DIRECTORIES = new Set([
@@ -435,11 +461,15 @@ export class PackageParser {
     const rawInterfaceExtends: DeferredInterfaceExtendsRef[] = [];
     const symbolUsages: SymbolUsageRef[] = [];
 
-    for (const file of files) {
+    // Parse all files concurrently with bounded concurrency
+    const parseResults = await mapWithConcurrency(files, 8, async (file) => {
       const sourceOverride = await this.getModuleSourceOverride(file);
       const moduleParser = new ModuleParser(file, packageId, sourceOverride);
-      const moduleResult: ParseResult = await moduleParser.parse();
+      return moduleParser.parse();
+    });
 
+    // Collect results from all parse results
+    for (const moduleResult of parseResults) {
       const moduleId = moduleResult.modules[0]?.id ?? '';
 
       modules.push(...moduleResult.modules);

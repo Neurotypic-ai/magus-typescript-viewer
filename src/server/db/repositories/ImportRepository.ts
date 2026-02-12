@@ -78,6 +78,18 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
     super(adapter, '[ImportRepository]', 'imports');
   }
 
+  /**
+   * Batch-insert multiple imports at once. Ignores duplicates.
+   */
+  async createBatch(items: IImportCreateDTO[]): Promise<void> {
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, source, specifiers_json)',
+      5,
+      items,
+      (dto) => [dto.id, dto.package_id, dto.module_id, dto.source, dto.specifiers_json ?? null]
+    );
+  }
+
   async create(dto: IImportCreateDTO): Promise<IImportCreateDTO> {
     try {
       const params: Array<string | null> = [

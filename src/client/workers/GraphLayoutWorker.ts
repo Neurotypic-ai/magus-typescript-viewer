@@ -622,20 +622,22 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // rendered size exactly matches the worker's positionMap — this prevents
     // content-driven sizing from exceeding the worker's estimates and causing overlaps.
     //
-    // CRITICAL: Strip `expandParent` from output nodes — it causes Vue Flow to
-    // auto-expand parents AFTER the worker runs, overriding the computed layout.
-    // Keep `extent` so Vue Flow enforces drag containment at runtime (extent: 'parent'
-    // prevents users from dragging child nodes outside their parent boundaries).
+    // CRITICAL: Strip `expandParent` and the original `extent` from output nodes.
+    // `expandParent` causes Vue Flow to auto-expand parents, overriding computed layout.
+    // The original `extent` may be a Vue reactive Proxy (from prior layout passes),
+    // which can't survive structured clone via postMessage. Instead, re-apply a fresh
+    // `extent: 'parent'` string on child nodes so Vue Flow enforces drag containment.
     const newNodes = nodes.map((node) => {
       const position = positionMap.get(node.id);
-      // Strip expandParent but preserve extent for drag containment.
-      const { expandParent: _ep, ...nodeBase } = node;
+      const { expandParent: _ep, extent: _ext, ...nodeBase } = node;
+      const isChild = !!(node as { parentNode?: string }).parentNode;
 
       if (position) {
         const hasChildren = nodes.some((candidate) => (candidate as { parentNode?: string }).parentNode === node.id);
         const style = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
         return {
           ...nodeBase,
+          ...(isChild ? { extent: 'parent' as const } : {}),
           position: { x: position.x, y: position.y },
           style: {
             ...style,
@@ -645,7 +647,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
           },
         };
       }
-      return nodeBase;
+      return { ...nodeBase, ...(isChild ? { extent: 'parent' as const } : {}) };
     });
 
     // Return all edges (including containment edges), not just the ones used for layout

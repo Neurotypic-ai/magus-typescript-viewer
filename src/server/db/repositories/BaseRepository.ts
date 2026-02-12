@@ -116,6 +116,62 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
     }
   }
 
+  /**
+   * Batch-insert multiple rows in chunks to avoid query size limits.
+   * Ignores duplicate key errors for each chunk.
+   *
+   * @param columns - The column names, e.g. "(id, name, module_id)"
+   * @param columnCount - Number of columns per row (for placeholder generation)
+   * @param items - The items to insert
+   * @param itemToParams - Function that converts an item to an array of parameter values
+   * @param chunkSize - Maximum rows per INSERT statement (default 500)
+   */
+  protected async executeBatchInsert<D>(
+    columns: string,
+    columnCount: number,
+    items: D[],
+    itemToParams: (item: D) => QueryParams,
+    chunkSize = 500
+  ): Promise<void> {
+    if (items.length === 0) return;
+
+    const singleRowPlaceholder = `(${Array.from({ length: columnCount }, () => '?').join(', ')})`;
+
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => singleRowPlaceholder).join(', ');
+      const params = chunk.flatMap(itemToParams);
+      try {
+        await this.adapter.query(
+          `INSERT INTO ${this.tableName} ${columns} VALUES ${placeholders}`,
+          params
+        );
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : '';
+        // Ignore duplicate constraint violations
+        if (msg.includes('Duplicate') || msg.includes('UNIQUE') || msg.includes('already exists')) {
+          // Fall back to individual inserts for this chunk to skip only the duplicates
+          for (const item of chunk) {
+            try {
+              await this.adapter.query(
+                `INSERT INTO ${this.tableName} ${columns} VALUES ${singleRowPlaceholder}`,
+                itemToParams(item)
+              );
+            } catch (innerError) {
+              const innerMsg = innerError instanceof Error ? innerError.message : '';
+              if (innerMsg.includes('Duplicate') || innerMsg.includes('UNIQUE') || innerMsg.includes('already exists')) {
+                continue;
+              }
+              throw innerError;
+            }
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+
   protected buildUpdateQuery(updates: { field: string; value: unknown }[]): {
     query: string;
     values: QueryParams;

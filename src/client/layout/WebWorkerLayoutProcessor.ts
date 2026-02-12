@@ -64,6 +64,8 @@ export class WebWorkerLayoutProcessor {
   private worker: Worker | null = null;
   private config: LayoutConfig;
   private workerSupported: boolean;
+  private currentRequestId = 0;
+  private static readonly LAYOUT_TIMEOUT_MS = 15_000;
 
   constructor(config?: WebWorkerLayoutConfig) {
     // Map the default config to the worker's expected format
@@ -134,6 +136,9 @@ export class WebWorkerLayoutProcessor {
 
     const { nodes, edges } = graphData;
 
+    // Increment request ID to allow cancellation of stale requests
+    const requestId = ++this.currentRequestId;
+
     // Use the web worker
     return new Promise((resolve, reject) => {
       if (!this.worker) {
@@ -141,10 +146,25 @@ export class WebWorkerLayoutProcessor {
         return;
       }
 
+      // Set up a timeout to reject if the worker takes too long
+      const timeoutId = setTimeout(() => {
+        this.worker?.removeEventListener('message', onMessage);
+        this.worker?.removeEventListener('error', onError);
+        reject(new Error('Layout timed out'));
+      }, WebWorkerLayoutProcessor.LAYOUT_TIMEOUT_MS);
+
       // Set up the message handler for worker responses
       const onMessage = (event: MessageEvent<WorkerResponse>) => {
+        clearTimeout(timeoutId);
         this.worker?.removeEventListener('message', onMessage); // Clean up listener
         this.worker?.removeEventListener('error', onError); // Clean up listener
+
+        // Reject stale responses that were superseded by a newer request
+        if (requestId !== this.currentRequestId) {
+          reject(new Error('Layout request superseded'));
+          return;
+        }
+
         if (event.data.type === 'layout-complete') {
           resolve(event.data.payload as LayoutResult);
         } else {
@@ -155,10 +175,14 @@ export class WebWorkerLayoutProcessor {
 
       // Set up error handler
       const onError = (error: ErrorEvent) => {
+        clearTimeout(timeoutId);
+        this.worker?.removeEventListener('message', onMessage);
         this.worker?.removeEventListener('error', onError);
         console.error('Layout worker error:', error);
         // Fall back to synchronous processing
-        this.fallbackProcessLayout(nodes, edges).then(resolve).catch(reject);
+        this.fallbackProcessLayout(structuredClone(graphData.nodes), structuredClone(graphData.edges))
+          .then(resolve)
+          .catch(reject);
       };
 
       // Add event listeners

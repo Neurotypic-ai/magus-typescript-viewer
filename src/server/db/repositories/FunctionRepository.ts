@@ -47,6 +47,26 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
     super(adapter, '[FunctionRepository]', 'functions');
   }
 
+  /**
+   * Batch-insert multiple functions at once. Ignores duplicates.
+   */
+  async createBatch(items: IFunctionCreateDTO[]): Promise<void> {
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, name, return_type, is_async, is_exported)',
+      7,
+      items,
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.name,
+        dto.return_type ?? null,
+        dto.is_async ?? false,
+        dto.is_exported ?? false,
+      ]
+    );
+  }
+
   async create(dto: IFunctionCreateDTO): Promise<ModuleFunction> {
     try {
       const results = await this.executeQuery<IFunctionRow>(
