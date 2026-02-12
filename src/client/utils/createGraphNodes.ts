@@ -64,21 +64,21 @@ function createDiagnostics(params: {
 function toNodeProperty(property: NodeProperty | Record<string, unknown>): NodeProperty {
   return {
     id: typeof property.id === 'string' ? property.id : undefined,
-    name: String(property.name ?? 'unknown'),
-    type: String(property.type ?? 'unknown'),
-    visibility: String(property.visibility ?? 'public'),
+    name: JSON.stringify(property.name ?? 'unknown'),
+    type: JSON.stringify(property.type ?? 'unknown'),
+    visibility: JSON.stringify(property.visibility ?? 'public'),
   };
 }
 
 function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod {
-  const methodName = String(method.name ?? 'unknown');
-  const returnType = String(method.returnType ?? 'void');
+  const methodName = JSON.stringify(method.name ?? 'unknown');
+  const returnType = JSON.stringify(method.returnType ?? 'void');
 
   return {
     id: typeof method.id === 'string' ? method.id : undefined,
     name: methodName,
     returnType,
-    visibility: String(method.visibility ?? 'public'),
+    visibility: JSON.stringify(method.visibility ?? 'public'),
     signature:
       typeof method.signature === 'string' && method.signature.length > 0
         ? method.signature
@@ -316,11 +316,9 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
 
       // In compact mode, symbols are embedded in the module node as data.
       // In graph mode, symbols become separate child VueFlow nodes.
-      const hasVueFlowChildren = !isCompactMode && (visibleClassCount + visibleInterfaceCount) > 0;
+      const hasVueFlowChildren = !isCompactMode && visibleClassCount + visibleInterfaceCount > 0;
       const visibleSubnodeCount = hasVueFlowChildren ? visibleClassCount + visibleInterfaceCount : 0;
-      const hiddenSubnodeCount = hasVueFlowChildren
-        ? Math.max(0, totalSubnodeCount - visibleSubnodeCount)
-        : 0;
+      const hiddenSubnodeCount = hasVueFlowChildren ? Math.max(0, totalSubnodeCount - visibleSubnodeCount) : 0;
 
       if (includeModules) {
         const externalDependencies = getModuleExternalDependencies(module);
@@ -456,7 +454,9 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
       // Create interface nodes as separate VueFlow nodes.
       if (includeInterfaceNodes && module.interfaces) {
         mapTypeCollection(module.interfaces, (iface) => {
-          const properties = iface.properties ? mapTypeCollection(iface.properties, (prop) => toNodeProperty(prop)) : [];
+          const properties = iface.properties
+            ? mapTypeCollection(iface.properties, (prop) => toNodeProperty(prop))
+            : [];
           const methods = iface.methods ? mapTypeCollection(iface.methods, (method) => toNodeMethod(method)) : [];
           const memberTotal = properties.length + methods.length;
 

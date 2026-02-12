@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
+import { buildBaseNodeProps } from './utils';
 
 import type { DependencyProps, NodeMethod, NodeProperty } from '../types';
 
@@ -20,15 +21,7 @@ const memberPropertyCount = computed(() => properties.value.length);
 const memberMethodCount = computed(() => methods.value.length);
 const totalMemberCount = computed(() => memberPropertyCount.value + memberMethodCount.value);
 
-const baseNodeProps = computed(() => ({
-  id: props.id,
-  type: props.type,
-  data: props.data,
-  ...(props.selected !== undefined ? { selected: props.selected } : {}),
-  ...(props.width !== undefined ? { width: props.width } : {}),
-  ...(props.height !== undefined ? { height: props.height } : {}),
-  ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
-  ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
+const baseNodeProps = computed(() => buildBaseNodeProps(props, {
   zIndex: isMemberNode.value ? 4 : 3,
 }));
 

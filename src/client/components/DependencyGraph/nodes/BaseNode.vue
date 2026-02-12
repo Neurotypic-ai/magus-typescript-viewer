@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core';
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
 
 import { useGraphSettings } from '../../../stores/graphSettings';
 
+import { NODE_ACTIONS_KEY } from './utils';
+
+import type { NodeActions } from './utils';
 import type { DependencyProps } from '../types';
 
 interface BaseNodeProps extends DependencyProps {
@@ -24,6 +27,7 @@ const props = withDefaults(defineProps<BaseNodeProps>(), {
 });
 
 const graphSettings = useGraphSettings();
+const nodeActions = inject<NodeActions | undefined>(NODE_ACTIONS_KEY, undefined);
 
 const nodeData = computed(() => props.data);
 const isSelected = computed(() => !!props.selected);
@@ -102,20 +106,6 @@ const containerStyle = computed(() => {
   };
 });
 
-const triggerNodeAction = (action: 'focus' | 'isolate') => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.dispatchEvent(
-    new CustomEvent('dependency-graph-node-action', {
-      detail: {
-        action,
-        nodeId: props.id,
-      },
-    })
-  );
-};
 </script>
 
 <template>
@@ -141,19 +131,19 @@ const triggerNodeAction = (action: 'focus' | 'isolate') => {
       <div class="base-node-actions">
         <button
           type="button"
-          class="base-node-action-button"
+          class="base-node-action-button nodrag"
           aria-label="Focus camera on node"
           title="Focus node"
-          @click.stop="triggerNodeAction('focus')"
+          @click.stop="nodeActions?.focusNode(props.id)"
         >
           ◉
         </button>
         <button
           type="button"
-          class="base-node-action-button"
+          class="base-node-action-button nodrag"
           aria-label="Isolate node and neighbors"
           title="Isolate neighborhood"
-          @click.stop="triggerNodeAction('isolate')"
+          @click.stop="nodeActions?.isolateNeighborhood(props.id)"
         >
           ⊚
         </button>
@@ -196,7 +186,7 @@ const triggerNodeAction = (action: 'focus' | 'isolate') => {
     box-shadow 180ms ease-out,
     border-color 180ms ease-out,
     opacity 180ms ease-out;
-  cursor: move;
+  cursor: grab;
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.1),
     0 4px 6px -2px rgba(0, 0, 0, 0.05);

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Background } from '@vue-flow/background';
+import { Controls } from '@vue-flow/controls';
 import { MarkerType, Panel, Position, VueFlow, applyNodeChanges, useVueFlow } from '@vue-flow/core';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
 import { createLogger } from '../../../shared/utils/logger';
 import { WebWorkerLayoutProcessor } from '../../layout/WebWorkerLayoutProcessor';
@@ -21,12 +22,14 @@ import GraphMiniMap from './components/GraphMiniMap.vue';
 import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
+import { NODE_ACTIONS_KEY } from './nodes/utils';
 import { useGraphInteractionController } from './useGraphInteractionController';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 
 import type { NodeChange } from '@vue-flow/core';
 import type { DependencyKind, DependencyNode, DependencyPackageGraph, GraphEdge, SearchResult } from './types';
 
+import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/core/dist/style.css';
 
 const graphLogger = createLogger('DependencyGraph');
@@ -430,23 +433,11 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   });
 };
 
-const handleNodeActionEvent = (event: Event): void => {
-  const customEvent = event as CustomEvent<{ action?: string; nodeId?: string }>;
-  const action = customEvent.detail?.action;
-  const nodeId = customEvent.detail?.nodeId;
-  if (!action || !nodeId) {
-    return;
-  }
-
-  if (action === 'focus') {
-    void handleFocusNode(nodeId);
-    return;
-  }
-
-  if (action === 'isolate') {
-    void isolateNeighborhood(nodeId);
-  }
-};
+// Provide node actions to child nodes via injection (replaces global CustomEvent)
+provide(NODE_ACTIONS_KEY, {
+  focusNode: (nodeId: string) => void handleFocusNode(nodeId),
+  isolateNeighborhood: (nodeId: string) => void isolateNeighborhood(nodeId),
+});
 
 const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
   const targetNode = nodes.value.find((node) => node.id === nodeId) ?? selectedNode.value;
@@ -696,7 +687,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
 
 onMounted(() => {
   graphRootRef.value?.addEventListener('wheel', handleWheel, { passive: false });
-  window.addEventListener('dependency-graph-node-action', handleNodeActionEvent as EventListener);
 });
 
 onUnmounted(() => {
@@ -705,7 +695,6 @@ onUnmounted(() => {
     layoutProcessor.dispose();
     layoutProcessor = null;
   }
-  window.removeEventListener('dependency-graph-node-action', handleNodeActionEvent as EventListener);
 });
 </script>
 
@@ -759,6 +748,7 @@ onUnmounted(() => {
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <GraphMiniMap :nodes="nodes" :edges="edges" :selected-node-id="selectedNode?.id ?? null" />
+      <Controls position="bottom-right" :show-interactive="false" />
 
       <Panel v-if="isLayoutPending" position="top-center">
         <div class="layout-loading-indicator">Updating graph layout...</div>

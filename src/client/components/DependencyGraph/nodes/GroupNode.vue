@@ -9,7 +9,7 @@ const label = computed(() => props.data?.label ?? 'Folder');
 
 <template>
   <div :class="['group-node-container', { 'group-node-selected': !!props.selected }]">
-    <div class="group-node-label" :title="label">{{ label }}</div>
+    <div class="group-node-label nodrag" :title="label">{{ label }}</div>
   </div>
 </template>
 

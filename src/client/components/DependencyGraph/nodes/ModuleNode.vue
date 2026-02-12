@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
+import { buildBaseNodeProps } from './utils';
 
 import type { DependencyProps, EmbeddedSymbol, ExternalDependencyRef, NodeMethod, NodeProperty } from '../types';
 
@@ -81,15 +82,7 @@ const hiddenSubnodeSummary = computed(() => {
 
 const hasVueFlowChildren = computed(() => nodeData.value.isContainer === true && subnodeCount.value > 0);
 
-const baseNodeProps = computed(() => ({
-  id: props.id,
-  type: props.type,
-  data: props.data,
-  ...(props.selected !== undefined ? { selected: props.selected } : {}),
-  ...(props.width !== undefined ? { width: props.width } : {}),
-  ...(props.height !== undefined ? { height: props.height } : {}),
-  ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
-  ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
+const baseNodeProps = computed(() => buildBaseNodeProps(props, {
   isContainer: hasVueFlowChildren.value,
   showSubnodes: hasVueFlowChildren.value || hiddenSubnodeCount.value > 0,
   subnodesCount: subnodeCount.value,
@@ -142,12 +135,12 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
   >
     <template #body>
       <div v-if="metadataItems.length > 0" class="module-section">
-        <button class="module-section-toggle" type="button" @click="showMetadata = !showMetadata">
+        <button class="module-section-toggle nodrag" type="button" @click="showMetadata = !showMetadata">
           <span>Metadata</span>
           <span>{{ showMetadata ? '−' : '+' }}</span>
         </button>
         <Transition name="section-collapse">
-          <div v-if="showMetadata" class="module-section-content">
+          <div v-if="showMetadata" class="module-section-content nowheel">
             <div v-for="(prop, index) in metadataItems" :key="`metadata-${index}`" class="metadata-item">
               <span class="metadata-key">{{ prop.name }}:</span>
               <span class="metadata-value" :title="prop.type">{{ prop.type }}</span>
@@ -157,12 +150,12 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
       </div>
 
       <div v-if="externalDependencies.length > 0" class="module-section">
-        <button class="module-section-toggle" type="button" @click="showExternalDeps = !showExternalDeps">
+        <button class="module-section-toggle nodrag" type="button" @click="showExternalDeps = !showExternalDeps">
           <span>External Dependencies</span>
           <span>{{ showExternalDeps ? '−' : '+' }}</span>
         </button>
         <Transition name="section-collapse">
-          <div v-if="showExternalDeps" class="module-section-content">
+          <div v-if="showExternalDeps" class="module-section-content nowheel">
             <div
               v-for="dependency in visibleExternalDependencies"
               :key="dependency.packageName"
@@ -177,7 +170,7 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
             <button
               v-if="hiddenExternalDependencyCount > 0 && !showAllExternalDeps"
               type="button"
-              class="dependency-more-button"
+              class="dependency-more-button nodrag"
               @click="showAllExternalDeps = true"
             >
               +{{ hiddenExternalDependencyCount }} more packages

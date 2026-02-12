@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import BaseNode from './BaseNode.vue';
+import { buildBaseNodeProps } from './utils';
 
 import type { DependencyProps } from '../types';
 
@@ -19,15 +20,7 @@ const totalSubnodeCount = computed(() => {
   return typeof total === 'number' ? total : subnodeCount.value;
 });
 
-const baseNodeProps = computed(() => ({
-  id: props.id,
-  type: props.type,
-  data: props.data,
-  ...(props.selected !== undefined ? { selected: props.selected } : {}),
-  ...(props.width !== undefined ? { width: props.width } : {}),
-  ...(props.height !== undefined ? { height: props.height } : {}),
-  ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
-  ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
+const baseNodeProps = computed(() => buildBaseNodeProps(props, {
   isContainer: true,
   showSubnodes: totalSubnodeCount.value > 0,
   subnodesCount: subnodeCount.value,

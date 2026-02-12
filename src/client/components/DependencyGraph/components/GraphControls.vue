@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Panel, useVueFlow } from '@vue-flow/core';
+import { Panel } from '@vue-flow/core';
 import { ref } from 'vue';
 
 import { DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../../../stores/graphSettings';
@@ -25,7 +25,6 @@ const emit = defineEmits<{
   'toggle-orphan-global': [value: boolean];
 }>();
 
-const { zoomIn, zoomOut, fitView } = useVueFlow();
 const graphSettings = useGraphSettings();
 
 // Layout configuration
@@ -34,20 +33,7 @@ const layoutDirection = ref<'LR' | 'RL' | 'TB' | 'BT'>('LR');
 const nodeSpacing = ref(100);
 const rankSpacing = ref(150);
 
-const handleZoomIn = () => {
-  void zoomIn({ duration: 150 });
-};
-
-const handleZoomOut = () => {
-  void zoomOut({ duration: 150 });
-};
-
-const handleFitView = () => {
-  void fitView({ duration: 150, padding: 0.1 });
-};
-
 const handleResetView = () => {
-  void fitView({ duration: 180, padding: 0.1 });
   emit('reset-view');
 };
 
@@ -129,29 +115,8 @@ const handleOrphanGlobalToggle = (checked: boolean) => {
 <template>
   <Panel position="top-left">
     <div class="bg-background-paper p-4 rounded-lg border border-border-default shadow-xl">
-      <!-- Button Group -->
+      <!-- View Actions -->
       <div class="flex gap-2 mb-4">
-        <button
-          @click="handleZoomIn"
-          class="px-3 py-1.5 bg-white/10 text-text-primary rounded hover:bg-white/20 transition-fast border border-border-default font-semibold"
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-        <button
-          @click="handleZoomOut"
-          class="px-3 py-1.5 bg-white/10 text-text-primary rounded hover:bg-white/20 transition-fast border border-border-default font-semibold"
-          aria-label="Zoom out"
-        >
-          −
-        </button>
-        <button
-          @click="handleFitView"
-          class="px-3 py-1.5 bg-white/10 text-text-primary rounded hover:bg-white/20 transition-fast border border-border-default text-xs font-semibold"
-          aria-label="Fit view to content"
-        >
-          Fit
-        </button>
         <button
           @click="handleResetView"
           class="px-3 py-1.5 bg-white/10 text-text-primary rounded hover:bg-white/20 transition-fast border border-border-default text-xs font-semibold"

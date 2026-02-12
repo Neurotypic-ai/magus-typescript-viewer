@@ -168,6 +168,7 @@ body {
   stroke-width: 2.5px !important;
 }
 
+/* Styles for the official @vue-flow/controls component (bottom-right zoom/fit panel) */
 .vue-flow__controls {
   background: var(--color-background-paper) !important;
   border-radius: 8px !important;

@@ -1,4 +1,4 @@
-import dagre from '@dagrejs/dagre';
+import { graphlib, layout } from '@dagrejs/dagre';
 
 import { createLogger } from '../../../../shared/utils/logger';
 import { defaultLayoutConfig, mergeConfig } from './config';
@@ -6,6 +6,14 @@ import { LayoutError } from './errors';
 
 import type { DependencyGraph, DependencyNode } from '../types';
 import type { LayoutConfig } from './config';
+
+/** Node label shape after dagre layout has assigned positions */
+interface DagreNodeLabel {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 // Helper function to get node dimensions (replaces @xyflow/system's getNodeDimensions)
 function getNodeDimensions(node: DependencyNode): { width: number; height: number } {
@@ -89,7 +97,7 @@ export class LayoutProcessor {
       }
 
       // Create a new dagre graph
-      const g = new dagre.graphlib.Graph({ compound: true });
+      const g = new graphlib.Graph({ compound: true });
 
       // Set graph options
       g.setGraph({
@@ -123,11 +131,11 @@ export class LayoutProcessor {
       });
 
       // Perform layout
-      dagre.layout(g);
+      layout(g);
 
       // Extract positions with special handling for container nodes (package, module, group)
       const layoutedNodes = graph.nodes.map((node) => {
-        const layoutNode = g.node(node.id);
+        const layoutNode = g.node(node.id) as unknown as DagreNodeLabel;
 
         // Handle container nodes (package, module, group) that contain other nodes
         if (node.type === 'package' || node.type === 'module' || node.type === 'group') {
