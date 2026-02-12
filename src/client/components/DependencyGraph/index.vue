@@ -74,7 +74,11 @@ let selectionHighlightRafId: number | null = null;
 
 // Edge virtualization: hides off-screen edges to reduce DOM count.
 // Uses passed-in getters to avoid direct dependency on DOM state at init time.
-const { onViewportChange: onEdgeVirtualizationViewportChange } = useEdgeVirtualization({
+const {
+  onViewportChange: onEdgeVirtualizationViewportChange,
+  suspend: suspendEdgeVirtualization,
+  resume: resumeEdgeVirtualization,
+} = useEdgeVirtualization({
   nodes: computed(() => graphStore['nodes']),
   edges: computed(() => graphStore['edges']),
   getViewport,
@@ -523,6 +527,10 @@ const processGraphLayout = async (
 
   isLayoutPending.value = true;
 
+  // Suspend edge virtualization during layout to prevent it from seeing stale
+  // viewport coordinates before fitView completes its 180ms animation.
+  suspendEdgeVirtualization();
+
   // Suspend cache writes during layout passes to prevent expensive JSON.stringify
   // on intermediate state (first-pass nodes that will be replaced by second-pass)
   graphStore.suspendCacheWrites();
@@ -550,6 +558,9 @@ const processGraphLayout = async (
           ...(options.fitNodes?.length ? { nodes: options.fitNodes } : {}),
         });
       }
+
+      // Resume edge virtualization now that fitView has settled the viewport
+      resumeEdgeVirtualization();
 
       performance.mark('layout-end');
       measurePerformance('graph-layout', 'layout-start', 'layout-end');
@@ -620,6 +631,9 @@ const processGraphLayout = async (
       }
     }
 
+    // Resume edge virtualization now that fitView has settled the viewport
+    resumeEdgeVirtualization();
+
     // Cache the result for future identical graph+config combinations
     if (layoutCache.size >= MAX_LAYOUT_CACHE_ENTRIES) {
       // Evict oldest entry (first inserted)
@@ -639,6 +653,9 @@ const processGraphLayout = async (
   } finally {
     // Resume cache writes so the final state gets persisted
     graphStore.resumeCacheWrites();
+    // Safety net: always resume edge virtualization even on error/early-return paths.
+    // Duplicate resume calls are harmless (scheduleRecalc just debounces).
+    resumeEdgeVirtualization();
     if (requestVersion === layoutRequestVersion) {
       isLayoutPending.value = false;
     }
@@ -729,6 +746,7 @@ const handleFocusNode = async (nodeId: string): Promise<void> => {
     duration: 180,
     padding: 0.4,
   });
+  onEdgeVirtualizationViewportChange();
 };
 
 const isolateNeighborhood = async (nodeId: string): Promise<void> => {
@@ -790,6 +808,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     padding: 0.35,
     nodes: Array.from(connectedNodeIds),
   });
+  onEdgeVirtualizationViewportChange();
 };
 
 const nodeActions = {
@@ -894,6 +913,7 @@ const handleReturnToOverview = async (): Promise<void> => {
 
   if (graphStore.restoreOverviewSnapshot()) {
     await fitView({ duration: 180, padding: 0.1 });
+    onEdgeVirtualizationViewportChange();
     return;
   }
 
@@ -1162,7 +1182,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
             nodes: [nextNode.id],
             duration: 150,
             padding: 0.5,
-          });
+          }).then(() => onEdgeVirtualizationViewportChange());
         }
       }
     }
@@ -1389,7 +1409,8 @@ onUnmounted(() => {
 .dependency-graph-root :deep(.vue-flow__node) {
   transition:
     transform 180ms ease-out,
-    opacity 180ms ease-out;
+    opacity 180ms ease-out,
+    filter 180ms ease-out;
 }
 
 .dependency-graph-root :deep(.vue-flow__edge-path) {

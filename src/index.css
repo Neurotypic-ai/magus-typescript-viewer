@@ -153,9 +153,8 @@ body {
   contain: layout style;
 }
 
-.vue-flow__nodes {
-  contain: layout style;
-}
+/* .vue-flow__nodes deliberately has no z-index or contain to avoid creating
+   a stacking context — lets individual nodes (hover, selection) pop above edges. */
 
 .vue-flow__edge-path {
   stroke-width: 1.5px !important;
@@ -223,14 +222,23 @@ body {
   background-color: transparent !important;
 }
 
-/* Improve node dragging performance */
+/* Node base styles — transitions are managed by scoped styles in index.vue
+   and disabled during pan by the .graph-panning class. */
 .vue-flow__node {
-  transition: none !important;
   padding: 0 !important;
   border: none !important;
   background-color: transparent !important;
   border-radius: 0.5rem !important;
   overflow: visible !important;
+}
+
+/* Elevate hovered node above the edges layer so its content is readable.
+   The scale + shadow animate via the scoped transition on transform;
+   z-index flips instantly (not animatable) but the scale sells the lift. */
+.vue-flow__node:hover {
+  z-index: 1000 !important;
+  transform: scale(1.02);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
 }
 
 .vue-flow__node.dragging {

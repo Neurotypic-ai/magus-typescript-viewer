@@ -72,6 +72,9 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
   // Guard flag to prevent watch → recalc → write → watch infinite loop
   let isWriting = false;
   let recalcTimer: ReturnType<typeof setTimeout> | null = null;
+  // Suspend flag: when true, recalculate is a no-op. Used during layout→fitView
+  // transitions to prevent the composable from seeing a stale viewport.
+  let suspended = false;
 
   /** Build a quick lookup of node positions by ID */
   function buildNodePositionMap(nodeList: DependencyNode[]): Map<string, { x: number; y: number }> {
@@ -163,6 +166,8 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
 
   /** Core recalculation: determine which edges should be visible */
   function recalculate(): void {
+    if (suspended) return;
+
     const edgeList = edges.value;
     const nodeList = nodes.value;
 
@@ -272,6 +277,7 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
 
   /** Schedule a debounced recalculation */
   function scheduleRecalc(): void {
+    if (suspended) return;
     if (recalcTimer) clearTimeout(recalcTimer);
     recalcTimer = setTimeout(recalculate, RECALC_DEBOUNCE_MS);
   }
@@ -295,5 +301,18 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
     recalculate,
     /** Set of edge IDs currently hidden by virtualization */
     virtualizedHiddenCount: virtualizedHiddenIds,
+    /** Suspend virtualization (e.g., during layout→fitView transitions) */
+    suspend: () => {
+      suspended = true;
+      if (recalcTimer) {
+        clearTimeout(recalcTimer);
+        recalcTimer = null;
+      }
+    },
+    /** Resume virtualization and immediately recalculate */
+    resume: () => {
+      suspended = false;
+      scheduleRecalc();
+    },
   };
 }

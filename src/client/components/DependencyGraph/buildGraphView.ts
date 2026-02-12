@@ -126,8 +126,14 @@ function bundleParallelEdges(edges: GraphEdge[]): GraphEdge[] {
       ...new Set(group.map((e) => e.data?.type).filter((t): t is DependencyEdgeKind => t !== undefined)),
     ];
 
+    // Bundle is visible if ANY edge in the group is visible (not hidden).
+    // This prevents the representative's hidden state from suppressing
+    // visible lower-priority edges in the same source→target pair.
+    const anyVisible = group.some((e) => !e.hidden);
+
     result.push({
       ...representative,
+      hidden: !anyVisible,
       data: {
         ...representative.data,
         bundledCount: group.length,
