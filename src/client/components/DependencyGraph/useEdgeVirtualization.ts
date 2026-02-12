@@ -115,6 +115,16 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
     );
   }
 
+  /** Check if a point (edge anchor) is within viewport bounds */
+  function isPointInBounds(pos: { x: number; y: number }, bounds: ViewportBounds): boolean {
+    return (
+      pos.x >= bounds.minX &&
+      pos.x <= bounds.maxX &&
+      pos.y >= bounds.minY &&
+      pos.y <= bounds.maxY
+    );
+  }
+
   /** Apply priority-based thresholding for low zoom levels */
   function applyLowZoomThresholding(
     visibleEdgeIds: Set<string>,
@@ -190,12 +200,26 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
       }
     }
 
-    // Determine which edges have at least one endpoint in viewport
+    // Determine which edges have at least one endpoint in viewport.
+    // Prefer pre-computed anchor points (from layout worker) for accuracy;
+    // fall back to node position map lookup when anchors aren't available.
     const viewportVisibleIds = new Set<string>();
     for (const edge of edgeList) {
       // Don't un-hide user-hidden edges
       if (userHiddenIds.has(edge.id)) continue;
 
+      const sourceAnchor = edge.data?.sourceAnchor as { x: number; y: number } | undefined;
+      const targetAnchor = edge.data?.targetAnchor as { x: number; y: number } | undefined;
+
+      if (sourceAnchor && targetAnchor) {
+        // Use exact anchor points — more accurate than node-center heuristic
+        if (isPointInBounds(sourceAnchor, bounds) || isPointInBounds(targetAnchor, bounds)) {
+          viewportVisibleIds.add(edge.id);
+        }
+        continue;
+      }
+
+      // Fallback: use node positions with generous bounding box
       const sourcePos = nodePositionMap.get(edge.source);
       const targetPos = nodePositionMap.get(edge.target);
 
@@ -238,9 +262,8 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
       return edge;
     });
 
-    virtualizedHiddenIds.value = newHiddenIds;
-
     if (changed) {
+      virtualizedHiddenIds.value = newHiddenIds;
       isWriting = true;
       setEdges(updated);
       isWriting = false;
@@ -255,11 +278,15 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
 
   // Re-run when nodes/edges change (e.g., after layout, filter toggle).
   // Skip when the change was caused by our own write (isWriting guard).
+  // CRITICAL: flush: 'sync' ensures the callback fires synchronously during
+  // setEdges() while isWriting is still true — preventing an infinite
+  // watch → recalc → setEdges → watch cascade. With the default async
+  // flush, isWriting is already false by the time the callback runs.
   watch([nodes, edges], () => {
     if (enabled.value && !isWriting) {
       scheduleRecalc();
     }
-  });
+  }, { flush: 'sync' });
 
   return {
     /** Call this when the viewport changes (pan, zoom) */

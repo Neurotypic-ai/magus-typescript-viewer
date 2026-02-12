@@ -25,6 +25,7 @@ import { nodeTypes } from './nodes/nodes';
 import { NODE_ACTIONS_KEY } from './nodes/utils';
 import { useEdgeVirtualization } from './useEdgeVirtualization';
 import { useGraphInteractionController } from './useGraphInteractionController';
+import { useFpsCounter } from './useFpsCounter';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 
 import type { NodeChange } from '@vue-flow/core';
@@ -66,7 +67,10 @@ const isMac = computed(() => isMacPlatform());
 const graphRootRef = ref<HTMLElement | null>(null);
 const edgeVirtualizationEnabled = ref(true);
 const isPanning = ref(false);
+const showFps = ref(false);
+const { fps, start: startFps, stop: stopFps } = useFpsCounter(showFps);
 let panEndTimer: ReturnType<typeof setTimeout> | null = null;
+let selectionHighlightRafId: number | null = null;
 
 // Edge virtualization: hides off-screen edges to reduce DOM count.
 // Uses passed-in getters to avoid direct dependency on DOM state at init time.
@@ -342,7 +346,14 @@ const setSelectedNode = (node: DependencyNode | null) => {
     interaction.setCameraMode('free');
     removeSelectedElements();
   }
-  applySelectionHighlight(node);
+  // Debounce via rAF to coalesce rapid selection changes (keyboard nav)
+  if (selectionHighlightRafId !== null) {
+    cancelAnimationFrame(selectionHighlightRafId);
+  }
+  selectionHighlightRafId = requestAnimationFrame(() => {
+    selectionHighlightRafId = null;
+    applySelectionHighlight(node);
+  });
 };
 
 const reconcileSelectedNodeAfterStructuralChange = (updatedNodes: DependencyNode[]): void => {
@@ -827,7 +838,7 @@ const processWheel = (): void => {
   if (!event) return;
   pendingWheelEvent = null;
 
-  const intent = classifyWheelIntent(event);
+  const intent = classifyWheelIntent(event, isMac.value);
 
   if (intent === 'trackpadScroll') {
     panBy({ x: -event.deltaX, y: -event.deltaY });
@@ -841,7 +852,7 @@ const processWheel = (): void => {
 const handleWheel = (event: WheelEvent): void => {
   if (!isMac.value) return;
 
-  const intent = classifyWheelIntent(event);
+  const intent = classifyWheelIntent(event, isMac.value);
   const target = event.target as HTMLElement;
 
   // Pinch-to-zoom: prevent browser page zoom everywhere, handle graph zoom ourselves
@@ -1156,6 +1167,16 @@ const handleKeyDown = (event: KeyboardEvent) => {
       }
     }
   }
+
+  // Toggle FPS counter with 'F' key (only when no input is focused)
+  if (event.key === 'f' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    const tag = (event.target as HTMLElement)?.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+      showFps.value = !showFps.value;
+      if (showFps.value) startFps();
+      else stopFps();
+    }
+  }
 };
 
 // --- Hover z-index elevation (direct DOM for performance) ---
@@ -1269,7 +1290,7 @@ onUnmounted(() => {
       :min-zoom="0.1"
       :max-zoom="2"
       :default-viewport="DEFAULT_VIEWPORT"
-      :snap-to-grid="true"
+      :snap-to-grid="edges.length < 1000"
       :snap-grid="[15, 15]"
       :pan-on-scroll="false"
       :zoom-on-scroll="!isMac"
@@ -1322,6 +1343,12 @@ onUnmounted(() => {
 
       <Panel v-if="isLayoutPending" position="top-center">
         <div class="layout-loading-indicator">Updating graph layout...</div>
+      </Panel>
+
+      <Panel v-if="showFps" position="bottom-center" class="fps-panel">
+        <div class="fps-counter" :class="{ 'fps-low': fps < 30, 'fps-ok': fps >= 30 && fps < 55, 'fps-good': fps >= 55 }">
+          {{ fps }} <span class="fps-label">FPS</span>
+        </div>
       </Panel>
 
       <Panel v-if="scopeMode !== 'overview'" position="bottom-left">
@@ -1427,5 +1454,42 @@ onUnmounted(() => {
   font-size: 0.72rem;
   letter-spacing: 0.02em;
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+}
+
+/* ── FPS counter ── */
+
+.fps-panel {
+  pointer-events: none;
+}
+
+.fps-counter {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.5rem;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  letter-spacing: 0.05em;
+  min-width: 5rem;
+  text-align: center;
+}
+
+.fps-label {
+  font-size: 0.8rem;
+  opacity: 0.6;
+  font-weight: 500;
+}
+
+.fps-good {
+  color: #4ade80;
+}
+
+.fps-ok {
+  color: #fbbf24;
+}
+
+.fps-low {
+  color: #f87171;
 }
 </style>

@@ -664,10 +664,80 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       return { ...nodeBase, ...(isChild ? { extent: 'parent' as const } : {}) };
     });
 
+    // --- Pre-compute edge anchor points (#19) ---
+    // Compute absolute positions for each node (child positions are relative to parent).
+    const absolutePositionMap = new Map<string, { x: number; y: number; width: number; height: number }>();
+
+    function computeAbsolutePosition(nodeId: string): { x: number; y: number; width: number; height: number } | null {
+      const cached = absolutePositionMap.get(nodeId);
+      if (cached) return cached;
+
+      const pos = positionMap.get(nodeId);
+      if (!pos) return null;
+
+      const node = inputNodeById.get(nodeId);
+      const parentId = (node as { parentNode?: string } | undefined)?.parentNode;
+
+      if (parentId) {
+        const parentAbs = computeAbsolutePosition(parentId);
+        if (parentAbs) {
+          const abs = { x: pos.x + parentAbs.x, y: pos.y + parentAbs.y, width: pos.width, height: pos.height };
+          absolutePositionMap.set(nodeId, abs);
+          return abs;
+        }
+      }
+
+      absolutePositionMap.set(nodeId, pos);
+      return pos;
+    }
+
+    /**
+     * Compute the edge handle anchor point based on node position, size, and layout direction.
+     * Matches Vue Flow's handle placement convention for source/target handles.
+     */
+    function getHandleAnchor(
+      pos: { x: number; y: number; width: number; height: number },
+      direction: string,
+      role: 'source' | 'target'
+    ): { x: number; y: number } {
+      if (direction === 'RIGHT' || direction === 'LEFT') {
+        // Horizontal layout: source=right, target=left (for RIGHT); reversed for LEFT
+        if ((direction === 'RIGHT' && role === 'source') || (direction === 'LEFT' && role === 'target')) {
+          return { x: pos.x + pos.width, y: pos.y + pos.height / 2 };
+        }
+        return { x: pos.x, y: pos.y + pos.height / 2 };
+      }
+      // Vertical layout: source=bottom, target=top (for DOWN); reversed for UP
+      if ((direction === 'DOWN' && role === 'source') || (direction === 'UP' && role === 'target')) {
+        return { x: pos.x + pos.width / 2, y: pos.y + pos.height };
+      }
+      return { x: pos.x + pos.width / 2, y: pos.y };
+    }
+
+    // Attach pre-computed anchor points to each edge for faster viewport culling
+    const edgesWithAnchors = edges.map((edge) => {
+      const sourcePos = computeAbsolutePosition(edge.source);
+      const targetPos = computeAbsolutePosition(edge.target);
+
+      if (!sourcePos || !targetPos) return edge;
+
+      const sourceAnchor = getHandleAnchor(sourcePos, config.direction, 'source');
+      const targetAnchor = getHandleAnchor(targetPos, config.direction, 'target');
+
+      return {
+        ...edge,
+        data: {
+          ...(edge.data as Record<string, unknown> | undefined),
+          sourceAnchor,
+          targetAnchor,
+        },
+      };
+    });
+
     // Return all edges (including containment edges), not just the ones used for layout
     self.postMessage({
       type: 'layout-complete',
-      payload: { nodes: newNodes, edges },
+      payload: { nodes: newNodes, edges: edgesWithAnchors },
     });
   } catch (error) {
     console.error('ELK layout error:', error);

@@ -158,6 +158,10 @@ export type GraphEdge = Edge<{
   type?: DependencyEdgeKind;
   importName?: string | undefined;
   usageKind?: 'method' | 'property' | undefined;
+  bundledCount?: number;
+  bundledTypes?: DependencyEdgeKind[];
+  sourceAnchor?: { x: number; y: number };
+  targetAnchor?: { x: number; y: number };
 }>;
 
 /**
