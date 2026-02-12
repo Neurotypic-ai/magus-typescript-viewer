@@ -281,8 +281,8 @@ function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod 
 function createMarker() {
   return {
     type: MarkerType.ArrowClosed,
-    width: 20,
-    height: 20,
+    width: 12,
+    height: 12,
   };
 }
 

@@ -326,8 +326,8 @@ function buildSymbolToModuleMap(data: DependencyPackageGraph): Map<string, strin
 function createArrowMarker() {
   return {
     type: MarkerType.ArrowClosed,
-    width: 20,
-    height: 20,
+    width: 12,
+    height: 12,
   };
 }
 

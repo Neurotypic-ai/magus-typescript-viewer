@@ -24,6 +24,7 @@ interface GraphStore {
   overviewSnapshot: Ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
   setNodes: (newNodes: DependencyNode[]) => void;
   setEdges: (newEdges: GraphEdge[]) => void;
+  setEdgeVisibility: (visibilityMap: Map<string, boolean>) => void;
   setSelectedNode: (node: DependencyNode | null) => void;
   setCacheKey: (key: string | null) => void;
   setViewMode: (mode: GraphViewMode) => void;
@@ -123,6 +124,21 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     edges.value = newEdges;
   };
 
+  const setEdgeVisibility = (visibilityMap: Map<string, boolean>) => {
+    let changed = false;
+    const updated = edges.value.map((edge) => {
+      const hidden = visibilityMap.get(edge.id);
+      if (hidden !== undefined && edge.hidden !== hidden) {
+        changed = true;
+        return { ...edge, hidden };
+      }
+      return edge;
+    });
+    if (changed) {
+      edges.value = updated;
+    }
+  };
+
   const setSelectedNode = (node: DependencyNode | null) => {
     selectedNode.value = node;
   };
@@ -178,6 +194,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     // Actions
     setNodes,
     setEdges,
+    setEdgeVisibility,
     setSelectedNode,
     setCacheKey,
     setViewMode,

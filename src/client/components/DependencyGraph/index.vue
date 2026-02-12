@@ -23,6 +23,7 @@ import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
 import { NODE_ACTIONS_KEY } from './nodes/utils';
+import { useEdgeVirtualization } from './useEdgeVirtualization';
 import { useGraphInteractionController } from './useGraphInteractionController';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 
@@ -63,6 +64,35 @@ const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport, r
 
 const isMac = computed(() => isMacPlatform());
 const graphRootRef = ref<HTMLElement | null>(null);
+const edgeVirtualizationEnabled = ref(true);
+const isPanning = ref(false);
+let panEndTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Edge virtualization: hides off-screen edges to reduce DOM count.
+// Uses passed-in getters to avoid direct dependency on DOM state at init time.
+const { onViewportChange: onEdgeVirtualizationViewportChange } = useEdgeVirtualization({
+  nodes: computed(() => graphStore['nodes']),
+  edges: computed(() => graphStore['edges']),
+  getViewport,
+  getContainerRect: () => cachedContainerRect,
+  setEdges: (newEdges) => graphStore.setEdges(newEdges),
+  enabled: edgeVirtualizationEnabled,
+});
+
+const onMoveStart = (): void => {
+  if (panEndTimer) clearTimeout(panEndTimer);
+  isPanning.value = true;
+};
+
+const onMoveEnd = (): void => {
+  // Short delay before removing panning class to avoid flicker on quick gestures
+  if (panEndTimer) clearTimeout(panEndTimer);
+  panEndTimer = setTimeout(() => {
+    isPanning.value = false;
+    // Recalculate edge visibility after pan stops
+    onEdgeVirtualizationViewportChange();
+  }, 120);
+};
 
 let layoutProcessor: WebWorkerLayoutProcessor | null = null;
 let layoutRequestVersion = 0;
@@ -787,6 +817,27 @@ const onPaneClick = (): void => {
   setSelectedNode(null);
 };
 
+// rAF gate: coalesce rapid wheel events to max 1 per frame (60fps cap)
+let pendingWheelEvent: WheelEvent | null = null;
+let wheelRafId: number | null = null;
+
+const processWheel = (): void => {
+  wheelRafId = null;
+  const event = pendingWheelEvent;
+  if (!event) return;
+  pendingWheelEvent = null;
+
+  const intent = classifyWheelIntent(event);
+
+  if (intent === 'trackpadScroll') {
+    panBy({ x: -event.deltaX, y: -event.deltaY });
+  } else {
+    const currentZoom = getViewport().zoom;
+    const factor = event.deltaY > 0 ? 0.92 : 1.08;
+    void zoomTo(Math.max(0.1, Math.min(2, currentZoom * factor)), { duration: 50 });
+  }
+};
+
 const handleWheel = (event: WheelEvent): void => {
   if (!isMac.value) return;
 
@@ -818,12 +869,10 @@ const handleWheel = (event: WheelEvent): void => {
 
   event.preventDefault();
 
-  if (intent === 'trackpadScroll') {
-    panBy({ x: -event.deltaX, y: -event.deltaY });
-  } else {
-    const currentZoom = getViewport().zoom;
-    const factor = event.deltaY > 0 ? 0.92 : 1.08;
-    void zoomTo(Math.max(0.1, Math.min(2, currentZoom * factor)), { duration: 50 });
+  // Coalesce rapid wheel events into a single rAF callback
+  pendingWheelEvent = event;
+  if (wheelRafId === null) {
+    wheelRafId = requestAnimationFrame(processWheel);
   }
 };
 
@@ -1207,7 +1256,7 @@ onUnmounted(() => {
 <template>
   <div
     ref="graphRootRef"
-    class="dependency-graph-root relative h-full w-full"
+    :class="['dependency-graph-root relative h-full w-full', { 'graph-panning': isPanning }]"
     role="application"
     aria-label="TypeScript dependency graph visualization"
     tabindex="0"
@@ -1227,9 +1276,9 @@ onUnmounted(() => {
       :zoom-on-pinch="!isMac"
       :prevent-scrolling="true"
       :zoom-on-double-click="false"
-      :elevate-edges-on-select="true"
+      :elevate-edges-on-select="false"
       :default-edge-options="{
-        markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
         zIndex: 2,
         type: 'smoothstep',
       }"
@@ -1238,6 +1287,8 @@ onUnmounted(() => {
       @nodes-change="handleNodesChange"
       @node-mouse-enter="onNodeMouseEnter"
       @node-mouse-leave="onNodeMouseLeave"
+      @move-start="onMoveStart"
+      @move-end="onMoveEnd"
     >
       <Background />
       <GraphControls
@@ -1295,6 +1346,19 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* ── Pan performance: kill all transitions & pointer-events during active pan ── */
+.dependency-graph-root.graph-panning :deep(.vue-flow__edge-path) {
+  transition: none !important;
+}
+
+.dependency-graph-root.graph-panning :deep(.vue-flow__node) {
+  transition: none !important;
+}
+
+.dependency-graph-root.graph-panning :deep(.vue-flow__edge) {
+  pointer-events: none !important;
+}
+
 .dependency-graph-root :deep(.vue-flow__node) {
   transition:
     transform 180ms ease-out,
@@ -1340,35 +1404,16 @@ onUnmounted(() => {
   transition: opacity 180ms ease-out !important;
 }
 
-/* Connected edges — pulse glow via filter: drop-shadow using currentColor
-   so each edge type (import=cyan, extends=green, implements=orange) gets
-   a matching glow automatically. */
+/* Connected edges — highlighted with thicker stroke and increased opacity.
+   Uses stroke-width for emphasis instead of expensive drop-shadow filter. */
 .dependency-graph-root :deep(.vue-flow__edge.edge-selection-highlighted .vue-flow__edge-path) {
-  stroke-width: 2.5px !important;
-  filter: drop-shadow(0 0 4px currentColor);
-  animation: edge-pulse 2s ease-in-out infinite !important;
+  stroke-width: 3px !important;
+  stroke-opacity: 1 !important;
 }
 
 /* Dimmed non-connected edges */
 .dependency-graph-root :deep(.vue-flow__edge.edge-selection-dimmed .vue-flow__edge-path) {
   opacity: 0.1 !important;
-}
-
-@keyframes edge-pulse {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 3px currentColor);
-  }
-  50% {
-    filter: drop-shadow(0 0 8px currentColor);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dependency-graph-root :deep(.vue-flow__edge.edge-selection-highlighted .vue-flow__edge-path) {
-    animation: none !important;
-    filter: drop-shadow(0 0 4px currentColor);
-  }
 }
 
 /* ── Layout loading ── */

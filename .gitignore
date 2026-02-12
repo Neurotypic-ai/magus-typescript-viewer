@@ -8,3 +8,7 @@ node_modules/
 .vite/
 coverage/
 *.log
+.claude/settings.local.json
+
+playwright-report/index.html
+test-results/.last-run.json
