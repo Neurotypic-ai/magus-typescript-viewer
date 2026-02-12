@@ -235,6 +235,22 @@ const mergeNodeInteractionStyle = (
   };
 };
 
+const stripNodeClass = (node: DependencyNode): DependencyNode => {
+  if (node.class === undefined) {
+    return node;
+  }
+  const { class: _class, ...nodeWithoutClass } = node as DependencyNode & { class?: unknown };
+  return nodeWithoutClass as DependencyNode;
+};
+
+const stripEdgeClass = (edge: GraphEdge): GraphEdge => {
+  if (edge.class === undefined) {
+    return edge;
+  }
+  const { class: _class, ...edgeWithoutClass } = edge as GraphEdge & { class?: unknown };
+  return edgeWithoutClass as GraphEdge;
+};
+
 const initializeLayoutProcessor = () => {
   layoutRequestVersion += 1;
 
@@ -276,7 +292,10 @@ const applySelectionHighlight = (selected: DependencyNode | null): void => {
     }
 
     if (node.class === nodeClass) return node;
-    return { ...node, class: nodeClass };
+    if (!nodeClass) {
+      return stripNodeClass(node);
+    }
+    return { ...node, class: nodeClass } as DependencyNode;
   });
 
   const updatedEdges = edges.value.map((edge) => {
@@ -285,7 +304,10 @@ const applySelectionHighlight = (selected: DependencyNode | null): void => {
       edgeClass = connectedEdgeIds.has(edge.id) ? 'edge-selection-highlighted' : 'edge-selection-dimmed';
     }
     if (edge.class === edgeClass) return edge;
-    return { ...edge, class: edgeClass };
+    if (!edgeClass) {
+      return stripEdgeClass(edge);
+    }
+    return { ...edge, class: edgeClass } as GraphEdge;
   });
 
   graphStore['setNodes'](updatedNodes);
@@ -412,10 +434,10 @@ const collectNodesNeedingInternalsUpdate = (previous: DependencyNode[], next: De
     const prevStyle = typeof prev.style === 'object' ? (prev.style as Record<string, unknown>) : {};
     const nextStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
 
-    const prevWidth = prevMeasured?.width ?? toDimensionValue(prevStyle['width']) ?? prev.width ?? 0;
-    const prevHeight = prevMeasured?.height ?? toDimensionValue(prevStyle['height']) ?? prev.height ?? 0;
-    const nextWidth = nextMeasured?.width ?? toDimensionValue(nextStyle['width']) ?? node.width ?? 0;
-    const nextHeight = nextMeasured?.height ?? toDimensionValue(nextStyle['height']) ?? node.height ?? 0;
+    const prevWidth = prevMeasured?.width ?? toDimensionValue(prevStyle['width']) ?? toDimensionValue(prev.width) ?? 0;
+    const prevHeight = prevMeasured?.height ?? toDimensionValue(prevStyle['height']) ?? toDimensionValue(prev.height) ?? 0;
+    const nextWidth = nextMeasured?.width ?? toDimensionValue(nextStyle['width']) ?? toDimensionValue(node.width) ?? 0;
+    const nextHeight = nextMeasured?.height ?? toDimensionValue(nextStyle['height']) ?? toDimensionValue(node.height) ?? 0;
 
     if (Math.abs(prevWidth - nextWidth) > 1 || Math.abs(prevHeight - nextHeight) > 1) {
       changedIds.push(node.id);
@@ -682,15 +704,17 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
 
   const isolatedNodes = sourceNodes
     .filter((node) => connectedNodeIds.has(node.id))
-    .map((node) => ({
-      ...node,
-      class: undefined,
-      style: mergeNodeInteractionStyle(node, {
-        opacity: node.id === nodeId ? 1 : 0.9,
-        borderColor: node.id === nodeId ? '#22d3ee' : undefined,
-        borderWidth: node.id === nodeId ? '2px' : undefined,
-      }),
-    }));
+    .map((node) => {
+      const baseNode = stripNodeClass(node);
+      return {
+        ...baseNode,
+        style: mergeNodeInteractionStyle(baseNode, {
+          opacity: node.id === nodeId ? 1 : 0.9,
+          borderColor: node.id === nodeId ? '#22d3ee' : undefined,
+          borderWidth: node.id === nodeId ? '2px' : undefined,
+        }),
+      };
+    });
 
   const isolatedEdges = applyEdgeVisibility(
     sourceEdges
@@ -950,12 +974,11 @@ const handleSearchResult = (result: SearchResult) => {
     const currentOpacity = toDimensionValue(currentStyle['opacity']) ?? 1;
     const currentBorderWidth = currentStyle['borderWidth'];
 
-    const selectionChanged = Boolean(node.selected) !== isMatch;
     const opacityChanged = Math.abs(currentOpacity - opacity) > 0.001;
     const borderWidthChanged = String(currentBorderWidth ?? '') !== String(borderWidth ?? '');
     const classChanged = node.class !== undefined;
 
-    if (!selectionChanged && !opacityChanged && !borderWidthChanged && !classChanged) {
+    if (!opacityChanged && !borderWidthChanged && !classChanged) {
       return;
     }
 
@@ -964,15 +987,14 @@ const handleSearchResult = (result: SearchResult) => {
       nodesChanged = true;
     }
 
+    const baseNode = stripNodeClass(node);
     searchedNodes[nodeIndex] = {
-      ...node,
-      class: undefined,
-      selected: isMatch,
-      style: mergeNodeInteractionStyle(node, {
+      ...baseNode,
+      style: mergeNodeInteractionStyle(baseNode, {
         opacity,
         borderWidth,
       }),
-    };
+    } as DependencyNode;
   });
 
   if (nodesChanged) {
@@ -998,11 +1020,10 @@ const handleSearchResult = (result: SearchResult) => {
     const opacity = !hasResults ? 1 : isMatch ? 1 : 0.2;
     const currentStyle = typeof edge.style === 'object' ? (edge.style as Record<string, unknown>) : {};
     const currentOpacity = toDimensionValue(currentStyle['opacity']) ?? 1;
-    const selectionChanged = Boolean(edge.selected) !== isMatch;
     const opacityChanged = Math.abs(currentOpacity - opacity) > 0.001;
     const classChanged = edge.class !== undefined;
 
-    if (!selectionChanged && !opacityChanged && !classChanged) {
+    if (!opacityChanged && !classChanged) {
       return;
     }
 
@@ -1011,15 +1032,14 @@ const handleSearchResult = (result: SearchResult) => {
       edgesChanged = true;
     }
 
+    const baseEdge = stripEdgeClass(edge);
     searchedEdges[edgeIndex] = {
-      ...edge,
-      class: undefined,
-      selected: isMatch,
+      ...baseEdge,
       style: {
-        ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
+        ...getEdgeStyle(toDependencyEdgeKind(baseEdge.data?.type)),
         opacity,
       },
-    };
+    } as GraphEdge;
   });
 
   if (edgesChanged) {

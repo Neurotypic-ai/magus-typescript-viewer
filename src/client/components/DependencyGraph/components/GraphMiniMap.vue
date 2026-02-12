@@ -185,6 +185,7 @@ const viewportContainerSize = ref({
   width: typeof window !== 'undefined' ? window.innerWidth : 1,
   height: typeof window !== 'undefined' ? window.innerHeight : 1,
 });
+const miniMapSvgRef = ref<SVGElement | null>(null);
 let flowContainer: HTMLElement | null = null;
 let flowContainerResizeObserver: ResizeObserver | null = null;
 
@@ -289,7 +290,7 @@ function handleViewportDragStart(event: MouseEvent): void {
 function handleViewportDragMove(event: MouseEvent): void {
   if (!isDraggingViewport.value) return;
 
-  const svg = document.querySelector('.graph-mini-map-svg') as SVGElement | null;
+  const svg = miniMapSvgRef.value;
   if (!svg) return;
   const svgRect = svg.getBoundingClientRect();
   const currentMapX = event.clientX - svgRect.left;
@@ -354,6 +355,7 @@ onBeforeUnmount(() => {
         Edges sampled: {{ normalizedEdges.length }} / {{ visibleEdgeCount }}
       </div>
       <svg
+        ref="miniMapSvgRef"
         :width="mapDimensions.width"
         :height="mapDimensions.height"
         class="graph-mini-map-svg"

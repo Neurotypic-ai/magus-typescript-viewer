@@ -48,7 +48,9 @@ import type {
 
 const assemblerLogger = createLogger('GraphDataAssembler');
 
-interface GraphApiPackagePayload extends Package {
+type PackageBasePayload = Omit<Package, 'modules'>;
+
+interface GraphApiPackagePayload extends PackageBasePayload {
   modules?: Module[];
 }
 
@@ -362,7 +364,7 @@ export class GraphDataAssembler {
    * @param pkg The package to transform
    * @returns The transformed package data
    */
-  private transformPackage(pkg: Package) {
+  private transformPackage(pkg: PackageBasePayload) {
     return {
       id: pkg.id,
       name: pkg.name,

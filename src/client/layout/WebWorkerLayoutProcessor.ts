@@ -67,23 +67,24 @@ export class WebWorkerLayoutProcessor {
   private workerSupported: boolean;
   private currentRequestId = 0;
   private static readonly LAYOUT_TIMEOUT_MS = 15_000;
-  private static toRawCollection<T extends object>(collection: T[]): T[] {
-    const rawCollection = isProxy(collection) ? (toRaw(collection) as T[]) : collection;
-    let hadProxyValues = isProxy(rawCollection);
+  private static toWorkerSafeCollection<T extends object>(collection: T[]): T[] {
+    if (isProxy(collection)) {
+      return toRaw(collection) as T[];
+    }
 
-    const normalized = rawCollection.map((item) => {
+    let hasProxyItems = false;
+    const normalized = collection.map((item) => {
       if (isProxy(item)) {
-        hadProxyValues = true;
+        hasProxyItems = true;
         return toRaw(item) as T;
       }
       return item;
     });
 
-    // If we had proxies, clone once to ensure only cloneable values are posted.
-    return hadProxyValues ? WebWorkerLayoutProcessor.cloneIsolated(normalized) : normalized;
+    return hasProxyItems ? normalized : collection;
   }
 
-  private static cloneIsolated<T>(value: T): T {
+  private static cloneForFallback<T>(value: T): T {
     if (typeof structuredClone === 'function') {
       return structuredClone(value);
     }
@@ -95,8 +96,8 @@ export class WebWorkerLayoutProcessor {
     edges: Edge[];
   } {
     return {
-      nodes: WebWorkerLayoutProcessor.toRawCollection(graphData.nodes),
-      edges: WebWorkerLayoutProcessor.toRawCollection(graphData.edges),
+      nodes: WebWorkerLayoutProcessor.toWorkerSafeCollection(graphData.nodes),
+      edges: WebWorkerLayoutProcessor.toWorkerSafeCollection(graphData.edges),
     };
   }
 
@@ -104,9 +105,10 @@ export class WebWorkerLayoutProcessor {
     nodes: DependencyNode[];
     edges: Edge[];
   } {
+    const payload = WebWorkerLayoutProcessor.prepareWorkerPayload(graphData);
     return {
-      nodes: WebWorkerLayoutProcessor.cloneIsolated(WebWorkerLayoutProcessor.toRawCollection(graphData.nodes)),
-      edges: WebWorkerLayoutProcessor.cloneIsolated(WebWorkerLayoutProcessor.toRawCollection(graphData.edges)),
+      nodes: WebWorkerLayoutProcessor.cloneForFallback(payload.nodes),
+      edges: WebWorkerLayoutProcessor.cloneForFallback(payload.edges),
     };
   }
 
