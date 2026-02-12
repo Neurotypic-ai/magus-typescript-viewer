@@ -94,7 +94,6 @@ describe('buildOverviewGraph', () => {
       collapseScc: false,
       hideTestFiles: true,
       memberNodeMode: 'compact',
-      highlightOrphanCurrent: true,
       highlightOrphanGlobal: true,
     });
 

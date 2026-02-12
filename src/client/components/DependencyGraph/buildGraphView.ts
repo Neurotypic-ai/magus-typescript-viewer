@@ -32,7 +32,6 @@ export interface BuildOverviewGraphOptions {
   collapseScc: boolean;
   hideTestFiles: boolean;
   memberNodeMode: 'compact' | 'graph';
-  highlightOrphanCurrent: boolean;
   highlightOrphanGlobal: boolean;
 }
 
@@ -197,38 +196,6 @@ function annotateOrphanDiagnostics(
   });
 }
 
-function applyOrphanHighlightStyling(
-  nodes: DependencyNode[],
-  options: Pick<BuildOverviewGraphOptions, 'highlightOrphanCurrent' | 'highlightOrphanGlobal'>
-): DependencyNode[] {
-  return nodes.map((node) => {
-    const diagnostics = node.data?.diagnostics;
-    if (!diagnostics) {
-      return node;
-    }
-
-    const shouldHighlightCurrent = options.highlightOrphanCurrent && diagnostics.orphanCurrent;
-    const shouldHighlightGlobal = options.highlightOrphanGlobal && diagnostics.orphanGlobal;
-    if (!shouldHighlightCurrent && !shouldHighlightGlobal) {
-      return node;
-    }
-
-    const style = (typeof node.style === 'object' ? node.style : {}) as Record<string, string | number | undefined>;
-    const borderColor = shouldHighlightCurrent ? '#f59e0b' : '#ef4444';
-    const shadowColor = shouldHighlightCurrent ? 'rgba(245, 158, 11, 0.45)' : 'rgba(239, 68, 68, 0.45)';
-
-    return {
-      ...node,
-      style: {
-        ...style,
-        borderColor,
-        borderWidth: '2px',
-        boxShadow: `0 0 0 1px ${borderColor}, 0 0 12px ${shadowColor}`,
-      },
-    };
-  });
-}
-
 export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphViewData {
   const enabledNodeTypeSet = new Set(options.enabledNodeTypes);
   if (enabledNodeTypeSet.size === 0) {
@@ -240,7 +207,6 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const includeClassNodes = enabledNodeTypeSet.has('class');
   const includeInterfaceNodes = enabledNodeTypeSet.has('interface');
   const includeClassEdges = includeClassNodes || includeInterfaceNodes;
-  const includeMemberContainmentEdges = includeClassEdges && options.memberNodeMode === 'graph';
 
   const graphNodes = createGraphNodes(options.data, {
     includePackages,
@@ -253,11 +219,14 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     direction: options.direction,
   });
 
+  // In compact mode, class/interface VueFlow nodes don't exist, so class-level
+  // edges (inheritance, implements) would have dangling targets — skip them.
+  const includeClassEdgesInGraph = includeClassEdges && options.memberNodeMode === 'graph';
+
   const graphEdges = createGraphEdges(options.data, {
     includePackageEdges: includePackages,
-    includeClassEdges,
-    includeMemberContainmentEdges,
-    liftClassEdgesToModuleLevel: !includeClassEdges,
+    includeClassEdges: includeClassEdgesInGraph,
+    liftClassEdgesToModuleLevel: !includeClassEdgesInGraph,
     importDirection: 'importer-to-imported',
   }) as unknown as GraphEdge[];
 
@@ -277,13 +246,9 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const currentDegreeMap = buildDegreeMap(transformedGraph.nodes, visibleEdges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
   const nodesWithDiagnostics = annotateOrphanDiagnostics(transformedGraph.nodes, currentDegreeMap, globalDegreeMap);
-  const nodesWithHighlighting = applyOrphanHighlightStyling(nodesWithDiagnostics, {
-    highlightOrphanCurrent: options.highlightOrphanCurrent,
-    highlightOrphanGlobal: options.highlightOrphanGlobal,
-  });
 
   return {
-    nodes: nodesWithHighlighting,
+    nodes: nodesWithDiagnostics,
     edges: visibleEdges,
   };
 }

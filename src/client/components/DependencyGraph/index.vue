@@ -22,6 +22,7 @@ import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
 import { useGraphInteractionController } from './useGraphInteractionController';
+import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 
 import type { NodeChange } from '@vue-flow/core';
 import type { DependencyKind, DependencyNode, DependencyPackageGraph, GraphEdge, SearchResult } from './types';
@@ -53,7 +54,10 @@ const selectedNode = computed(() => graphStore['selectedNode']);
 const scopeMode = computed(() => interaction.scopeMode.value);
 const isLayoutPending = ref(false);
 
-const { fitView, updateNodeInternals } = useVueFlow();
+const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport } = useVueFlow();
+
+const isMac = computed(() => isMacPlatform());
+const graphRootRef = ref<HTMLElement | null>(null);
 
 let layoutProcessor: WebWorkerLayoutProcessor | null = null;
 let layoutRequestVersion = 0;
@@ -330,7 +334,6 @@ const initializeGraph = async () => {
     collapseScc: graphSettings.collapseScc,
     hideTestFiles: graphSettings.hideTestFiles,
     memberNodeMode: graphSettings.memberNodeMode,
-    highlightOrphanCurrent: graphSettings.highlightOrphanCurrent,
     highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
   });
 
@@ -409,7 +412,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
           opacity: 0.9,
           strokeWidth: edge.source === nodeId || edge.target === nodeId ? 3 : 2,
         },
-        zIndex: edge.source === nodeId || edge.target === nodeId ? 4 : 1,
+        zIndex: edge.source === nodeId || edge.target === nodeId ? 5 : 1,
       })),
     graphSettings.activeRelationshipTypes
   );
@@ -471,6 +474,48 @@ const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
 
 const onPaneClick = (): void => {
   setSelectedNode(null);
+};
+
+const handleWheel = (event: WheelEvent): void => {
+  if (!isMac.value) return;
+
+  const intent = classifyWheelIntent(event);
+  const target = event.target as HTMLElement;
+
+  // Pinch-to-zoom: prevent browser page zoom everywhere, handle graph zoom ourselves
+  if (intent === 'pinch') {
+    event.preventDefault();
+    const vp = getViewport();
+    const factor = event.deltaY > 0 ? 0.95 : 1.05;
+    const newZoom = Math.max(0.1, Math.min(2, vp.zoom * factor));
+    const container = graphRootRef.value?.querySelector('.vue-flow') as HTMLElement | null;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const cursorX = event.clientX - rect.left;
+      const cursorY = event.clientY - rect.top;
+      const scale = newZoom / vp.zoom;
+      void setViewport(
+        { x: cursorX - (cursorX - vp.x) * scale, y: cursorY - (cursorY - vp.y) * scale, zoom: newZoom },
+        { duration: 0 }
+      );
+    } else {
+      void zoomTo(newZoom, { duration: 50 });
+    }
+    return;
+  }
+
+  // Allow normal scrolling inside scrollable overlay panels (e.g. NodeDetails)
+  if (target.closest('[data-graph-overlay-scrollable]')) return;
+
+  event.preventDefault();
+
+  if (intent === 'trackpadScroll') {
+    panBy({ x: -event.deltaX, y: -event.deltaY });
+  } else {
+    const currentZoom = getViewport().zoom;
+    const factor = event.deltaY > 0 ? 0.92 : 1.08;
+    void zoomTo(Math.max(0.1, Math.min(2, currentZoom * factor)), { duration: 50 });
+  }
 };
 
 const handleReturnToOverview = async (): Promise<void> => {
@@ -536,11 +581,6 @@ const handleHideTestFilesToggle = async (value: boolean) => {
 
 const handleMemberNodeModeChange = async (value: 'compact' | 'graph') => {
   graphSettings.setMemberNodeMode(value);
-  await initializeGraph();
-};
-
-const handleOrphanCurrentToggle = async (value: boolean) => {
-  graphSettings.setHighlightOrphanCurrent(value);
   await initializeGraph();
 };
 
@@ -655,10 +695,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
 };
 
 onMounted(() => {
+  graphRootRef.value?.addEventListener('wheel', handleWheel, { passive: false });
   window.addEventListener('dependency-graph-node-action', handleNodeActionEvent as EventListener);
 });
 
 onUnmounted(() => {
+  graphRootRef.value?.removeEventListener('wheel', handleWheel);
   if (layoutProcessor) {
     layoutProcessor.dispose();
     layoutProcessor = null;
@@ -669,7 +711,8 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="dependency-graph-root h-full w-full"
+    ref="graphRootRef"
+    class="dependency-graph-root relative h-full w-full"
     role="application"
     aria-label="TypeScript dependency graph visualization"
     tabindex="0"
@@ -686,15 +729,15 @@ onUnmounted(() => {
       :snap-to-grid="true"
       :snap-grid="[15, 15]"
       :pan-on-scroll="false"
-      :zoom-on-scroll="true"
+      :zoom-on-scroll="!isMac"
+      :zoom-on-pinch="!isMac"
       :prevent-scrolling="true"
       :zoom-on-double-click="false"
       :elevate-edges-on-select="true"
       :default-edge-options="{
-        style: { stroke: '#61dafb', strokeWidth: 3 },
         markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
-        zIndex: 1,
-        type: 'step',
+        zIndex: 2,
+        type: 'smoothstep',
       }"
       @node-click="onNodeClick"
       @pane-click="onPaneClick"
@@ -712,19 +755,10 @@ onUnmounted(() => {
         @toggle-cluster-folder="handleClusterByFolderToggle"
         @toggle-hide-test-files="handleHideTestFilesToggle"
         @member-node-mode-change="handleMemberNodeModeChange"
-        @toggle-orphan-current="handleOrphanCurrentToggle"
         @toggle-orphan-global="handleOrphanGlobalToggle"
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <GraphMiniMap :nodes="nodes" :edges="edges" :selected-node-id="selectedNode?.id ?? null" />
-      <NodeDetails
-        v-if="selectedNode"
-        :node="selectedNode"
-        :data="props.data"
-        :nodes="nodes"
-        :edges="edges"
-        @open-symbol-usage="handleOpenSymbolUsageGraph"
-      />
 
       <Panel v-if="isLayoutPending" position="top-center">
         <div class="layout-loading-indicator">Updating graph layout...</div>
@@ -740,6 +774,14 @@ onUnmounted(() => {
         </button>
       </Panel>
     </VueFlow>
+    <NodeDetails
+      v-if="selectedNode"
+      :node="selectedNode"
+      :data="props.data"
+      :nodes="nodes"
+      :edges="edges"
+      @open-symbol-usage="handleOpenSymbolUsageGraph"
+    />
   </div>
 </template>
 

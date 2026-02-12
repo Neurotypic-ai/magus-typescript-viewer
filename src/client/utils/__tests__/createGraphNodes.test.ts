@@ -61,7 +61,7 @@ function createFixtureGraph(): DependencyPackageGraph {
 }
 
 describe('createGraphNodes', () => {
-  it('adds module subnode metadata and external dependency summaries', () => {
+  it('embeds symbols in module node and adds external dependency summaries in compact mode', () => {
     const nodes = createGraphNodes(createFixtureGraph(), {
       includeModules: true,
       includeClasses: true,
@@ -70,15 +70,33 @@ describe('createGraphNodes', () => {
       nestSymbolsInModules: true,
     });
 
+    // In compact mode (default), only module nodes exist — no class/interface VueFlow nodes.
     const moduleNode = nodes.find((node) => node.id === 'module-a');
     expect(moduleNode).toBeDefined();
     if (!moduleNode?.data) {
       throw new Error('Expected module node data');
     }
-    expect(moduleNode.data.subnodes?.count).toBe(2);
-    expect(moduleNode.data.subnodes?.totalCount).toBe(2);
-    expect(moduleNode.data.subnodes?.hiddenCount).toBe(0);
 
+    // No VueFlow children in compact mode.
+    expect(moduleNode.data.subnodes?.count).toBe(0);
+    expect(moduleNode.data.isContainer).toBeFalsy();
+
+    // Symbols are embedded as data on the module node.
+    const symbols = moduleNode.data.symbols;
+    expect(Array.isArray(symbols)).toBe(true);
+    expect(symbols).toHaveLength(2);
+    expect(symbols?.[0]?.name).toBe('AppService');
+    expect(symbols?.[0]?.type).toBe('class');
+    expect(symbols?.[0]?.properties).toHaveLength(1);
+    expect(symbols?.[0]?.methods).toHaveLength(1);
+    expect(symbols?.[1]?.name).toBe('AppContract');
+    expect(symbols?.[1]?.type).toBe('interface');
+
+    // No class/interface VueFlow nodes should exist.
+    expect(nodes.find((node) => node.id === 'class-1')).toBeUndefined();
+    expect(nodes.find((node) => node.id === 'iface-1')).toBeUndefined();
+
+    // External dependencies should still be computed.
     const externalDependencies = moduleNode.data.externalDependencies;
     expect(Array.isArray(externalDependencies)).toBe(true);
     expect(externalDependencies?.[0]?.packageName).toBe('vue');
@@ -87,37 +105,7 @@ describe('createGraphNodes', () => {
     expect(moduleNode.data.diagnostics?.externalDependencySymbolCount).toBe(2);
   });
 
-  it('stores class/interface members as metadata in compact mode', () => {
-    const nodes = createGraphNodes(createFixtureGraph(), {
-      includeModules: true,
-      includeClasses: true,
-      includeClassNodes: true,
-      includeInterfaceNodes: true,
-      nestSymbolsInModules: true,
-      memberNodeMode: 'compact',
-    });
-
-    const classNode = nodes.find((node) => node.id === 'class-1');
-    const interfaceNode = nodes.find((node) => node.id === 'iface-1');
-
-    expect(classNode).toBeDefined();
-    expect(classNode?.parentNode).toBe('module-a');
-    if (!classNode?.data) {
-      throw new Error('Expected class node data');
-    }
-    expect(classNode.data.members?.totalCount).toBe(2);
-    expect(classNode.data.subnodes).toBeUndefined();
-
-    expect(interfaceNode).toBeDefined();
-    expect(interfaceNode?.parentNode).toBe('module-a');
-    if (!interfaceNode?.data) {
-      throw new Error('Expected interface node data');
-    }
-    expect(interfaceNode.data.members?.totalCount).toBe(2);
-    expect(interfaceNode.data.subnodes).toBeUndefined();
-  });
-
-  it('creates member nodes in graph member mode', () => {
+  it('creates class/interface VueFlow nodes with members metadata in graph mode', () => {
     const nodes = createGraphNodes(createFixtureGraph(), {
       includeModules: true,
       includeClasses: true,
@@ -127,12 +115,59 @@ describe('createGraphNodes', () => {
       memberNodeMode: 'graph',
     });
 
-    const propertyNode = nodes.find((node) => node.type === 'property' && node.parentNode === 'class-1');
-    const methodNode = nodes.find((node) => node.type === 'method' && node.parentNode === 'class-1');
-    const classNode = nodes.find((node) => node.id === 'class-1');
+    // Module node should be a container with VueFlow children.
+    const moduleNode = nodes.find((node) => node.id === 'module-a');
+    expect(moduleNode).toBeDefined();
+    expect(moduleNode?.data?.isContainer).toBe(true);
+    expect(moduleNode?.data?.subnodes?.count).toBe(2);
 
-    expect(classNode?.data?.subnodes?.count).toBe(2);
-    expect(propertyNode).toBeDefined();
-    expect(methodNode).toBeDefined();
+    // No embedded symbols in graph mode.
+    expect(moduleNode?.data?.symbols).toBeUndefined();
+
+    // Class node should exist as a child of the module.
+    const classNode = nodes.find((node) => node.id === 'class-1');
+    expect(classNode).toBeDefined();
+    expect(classNode?.parentNode).toBe('module-a');
+    if (!classNode?.data) {
+      throw new Error('Expected class node data');
+    }
+    expect(classNode.data.members?.totalCount).toBe(2);
+    expect(classNode.data.properties).toHaveLength(1);
+    expect(classNode.data.methods).toHaveLength(1);
+
+    // Interface node should exist as a child of the module.
+    const interfaceNode = nodes.find((node) => node.id === 'iface-1');
+    expect(interfaceNode).toBeDefined();
+    expect(interfaceNode?.parentNode).toBe('module-a');
+    if (!interfaceNode?.data) {
+      throw new Error('Expected interface node data');
+    }
+    expect(interfaceNode.data.members?.totalCount).toBe(2);
+
+    // No property/method VueFlow nodes in graph mode — members are shown
+    // as collapsible sections inside class/interface nodes.
+    const propertyNode = nodes.find((node) => node.type === 'property');
+    const methodNode = nodes.find((node) => node.type === 'method');
+    expect(propertyNode).toBeUndefined();
+    expect(methodNode).toBeUndefined();
+  });
+
+  it('does not create class/interface VueFlow nodes in compact mode', () => {
+    const nodes = createGraphNodes(createFixtureGraph(), {
+      includeModules: true,
+      includeClasses: true,
+      includeClassNodes: true,
+      includeInterfaceNodes: true,
+      nestSymbolsInModules: true,
+      memberNodeMode: 'compact',
+    });
+
+    // Only module nodes — no class, interface, property, or method VueFlow nodes.
+    const nodeTypes = new Set(nodes.map((node) => node.type));
+    expect(nodeTypes.has('module')).toBe(true);
+    expect(nodeTypes.has('class')).toBe(false);
+    expect(nodeTypes.has('interface')).toBe(false);
+    expect(nodeTypes.has('property')).toBe(false);
+    expect(nodeTypes.has('method')).toBe(false);
   });
 });

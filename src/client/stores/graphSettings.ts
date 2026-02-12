@@ -37,7 +37,6 @@ interface PersistedGraphSettings {
   enabledNodeTypes?: string[];
   hideTestFiles?: boolean;
   memberNodeMode?: MemberNodeMode;
-  highlightOrphanCurrent?: boolean;
   highlightOrphanGlobal?: boolean;
 }
 
@@ -48,7 +47,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   const enabledNodeTypes = ref<string[]>([...DEFAULT_NODE_TYPES]);
   const hideTestFiles = ref<boolean>(true);
   const memberNodeMode = ref<MemberNodeMode>('compact');
-  const highlightOrphanCurrent = ref<boolean>(true);
   const highlightOrphanGlobal = ref<boolean>(false);
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
@@ -105,9 +103,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
       if (parsed.memberNodeMode === 'compact' || parsed.memberNodeMode === 'graph') {
         memberNodeMode.value = parsed.memberNodeMode;
       }
-      if (typeof parsed.highlightOrphanCurrent === 'boolean') {
-        highlightOrphanCurrent.value = parsed.highlightOrphanCurrent;
-      }
       if (typeof parsed.highlightOrphanGlobal === 'boolean') {
         highlightOrphanGlobal.value = parsed.highlightOrphanGlobal;
       }
@@ -129,7 +124,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
         enabledNodeTypes: enabledNodeTypes.value,
         hideTestFiles: hideTestFiles.value,
         memberNodeMode: memberNodeMode.value,
-        highlightOrphanCurrent: highlightOrphanCurrent.value,
         highlightOrphanGlobal: highlightOrphanGlobal.value,
       };
       localStorage.setItem(GRAPH_SETTINGS_CACHE_KEY, JSON.stringify(payload));
@@ -188,11 +182,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
-  function setHighlightOrphanCurrent(value: boolean): void {
-    highlightOrphanCurrent.value = value;
-    persistSettings();
-  }
-
   function setHighlightOrphanGlobal(value: boolean): void {
     highlightOrphanGlobal.value = value;
     persistSettings();
@@ -207,7 +196,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     enabledNodeTypes,
     hideTestFiles,
     memberNodeMode,
-    highlightOrphanCurrent,
     highlightOrphanGlobal,
     relationshipAvailability,
     activeRelationshipTypes,
@@ -219,7 +207,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     toggleNodeType,
     setHideTestFiles,
     setMemberNodeMode,
-    setHighlightOrphanCurrent,
     setHighlightOrphanGlobal,
   };
 });

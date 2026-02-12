@@ -357,7 +357,8 @@ const openSymbolUsageGraph = () => {
 
 <template>
   <div
-    class="fixed top-4 right-4 bg-background-paper p-5 rounded-lg border border-border-default shadow-2xl max-w-md max-h-128 overflow-y-auto"
+    data-graph-overlay-scrollable
+    class="absolute top-14 right-4 z-50 bg-background-paper p-5 rounded-lg border border-border-default shadow-2xl max-w-md max-h-128 overflow-y-auto"
     role="dialog"
     aria-modal="false"
     aria-labelledby="node-details-title"

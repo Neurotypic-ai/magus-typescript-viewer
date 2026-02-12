@@ -2,6 +2,8 @@
 import { Handle, Position } from '@vue-flow/core';
 import { computed } from 'vue';
 
+import { useGraphSettings } from '../../../stores/graphSettings';
+
 import type { DependencyProps } from '../types';
 
 interface BaseNodeProps extends DependencyProps {
@@ -21,8 +23,18 @@ const props = withDefaults(defineProps<BaseNodeProps>(), {
   zIndex: 1,
 });
 
+const graphSettings = useGraphSettings();
+
 const nodeData = computed(() => props.data);
 const isSelected = computed(() => !!props.selected);
+
+const isOrphanGlobal = computed(() => {
+  if (!graphSettings.highlightOrphanGlobal) {
+    return false;
+  }
+  const diag = nodeData.value?.diagnostics as { orphanGlobal?: boolean } | undefined;
+  return diag?.orphanGlobal === true;
+});
 
 const sourcePosition = computed(() => props.sourcePosition ?? Position.Bottom);
 const targetPosition = computed(() => props.targetPosition ?? Position.Top);
@@ -113,6 +125,7 @@ const triggerNodeAction = (action: 'focus' | 'isolate') => {
       {
         'base-node-selected': isSelected,
         'base-node-container--container': inferredContainer,
+        'base-node-orphan-global': isOrphanGlobal,
       },
     ]"
     :style="containerStyle"
@@ -209,6 +222,12 @@ const triggerNodeAction = (action: 'focus' | 'isolate') => {
     0 10px 15px -3px rgba(0, 0, 0, 0.1),
     0 4px 6px -2px rgba(0, 0, 0, 0.05),
     0 0 12px rgba(144, 202, 249, 0.4);
+}
+
+.base-node-container.base-node-orphan-global {
+  outline: 2px solid #ef4444;
+  outline-offset: -1px;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.45);
 }
 
 .base-node-handle {

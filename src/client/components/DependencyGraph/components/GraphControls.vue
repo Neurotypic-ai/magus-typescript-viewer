@@ -22,7 +22,6 @@ const emit = defineEmits<{
   'toggle-cluster-folder': [value: boolean];
   'toggle-hide-test-files': [value: boolean];
   'member-node-mode-change': [value: 'compact' | 'graph'];
-  'toggle-orphan-current': [value: boolean];
   'toggle-orphan-global': [value: boolean];
 }>();
 
@@ -119,11 +118,6 @@ const handleHideTestFilesToggle = (checked: boolean) => {
 const handleMemberNodeModeChange = (mode: 'compact' | 'graph') => {
   graphSettings.setMemberNodeMode(mode);
   emit('member-node-mode-change', mode);
-};
-
-const handleOrphanCurrentToggle = (checked: boolean) => {
-  graphSettings.setHighlightOrphanCurrent(checked);
-  emit('toggle-orphan-current', checked);
 };
 
 const handleOrphanGlobalToggle = (checked: boolean) => {
@@ -297,9 +291,10 @@ const handleOrphanGlobalToggle = (checked: boolean) => {
         </div>
       </div>
 
-      <!-- Node Detail Mode -->
+      <!-- Member Display Mode -->
       <div class="mt-4 pt-4 border-t border-border-default">
-        <h4 class="text-sm font-semibold text-text-primary mb-2">Member Nodes</h4>
+        <h4 class="text-sm font-semibold text-text-primary mb-1">Member Display</h4>
+        <p class="text-[10px] text-text-secondary mb-2 leading-tight">How properties and methods render within class/interface nodes</p>
         <div class="grid grid-cols-2 gap-2">
           <button
             @click="handleMemberNodeModeChange('compact')"
@@ -309,7 +304,7 @@ const handleOrphanGlobalToggle = (checked: boolean) => {
                 ? 'bg-primary-main text-white border-primary-main'
                 : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
             ]"
-            aria-label="Set member node mode to compact"
+            aria-label="Set member display mode to compact"
           >
             Compact
           </button>
@@ -321,9 +316,9 @@ const handleOrphanGlobalToggle = (checked: boolean) => {
                 ? 'bg-primary-main text-white border-primary-main'
                 : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
             ]"
-            aria-label="Set member node mode to graph"
+            aria-label="Set member display mode to separate nodes"
           >
-            Graph
+            Separate Nodes
           </button>
         </div>
       </div>
@@ -342,17 +337,6 @@ const handleOrphanGlobalToggle = (checked: boolean) => {
               @change="(e) => handleHideTestFilesToggle((e.target as HTMLInputElement).checked)"
             />
             <span class="text-xs">Hide test files</span>
-          </label>
-          <label
-            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-          >
-            <input
-              type="checkbox"
-              class="cursor-pointer accent-primary-main"
-              :checked="graphSettings.highlightOrphanCurrent"
-              @change="(e) => handleOrphanCurrentToggle((e.target as HTMLInputElement).checked)"
-            />
-            <span class="text-xs">Highlight current-view orphans</span>
           </label>
           <label
             class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"

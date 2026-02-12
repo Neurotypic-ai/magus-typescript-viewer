@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Panel, useVueFlow } from '@vue-flow/core';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 
 import type { DependencyNode, GraphEdge } from '../types';
 
@@ -15,8 +15,9 @@ const props = withDefaults(defineProps<GraphMiniMapProps>(), {
 });
 const { setCenter, viewport } = useVueFlow();
 
-const MAP_WIDTH = 220;
-const MAP_HEIGHT = 140;
+const MAX_WIDTH = 220;
+const MAX_HEIGHT = 160;
+const MIN_SIZE = 80;
 const MAP_PADDING = 12;
 
 function parseNodeSize(node: DependencyNode): { width: number; height: number } {
@@ -70,9 +71,19 @@ const nodeBounds = computed(() => {
   };
 });
 
+const mapDimensions = computed(() => {
+  const aspect = nodeBounds.value.width / Math.max(1, nodeBounds.value.height);
+  if (aspect >= 1) {
+    const h = Math.max(MIN_SIZE, Math.round(MAX_WIDTH / aspect));
+    return { width: MAX_WIDTH, height: Math.min(MAX_HEIGHT, h) };
+  }
+  const w = Math.max(MIN_SIZE, Math.round(MAX_HEIGHT * aspect));
+  return { width: Math.min(MAX_WIDTH, w), height: MAX_HEIGHT };
+});
+
 const mapScale = computed(() => {
-  const widthScale = (MAP_WIDTH - MAP_PADDING * 2) / nodeBounds.value.width;
-  const heightScale = (MAP_HEIGHT - MAP_PADDING * 2) / nodeBounds.value.height;
+  const widthScale = (mapDimensions.value.width - MAP_PADDING * 2) / nodeBounds.value.width;
+  const heightScale = (mapDimensions.value.height - MAP_PADDING * 2) / nodeBounds.value.height;
   return Math.min(widthScale, heightScale);
 });
 
@@ -124,6 +135,21 @@ const normalizedEdges = computed(() => {
     .filter((edge): edge is { id: string; x1: number; y1: number; x2: number; y2: number } => Boolean(edge));
 });
 
+const viewportRect = computed(() => {
+  const vp = viewport.value;
+  const containerEl = document.querySelector('.vue-flow') as HTMLElement | null;
+  const cw = containerEl?.clientWidth ?? window.innerWidth;
+  const ch = containerEl?.clientHeight ?? window.innerHeight;
+  const scale = mapScale.value;
+
+  return {
+    x: (-vp.x / vp.zoom - nodeBounds.value.minX) * scale + MAP_PADDING,
+    y: (-vp.y / vp.zoom - nodeBounds.value.minY) * scale + MAP_PADDING,
+    width: (cw / vp.zoom) * scale,
+    height: (ch / vp.zoom) * scale,
+  };
+});
+
 function nodeFill(type: string): string {
   if (type === 'package') return 'rgba(20, 184, 166, 0.55)';
   if (type === 'module') return 'rgba(59, 130, 246, 0.5)';
@@ -154,8 +180,8 @@ function handleMapClick(event: MouseEvent): void {
   }
 
   const rect = svg.getBoundingClientRect();
-  const localX = clamp(event.clientX - rect.left, 0, MAP_WIDTH);
-  const localY = clamp(event.clientY - rect.top, 0, MAP_HEIGHT);
+  const localX = clamp(event.clientX - rect.left, 0, mapDimensions.value.width);
+  const localY = clamp(event.clientY - rect.top, 0, mapDimensions.value.height);
   const position = toGraphPosition(localX, localY);
   void setCenter(position.x, position.y, {
     duration: 180,
@@ -177,13 +203,82 @@ function centerOnNode(nodeId: string): void {
     zoom: viewport.value.zoom,
   });
 }
+
+// --- Viewport drag handling ---
+const isDraggingViewport = ref(false);
+let dragStartMapX = 0;
+let dragStartMapY = 0;
+let dragStartViewportX = 0;
+let dragStartViewportY = 0;
+
+function handleViewportDragStart(event: MouseEvent): void {
+  event.preventDefault();
+  isDraggingViewport.value = true;
+
+  const svg = (event.currentTarget as SVGElement).closest('svg');
+  if (!svg) return;
+  const svgRect = svg.getBoundingClientRect();
+  dragStartMapX = event.clientX - svgRect.left;
+  dragStartMapY = event.clientY - svgRect.top;
+  dragStartViewportX = viewportRect.value.x;
+  dragStartViewportY = viewportRect.value.y;
+
+  window.addEventListener('mousemove', handleViewportDragMove);
+  window.addEventListener('mouseup', handleViewportDragEnd);
+}
+
+function handleViewportDragMove(event: MouseEvent): void {
+  if (!isDraggingViewport.value) return;
+
+  const svg = document.querySelector('.graph-mini-map-svg') as SVGElement | null;
+  if (!svg) return;
+  const svgRect = svg.getBoundingClientRect();
+  const currentMapX = event.clientX - svgRect.left;
+  const currentMapY = event.clientY - svgRect.top;
+
+  const dx = currentMapX - dragStartMapX;
+  const dy = currentMapY - dragStartMapY;
+
+  const newCenterMapX = clamp(
+    dragStartViewportX + dx + viewportRect.value.width / 2,
+    0,
+    mapDimensions.value.width
+  );
+  const newCenterMapY = clamp(
+    dragStartViewportY + dy + viewportRect.value.height / 2,
+    0,
+    mapDimensions.value.height
+  );
+
+  const position = toGraphPosition(newCenterMapX, newCenterMapY);
+  void setCenter(position.x, position.y, {
+    duration: 0,
+    zoom: viewport.value.zoom,
+  });
+}
+
+function handleViewportDragEnd(): void {
+  isDraggingViewport.value = false;
+  window.removeEventListener('mousemove', handleViewportDragMove);
+  window.removeEventListener('mouseup', handleViewportDragEnd);
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', handleViewportDragMove);
+  window.removeEventListener('mouseup', handleViewportDragEnd);
+});
 </script>
 
 <template>
   <Panel position="bottom-right" class="mb-2 mr-2">
-    <div class="graph-mini-map">
+    <div class="graph-mini-map" :style="{ width: mapDimensions.width + 16 + 'px' }">
       <div class="graph-mini-map-title">Mini-map</div>
-      <svg :width="MAP_WIDTH" :height="MAP_HEIGHT" class="graph-mini-map-svg" @click="handleMapClick">
+      <svg
+        :width="mapDimensions.width"
+        :height="mapDimensions.height"
+        class="graph-mini-map-svg"
+        @click="handleMapClick"
+      >
         <line
           v-for="edge in normalizedEdges"
           :key="edge.id"
@@ -208,6 +303,20 @@ function centerOnNode(nodeId: string): void {
           role="button"
           @click.stop="centerOnNode(node.id)"
         />
+        <rect
+          v-if="viewportRect"
+          :x="viewportRect.x"
+          :y="viewportRect.y"
+          :width="viewportRect.width"
+          :height="viewportRect.height"
+          fill="rgba(34, 211, 238, 0.08)"
+          stroke="rgba(34, 211, 238, 0.6)"
+          stroke-width="1.5"
+          stroke-dasharray="3 2"
+          rx="2"
+          class="viewport-indicator"
+          @mousedown.stop="handleViewportDragStart"
+        />
       </svg>
     </div>
   </Panel>
@@ -215,7 +324,6 @@ function centerOnNode(nodeId: string): void {
 
 <style scoped>
 .graph-mini-map {
-  width: 236px;
   background: rgba(7, 10, 18, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 8px;
@@ -236,5 +344,14 @@ function centerOnNode(nodeId: string): void {
   border-radius: 6px;
   background: rgba(15, 23, 42, 0.7);
   cursor: pointer;
+}
+
+.viewport-indicator {
+  cursor: grab;
+  pointer-events: all;
+}
+
+.viewport-indicator:active {
+  cursor: grabbing;
 }
 </style>

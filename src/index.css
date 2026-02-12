@@ -142,8 +142,12 @@ body {
   pointer-events: all;
 }
 
+.vue-flow__edges {
+  z-index: 2;
+  position: relative;
+}
+
 .vue-flow__edge-path {
-  stroke: rgba(255, 255, 255, 0.3) !important;
   stroke-width: 1.5px !important;
   cursor: pointer;
   transition: all 0.15s ease-out !important;

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import BaseNode from './BaseNode.vue';
+import CollapsibleSection from './CollapsibleSection.vue';
 
-import type { DependencyProps } from '../types';
+import type { DependencyProps, NodeMethod, NodeProperty } from '../types';
 
 const props = defineProps<DependencyProps>();
 
@@ -15,33 +16,9 @@ const methods = computed(() => nodeData.value.methods ?? []);
 
 const isMemberNode = computed(() => nodeType.value === 'property' || nodeType.value === 'method');
 
-const membersMeta = computed(
-  () =>
-    (nodeData.value.members as {
-      totalCount?: number;
-      byType?: Partial<Record<'property' | 'method', number>>;
-      mode?: 'compact' | 'graph';
-    } | undefined) ?? {}
-);
-
-const memberMode = computed<'compact' | 'graph'>(() => {
-  const mode = membersMeta.value.mode;
-  return mode === 'graph' ? 'graph' : 'compact';
-});
-
-const memberPropertyCount = computed(() => membersMeta.value.byType?.property ?? properties.value.length);
-const memberMethodCount = computed(() => membersMeta.value.byType?.method ?? methods.value.length);
-const totalMemberCount = computed(
-  () => membersMeta.value.totalCount ?? memberPropertyCount.value + memberMethodCount.value
-);
-
-const inferredSubnodeCount = computed(() => {
-  const explicitCount = (nodeData.value.subnodes as { count?: number } | undefined)?.count;
-  if (typeof explicitCount === 'number') {
-    return explicitCount;
-  }
-  return 0;
-});
+const memberPropertyCount = computed(() => properties.value.length);
+const memberMethodCount = computed(() => methods.value.length);
+const totalMemberCount = computed(() => memberPropertyCount.value + memberMethodCount.value);
 
 const baseNodeProps = computed(() => ({
   id: props.id,
@@ -52,11 +29,7 @@ const baseNodeProps = computed(() => ({
   ...(props.height !== undefined ? { height: props.height } : {}),
   ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
   ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
-  isContainer:
-    !isMemberNode.value && memberMode.value === 'graph' && (nodeData.value.isContainer === true || inferredSubnodeCount.value > 0),
-  showSubnodes: !isMemberNode.value && memberMode.value === 'graph' && inferredSubnodeCount.value > 0,
-  subnodesCount: inferredSubnodeCount.value,
-  zIndex: isMemberNode.value ? 3 : 2,
+  zIndex: isMemberNode.value ? 4 : 3,
 }));
 
 const badgeClass = computed(() => {
@@ -75,6 +48,34 @@ const badgeClass = computed(() => {
 });
 
 const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase());
+
+const showProperties = ref(true);
+const showMethods = ref(true);
+
+const visibilityIndicator = (visibility: string): string => {
+  switch (visibility) {
+    case 'public':
+      return 'p';
+    case 'protected':
+      return '#';
+    case 'private':
+      return '-';
+    default:
+      return 'p';
+  }
+};
+
+const formatProperty = (prop: NodeProperty): { indicator: string; name: string; type: string } => ({
+  indicator: visibilityIndicator(prop.visibility),
+  name: prop.name,
+  type: prop.type || 'unknown',
+});
+
+const formatMethod = (method: NodeMethod): { indicator: string; name: string; returnType: string } => ({
+  indicator: visibilityIndicator(method.visibility),
+  name: method.name,
+  returnType: method.returnType || 'void',
+});
 </script>
 
 <template>
@@ -90,20 +91,43 @@ const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase(
         <span class="member-type">{{ nodeType }}</span>
       </div>
 
-      <div v-else-if="totalMemberCount > 0" class="symbol-summary">
-        <span class="summary-label">Members:</span>
-        <span>{{ memberPropertyCount }} properties</span>
-        <span>•</span>
-        <span>{{ memberMethodCount }} methods</span>
+      <div v-else-if="totalMemberCount > 0" class="symbol-members">
+        <CollapsibleSection
+          v-if="memberPropertyCount > 0"
+          title="Properties"
+          :count="memberPropertyCount"
+          :default-open="showProperties"
+        >
+          <div
+            v-for="(prop, index) in properties"
+            :key="`prop-${index}`"
+            class="member-item"
+          >
+            <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
+            <span class="member-name">{{ formatProperty(prop).name }}</span>
+            <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          v-if="memberMethodCount > 0"
+          title="Methods"
+          :count="memberMethodCount"
+          :default-open="showMethods"
+        >
+          <div
+            v-for="(method, index) in methods"
+            :key="`method-${index}`"
+            class="member-item"
+          >
+            <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
+            <span class="member-name">{{ formatMethod(method).name }}()</span>
+            <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
+          </div>
+        </CollapsibleSection>
       </div>
 
       <div v-else class="symbol-empty-state">No members</div>
-    </template>
-
-    <template #subnodes>
-      <div v-if="memberMode === 'graph' && totalMemberCount > 0" class="member-graph-hint">
-        Member nodes are rendered directly in the graph.
-      </div>
     </template>
   </BaseNode>
 </template>
@@ -135,9 +159,8 @@ const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase(
 }
 
 .member-node-body,
-.symbol-summary,
-.symbol-empty-state,
-.member-graph-hint {
+.symbol-members,
+.symbol-empty-state {
   color: var(--text-secondary);
   font-size: 0.72rem;
 }
@@ -148,18 +171,44 @@ const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase(
   font-weight: 700;
 }
 
-.symbol-summary {
+.symbol-members {
   display: flex;
-  gap: 0.3rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.summary-label {
+.member-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.member-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.member-visibility {
+  color: var(--text-secondary);
+  opacity: 0.7;
+  font-size: 0.62rem;
+  min-width: 0.7rem;
+  flex-shrink: 0;
+}
+
+.member-name {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 700;
+  word-break: break-word;
 }
 
-.member-graph-hint {
+.member-type-annotation {
+  color: var(--text-secondary);
   opacity: 0.8;
+  word-break: break-word;
 }
 </style>

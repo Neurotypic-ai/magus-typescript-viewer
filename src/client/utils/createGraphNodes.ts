@@ -8,6 +8,7 @@ import type {
   DependencyKind,
   DependencyNode,
   DependencyPackageGraph,
+  EmbeddedSymbol,
   ExternalDependencyRef,
   ImportRef,
   ModuleStructure,
@@ -85,38 +86,12 @@ function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod 
   };
 }
 
-function createMemberNode(
-  id: string,
-  type: 'property' | 'method',
-  label: string,
-  sourcePosition: Position,
-  targetPosition: Position,
-  parentNodeId: string,
-  isTestFile: boolean
-): DependencyNode {
-  return {
-    id,
-    type,
-    position: { x: 0, y: 0 },
-    sourcePosition,
-    targetPosition,
-    parentNode: parentNodeId,
-    extent: 'parent' as const,
-    expandParent: true,
-    data: {
-      label,
-      parentId: parentNodeId,
-      diagnostics: createDiagnostics({ isTestFile }),
-    },
-    style: {
-      ...getNodeStyle(type),
-      zIndex: 3,
-    },
-  };
-}
-
 /**
  * Creates graph nodes from the provided dependency package graph data.
+ *
+ * memberNodeMode controls how class/interface symbols are displayed:
+ * - 'compact': Symbols are embedded as data within module nodes (no separate VueFlow nodes).
+ * - 'graph': Symbols are created as separate VueFlow child nodes of modules.
  */
 export function createGraphNodes(data: DependencyPackageGraph, options: CreateGraphNodeOptions = {}): DependencyNode[] {
   const {
@@ -130,7 +105,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
     direction = 'LR',
   } = options;
 
-  const includeMemberNodes = memberNodeMode === 'graph';
+  const isCompactMode = memberNodeMode === 'compact';
 
   // Calculate handle positions based on layout direction.
   let sourcePosition: Position;
@@ -264,6 +239,29 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
     return [];
   };
 
+  // Collect embedded symbols for a module in compact mode.
+  const collectEmbeddedSymbols = (module: ModuleStructure): EmbeddedSymbol[] => {
+    const symbols: EmbeddedSymbol[] = [];
+
+    if (includeClassNodes && module.classes) {
+      mapTypeCollection(module.classes, (cls) => {
+        const properties = cls.properties ? mapTypeCollection(cls.properties, (prop) => toNodeProperty(prop)) : [];
+        const methods = cls.methods ? mapTypeCollection(cls.methods, (method) => toNodeMethod(method)) : [];
+        symbols.push({ id: cls.id, type: 'class', name: cls.name, properties, methods });
+      });
+    }
+
+    if (includeInterfaceNodes && module.interfaces) {
+      mapTypeCollection(module.interfaces, (iface) => {
+        const properties = iface.properties ? mapTypeCollection(iface.properties, (prop) => toNodeProperty(prop)) : [];
+        const methods = iface.methods ? mapTypeCollection(iface.methods, (method) => toNodeMethod(method)) : [];
+        symbols.push({ id: iface.id, type: 'interface', name: iface.name, properties, methods });
+      });
+    }
+
+    return symbols;
+  };
+
   // Optionally create package nodes.
   if (includePackages) {
     data.packages.forEach((pkg) => {
@@ -303,7 +301,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
     });
   }
 
-  // Create module, symbol, and optional member nodes.
+  // Create module and symbol nodes.
   data.packages.forEach((pkg) => {
     if (!pkg.modules) return;
 
@@ -313,10 +311,16 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
       const visibleClassCount = includeClassNodes ? classCountTotal : 0;
       const visibleInterfaceCount = includeInterfaceNodes ? interfaceCountTotal : 0;
       const totalSubnodeCount = classCountTotal + interfaceCountTotal;
-      const visibleSubnodeCount = visibleClassCount + visibleInterfaceCount;
-      const hiddenSubnodeCount = Math.max(0, totalSubnodeCount - visibleSubnodeCount);
       const modulePath = module.source.relativePath || '';
       const isModuleTestFile = isTestFilePath(modulePath);
+
+      // In compact mode, symbols are embedded in the module node as data.
+      // In graph mode, symbols become separate child VueFlow nodes.
+      const hasVueFlowChildren = !isCompactMode && (visibleClassCount + visibleInterfaceCount) > 0;
+      const visibleSubnodeCount = hasVueFlowChildren ? visibleClassCount + visibleInterfaceCount : 0;
+      const hiddenSubnodeCount = hasVueFlowChildren
+        ? Math.max(0, totalSubnodeCount - visibleSubnodeCount)
+        : 0;
 
       if (includeModules) {
         const externalDependencies = getModuleExternalDependencies(module);
@@ -325,7 +329,12 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           (sum, dependency) => sum + dependency.symbols.length,
           0
         );
-        const estimatedHeight = Math.max(140, 120 + Math.min(visibleSubnodeCount, 8) * 90);
+        const estimatedHeight = hasVueFlowChildren
+          ? Math.max(140, 120 + Math.min(visibleSubnodeCount, 8) * 90)
+          : undefined;
+
+        // In compact mode, embed class/interface data as symbols.
+        const embeddedSymbols = isCompactMode ? collectEmbeddedSymbols(module) : undefined;
 
         const moduleNode: DependencyNode = {
           id: module.id,
@@ -338,8 +347,9 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
             imports: getModuleImports(module),
             exports: getModuleExports(module),
             externalDependencies,
-            isContainer: true,
-            layoutInsets: { top: 120 },
+            ...(embeddedSymbols && embeddedSymbols.length > 0 ? { symbols: embeddedSymbols } : {}),
+            isContainer: hasVueFlowChildren,
+            ...(hasVueFlowChildren ? { layoutInsets: { top: 120 } } : {}),
             diagnostics: createDiagnostics({
               isTestFile: isModuleTestFile,
               externalDependencyPackageCount,
@@ -351,18 +361,18 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
               visibleCount: visibleSubnodeCount,
               hiddenCount: hiddenSubnodeCount,
               byType: {
-                class: visibleClassCount,
-                interface: visibleInterfaceCount,
+                class: hasVueFlowChildren ? visibleClassCount : 0,
+                interface: hasVueFlowChildren ? visibleInterfaceCount : 0,
               },
               byTypeTotal: {
                 class: classCountTotal,
                 interface: interfaceCountTotal,
               },
               byTypeVisible: {
-                class: visibleClassCount,
-                interface: visibleInterfaceCount,
+                class: hasVueFlowChildren ? visibleClassCount : 0,
+                interface: hasVueFlowChildren ? visibleInterfaceCount : 0,
               },
-              isContainer: true,
+              isContainer: hasVueFlowChildren,
             },
             properties: [
               { name: 'package', type: pkg.name, visibility: 'public' },
@@ -372,7 +382,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           style: {
             ...getNodeStyle('module'),
             maxWidth: 520,
-            ...(nestSymbolsInModules && visibleSubnodeCount > 0
+            ...(nestSymbolsInModules && hasVueFlowChildren && estimatedHeight
               ? {
                   minWidth: 340,
                   minHeight: estimatedHeight,
@@ -395,16 +405,17 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
         graphNodes.push(moduleNode);
       }
 
+      // In compact mode, symbols are embedded in module data — skip VueFlow nodes.
+      if (isCompactMode) return;
+
       const parentForSymbols = includeModules && nestSymbolsInModules ? module.id : undefined;
 
-      // Optionally add class nodes.
+      // Create class nodes as separate VueFlow nodes.
       if (includeClassNodes && module.classes) {
         mapTypeCollection(module.classes, (cls) => {
           const properties = cls.properties ? mapTypeCollection(cls.properties, (prop) => toNodeProperty(prop)) : [];
           const methods = cls.methods ? mapTypeCollection(cls.methods, (method) => toNodeMethod(method)) : [];
           const memberTotal = properties.length + methods.length;
-          const subnodeVisibleCount = includeMemberNodes ? memberTotal : 0;
-          const subnodeHiddenCount = Math.max(0, memberTotal - subnodeVisibleCount);
 
           const classNode: DependencyNode = {
             id: cls.id,
@@ -423,39 +434,12 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
                   property: properties.length,
                   method: methods.length,
                 },
-                mode: memberNodeMode,
               },
               diagnostics: createDiagnostics({ isTestFile: isModuleTestFile }),
-              layoutInsets: { top: 90 },
-              isContainer: includeMemberNodes && memberTotal > 0,
-              ...(includeMemberNodes
-                ? {
-                    subnodes: {
-                      count: subnodeVisibleCount,
-                      totalCount: memberTotal,
-                      visibleCount: subnodeVisibleCount,
-                      hiddenCount: subnodeHiddenCount,
-                      byType: {
-                        property: properties.length,
-                        method: methods.length,
-                      },
-                      byTypeTotal: {
-                        property: properties.length,
-                        method: methods.length,
-                      },
-                      byTypeVisible: {
-                        property: properties.length,
-                        method: methods.length,
-                      },
-                      isContainer: true,
-                    },
-                  }
-                : {}),
             },
             style: {
               ...getNodeStyle('class'),
-              ...(memberTotal > 0 ? { minHeight: Math.max(120, 100 + Math.min(memberTotal, 10) * 16) } : {}),
-              zIndex: 2,
+              zIndex: 3,
             },
           };
 
@@ -466,49 +450,15 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           }
 
           graphNodes.push(classNode);
-
-          if (includeMemberNodes && memberTotal > 0) {
-            properties.forEach((property) => {
-              const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
-              graphNodes.push(
-                createMemberNode(
-                  propertyId,
-                  'property',
-                  `${property.name}: ${property.type}`,
-                  sourcePosition,
-                  targetPosition,
-                  cls.id,
-                  isModuleTestFile
-                )
-              );
-            });
-
-            methods.forEach((method) => {
-              const methodId = method.id ?? `${cls.id}:method:${method.name}`;
-              graphNodes.push(
-                createMemberNode(
-                  methodId,
-                  'method',
-                  `${method.name}(): ${method.returnType}`,
-                  sourcePosition,
-                  targetPosition,
-                  cls.id,
-                  isModuleTestFile
-                )
-              );
-            });
-          }
         });
       }
 
-      // Optionally add interface nodes.
+      // Create interface nodes as separate VueFlow nodes.
       if (includeInterfaceNodes && module.interfaces) {
         mapTypeCollection(module.interfaces, (iface) => {
           const properties = iface.properties ? mapTypeCollection(iface.properties, (prop) => toNodeProperty(prop)) : [];
           const methods = iface.methods ? mapTypeCollection(iface.methods, (method) => toNodeMethod(method)) : [];
           const memberTotal = properties.length + methods.length;
-          const subnodeVisibleCount = includeMemberNodes ? memberTotal : 0;
-          const subnodeHiddenCount = Math.max(0, memberTotal - subnodeVisibleCount);
 
           const interfaceNode: DependencyNode = {
             id: iface.id,
@@ -527,39 +477,12 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
                   property: properties.length,
                   method: methods.length,
                 },
-                mode: memberNodeMode,
               },
               diagnostics: createDiagnostics({ isTestFile: isModuleTestFile }),
-              layoutInsets: { top: 90 },
-              isContainer: includeMemberNodes && memberTotal > 0,
-              ...(includeMemberNodes
-                ? {
-                    subnodes: {
-                      count: subnodeVisibleCount,
-                      totalCount: memberTotal,
-                      visibleCount: subnodeVisibleCount,
-                      hiddenCount: subnodeHiddenCount,
-                      byType: {
-                        property: properties.length,
-                        method: methods.length,
-                      },
-                      byTypeTotal: {
-                        property: properties.length,
-                        method: methods.length,
-                      },
-                      byTypeVisible: {
-                        property: properties.length,
-                        method: methods.length,
-                      },
-                      isContainer: true,
-                    },
-                  }
-                : {}),
             },
             style: {
               ...getNodeStyle('interface'),
-              ...(memberTotal > 0 ? { minHeight: Math.max(120, 100 + Math.min(memberTotal, 10) * 16) } : {}),
-              zIndex: 2,
+              zIndex: 3,
             },
           };
 
@@ -570,38 +493,6 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           }
 
           graphNodes.push(interfaceNode);
-
-          if (includeMemberNodes && memberTotal > 0) {
-            properties.forEach((property) => {
-              const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
-              graphNodes.push(
-                createMemberNode(
-                  propertyId,
-                  'property',
-                  `${property.name}: ${property.type}`,
-                  sourcePosition,
-                  targetPosition,
-                  iface.id,
-                  isModuleTestFile
-                )
-              );
-            });
-
-            methods.forEach((method) => {
-              const methodId = method.id ?? `${iface.id}:method:${method.name}`;
-              graphNodes.push(
-                createMemberNode(
-                  methodId,
-                  'method',
-                  `${method.name}(): ${method.returnType}`,
-                  sourcePosition,
-                  targetPosition,
-                  iface.id,
-                  isModuleTestFile
-                )
-              );
-            });
-          }
         });
       }
     });

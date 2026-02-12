@@ -78,7 +78,18 @@ export interface SubnodeMetadata {
 export interface MemberMetadata {
   totalCount: number;
   byType?: Partial<Record<'property' | 'method', number>>;
-  mode?: 'compact' | 'graph';
+}
+
+/**
+ * Symbol data embedded in module nodes during compact mode.
+ * Each entry represents a class or interface with its members.
+ */
+export interface EmbeddedSymbol {
+  id: string;
+  type: 'class' | 'interface';
+  name: string;
+  properties: NodeProperty[];
+  methods: NodeMethod[];
 }
 
 export interface NodeDiagnostics {
@@ -107,6 +118,7 @@ export interface DependencyData {
   imports?: string[];
   exports?: string[];
   externalDependencies?: ExternalDependencyRef[];
+  symbols?: EmbeddedSymbol[];
   subnodes?: SubnodeMetadata;
   members?: MemberMetadata;
   diagnostics?: NodeDiagnostics;

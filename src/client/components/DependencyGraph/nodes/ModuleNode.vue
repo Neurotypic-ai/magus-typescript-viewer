@@ -2,8 +2,9 @@
 import { computed, ref } from 'vue';
 
 import BaseNode from './BaseNode.vue';
+import CollapsibleSection from './CollapsibleSection.vue';
 
-import type { DependencyProps, ExternalDependencyRef } from '../types';
+import type { DependencyProps, EmbeddedSymbol, ExternalDependencyRef, NodeMethod, NodeProperty } from '../types';
 
 const props = defineProps<DependencyProps>();
 
@@ -13,6 +14,11 @@ const metadataItems = computed(() => nodeData.value.properties ?? []);
 const externalDependencies = computed<ExternalDependencyRef[]>(() => {
   const metadata = nodeData.value.externalDependencies;
   return Array.isArray(metadata) ? metadata : [];
+});
+
+const embeddedSymbols = computed<EmbeddedSymbol[]>(() => {
+  const symbols = nodeData.value.symbols;
+  return Array.isArray(symbols) ? symbols : [];
 });
 
 const diagnostics = computed(() => nodeData.value.diagnostics as {
@@ -73,6 +79,8 @@ const hiddenSubnodeSummary = computed(() => {
   return `Hidden: ${segments.join(', ')}`;
 });
 
+const hasVueFlowChildren = computed(() => nodeData.value.isContainer === true && subnodeCount.value > 0);
+
 const baseNodeProps = computed(() => ({
   id: props.id,
   type: props.type,
@@ -82,8 +90,8 @@ const baseNodeProps = computed(() => ({
   ...(props.height !== undefined ? { height: props.height } : {}),
   ...(props.sourcePosition !== undefined ? { sourcePosition: props.sourcePosition } : {}),
   ...(props.targetPosition !== undefined ? { targetPosition: props.targetPosition } : {}),
-  isContainer: true,
-  showSubnodes: totalSubnodeCount.value > 0 || hiddenSubnodeCount.value > 0,
+  isContainer: hasVueFlowChildren.value,
+  showSubnodes: hasVueFlowChildren.value || hiddenSubnodeCount.value > 0,
   subnodesCount: subnodeCount.value,
 }));
 
@@ -96,6 +104,31 @@ const visibleExternalDependencies = computed(() => {
 });
 
 const hiddenExternalDependencyCount = computed(() => Math.max(0, externalDependencies.value.length - 8));
+
+const visibilityIndicator = (visibility: string): string => {
+  switch (visibility) {
+    case 'public':
+      return 'p';
+    case 'protected':
+      return '#';
+    case 'private':
+      return '-';
+    default:
+      return 'p';
+  }
+};
+
+const formatProperty = (prop: NodeProperty): { indicator: string; name: string; type: string } => ({
+  indicator: visibilityIndicator(prop.visibility),
+  name: prop.name,
+  type: prop.type || 'unknown',
+});
+
+const formatMethod = (method: NodeMethod): { indicator: string; name: string; returnType: string } => ({
+  indicator: visibilityIndicator(method.visibility),
+  name: method.name,
+  returnType: method.returnType || 'void',
+});
 </script>
 
 <template>
@@ -153,7 +186,52 @@ const hiddenExternalDependencyCount = computed(() => Math.max(0, externalDepende
         </Transition>
       </div>
 
-      <div v-if="metadataItems.length === 0 && externalDependencies.length === 0" class="module-empty-state">
+      <!-- Embedded symbols in compact mode -->
+      <div v-if="embeddedSymbols.length > 0" class="module-symbols">
+        <CollapsibleSection
+          v-for="symbol in embeddedSymbols"
+          :key="symbol.id"
+          :title="`${symbol.type.toUpperCase()}: ${symbol.name}`"
+          :count="symbol.properties.length + symbol.methods.length"
+          :default-open="false"
+        >
+          <CollapsibleSection
+            v-if="symbol.properties.length > 0"
+            title="Properties"
+            :count="symbol.properties.length"
+            :default-open="true"
+          >
+            <div
+              v-for="(prop, index) in symbol.properties"
+              :key="`prop-${symbol.id}-${index}`"
+              class="member-item"
+            >
+              <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
+              <span class="member-name">{{ formatProperty(prop).name }}</span>
+              <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            v-if="symbol.methods.length > 0"
+            title="Methods"
+            :count="symbol.methods.length"
+            :default-open="true"
+          >
+            <div
+              v-for="(method, index) in symbol.methods"
+              :key="`method-${symbol.id}-${index}`"
+              class="member-item"
+            >
+              <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
+              <span class="member-name">{{ formatMethod(method).name }}()</span>
+              <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
+            </div>
+          </CollapsibleSection>
+        </CollapsibleSection>
+      </div>
+
+      <div v-if="metadataItems.length === 0 && externalDependencies.length === 0 && embeddedSymbols.length === 0" class="module-empty-state">
         No module metadata
       </div>
     </template>
@@ -252,6 +330,48 @@ const hiddenExternalDependencyCount = computed(() => Math.max(0, externalDepende
 
 .dependency-more-button:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.module-symbols {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.member-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.member-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.member-visibility {
+  color: var(--text-secondary);
+  opacity: 0.7;
+  font-size: 0.62rem;
+  min-width: 0.7rem;
+  flex-shrink: 0;
+}
+
+.member-name {
+  color: var(--text-primary);
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.member-type-annotation {
+  color: var(--text-secondary);
+  opacity: 0.8;
+  word-break: break-word;
 }
 
 .module-node--high-deps :deep(.base-node-container) {
