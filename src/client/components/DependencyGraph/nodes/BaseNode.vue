@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core';
 import { NodeToolbar } from '@vue-flow/node-toolbar';
-import { computed, inject, ref } from 'vue';
+import { computed, inject } from 'vue';
 
 import { useGraphSettings } from '../../../stores/graphSettings';
 
@@ -30,8 +30,6 @@ const nodeActions = inject<NodeActions | undefined>(NODE_ACTIONS_KEY, undefined)
 
 const nodeData = computed(() => props.data);
 const isSelected = computed(() => !!props.selected);
-const isHovered = ref(false);
-const isToolbarVisible = computed(() => isSelected.value || isHovered.value);
 
 const isOrphanGlobal = computed(() => {
   if (!graphSettings.highlightOrphanGlobal) {
@@ -114,17 +112,15 @@ const containerStyle = computed(() => {
       'base-node-container',
       {
         'base-node-selected': isSelected,
-        'base-node-elevated': isToolbarVisible,
+        'base-node-elevated': isSelected,
         'base-node-container--container': inferredContainer,
         'base-node-orphan-global': isOrphanGlobal,
       },
     ]"
     :style="containerStyle"
-    @mouseenter="isHovered = true"
-    @mouseleave="isHovered = false"
   >
-    <NodeToolbar v-if="isToolbarVisible" :is-visible="true" :position="Position.Right" align="start" :offset="8">
-      <div :class="['node-toolbar-actions', { 'node-toolbar-visible': isToolbarVisible }]">
+    <NodeToolbar v-if="isSelected" :is-visible="true" :position="Position.Right" align="start" :offset="8">
+      <div :class="['node-toolbar-actions', { 'node-toolbar-visible': isSelected }]">
         <button
           type="button"
           class="node-toolbar-button nodrag"
@@ -187,7 +183,7 @@ const containerStyle = computed(() => {
   border-radius: 0.5rem;
   border: 1px solid var(--border-default);
   background-color: var(--background-node);
-  contain: layout style paint;
+  contain: layout style;
   transition:
     transform 180ms ease-out,
     border-color 180ms ease-out,
@@ -195,7 +191,6 @@ const containerStyle = computed(() => {
   cursor: grab;
   font-size: 0.75rem;
   line-height: 1rem;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

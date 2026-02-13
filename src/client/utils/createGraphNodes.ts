@@ -383,7 +383,6 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           },
           style: {
             ...getNodeStyle('module'),
-            maxWidth: 520,
             ...(nestSymbolsInModules && hasVueFlowChildren && estimatedHeight
               ? {
                   minWidth: 340,

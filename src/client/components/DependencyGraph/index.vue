@@ -446,8 +446,6 @@ const mergeNodeInteractionStyle = (
     height: currentStyle['height'],
     minWidth: currentStyle['minWidth'],
     minHeight: currentStyle['minHeight'],
-    maxWidth: currentStyle['maxWidth'],
-    maxHeight: currentStyle['maxHeight'],
     overflow: currentStyle['overflow'],
     zIndex: currentStyle['zIndex'],
   };
@@ -1108,16 +1106,15 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     .map((node) => {
       const baseNode = stripNodeClass(node);
       const layoutPos = layoutPositions.get(node.id);
-      const { maxWidth: _mw, maxHeight: _mh, ...styleWithoutMax } = mergeNodeInteractionStyle(baseNode, {
-        opacity: node.id === nodeId ? 1 : 0.9,
-        borderColor: node.id === nodeId ? '#22d3ee' : undefined,
-        borderWidth: node.id === nodeId ? '2px' : undefined,
-      });
       return {
         ...baseNode,
         position: layoutPos ?? baseNode.position,
         selected: node.id === nodeId,
-        style: styleWithoutMax,
+        style: mergeNodeInteractionStyle(baseNode, {
+          opacity: node.id === nodeId ? 1 : 0.9,
+          borderColor: node.id === nodeId ? '#22d3ee' : undefined,
+          borderWidth: node.id === nodeId ? '2px' : undefined,
+        }),
       };
     });
 

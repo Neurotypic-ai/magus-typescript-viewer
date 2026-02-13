@@ -453,7 +453,6 @@ const formattedEmbeddedInterfaces = computed(() =>
   border: 1px solid rgba(var(--border-default-rgb), 0.4);
   border-radius: 0.4rem;
   background: rgba(255, 255, 255, 0.02);
-  overflow: hidden;
 }
 
 .symbol-card-header {
@@ -486,8 +485,6 @@ const formattedEmbeddedInterfaces = computed(() =>
   font-weight: 600;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
