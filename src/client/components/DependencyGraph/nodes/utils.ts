@@ -1,5 +1,5 @@
 import type { Position } from '@vue-flow/core';
-import type { InjectionKey } from 'vue';
+import type { InjectionKey, Ref } from 'vue';
 
 import type { DependencyData, DependencyKind } from '../types';
 
@@ -13,6 +13,12 @@ export interface NodeActions {
 }
 
 export const NODE_ACTIONS_KEY: InjectionKey<NodeActions> = Symbol('node-actions');
+
+/**
+ * Injection key for the isolate-expand-all signal.
+ * When true, all collapsible sections in nodes should expand.
+ */
+export const ISOLATE_EXPAND_ALL_KEY: InjectionKey<Ref<boolean>> = Symbol('isolate-expand-all');
 
 /**
  * Input type compatible with Vue's DefineProps, which adds `| undefined` to optional properties.

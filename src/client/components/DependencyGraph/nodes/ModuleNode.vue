@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue';
+import { computed, inject, ref, shallowRef, watch } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
-import { buildBaseNodeProps } from './utils';
+import { buildBaseNodeProps, ISOLATE_EXPAND_ALL_KEY } from './utils';
 
 import type { DependencyProps, EmbeddedSymbol, ExternalDependencyRef, NodeMethod, NodeProperty } from '../types';
 
@@ -106,6 +106,16 @@ const baseNodeProps = computed(() => buildBaseNodeProps(props, {
 const showMetadata = ref(true);
 const showExternalDeps = ref(true);
 const showAllExternalDeps = ref(false);
+
+const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
+watch(isolateExpandAll, (expand) => {
+  if (expand) {
+    showMetadata.value = true;
+    showExternalDeps.value = true;
+    showAllExternalDeps.value = true;
+    expandedSymbols.value = new Set(embeddedSymbols.value.map((s) => s.id));
+  }
+});
 
 const visibleExternalDependencies = computed(() => {
   return showAllExternalDeps.value ? externalDependencies.value : externalDependencies.value.slice(0, 8);

@@ -23,7 +23,7 @@ import GraphControls from './components/GraphControls.vue';
 import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
-import { NODE_ACTIONS_KEY } from './nodes/utils';
+import { ISOLATE_EXPAND_ALL_KEY, NODE_ACTIONS_KEY } from './nodes/utils';
 import { useEdgeVirtualization } from './useEdgeVirtualization';
 import { useGraphInteractionController } from './useGraphInteractionController';
 import { useFpsCounter } from './useFpsCounter';
@@ -84,6 +84,7 @@ const graphRootRef = ref<HTMLElement | null>(null);
 const edgeVirtualizationEnabled = ref(true);
 const isPanning = ref(false);
 const isIsolateAnimating = ref(false);
+const isolateExpandAll = ref(false);
 let isolateAnimatingTimer: ReturnType<typeof setTimeout> | null = null;
 const showFps = computed(() => graphSettings.showFps);
 const viewportState = ref({ ...DEFAULT_VIEWPORT });
@@ -973,40 +974,84 @@ const handleFocusNode = async (nodeId: string): Promise<void> => {
   onEdgeVirtualizationViewportChange();
 };
 
-const computeRadialPositions = (
+const getNodeDims = (n: DependencyNode): { w: number; h: number } => {
+  const measured = (n as { measured?: { width?: number; height?: number } }).measured;
+  return {
+    w: measured?.width ?? (typeof n.width === 'number' ? n.width : 280),
+    h: measured?.height ?? (typeof n.height === 'number' ? n.height : 200),
+  };
+};
+
+const computeIsolateLayout = (
   centerNode: DependencyNode,
-  neighbors: DependencyNode[]
+  inbound: DependencyNode[],
+  outbound: DependencyNode[],
+  direction: 'LR' | 'RL' | 'TB' | 'BT'
 ): Map<string, { x: number; y: number }> => {
-  const allNodes = [centerNode, ...neighbors];
+  const allNodes = [centerNode, ...inbound, ...outbound];
   const cx = allNodes.reduce((sum, n) => sum + (n.position?.x ?? 0), 0) / allNodes.length;
   const cy = allNodes.reduce((sum, n) => sum + (n.position?.y ?? 0), 0) / allNodes.length;
 
-  // Estimate the max node diagonal to ensure nodes don't overlap on the circle.
-  // Vue Flow stores measured sizes on node.measured (runtime) or node.width/height.
-  const getNodeSize = (n: DependencyNode): number => {
-    const measured = (n as { measured?: { width?: number; height?: number } }).measured;
-    const w = measured?.width ?? (typeof n.width === 'number' ? n.width : 280);
-    const h = measured?.height ?? (typeof n.height === 'number' ? n.height : 200);
-    return Math.sqrt(w * w + h * h);
-  };
-  const estimatedNodeSize = Math.max(...neighbors.map(getNodeSize), 280);
+  const centerDims = getNodeDims(centerNode);
+  const GAP = 150;
+  const STACK_GAP = 40;
+  const isHorizontal = direction === 'LR' || direction === 'RL';
+  const isReversed = direction === 'RL' || direction === 'BT';
 
-  // The radius must be large enough that the arc-length between adjacent nodes
-  // exceeds the node size: arcLength = 2πr/n ≥ nodeSize × spacing factor
-  const arcBasedRadius = (neighbors.length * estimatedNodeSize * 1.3) / (2 * Math.PI);
-  const radius = Math.max(500, arcBasedRadius);
+  // In reversed directions, swap which side inbound/outbound appear on
+  const beforeNodes = isReversed ? outbound : inbound;
+  const afterNodes = isReversed ? inbound : outbound;
+
   const positions = new Map<string, { x: number; y: number }>();
-
   positions.set(centerNode.id, { x: cx, y: cy });
 
-  const angleStep = (2 * Math.PI) / neighbors.length;
-  neighbors.forEach((node, i) => {
-    const angle = angleStep * i - Math.PI / 2;
-    positions.set(node.id, {
-      x: cx + radius * Math.cos(angle),
-      y: cy + radius * Math.sin(angle),
-    });
-  });
+  if (isHorizontal) {
+    // Flow axis = X, stack axis = Y
+    const stackColumnY = (column: DependencyNode[], alignX: number, alignRight: boolean): void => {
+      const totalH = column.reduce((sum, n) => sum + getNodeDims(n).h + STACK_GAP, -STACK_GAP);
+      let y = cy + centerDims.h / 2 - totalH / 2;
+      for (const node of column) {
+        const dims = getNodeDims(node);
+        const x = alignRight ? alignX - dims.w : alignX;
+        positions.set(node.id, { x, y });
+        y += dims.h + STACK_GAP;
+      }
+    };
+
+    // Before-nodes: right-aligned, right edge is GAP pixels left of center's left edge
+    if (beforeNodes.length > 0) {
+      const alignX = cx - GAP;
+      stackColumnY(beforeNodes, alignX, true);
+    }
+    // After-nodes: left-aligned, left edge is GAP pixels right of center's right edge
+    if (afterNodes.length > 0) {
+      const alignX = cx + centerDims.w + GAP;
+      stackColumnY(afterNodes, alignX, false);
+    }
+  } else {
+    // Flow axis = Y, stack axis = X
+    const stackRowX = (column: DependencyNode[], alignY: number, alignBottom: boolean): void => {
+      const totalW = column.reduce((sum, n) => sum + getNodeDims(n).w + STACK_GAP, -STACK_GAP);
+      let x = cx + centerDims.w / 2 - totalW / 2;
+      for (const node of column) {
+        const dims = getNodeDims(node);
+        const y = alignBottom ? alignY - dims.h : alignY;
+        positions.set(node.id, { x, y });
+        x += dims.w + STACK_GAP;
+      }
+    };
+
+    // Before-nodes: bottom-aligned, bottom edge is GAP pixels above center's top edge
+    if (beforeNodes.length > 0) {
+      const alignY = cy - GAP;
+      stackRowX(beforeNodes, alignY, true);
+    }
+    // After-nodes: top-aligned, top edge is GAP pixels below center's bottom edge
+    if (afterNodes.length > 0) {
+      const alignY = cy + centerDims.h + GAP;
+      stackRowX(afterNodes, alignY, false);
+    }
+  }
 
   return positions;
 };
@@ -1030,31 +1075,49 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   }
 
   const connectedNodeIds = new Set<string>([nodeId]);
+  const inboundIds = new Set<string>();
+  const outboundIds = new Set<string>();
   sourceEdges.forEach((edge) => {
     if (edge.source === nodeId) {
       connectedNodeIds.add(edge.target);
+      outboundIds.add(edge.target);
     } else if (edge.target === nodeId) {
       connectedNodeIds.add(edge.source);
+      inboundIds.add(edge.source);
     }
   });
 
-  const neighbors = sourceNodes.filter((node) => node.id !== nodeId && connectedNodeIds.has(node.id));
-  const radialPositions = computeRadialPositions(targetNode, neighbors);
+  const nodeById = new Map(sourceNodes.map((n) => [n.id, n]));
+  const inbound = [...inboundIds].filter((id) => !outboundIds.has(id)).map((id) => nodeById.get(id)!).filter(Boolean);
+  const outbound = [...outboundIds].filter((id) => !inboundIds.has(id)).map((id) => nodeById.get(id)!).filter(Boolean);
+  const bidirectional = [...inboundIds].filter((id) => outboundIds.has(id)).map((id) => nodeById.get(id)!).filter(Boolean);
+
+  // Distribute bidirectional nodes to the smaller side for balance
+  for (const node of bidirectional) {
+    if (inbound.length <= outbound.length) {
+      inbound.push(node);
+    } else {
+      outbound.push(node);
+    }
+  }
+
+  const layoutPositions = computeIsolateLayout(targetNode, inbound, outbound, layoutConfig.direction);
 
   const isolatedNodes = sourceNodes
     .filter((node) => connectedNodeIds.has(node.id))
     .map((node) => {
       const baseNode = stripNodeClass(node);
-      const radialPos = radialPositions.get(node.id);
+      const layoutPos = layoutPositions.get(node.id);
+      const { maxWidth: _mw, maxHeight: _mh, ...styleWithoutMax } = mergeNodeInteractionStyle(baseNode, {
+        opacity: node.id === nodeId ? 1 : 0.9,
+        borderColor: node.id === nodeId ? '#22d3ee' : undefined,
+        borderWidth: node.id === nodeId ? '2px' : undefined,
+      });
       return {
         ...baseNode,
-        position: radialPos ?? baseNode.position,
+        position: layoutPos ?? baseNode.position,
         selected: node.id === nodeId,
-        style: mergeNodeInteractionStyle(baseNode, {
-          opacity: node.id === nodeId ? 1 : 0.9,
-          borderColor: node.id === nodeId ? '#22d3ee' : undefined,
-          borderWidth: node.id === nodeId ? '2px' : undefined,
-        }),
+        style: styleWithoutMax,
       };
     });
 
@@ -1074,6 +1137,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   );
 
   startIsolateAnimation();
+  isolateExpandAll.value = true;
   graphStore['setNodes'](isolatedNodes);
   graphStore['setEdges'](isolatedEdges);
   graphStore.setViewMode('isolate');
@@ -1096,6 +1160,7 @@ const nodeActions = {
 
 // Provide node actions to child nodes via injection (replaces global CustomEvent)
 provide(NODE_ACTIONS_KEY, nodeActions);
+provide(ISOLATE_EXPAND_ALL_KEY, isolateExpandAll);
 
 const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
   const targetNode = nodes.value.find((node) => node.id === nodeId) ?? selectedNode.value;
@@ -1160,6 +1225,7 @@ const handleWheel = (event: WheelEvent): void => {
 const handleReturnToOverview = async (): Promise<void> => {
   interaction.setScopeMode('overview');
   graphStore.setViewMode('overview');
+  isolateExpandAll.value = false;
   setSelectedNode(null);
 
   if (graphStore.restoreOverviewSnapshot()) {

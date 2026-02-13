@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { inject, ref, watch } from 'vue';
+
+import { ISOLATE_EXPAND_ALL_KEY } from './utils';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -16,6 +18,13 @@ const isOpen = ref(props.defaultOpen);
 const toggle = () => {
   isOpen.value = !isOpen.value;
 };
+
+const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
+watch(isolateExpandAll, (expand) => {
+  if (expand) {
+    isOpen.value = true;
+  }
+});
 </script>
 
 <template>
