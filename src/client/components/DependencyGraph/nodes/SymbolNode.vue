@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, ref, watch } from 'vue';
+import { computed, inject, ref, toRef, watch } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
@@ -9,8 +9,8 @@ import type { DependencyProps, NodeMethod, NodeProperty } from '../types';
 
 const props = defineProps<DependencyProps>();
 
-const nodeData = computed(() => props.data);
-const nodeType = computed(() => props.type);
+const nodeData = toRef(props, 'data');
+const nodeType = toRef(props, 'type');
 
 const properties = computed(() => nodeData.value.properties ?? []);
 const methods = computed(() => nodeData.value.methods ?? []);
@@ -77,13 +77,15 @@ const visibilityIndicator = (visibility: string): string => {
   }
 };
 
-const formatProperty = (prop: NodeProperty): { indicator: string; name: string; type: string } => ({
+const formatProperty = (prop: NodeProperty): { key: string; indicator: string; name: string; type: string } => ({
+  key: `${prop.name}:${prop.type ?? 'unknown'}:${prop.visibility ?? 'default'}`,
   indicator: visibilityIndicator(prop.visibility),
   name: prop.name,
   type: prop.type || 'unknown',
 });
 
-const formatMethod = (method: NodeMethod): { indicator: string; name: string; returnType: string } => ({
+const formatMethod = (method: NodeMethod): { key: string; indicator: string; name: string; returnType: string } => ({
+  key: `${method.name}:${method.returnType ?? 'void'}:${method.visibility ?? 'default'}`,
   indicator: visibilityIndicator(method.visibility),
   name: method.name,
   returnType: method.returnType || 'void',
@@ -125,8 +127,8 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
               :default-open="showProperties"
             >
               <div
-                v-for="(prop, index) in formattedProperties.slice(0, 8)"
-                :key="`prop-${index}`"
+                v-for="prop in formattedProperties.slice(0, 8)"
+                :key="`prop-${prop.key}`"
                 class="member-item"
               >
                 <span class="member-visibility">{{ prop.indicator }}</span>
@@ -145,8 +147,8 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
               :default-open="showMethods"
             >
               <div
-                v-for="(method, index) in formattedMethods.slice(0, 8)"
-                :key="`method-${index}`"
+                v-for="method in formattedMethods.slice(0, 8)"
+                :key="`method-${method.key}`"
                 class="member-item"
               >
                 <span class="member-visibility">{{ method.indicator }}</span>

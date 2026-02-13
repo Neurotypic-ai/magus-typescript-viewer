@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core';
 import { NodeToolbar } from '@vue-flow/node-toolbar';
-import { computed, inject } from 'vue';
+import { computed, inject, toRef } from 'vue';
 
-import { useGraphSettings } from '../../../stores/graphSettings';
-
-import { NODE_ACTIONS_KEY } from './utils';
+import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, NODE_ACTIONS_KEY } from './utils';
 
 import type { NodeActions } from './utils';
 import type { DependencyProps } from '../types';
@@ -25,14 +23,14 @@ const props = withDefaults(defineProps<BaseNodeProps>(), {
   zIndex: 1,
 });
 
-const graphSettings = useGraphSettings();
 const nodeActions = inject<NodeActions | undefined>(NODE_ACTIONS_KEY, undefined);
+const highlightOrphanGlobal = inject(HIGHLIGHT_ORPHAN_GLOBAL_KEY, undefined);
 
-const nodeData = computed(() => props.data);
+const nodeData = toRef(props, 'data');
 const isSelected = computed(() => !!props.selected);
 
 const isOrphanGlobal = computed(() => {
-  if (!graphSettings.highlightOrphanGlobal) {
+  if (!highlightOrphanGlobal?.value) {
     return false;
   }
   const diag = nodeData.value?.diagnostics as { orphanGlobal?: boolean } | undefined;
@@ -87,6 +85,14 @@ const shouldShowSubnodes = computed(() => {
   return inferredContainer.value && (resolvedSubnodesTotalCount.value > 0 || resolvedSubnodesHiddenCount.value > 0);
 });
 
+const containerClasses = computed(() => ({
+  'base-node-container': true,
+  'base-node-selected': isSelected.value,
+  'base-node-elevated': isSelected.value,
+  'base-node-container--container': inferredContainer.value,
+  'base-node-orphan-global': isOrphanGlobal.value,
+}));
+
 const containerStyle = computed(() => {
   if (inferredContainer.value) {
     return {
@@ -108,15 +114,7 @@ const containerStyle = computed(() => {
 
 <template>
   <div
-    :class="[
-      'base-node-container',
-      {
-        'base-node-selected': isSelected,
-        'base-node-elevated': isSelected,
-        'base-node-container--container': inferredContainer,
-        'base-node-orphan-global': isOrphanGlobal,
-      },
-    ]"
+    :class="containerClasses"
     :style="containerStyle"
   >
     <NodeToolbar v-if="isSelected" :is-visible="true" :position="Position.Right" align="start" :offset="8">
@@ -206,24 +204,21 @@ const containerStyle = computed(() => {
 }
 
 .base-node-container.base-node-elevated {
-  box-shadow:
-    0 16px 24px -4px rgba(0, 0, 0, 0.22),
-    0 6px 10px -3px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.2);
   border-color: var(--border-hover);
 }
 
 .base-node-container.base-node-selected {
   border-color: var(--border-focus);
   box-shadow:
-    0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05),
-    0 0 12px rgba(144, 202, 249, 0.4);
+    0 0 0 1px rgba(144, 202, 249, 0.45),
+    0 4px 10px rgba(0, 0, 0, 0.16);
 }
 
 .base-node-container.base-node-orphan-global {
   outline: 2px solid #ef4444;
   outline-offset: -1px;
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.45);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.38);
 }
 
 .base-node-handle {
@@ -251,6 +246,8 @@ const containerStyle = computed(() => {
   line-height: 1.25rem;
   color: var(--text-primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .base-node-badge {

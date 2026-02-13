@@ -24,6 +24,8 @@ interface GraphStore {
   overviewSnapshot: Ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
   setNodes: (newNodes: DependencyNode[]) => void;
   setEdges: (newEdges: GraphEdge[]) => void;
+  updateNodesById: (updates: Map<string, DependencyNode>) => void;
+  updateEdgesById: (updates: Map<string, GraphEdge>) => void;
   setEdgeVisibility: (visibilityMap: Map<string, boolean>) => void;
   setSelectedNode: (node: DependencyNode | null) => void;
   setCacheKey: (key: string | null) => void;
@@ -124,6 +126,74 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     edges.value = newEdges;
   };
 
+  const updateNodesById = (updates: Map<string, DependencyNode>) => {
+    if (updates.size === 0 || nodes.value.length === 0) {
+      return;
+    }
+
+    let nextNodes: DependencyNode[] | null = null;
+    const nodeIndexById = new Map<string, number>();
+    nodes.value.forEach((node, index) => {
+      nodeIndexById.set(node.id, index);
+    });
+
+    updates.forEach((nextNode, nodeId) => {
+      const nodeIndex = nodeIndexById.get(nodeId);
+      if (nodeIndex === undefined) {
+        return;
+      }
+
+      const current = (nextNodes ?? nodes.value)[nodeIndex];
+      if (current === nextNode) {
+        return;
+      }
+
+      if (!nextNodes) {
+        nextNodes = [...nodes.value];
+      }
+
+      nextNodes[nodeIndex] = nextNode;
+    });
+
+    if (nextNodes) {
+      nodes.value = nextNodes;
+    }
+  };
+
+  const updateEdgesById = (updates: Map<string, GraphEdge>) => {
+    if (updates.size === 0 || edges.value.length === 0) {
+      return;
+    }
+
+    let nextEdges: GraphEdge[] | null = null;
+    const edgeIndexById = new Map<string, number>();
+    edges.value.forEach((edge, index) => {
+      edgeIndexById.set(edge.id, index);
+    });
+
+    updates.forEach((nextEdge, edgeId) => {
+      const edgeIndex = edgeIndexById.get(edgeId);
+      if (edgeIndex === undefined) {
+        return;
+      }
+
+      const current = (nextEdges ?? edges.value)[edgeIndex];
+      if (current === nextEdge) {
+        return;
+      }
+
+      if (!nextEdges) {
+        nextEdges = [...edges.value];
+      }
+
+      nextEdges[edgeIndex] = nextEdge;
+    });
+
+    if (nextEdges) {
+      edges.value = nextEdges;
+    }
+  };
+
   const setEdgeVisibility = (visibilityMap: Map<string, boolean>) => {
     if (visibilityMap.size === 0 || edges.value.length === 0) {
       return;
@@ -216,6 +286,8 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     // Actions
     setNodes,
     setEdges,
+    updateNodesById,
+    updateEdgesById,
     setEdgeVisibility,
     setSelectedNode,
     setCacheKey,

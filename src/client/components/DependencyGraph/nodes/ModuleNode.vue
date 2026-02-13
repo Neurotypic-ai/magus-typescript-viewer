@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, ref, shallowRef, watch } from 'vue';
+import { computed, inject, ref, shallowRef, toRef, watch } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
@@ -9,7 +9,7 @@ import type { DependencyProps, EmbeddedSymbol, ExternalDependencyRef, NodeMethod
 
 const props = defineProps<DependencyProps>();
 
-const nodeData = computed(() => props.data);
+const nodeData = toRef(props, 'data');
 
 const metadataItems = computed(() => nodeData.value.properties ?? []);
 const externalDependencies = computed<ExternalDependencyRef[]>(() => {
@@ -136,13 +136,15 @@ const visibilityIndicator = (visibility: string): string => {
   }
 };
 
-const formatProperty = (prop: NodeProperty): { indicator: string; name: string; type: string } => ({
+const formatProperty = (prop: NodeProperty): { key: string; indicator: string; name: string; type: string } => ({
+  key: `${prop.name}:${prop.type ?? 'unknown'}:${prop.visibility ?? 'default'}`,
   indicator: visibilityIndicator(prop.visibility),
   name: prop.name,
   type: prop.type || 'unknown',
 });
 
-const formatMethod = (method: NodeMethod): { indicator: string; name: string; returnType: string } => ({
+const formatMethod = (method: NodeMethod): { key: string; indicator: string; name: string; returnType: string } => ({
+  key: `${method.name}:${method.returnType ?? 'void'}:${method.visibility ?? 'default'}`,
   indicator: visibilityIndicator(method.visibility),
   name: method.name,
   returnType: method.returnType || 'void',
@@ -181,7 +183,7 @@ const formattedEmbeddedInterfaces = computed(() =>
           <span>{{ showMetadata ? '−' : '+' }}</span>
         </button>
         <div v-if="showMetadata" class="module-section-content nowheel">
-          <div v-for="(prop, index) in metadataItems" :key="`metadata-${index}`" class="metadata-item">
+          <div v-for="(prop, index) in metadataItems" :key="`metadata-${prop.name}-${prop.type}-${index}`" class="metadata-item">
             <span class="metadata-key">{{ prop.name }}:</span>
             <span class="metadata-value" :title="prop.type">{{ prop.type }}</span>
           </div>
@@ -244,8 +246,8 @@ const formattedEmbeddedInterfaces = computed(() =>
                 :default-open="true"
               >
                 <div
-                  v-for="(prop, index) in symbol.formattedProperties.slice(0, 8)"
-                  :key="`prop-${symbol.id}-${index}`"
+                  v-for="prop in symbol.formattedProperties.slice(0, 8)"
+                  :key="`prop-${symbol.id}-${prop.key}`"
                   class="member-item"
                 >
                   <span class="member-visibility">{{ prop.indicator }}</span>
@@ -263,8 +265,8 @@ const formattedEmbeddedInterfaces = computed(() =>
                 :default-open="true"
               >
                 <div
-                  v-for="(method, index) in symbol.formattedMethods.slice(0, 8)"
-                  :key="`method-${symbol.id}-${index}`"
+                  v-for="method in symbol.formattedMethods.slice(0, 8)"
+                  :key="`method-${symbol.id}-${method.key}`"
                   class="member-item"
                 >
                   <span class="member-visibility">{{ method.indicator }}</span>
@@ -305,8 +307,8 @@ const formattedEmbeddedInterfaces = computed(() =>
                 :default-open="true"
               >
                 <div
-                  v-for="(prop, index) in symbol.formattedProperties.slice(0, 8)"
-                  :key="`prop-${symbol.id}-${index}`"
+                  v-for="prop in symbol.formattedProperties.slice(0, 8)"
+                  :key="`prop-${symbol.id}-${prop.key}`"
                   class="member-item"
                 >
                   <span class="member-visibility">{{ prop.indicator }}</span>
@@ -324,8 +326,8 @@ const formattedEmbeddedInterfaces = computed(() =>
                 :default-open="true"
               >
                 <div
-                  v-for="(method, index) in symbol.formattedMethods.slice(0, 8)"
-                  :key="`method-${symbol.id}-${index}`"
+                  v-for="method in symbol.formattedMethods.slice(0, 8)"
+                  :key="`method-${symbol.id}-${method.key}`"
                   class="member-item"
                 >
                   <span class="member-visibility">{{ method.indicator }}</span>
@@ -565,14 +567,14 @@ const formattedEmbeddedInterfaces = computed(() =>
 
 .module-node--high-deps :deep(.base-node-container) {
   box-shadow:
-    0 0 0 1px rgba(245, 158, 11, 0.6),
-    0 0 12px rgba(245, 158, 11, 0.25);
+    0 0 0 1px rgba(245, 158, 11, 0.55),
+    0 0 8px rgba(245, 158, 11, 0.18);
 }
 
 .module-node--critical-deps :deep(.base-node-container) {
   box-shadow:
-    0 0 0 1px rgba(239, 68, 68, 0.7),
-    0 0 14px rgba(239, 68, 68, 0.3);
+    0 0 0 1px rgba(239, 68, 68, 0.62),
+    0 0 8px rgba(239, 68, 68, 0.2);
 }
 
 </style>

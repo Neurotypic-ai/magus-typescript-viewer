@@ -21,6 +21,12 @@ export const NODE_ACTIONS_KEY: InjectionKey<NodeActions> = Symbol('node-actions'
 export const ISOLATE_EXPAND_ALL_KEY: InjectionKey<Ref<boolean>> = Symbol('isolate-expand-all');
 
 /**
+ * Injection key for the global orphan-highlighting toggle.
+ * Provided once by graph root to avoid each node subscribing to the entire store.
+ */
+export const HIGHLIGHT_ORPHAN_GLOBAL_KEY: InjectionKey<Ref<boolean>> = Symbol('highlight-orphan-global');
+
+/**
  * Input type compatible with Vue's DefineProps, which adds `| undefined` to optional properties.
  * Required because `exactOptionalPropertyTypes` makes `T?` incompatible with `T | undefined`.
  */

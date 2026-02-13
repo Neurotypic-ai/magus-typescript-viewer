@@ -23,7 +23,7 @@ import GraphControls from './components/GraphControls.vue';
 import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
-import { ISOLATE_EXPAND_ALL_KEY, NODE_ACTIONS_KEY } from './nodes/utils';
+import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, ISOLATE_EXPAND_ALL_KEY, NODE_ACTIONS_KEY } from './nodes/utils';
 import { useEdgeVirtualization } from './useEdgeVirtualization';
 import { useGraphInteractionController } from './useGraphInteractionController';
 import { useFpsCounter } from './useFpsCounter';
@@ -62,6 +62,7 @@ const HEAVY_EDGE_STYLE_THRESHOLD = 2200;
 const HIGH_EDGE_MARKER_THRESHOLD = 1800;
 const LOW_DETAIL_EDGE_ZOOM_THRESHOLD = 0.35;
 const EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD = 3000;
+const NODE_VISIBLE_RENDER_THRESHOLD = 450;
 const EDGE_RENDERER_MODE =
   (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'svg';
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
@@ -85,6 +86,7 @@ const edgeVirtualizationEnabled = ref(true);
 const isPanning = ref(false);
 const isIsolateAnimating = ref(false);
 const isolateExpandAll = ref(false);
+const isLayoutMeasuring = ref(false);
 let isolateAnimatingTimer: ReturnType<typeof setTimeout> | null = null;
 const showFps = computed(() => graphSettings.showFps);
 const viewportState = ref({ ...DEFAULT_VIEWPORT });
@@ -93,6 +95,7 @@ const FPS_CHART_WIDTH = 220;
 const FPS_CHART_HEIGHT = 56;
 let panEndTimer: ReturnType<typeof setTimeout> | null = null;
 let selectionHighlightRafId: number | null = null;
+let viewportSyncRafId: number | null = null;
 
 const fpsChartScaleMax = computed(() => {
   if (!fpsHistory.value.length) {
@@ -150,6 +153,17 @@ const syncViewportState = (): void => {
   viewportState.value = { ...getViewport() };
 };
 
+const scheduleViewportStateSync = (): void => {
+  if (viewportSyncRafId !== null) {
+    return;
+  }
+
+  viewportSyncRafId = requestAnimationFrame(() => {
+    viewportSyncRafId = null;
+    syncViewportState();
+  });
+};
+
 const clampZoomLevel = (zoom: number): number => {
   return Math.max(MIN_GRAPH_ZOOM, Math.min(MAX_GRAPH_ZOOM, zoom));
 };
@@ -198,9 +212,20 @@ const isHybridCanvasMode = computed(() => {
 
 const renderedEdges = computed(() => (isHybridCanvasMode.value ? [] : edges.value));
 const useOnlyRenderVisibleElements = computed(() => {
-  return !isHybridCanvasMode.value &&
-    edgeVirtualizationEnabled.value &&
-    edges.value.length >= EDGE_VISIBLE_RENDER_THRESHOLD;
+  // During two-pass layout measurement all nodes must stay mounted so
+  // measureAllNodeDimensions can capture complete sizes.
+  if (isLayoutMeasuring.value) {
+    return false;
+  }
+
+  if (isHybridCanvasMode.value) {
+    return false;
+  }
+
+  return (
+    (edgeVirtualizationEnabled.value && edges.value.length >= EDGE_VISIBLE_RENDER_THRESHOLD) ||
+    nodes.value.length >= NODE_VISIBLE_RENDER_THRESHOLD
+  );
 });
 const isHeavyEdgeMode = computed(() => edges.value.length >= HEAVY_EDGE_STYLE_THRESHOLD);
 const minimapAutoHidden = computed(() => edges.value.length >= MINIMAP_AUTO_HIDE_EDGE_THRESHOLD);
@@ -232,7 +257,7 @@ const onMoveStart = (): void => {
 };
 
 const onMove = (): void => {
-  syncViewportState();
+  scheduleViewportStateSync();
   onEdgeVirtualizationViewportChange();
 };
 
@@ -269,6 +294,43 @@ const searchHighlightState: SearchHighlightState = {
   matchingEdgeIds: new Set<string>(),
 };
 
+interface SelectionAdjacency {
+  connectedNodeIds: Set<string>;
+  connectedEdgeIds: Set<string>;
+}
+
+const selectionAdjacencyByNodeId = computed(() => {
+  const adjacency = new Map<string, SelectionAdjacency>();
+
+  const ensureEntry = (nodeId: string): SelectionAdjacency => {
+    let entry = adjacency.get(nodeId);
+    if (!entry) {
+      entry = {
+        connectedNodeIds: new Set<string>(),
+        connectedEdgeIds: new Set<string>(),
+      };
+      adjacency.set(nodeId, entry);
+    }
+    return entry;
+  };
+
+  for (const edge of edges.value) {
+    if (edge.hidden) {
+      continue;
+    }
+
+    const sourceEntry = ensureEntry(edge.source);
+    sourceEntry.connectedNodeIds.add(edge.target);
+    sourceEntry.connectedEdgeIds.add(edge.id);
+
+    const targetEntry = ensureEntry(edge.target);
+    targetEntry.connectedNodeIds.add(edge.source);
+    targetEntry.connectedEdgeIds.add(edge.id);
+  }
+
+  return adjacency;
+});
+
 // Layout result cache keyed by hash of node IDs + edge IDs + config.
 // Prevents expensive ELK re-layout when only toggling visual settings.
 interface LayoutCacheEntry {
@@ -282,7 +344,7 @@ const MAX_LAYOUT_CACHE_ENTRIES = 8;
 const MAX_LAYOUT_CACHE_WEIGHT = 220_000;
 let layoutCacheWeight = 0;
 const MAX_NODE_MEASUREMENT_CACHE_ENTRIES = 4_000;
-const TWO_PASS_MEASURE_NODE_THRESHOLD = 240;
+const TWO_PASS_MEASURE_NODE_THRESHOLD = 500;
 
 const addSetDiff = (target: Set<string>, previous: Set<string>, next: Set<string>): void => {
   previous.forEach((id) => {
@@ -306,6 +368,12 @@ const resetSearchHighlightState = (): void => {
 };
 
 const shouldRunTwoPassMeasure = (nodeCount: number): boolean => nodeCount <= TWO_PASS_MEASURE_NODE_THRESHOLD;
+
+const waitForNextPaint = async (): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+};
 
 function computeLayoutCacheKey(
   nodes: DependencyNode[],
@@ -458,7 +526,7 @@ const mergeNodeInteractionStyle = (
 };
 
 const stripNodeClass = (node: DependencyNode): DependencyNode => {
-  if (node.class === undefined) {
+  if (node.class === undefined || node.class === '') {
     return node;
   }
   // VueFlow merges node updates; omitting `class` can leave stale internal classes.
@@ -467,7 +535,7 @@ const stripNodeClass = (node: DependencyNode): DependencyNode => {
 };
 
 const stripEdgeClass = (edge: GraphEdge): GraphEdge => {
-  if (edge.class === undefined) {
+  if (edge.class === undefined || edge.class === '') {
     return edge;
   }
   return { ...edge, class: '' } as GraphEdge;
@@ -488,52 +556,51 @@ const applySelectionHighlight = (selected: DependencyNode | null): void => {
   // Isolation mode manages its own styles
   if (interaction.scopeMode.value === 'isolate') return;
 
-  const connectedNodeIds = new Set<string>();
-  const connectedEdgeIds = new Set<string>();
-
-  if (selected) {
-    connectedNodeIds.add(selected.id);
-    for (const edge of edges.value) {
-      if (!edge.hidden && (edge.source === selected.id || edge.target === selected.id)) {
-        connectedEdgeIds.add(edge.id);
-        connectedNodeIds.add(edge.source);
-        connectedNodeIds.add(edge.target);
-      }
-    }
-  }
-
   const hasSelection = selected !== null;
+  const selectedAdjacency = selected ? selectionAdjacencyByNodeId.value.get(selected.id) : undefined;
+  const connectedNodeIds = selectedAdjacency?.connectedNodeIds ?? new Set<string>();
+  const connectedEdgeIds = selectedAdjacency?.connectedEdgeIds ?? new Set<string>();
+  const nodeUpdates = new Map<string, DependencyNode>();
+  const edgeUpdates = new Map<string, GraphEdge>();
 
-  const updatedNodes = nodes.value.map((node) => {
+  nodes.value.forEach((node) => {
     let nodeClass: string | undefined;
 
     if (hasSelection) {
-      if (node.id === selected.id) nodeClass = 'selection-target';
+      if (selected && node.id === selected.id) nodeClass = 'selection-target';
       else if (connectedNodeIds.has(node.id)) nodeClass = 'selection-connected';
       else nodeClass = 'selection-dimmed';
     }
 
-    if (node.class === nodeClass) return node;
+    if (node.class === nodeClass) return;
     if (!nodeClass) {
-      return stripNodeClass(node);
+      const stripped = stripNodeClass(node);
+      if (stripped !== node) {
+        nodeUpdates.set(node.id, stripped);
+      }
+      return;
     }
-    return { ...node, class: nodeClass } as DependencyNode;
+    nodeUpdates.set(node.id, { ...node, class: nodeClass } as DependencyNode);
   });
 
-  const updatedEdges = edges.value.map((edge) => {
+  edges.value.forEach((edge) => {
     let edgeClass: string | undefined;
     if (hasSelection) {
       edgeClass = connectedEdgeIds.has(edge.id) ? 'edge-selection-highlighted' : 'edge-selection-dimmed';
     }
-    if (edge.class === edgeClass) return edge;
+    if (edge.class === edgeClass) return;
     if (!edgeClass) {
-      return stripEdgeClass(edge);
+      const stripped = stripEdgeClass(edge);
+      if (stripped !== edge) {
+        edgeUpdates.set(edge.id, stripped);
+      }
+      return;
     }
-    return { ...edge, class: edgeClass } as GraphEdge;
+    edgeUpdates.set(edge.id, { ...edge, class: edgeClass } as GraphEdge);
   });
 
-  graphStore['setNodes'](updatedNodes);
-  graphStore['setEdges'](updatedEdges);
+  graphStore['updateNodesById'](nodeUpdates);
+  graphStore['updateEdgesById'](edgeUpdates);
 };
 
 const setSelectedNode = (node: DependencyNode | null) => {
@@ -563,59 +630,86 @@ const reconcileSelectedNodeAfterStructuralChange = (updatedNodes: DependencyNode
   setSelectedNode(refreshedSelection);
 };
 
-const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: DependencyNode[]; hasChanges: boolean } => {
-  const measurableNodes = layoutedNodes.filter(
-    (node) => node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true
-  );
-  if (measurableNodes.length === 0) {
+const measureAllNodeDimensions = (layoutedNodes: DependencyNode[]): { nodes: DependencyNode[]; hasChanges: boolean } => {
+  if (layoutedNodes.length === 0) {
     return { nodes: layoutedNodes, hasChanges: false };
   }
 
-  // Batch only container-node measurements (much smaller set than all graph nodes).
-  const measurements = new Map<string, { width: number; height: number; headerH: number; bodyH: number; subnodesH: number }>();
-  measurableNodes.forEach((node) => {
-    const escapedId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(node.id) : node.id;
-    const element = document.querySelector<HTMLElement>(`.vue-flow__node[data-id="${escapedId}"]`);
+  // Batch-collect ALL rendered node DOM elements in a single querySelectorAll.
+  const nodeElements = document.querySelectorAll<HTMLElement>('.vue-flow__node');
+  const elementMap = new Map<string, HTMLElement>();
+  nodeElements.forEach((el) => {
+    const id = el.dataset['id'];
+    if (id) {
+      elementMap.set(id, el);
+    }
+  });
+
+  // Batch-read measurements in a single layout/reflow pass.
+  const measurements = new Map<string, {
+    width: number;
+    height: number;
+    headerH: number;
+    bodyH: number;
+    subnodesH: number;
+    isContainer: boolean;
+  }>();
+
+  layoutedNodes.forEach((node) => {
+    const element = elementMap.get(node.id);
     if (!element) {
       return;
     }
 
-    measurements.set(node.id, {
+    const isContainer = node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true;
+
+    const measurement = {
       width: element.offsetWidth,
       height: element.offsetHeight,
-      headerH: element.querySelector<HTMLElement>('.base-node-header')?.offsetHeight ?? 0,
-      bodyH: element.querySelector<HTMLElement>('.base-node-body')?.offsetHeight ?? 0,
-      subnodesH: element.querySelector<HTMLElement>('.base-node-subnodes')?.offsetHeight ?? 0,
-    });
+      headerH: 0,
+      bodyH: 0,
+      subnodesH: 0,
+      isContainer,
+    };
+
+    // Only compute insets for container nodes.
+    if (isContainer) {
+      measurement.headerH = element.querySelector<HTMLElement>('.base-node-header')?.offsetHeight ?? 0;
+      measurement.bodyH = element.querySelector<HTMLElement>('.base-node-body')?.offsetHeight ?? 0;
+      measurement.subnodesH = element.querySelector<HTMLElement>('.base-node-subnodes')?.offsetHeight ?? 0;
+    }
+
+    measurements.set(node.id, measurement);
   });
 
   let hasChanges = false;
   const measuredNodes = layoutedNodes.map((node) => {
-    const shouldMeasure = node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true;
-    if (!shouldMeasure) {
-      return node;
-    }
-
     const m = measurements.get(node.id);
     if (!m) {
       return node;
     }
 
-    // Reserve full visible top content so nested children never overlap card sections.
-    const measuredTopInset = Math.max(96, Math.round(m.headerH + m.bodyH + m.subnodesH + 12));
-
-    const currentTopInset = (node.data?.layoutInsets as { top?: number } | undefined)?.top ?? 0;
     const currentMeasured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
     const widthDelta = Math.abs((currentMeasured?.width ?? 0) - m.width);
     const heightDelta = Math.abs((currentMeasured?.height ?? 0) - m.height);
-    const insetDelta = Math.abs(currentTopInset - measuredTopInset);
     const cached = nodeMeasurementCache.get(node.id);
     const cacheDeltaWidth = Math.abs((cached?.width ?? 0) - m.width);
     const cacheDeltaHeight = Math.abs((cached?.height ?? 0) - m.height);
-    const cacheDeltaInset = Math.abs((cached?.topInset ?? 0) - measuredTopInset);
-    const changed = widthDelta > 1 || heightDelta > 1 || insetDelta > 1 || cacheDeltaWidth > 1 || cacheDeltaHeight > 1 || cacheDeltaInset > 1;
 
-    if (!changed) {
+    let insetChanged = false;
+    let measuredTopInset = 0;
+
+    if (m.isContainer) {
+      // Reserve full visible top content so nested children never overlap card sections.
+      measuredTopInset = Math.max(96, Math.round(m.headerH + m.bodyH + m.subnodesH + 12));
+      const currentTopInset = (node.data?.layoutInsets as { top?: number } | undefined)?.top ?? 0;
+      const insetDelta = Math.abs(currentTopInset - measuredTopInset);
+      const cacheDeltaInset = Math.abs((cached?.topInset ?? 0) - measuredTopInset);
+      insetChanged = insetDelta > 1 || cacheDeltaInset > 1;
+    }
+
+    const sizeChanged = widthDelta > 1 || heightDelta > 1 || cacheDeltaWidth > 1 || cacheDeltaHeight > 1;
+    if (!sizeChanged && !insetChanged) {
       return node;
     }
 
@@ -627,19 +721,24 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
         nodeMeasurementCache.delete(oldest);
       }
     }
-    return {
+
+    const updatedNode = {
       ...node,
-      data: {
-        ...node.data,
-        layoutInsets: {
-          top: measuredTopInset,
-        },
-      },
       measured: {
         width: m.width,
         height: m.height,
       },
-    } as DependencyNode;
+      ...(m.isContainer && measuredTopInset > 0
+        ? {
+            data: {
+              ...node.data,
+              layoutInsets: { top: measuredTopInset },
+            },
+          }
+        : {}),
+    };
+
+    return updatedNode as DependencyNode;
   });
 
   return {
@@ -725,6 +824,9 @@ const processGraphLayout = async (
   const twoPassMeasure = options.twoPassMeasure ?? shouldRunTwoPassMeasure(graphData.nodes.length);
 
   isLayoutPending.value = true;
+  if (twoPassMeasure) {
+    isLayoutMeasuring.value = true;
+  }
 
   // Suspend edge virtualization during layout to prevent it from seeing stale
   // viewport coordinates before fitView completes its 180ms animation.
@@ -781,6 +883,7 @@ const processGraphLayout = async (
       firstPassResult.nodes as unknown as DependencyNode[],
       firstPassResult.edges as unknown as GraphEdge[]
     );
+    const pendingNodeInternalUpdates = new Set<string>();
 
     // First pass commit - needed to render DOM for measurement
     const previousNodes = graphStore['nodes'];
@@ -790,12 +893,13 @@ const processGraphLayout = async (
 
     await nextTick();
     const firstPassChangedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, normalized.nodes);
-    if (firstPassChangedNodeIds.length > 0) {
-      updateNodeInternals(firstPassChangedNodeIds);
-    }
+    firstPassChangedNodeIds.forEach((id) => pendingNodeInternalUpdates.add(id));
 
     if (twoPassMeasure) {
-      const measured = measureLayoutInsets(normalized.nodes);
+      // Allow one paint frame so measurement-mode CSS (content-visibility override)
+      // has taken effect before we read node dimensions.
+      await waitForNextPaint();
+      const measured = measureAllNodeDimensions(normalized.nodes);
       if (measured.hasChanges) {
         const firstPassNodes = normalized.nodes;
         const secondPassResult = await layoutProcessor.processLayout({
@@ -817,10 +921,12 @@ const processGraphLayout = async (
         pruneNodeMeasurementCache(normalized.nodes);
         await nextTick();
         const secondPassChangedNodeIds = collectNodesNeedingInternalsUpdate(firstPassNodes, normalized.nodes);
-        if (secondPassChangedNodeIds.length > 0) {
-          updateNodeInternals(secondPassChangedNodeIds);
-        }
+        secondPassChangedNodeIds.forEach((id) => pendingNodeInternalUpdates.add(id));
       }
+    }
+
+    if (pendingNodeInternalUpdates.size > 0) {
+      updateNodeInternals(Array.from(pendingNodeInternalUpdates));
     }
 
     if (fitViewToResult) {
@@ -861,6 +967,7 @@ const processGraphLayout = async (
     graphLogger.error('Layout processing failed:', error);
     return null;
   } finally {
+    isLayoutMeasuring.value = false;
     // Resume cache writes so the final state gets persisted
     graphStore.resumeCacheWrites();
     // Safety net: always resume edge virtualization even on error/early-return paths.
@@ -1154,10 +1261,12 @@ const nodeActions = {
   focusNode: (nodeId: string) => void handleFocusNode(nodeId),
   isolateNeighborhood: (nodeId: string) => void isolateNeighborhood(nodeId),
 };
+const highlightOrphanGlobal = computed(() => graphSettings.highlightOrphanGlobal);
 
 // Provide node actions to child nodes via injection (replaces global CustomEvent)
 provide(NODE_ACTIONS_KEY, nodeActions);
 provide(ISOLATE_EXPAND_ALL_KEY, isolateExpandAll);
+provide(HIGHLIGHT_ORPHAN_GLOBAL_KEY, highlightOrphanGlobal);
 
 const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
   const targetNode = nodes.value.find((node) => node.id === nodeId) ?? selectedNode.value;
@@ -1368,17 +1477,11 @@ const handleSearchResult = (result: SearchResult) => {
     addSetDiff(edgeIdsToUpdate, searchHighlightState.matchingEdgeIds, matchingEdgeIds);
   }
 
-  let nodesChanged = false;
-  let searchedNodes = nodes.value;
-  const nodeIndexById = new Map(nodes.value.map((node, index) => [node.id, index]));
+  const nodeUpdates = new Map<string, DependencyNode>();
+  const nodeById = new Map(nodes.value.map((node) => [node.id, node]));
 
   nodeIdsToUpdate.forEach((nodeId) => {
-    const nodeIndex = nodeIndexById.get(nodeId);
-    if (nodeIndex === undefined) {
-      return;
-    }
-
-    const node = searchedNodes[nodeIndex];
+    const node = nodeById.get(nodeId);
     if (!node) {
       return;
     }
@@ -1400,36 +1503,26 @@ const handleSearchResult = (result: SearchResult) => {
       return;
     }
 
-    if (!nodesChanged) {
-      searchedNodes = [...searchedNodes];
-      nodesChanged = true;
-    }
-
     const baseNode = stripNodeClass(node);
-    searchedNodes[nodeIndex] = {
+    const updatedNode = {
       ...baseNode,
       style: mergeNodeInteractionStyle(baseNode, {
         opacity,
         borderWidth,
       }),
     } as DependencyNode;
+    nodeUpdates.set(node.id, updatedNode);
   });
 
-  if (nodesChanged) {
-    graphStore['setNodes'](searchedNodes);
+  if (nodeUpdates.size > 0) {
+    graphStore['updateNodesById'](nodeUpdates);
   }
 
-  let edgesChanged = false;
-  let searchedEdges = edges.value;
-  const edgeIndexById = new Map(edges.value.map((edge, index) => [edge.id, index]));
+  const edgeUpdates = new Map<string, GraphEdge>();
+  const edgeById = new Map(edges.value.map((edge) => [edge.id, edge]));
 
   edgeIdsToUpdate.forEach((edgeId) => {
-    const edgeIndex = edgeIndexById.get(edgeId);
-    if (edgeIndex === undefined) {
-      return;
-    }
-
-    const edge = searchedEdges[edgeIndex];
+    const edge = edgeById.get(edgeId);
     if (!edge) {
       return;
     }
@@ -1445,23 +1538,19 @@ const handleSearchResult = (result: SearchResult) => {
       return;
     }
 
-    if (!edgesChanged) {
-      searchedEdges = [...searchedEdges];
-      edgesChanged = true;
-    }
-
     const baseEdge = stripEdgeClass(edge);
-    searchedEdges[edgeIndex] = {
+    edgeUpdates.set(edge.id, {
       ...baseEdge,
       style: {
         ...getEdgeStyle(toDependencyEdgeKind(baseEdge.data?.type)),
         opacity,
       },
-    } as GraphEdge;
+    } as GraphEdge);
   });
 
-  if (edgesChanged) {
-    graphStore['setEdges'](applyEdgeVisibility(searchedEdges, graphSettings.activeRelationshipTypes));
+  if (edgeUpdates.size > 0) {
+    const mergedEdges = edges.value.map((edge) => edgeUpdates.get(edge.id) ?? edge);
+    graphStore['setEdges'](applyEdgeVisibility(mergedEdges, graphSettings.activeRelationshipTypes));
   }
 
   searchHighlightState.hasResults = hasResults;
@@ -1611,6 +1700,10 @@ onUnmounted(() => {
     cancelAnimationFrame(selectionHighlightRafId);
     selectionHighlightRafId = null;
   }
+  if (viewportSyncRafId !== null) {
+    cancelAnimationFrame(viewportSyncRafId);
+    viewportSyncRafId = null;
+  }
   stopFps();
   graphRootRef.value?.removeEventListener('wheel', handleWheel);
   document.removeEventListener('keydown', handleKeyDown);
@@ -1641,6 +1734,7 @@ onUnmounted(() => {
         'graph-panning': isPanning,
         'graph-heavy-edges': isHeavyEdgeMode,
         'graph-isolate-animating': isIsolateAnimating,
+        'graph-layout-measuring': isLayoutMeasuring,
       },
     ]"
     role="application"
@@ -1803,6 +1897,15 @@ onUnmounted(() => {
   will-change: transform;
 }
 
+.dependency-graph-root.graph-layout-measuring :deep(.vue-flow__node) {
+  content-visibility: visible !important;
+  contain-intrinsic-size: auto !important;
+}
+
+.dependency-graph-root.graph-panning :deep(.base-node-container) {
+  box-shadow: none !important;
+}
+
 .dependency-graph-root.graph-panning :deep(.vue-flow__edge) {
   pointer-events: none !important;
 }
@@ -1814,8 +1917,7 @@ onUnmounted(() => {
 .dependency-graph-root.graph-isolate-animating :deep(.vue-flow__node) {
   transition:
     transform 350ms ease-in-out,
-    opacity 180ms ease-out,
-    filter 180ms ease-out !important;
+    opacity 180ms ease-out !important;
 }
 
 .dependency-graph-root :deep(.vue-flow__node) {
@@ -1840,9 +1942,8 @@ onUnmounted(() => {
 .dependency-graph-root :deep(.vue-flow__node.selection-target .base-node-container) {
   border-color: #22d3ee !important;
   box-shadow:
-    0 0 0 2px rgba(34, 211, 238, 0.3),
-    0 0 20px rgba(34, 211, 238, 0.25),
-    0 4px 12px rgba(0, 0, 0, 0.2) !important;
+    0 0 0 2px rgba(34, 211, 238, 0.34),
+    0 3px 10px rgba(0, 0, 0, 0.18) !important;
 }
 
 /* Nodes connected to the selection */
@@ -1853,8 +1954,8 @@ onUnmounted(() => {
 .dependency-graph-root :deep(.vue-flow__node.selection-connected .base-node-container) {
   border-color: rgba(34, 211, 238, 0.5) !important;
   box-shadow:
-    0 0 12px rgba(34, 211, 238, 0.15),
-    0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    0 0 0 1px rgba(34, 211, 238, 0.28),
+    0 2px 8px rgba(0, 0, 0, 0.14) !important;
 }
 
 /* Dimmed non-connected nodes */

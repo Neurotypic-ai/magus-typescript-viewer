@@ -94,11 +94,20 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
      * On the first layout pass, nodes haven't been measured by the DOM yet, so ELK needs
      * realistic size estimates to avoid placing nodes too close together (causing overlaps).
      */
+    // Layout buffer added to real DOM measurements so ELK reserves slightly
+    // more space per node.  offsetWidth/offsetHeight capture the border-box but
+    // not box-shadows, selection rings, or handle protrusions — the buffer
+    // prevents these visual elements from causing apparent overlaps.
+    const MEASURED_LAYOUT_BUFFER = 12;
+
     function estimateNodeSize(node: DependencyNode): { width: number; height: number } {
       // Prefer actual DOM measurements if available (subsequent layout passes)
       const measured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
       if (measured?.width && measured.height && measured.width > 10 && measured.height > 10) {
-        return { width: measured.width, height: measured.height };
+        return {
+          width: measured.width + MEASURED_LAYOUT_BUFFER,
+          height: measured.height + MEASURED_LAYOUT_BUFFER,
+        };
       }
 
       const style = (typeof node.style === 'object' ? node.style : {}) as Record<string, unknown>;

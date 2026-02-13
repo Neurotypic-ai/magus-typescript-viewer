@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, toRef } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import { buildBaseNodeProps } from './utils';
@@ -8,7 +8,7 @@ import type { DependencyProps } from '../types';
 
 const props = defineProps<DependencyProps>();
 
-const nodeData = computed(() => props.data);
+const nodeData = toRef(props, 'data');
 const metadataItems = computed(() => nodeData.value.properties ?? []);
 const subnodeCount = computed(() => {
   const count = (nodeData.value.subnodes as { count?: number } | undefined)?.count;
@@ -31,7 +31,7 @@ const baseNodeProps = computed(() => buildBaseNodeProps(props, {
   <BaseNode v-bind="baseNodeProps" badge-text="PACKAGE" :z-index="0" badge-class="package-badge">
     <template #body>
       <div v-if="metadataItems.length > 0" class="package-metadata">
-        <div v-for="(prop, index) in metadataItems" :key="index" class="metadata-item">
+        <div v-for="(prop, index) in metadataItems" :key="`metadata-${prop.name}-${prop.type}-${index}`" class="metadata-item">
           <span class="metadata-name">{{ prop.name }}:</span>
           <span class="metadata-value">{{ prop.type }}</span>
         </div>
