@@ -181,7 +181,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
           }
         }
 
-        hintWidth = Math.min(520, Math.max(hintWidth, maxContentWidth));
+        hintWidth = Math.max(hintWidth, maxContentWidth);
         hintHeight = Math.max(hintHeight, estHeight);
 
       } else if (node.type === 'class' || node.type === 'interface') {
@@ -630,10 +630,10 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       enforceMinPositions();
     }
 
-    // Apply positions and explicit sizes to ALL nodes.
-    // Setting CSS width/height on every node (not just containers) ensures the
-    // rendered size exactly matches the worker's positionMap — this prevents
-    // content-driven sizing from exceeding the worker's estimates and causing overlaps.
+    // Apply positions from ELK layout to all nodes.
+    // Container nodes (parents) get explicit width/height so they encompass children.
+    // Non-container (leaf) nodes are left to size naturally from their content —
+    // the two-pass layout system will re-measure DOM sizes on the second pass.
     //
     // CRITICAL: Strip `expandParent` and the original `extent` from output nodes.
     // `expandParent` causes Vue Flow to auto-expand parents, overriding computed layout.
@@ -649,15 +649,24 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       if (position) {
         const hasChildren = parentNodeIds.has(node.id);
         const style = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
+
+        // Container nodes need explicit dimensions to encompass their children.
+        // Leaf nodes size from their DOM content — no explicit width/height.
+        const sizeStyle = hasChildren
+          ? {
+              width: String(Math.max(position.width, defaultWidth)) + 'px',
+              height: String(Math.max(position.height, defaultHeight)) + 'px',
+              overflow: 'visible' as const,
+            }
+          : {};
+
         return {
           ...nodeBase,
           ...(isChild ? { extent: 'parent' as const } : {}),
           position: { x: position.x, y: position.y },
           style: {
             ...style,
-            width: String(Math.max(position.width, defaultWidth)) + 'px',
-            height: String(Math.max(position.height, defaultHeight)) + 'px',
-            ...(hasChildren ? { overflow: 'visible' } : {}),
+            ...sizeStyle,
           },
         };
       }
