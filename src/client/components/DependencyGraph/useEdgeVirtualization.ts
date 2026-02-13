@@ -1,6 +1,6 @@
 import { ref, watch } from 'vue';
 
-import type { Ref } from 'vue';
+import type { Ref, WatchStopHandle } from 'vue';
 
 import type { DependencyNode, GraphEdge } from './types';
 
@@ -10,14 +10,19 @@ const VIRTUALIZATION_THRESHOLD = 200;
 /** Padding in screen pixels around the viewport before edges are culled */
 const VIEWPORT_PADDING_PX = 300;
 
-/** Debounce ms for viewport change → visibility recalculation */
-const RECALC_DEBOUNCE_MS = 60;
+/** Minimum frame spacing for recalculations */
+const RECALC_MIN_FRAME_GAP_MS = 16;
 
 /** At zoom levels below this, apply edge count thresholding */
 const LOW_ZOOM_THRESHOLD = 0.3;
 
-/** Max visible edges at very low zoom (keeps the graph readable + performant) */
-const LOW_ZOOM_MAX_EDGES = 500;
+/** Base visible-edge budget at low zoom (adapted per device + zoom) */
+const LOW_ZOOM_BASE_MAX_EDGES = 500;
+const LOW_ZOOM_MIN_BUDGET = 140;
+const LOW_ZOOM_MAX_BUDGET = 900;
+
+const DEFAULT_NODE_WIDTH = 260;
+const DEFAULT_NODE_HEIGHT = 100;
 
 /** Edge type priority for thresholding (higher = kept longer) */
 const EDGE_TYPE_PRIORITY: Record<string, number> = {
@@ -45,8 +50,15 @@ interface UseEdgeVirtualizationOptions {
   edges: Ref<GraphEdge[]>;
   getViewport: () => { x: number; y: number; zoom: number };
   getContainerRect: () => DOMRect | null;
-  setEdges: (edges: GraphEdge[]) => void;
+  setEdgeVisibility: (visibilityMap: Map<string, boolean>) => void;
   enabled: Ref<boolean>;
+}
+
+interface NodeBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /**
@@ -59,7 +71,7 @@ interface UseEdgeVirtualizationOptions {
  * to keep only the most important edges visible.
  */
 export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
-  const { nodes, edges, getViewport, getContainerRect, setEdges, enabled } = options;
+  const { nodes, edges, getViewport, getContainerRect, setEdgeVisibility, enabled } = options;
 
   // Track which edges are hidden by virtualization vs. by user filtering.
   // We only toggle edges that we own — never override user-set hidden flags.
@@ -71,20 +83,80 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
 
   // Guard flag to prevent watch → recalc → write → watch infinite loop
   let isWriting = false;
-  let recalcTimer: ReturnType<typeof setTimeout> | null = null;
+  let recalcRafId: number | null = null;
+  let recalcDirty = false;
+  let lastRecalcTimestamp = 0;
   // Suspend flag: when true, recalculate is a no-op. Used during layout→fitView
   // transitions to prevent the composable from seeing a stale viewport.
   let suspended = false;
 
-  /** Build a quick lookup of node positions by ID */
-  function buildNodePositionMap(nodeList: DependencyNode[]): Map<string, { x: number; y: number }> {
-    const map = new Map<string, { x: number; y: number }>();
-    for (const node of nodeList) {
-      if (node.position) {
-        map.set(node.id, node.position);
-      }
+  let edgePrioritySignature = '';
+  let edgePriorityOrder: string[] = [];
+
+  function parseDimension(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
     }
-    return map;
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  function buildAbsoluteNodeBoundsMap(nodeList: DependencyNode[]): Map<string, NodeBounds> {
+    const nodeById = new Map(nodeList.map((node) => [node.id, node]));
+    const boundsById = new Map<string, NodeBounds>();
+    const resolving = new Set<string>();
+
+    const resolveBounds = (nodeId: string): NodeBounds | null => {
+      const cached = boundsById.get(nodeId);
+      if (cached) {
+        return cached;
+      }
+
+      if (resolving.has(nodeId)) {
+        return null;
+      }
+
+      const node = nodeById.get(nodeId);
+      if (!node?.position) {
+        return null;
+      }
+
+      resolving.add(nodeId);
+      const nodeStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
+      const measured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
+      const width = parseDimension(nodeStyle['width']) ?? measured?.width ?? DEFAULT_NODE_WIDTH;
+      const height = parseDimension(nodeStyle['height']) ?? measured?.height ?? DEFAULT_NODE_HEIGHT;
+
+      let absoluteX = node.position.x;
+      let absoluteY = node.position.y;
+      const parentId = (node as { parentNode?: string }).parentNode;
+      if (parentId) {
+        const parentBounds = resolveBounds(parentId);
+        if (parentBounds) {
+          absoluteX += parentBounds.x;
+          absoluteY += parentBounds.y;
+        }
+      }
+
+      const computedBounds: NodeBounds = {
+        x: absoluteX,
+        y: absoluteY,
+        width: Math.max(1, width),
+        height: Math.max(1, height),
+      };
+      boundsById.set(nodeId, computedBounds);
+      resolving.delete(nodeId);
+      return computedBounds;
+    };
+
+    for (const node of nodeList) {
+      resolveBounds(node.id);
+    }
+    return boundsById;
   }
 
   /** Calculate visible viewport bounds in graph-space coordinates */
@@ -107,14 +179,13 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
     return { minX, maxX, minY, maxY };
   }
 
-  /** Check if a node's bounding area intersects viewport bounds */
-  function isNodeInBounds(pos: { x: number; y: number }, bounds: ViewportBounds): boolean {
-    // Generous size estimate: nodes are typically 150-300px wide, 40-100px tall
+  /** Check if a node bounding box intersects viewport bounds */
+  function isNodeInBounds(node: NodeBounds, bounds: ViewportBounds): boolean {
     return (
-      pos.x + 300 >= bounds.minX &&
-      pos.x <= bounds.maxX &&
-      pos.y + 100 >= bounds.minY &&
-      pos.y <= bounds.maxY
+      node.x + node.width >= bounds.minX &&
+      node.x <= bounds.maxX &&
+      node.y + node.height >= bounds.minY &&
+      node.y <= bounds.maxY
     );
   }
 
@@ -128,39 +199,136 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
     );
   }
 
-  /** Apply priority-based thresholding for low zoom levels */
-  function applyLowZoomThresholding(
-    visibleEdgeIds: Set<string>,
-    edgeList: GraphEdge[]
-  ): Set<string> {
-    if (visibleEdgeIds.size <= LOW_ZOOM_MAX_EDGES) return visibleEdgeIds;
+  /** Liang-Barsky line clipping test against axis-aligned viewport rectangle */
+  function segmentIntersectsBounds(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    bounds: ViewportBounds
+  ): boolean {
+    let t0 = 0;
+    let t1 = 1;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
 
-    // Build degree map for visible nodes to prioritize high-connectivity edges
+    const clipTest = (p: number, q: number): boolean => {
+      if (p === 0) {
+        return q >= 0;
+      }
+
+      const ratio = q / p;
+      if (p < 0) {
+        if (ratio > t1) return false;
+        if (ratio > t0) t0 = ratio;
+      } else {
+        if (ratio < t0) return false;
+        if (ratio < t1) t1 = ratio;
+      }
+      return true;
+    };
+
+    return (
+      clipTest(-dx, start.x - bounds.minX) &&
+      clipTest(dx, bounds.maxX - start.x) &&
+      clipTest(-dy, start.y - bounds.minY) &&
+      clipTest(dy, bounds.maxY - start.y)
+    );
+  }
+
+  function isEdgeSegmentInBounds(source: NodeBounds, target: NodeBounds, bounds: ViewportBounds): boolean {
+    if (isNodeInBounds(source, bounds) || isNodeInBounds(target, bounds)) {
+      return true;
+    }
+
+    const sourceCenter = { x: source.x + source.width / 2, y: source.y + source.height / 2 };
+    const targetCenter = { x: target.x + target.width / 2, y: target.y + target.height / 2 };
+    return segmentIntersectsBounds(sourceCenter, targetCenter, bounds);
+  }
+
+  function computeEdgeSignature(edgeList: GraphEdge[]): string {
+    let hash = 0;
+    for (const edge of edgeList) {
+      const token = `${edge.id}|${edge.data?.type ?? ''}`;
+      for (let i = 0; i < token.length; i += 1) {
+        hash = ((hash << 5) - hash + token.charCodeAt(i)) | 0;
+      }
+    }
+    return `${edgeList.length}:${hash >>> 0}`;
+  }
+
+  function rebuildEdgePriorityOrder(edgeList: GraphEdge[]): void {
+    const nextSignature = computeEdgeSignature(edgeList);
+    if (nextSignature === edgePrioritySignature && edgePriorityOrder.length > 0) {
+      return;
+    }
+
+    edgePrioritySignature = nextSignature;
     const nodeDegree = new Map<string, number>();
     for (const edge of edgeList) {
-      if (!visibleEdgeIds.has(edge.id)) continue;
       nodeDegree.set(edge.source, (nodeDegree.get(edge.source) ?? 0) + 1);
       nodeDegree.set(edge.target, (nodeDegree.get(edge.target) ?? 0) + 1);
     }
 
-    // Score each edge by type priority + connectivity
     const scored: Array<{ id: string; score: number }> = [];
     for (const edge of edgeList) {
-      if (!visibleEdgeIds.has(edge.id)) continue;
       const typePriority = EDGE_TYPE_PRIORITY[edge.data?.type ?? ''] ?? 0;
       const sourceDegree = nodeDegree.get(edge.source) ?? 0;
       const targetDegree = nodeDegree.get(edge.target) ?? 0;
-      // Higher type priority and higher connectivity = more important
       const score = typePriority * 100 + sourceDegree + targetDegree;
       scored.push({ id: edge.id, score });
     }
 
     scored.sort((a, b) => b.score - a.score);
+    edgePriorityOrder = scored.map((entry) => entry.id);
+  }
+
+  function computeAdaptiveLowZoomBudget(zoom: number, visibleEdgeCount: number): number {
+    const nav = typeof navigator !== 'undefined'
+      ? (navigator as Navigator & { deviceMemory?: number })
+      : null;
+    const cores = nav?.hardwareConcurrency ?? 8;
+    const memoryGb = nav?.deviceMemory ?? 8;
+
+    let budget = LOW_ZOOM_BASE_MAX_EDGES;
+    budget += Math.max(0, (cores - 4) * 24);
+    budget += Math.max(0, (memoryGb - 4) * 18);
+
+    if (zoom < 0.2) {
+      budget = Math.round(budget * 0.55);
+    } else if (zoom < LOW_ZOOM_THRESHOLD) {
+      budget = Math.round(budget * 0.75);
+    }
+
+    budget = Math.min(LOW_ZOOM_MAX_BUDGET, Math.max(LOW_ZOOM_MIN_BUDGET, budget));
+    return Math.max(LOW_ZOOM_MIN_BUDGET, Math.min(budget, visibleEdgeCount));
+  }
+
+  /** Apply priority-based thresholding for low zoom levels */
+  function applyLowZoomThresholding(
+    visibleEdgeIds: Set<string>,
+    zoom: number
+  ): Set<string> {
+    const maxBudget = computeAdaptiveLowZoomBudget(zoom, visibleEdgeIds.size);
+    if (visibleEdgeIds.size <= maxBudget) return visibleEdgeIds;
 
     const kept = new Set<string>();
-    for (let i = 0; i < Math.min(LOW_ZOOM_MAX_EDGES, scored.length); i++) {
-      kept.add(scored[i]!.id);
+    for (const edgeId of edgePriorityOrder) {
+      if (!visibleEdgeIds.has(edgeId)) {
+        continue;
+      }
+      kept.add(edgeId);
+      if (kept.size >= maxBudget) {
+        return kept;
+      }
     }
+
+    // Fallback: if cache misses IDs for any reason, fill from current set.
+    for (const edgeId of visibleEdgeIds) {
+      if (kept.size >= maxBudget) {
+        break;
+      }
+      kept.add(edgeId);
+    }
+
     return kept;
   }
 
@@ -175,14 +343,12 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
     if (!enabled.value || edgeList.length < VIRTUALIZATION_THRESHOLD) {
       // Restore any edges we previously hid
       if (virtualizedHiddenIds.value.size > 0) {
-        const restored = edgeList.map((edge) => {
-          if (virtualizedHiddenIds.value.has(edge.id)) {
-            return { ...edge, hidden: userHiddenIds.has(edge.id) };
-          }
-          return edge;
+        const restoreVisibilityMap = new Map<string, boolean>();
+        virtualizedHiddenIds.value.forEach((edgeId) => {
+          restoreVisibilityMap.set(edgeId, userHiddenIds.has(edgeId));
         });
         isWriting = true;
-        setEdges(restored);
+        setEdgeVisibility(restoreVisibilityMap);
         isWriting = false;
         virtualizedHiddenIds.value = new Set();
       }
@@ -192,7 +358,7 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
     const bounds = getViewportBounds();
     if (!bounds) return;
 
-    const nodePositionMap = buildNodePositionMap(nodeList);
+    const nodeBoundsMap = buildAbsoluteNodeBoundsMap(nodeList);
     const vp = getViewport();
     const isLowZoom = vp.zoom < LOW_ZOOM_THRESHOLD;
 
@@ -220,39 +386,41 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
         // Use exact anchor points — more accurate than node-center heuristic
         if (isPointInBounds(sourceAnchor, bounds) || isPointInBounds(targetAnchor, bounds)) {
           viewportVisibleIds.add(edge.id);
+        } else if (segmentIntersectsBounds(sourceAnchor, targetAnchor, bounds)) {
+          viewportVisibleIds.add(edge.id);
         }
         continue;
       }
 
-      // Fallback: use node positions with generous bounding box
-      const sourcePos = nodePositionMap.get(edge.source);
-      const targetPos = nodePositionMap.get(edge.target);
+      // Fallback: use absolute node bounds and segment-rectangle intersection
+      const sourceBounds = nodeBoundsMap.get(edge.source);
+      const targetBounds = nodeBoundsMap.get(edge.target);
 
-      // If we can't find node positions, keep the edge visible as a safety fallback
-      if (!sourcePos || !targetPos) {
+      // If we can't find node bounds, keep the edge visible as a safety fallback
+      if (!sourceBounds || !targetBounds) {
         viewportVisibleIds.add(edge.id);
         continue;
       }
 
-      // Edge is visible if either endpoint is in the viewport
-      if (isNodeInBounds(sourcePos, bounds) || isNodeInBounds(targetPos, bounds)) {
+      if (isEdgeSegmentInBounds(sourceBounds, targetBounds, bounds)) {
         viewportVisibleIds.add(edge.id);
       }
     }
 
+    rebuildEdgePriorityOrder(edgeList);
+
     // Apply low-zoom thresholding if needed
     const finalVisibleIds = isLowZoom
-      ? applyLowZoomThresholding(viewportVisibleIds, edgeList)
+      ? applyLowZoomThresholding(viewportVisibleIds, vp.zoom)
       : viewportVisibleIds;
 
     // Build the new hidden set and check if anything changed
     const newHiddenIds = new Set<string>();
-    let changed = false;
-
-    const updated = edgeList.map((edge) => {
+    const visibilityMap = new Map<string, boolean>();
+    edgeList.forEach((edge) => {
       if (userHiddenIds.has(edge.id)) {
         // Respect user filtering — don't touch these edges
-        return edge;
+        return;
       }
 
       const shouldBeHidden = !finalVisibleIds.has(edge.id);
@@ -261,25 +429,45 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
       }
 
       if (edge.hidden !== shouldBeHidden) {
-        changed = true;
-        return { ...edge, hidden: shouldBeHidden };
+        visibilityMap.set(edge.id, shouldBeHidden);
       }
-      return edge;
     });
 
-    if (changed) {
-      virtualizedHiddenIds.value = newHiddenIds;
+    virtualizedHiddenIds.value = newHiddenIds;
+    if (visibilityMap.size > 0) {
       isWriting = true;
-      setEdges(updated);
+      setEdgeVisibility(visibilityMap);
       isWriting = false;
     }
   }
 
-  /** Schedule a debounced recalculation */
+  const runRecalcFrame = (timestamp: number): void => {
+    recalcRafId = null;
+    if (suspended || !enabled.value || !recalcDirty) {
+      return;
+    }
+
+    if (timestamp - lastRecalcTimestamp < RECALC_MIN_FRAME_GAP_MS) {
+      recalcRafId = requestAnimationFrame(runRecalcFrame);
+      return;
+    }
+
+    recalcDirty = false;
+    lastRecalcTimestamp = timestamp;
+    recalculate();
+
+    if (recalcDirty && recalcRafId === null) {
+      recalcRafId = requestAnimationFrame(runRecalcFrame);
+    }
+  };
+
+  /** Schedule a throttled recalculation aligned to animation frames */
   function scheduleRecalc(): void {
     if (suspended) return;
-    if (recalcTimer) clearTimeout(recalcTimer);
-    recalcTimer = setTimeout(recalculate, RECALC_DEBOUNCE_MS);
+    recalcDirty = true;
+    if (recalcRafId === null) {
+      recalcRafId = requestAnimationFrame(runRecalcFrame);
+    }
   }
 
   // Re-run when nodes/edges change (e.g., after layout, filter toggle).
@@ -288,11 +476,24 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
   // setEdges() while isWriting is still true — preventing an infinite
   // watch → recalc → setEdges → watch cascade. With the default async
   // flush, isWriting is already false by the time the callback runs.
-  watch([nodes, edges], () => {
+  const stopWatch: WatchStopHandle = watch([nodes, edges, enabled], () => {
     if (enabled.value && !isWriting) {
+      rebuildEdgePriorityOrder(edges.value);
       scheduleRecalc();
     }
   }, { flush: 'sync' });
+
+  rebuildEdgePriorityOrder(edges.value);
+
+  const dispose = (): void => {
+    suspended = true;
+    recalcDirty = false;
+    if (recalcRafId !== null) {
+      cancelAnimationFrame(recalcRafId);
+      recalcRafId = null;
+    }
+    stopWatch();
+  };
 
   return {
     /** Call this when the viewport changes (pan, zoom) */
@@ -304,9 +505,10 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
     /** Suspend virtualization (e.g., during layout→fitView transitions) */
     suspend: () => {
       suspended = true;
-      if (recalcTimer) {
-        clearTimeout(recalcTimer);
-        recalcTimer = null;
+      recalcDirty = false;
+      if (recalcRafId !== null) {
+        cancelAnimationFrame(recalcRafId);
+        recalcRafId = null;
       }
     },
     /** Resume virtualization and immediately recalculate */
@@ -314,5 +516,7 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
       suspended = false;
       scheduleRecalc();
     },
+    /** Dispose watchers/timers on component teardown */
+    dispose,
   };
 }

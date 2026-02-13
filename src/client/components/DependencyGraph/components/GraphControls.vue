@@ -23,6 +23,8 @@ const emit = defineEmits<{
   'toggle-hide-test-files': [value: boolean];
   'member-node-mode-change': [value: 'compact' | 'graph'];
   'toggle-orphan-global': [value: boolean];
+  'toggle-show-fps': [value: boolean];
+  'toggle-fps-advanced': [value: boolean];
 }>();
 
 const graphSettings = useGraphSettings();
@@ -107,6 +109,14 @@ const handleMemberNodeModeChange = (mode: 'compact' | 'graph') => {
 
 const handleOrphanGlobalToggle = (checked: boolean) => {
   emit('toggle-orphan-global', checked);
+};
+
+const handleShowFpsToggle = (checked: boolean) => {
+  emit('toggle-show-fps', checked);
+};
+
+const handleFpsAdvancedToggle = (checked: boolean) => {
+  emit('toggle-fps-advanced', checked);
 };
 </script>
 
@@ -311,6 +321,35 @@ const handleOrphanGlobalToggle = (checked: boolean) => {
               @change="(e) => handleOrphanGlobalToggle((e.target as HTMLInputElement).checked)"
             />
             <span class="text-xs">Highlight global orphans</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Performance -->
+      <div class="mt-4 pt-4 border-t border-border-default">
+        <h4 class="text-sm font-semibold text-text-primary mb-2">Performance</h4>
+        <div class="flex flex-col gap-2">
+          <label
+            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+          >
+            <input
+              type="checkbox"
+              class="cursor-pointer accent-primary-main"
+              :checked="graphSettings.showFps"
+              @change="(e) => handleShowFpsToggle((e.target as HTMLInputElement).checked)"
+            />
+            <span class="text-xs">Show FPS</span>
+          </label>
+          <label
+            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+          >
+            <input
+              type="checkbox"
+              class="cursor-pointer accent-primary-main"
+              :checked="graphSettings.showFpsAdvanced"
+              @change="(e) => handleFpsAdvancedToggle((e.target as HTMLInputElement).checked)"
+            />
+            <span class="text-xs">Advanced</span>
           </label>
         </div>
       </div>

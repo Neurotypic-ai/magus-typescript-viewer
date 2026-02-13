@@ -18,6 +18,7 @@ import {
   filterNodeChangesForFolderMode,
   toDependencyEdgeKind,
 } from './buildGraphView';
+import CanvasEdgeLayer from './components/CanvasEdgeLayer.vue';
 import GraphControls from './components/GraphControls.vue';
 import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
@@ -28,7 +29,7 @@ import { useGraphInteractionController } from './useGraphInteractionController';
 import { useFpsCounter } from './useFpsCounter';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 
-import type { NodeChange } from '@vue-flow/core';
+import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
 
 import type { DependencyKind, DependencyNode, DependencyPackageGraph, GraphEdge, SearchResult } from './types';
 
@@ -55,6 +56,21 @@ const graphStore = useGraphStore();
 const graphSettings = useGraphSettings();
 const interaction = useGraphInteractionController();
 
+const EDGE_VISIBLE_RENDER_THRESHOLD = 1800;
+const MINIMAP_AUTO_HIDE_EDGE_THRESHOLD = 2800;
+const HEAVY_EDGE_STYLE_THRESHOLD = 2200;
+const HIGH_EDGE_MARKER_THRESHOLD = 1800;
+const LOW_DETAIL_EDGE_ZOOM_THRESHOLD = 0.35;
+const EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD = 3000;
+const EDGE_RENDERER_MODE =
+  (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'svg';
+const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
+const MIN_GRAPH_ZOOM = 0.1;
+const MAX_GRAPH_ZOOM = 2;
+const MAC_PINCH_ZOOM_SENSITIVITY = 0.014;
+const MAC_MOUSE_WHEEL_ZOOM_SENSITIVITY = 0.006;
+const MAX_ZOOM_DELTA_PER_EVENT = 140;
+
 const nodes = computed(() => graphStore['nodes']);
 const edges = computed(() => graphStore['edges']);
 const selectedNode = computed(() => graphStore['selectedNode']);
@@ -67,10 +83,49 @@ const isMac = computed(() => isMacPlatform());
 const graphRootRef = ref<HTMLElement | null>(null);
 const edgeVirtualizationEnabled = ref(true);
 const isPanning = ref(false);
-const showFps = ref(false);
-const { fps, start: startFps, stop: stopFps } = useFpsCounter(showFps);
+const showFps = computed(() => graphSettings.showFps);
+const viewportState = ref({ ...DEFAULT_VIEWPORT });
+const { fps, fpsHistory, fpsStats, start: startFps, stop: stopFps } = useFpsCounter(showFps);
+const FPS_CHART_WIDTH = 220;
+const FPS_CHART_HEIGHT = 56;
 let panEndTimer: ReturnType<typeof setTimeout> | null = null;
 let selectionHighlightRafId: number | null = null;
+
+const fpsChartScaleMax = computed(() => {
+  if (!fpsHistory.value.length) {
+    return 60;
+  }
+  return Math.max(60, ...fpsHistory.value);
+});
+
+const fpsChartPoints = computed(() => {
+  const samples = fpsHistory.value;
+  if (!samples.length) {
+    return '';
+  }
+
+  const maxScale = fpsChartScaleMax.value;
+  if (samples.length === 1) {
+    const normalized = Math.max(0, Math.min(samples[0]! / maxScale, 1));
+    const y = FPS_CHART_HEIGHT - normalized * FPS_CHART_HEIGHT;
+    return `0.0,${y.toFixed(1)} ${FPS_CHART_WIDTH.toFixed(1)},${y.toFixed(1)}`;
+  }
+
+  const step = FPS_CHART_WIDTH / (samples.length - 1);
+  return samples
+    .map((sample, index) => {
+      const normalized = Math.max(0, Math.min(sample / maxScale, 1));
+      const x = index * step;
+      const y = FPS_CHART_HEIGHT - normalized * FPS_CHART_HEIGHT;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+});
+
+const fpsTargetLineY = computed(() => {
+  const ratio = Math.min(60 / fpsChartScaleMax.value, 1);
+  return (FPS_CHART_HEIGHT - ratio * FPS_CHART_HEIGHT).toFixed(1);
+});
 
 // Edge virtualization: hides off-screen edges to reduce DOM count.
 // Uses passed-in getters to avoid direct dependency on DOM state at init time.
@@ -78,13 +133,94 @@ const {
   onViewportChange: onEdgeVirtualizationViewportChange,
   suspend: suspendEdgeVirtualization,
   resume: resumeEdgeVirtualization,
+  dispose: disposeEdgeVirtualization,
 } = useEdgeVirtualization({
   nodes: computed(() => graphStore['nodes']),
   edges: computed(() => graphStore['edges']),
   getViewport,
   getContainerRect: () => cachedContainerRect,
-  setEdges: (newEdges) => graphStore.setEdges(newEdges),
+  setEdgeVisibility: (visibilityMap) => graphStore.setEdgeVisibility(visibilityMap),
   enabled: edgeVirtualizationEnabled,
+});
+
+const syncViewportState = (): void => {
+  viewportState.value = { ...getViewport() };
+};
+
+const clampZoomLevel = (zoom: number): number => {
+  return Math.max(MIN_GRAPH_ZOOM, Math.min(MAX_GRAPH_ZOOM, zoom));
+};
+
+const computeZoomFromDelta = (currentZoom: number, deltaY: number, sensitivity: number): number => {
+  if (!Number.isFinite(deltaY) || deltaY === 0) {
+    return currentZoom;
+  }
+
+  const boundedDelta = Math.max(-MAX_ZOOM_DELTA_PER_EVENT, Math.min(MAX_ZOOM_DELTA_PER_EVENT, deltaY));
+  return clampZoomLevel(currentZoom * Math.exp(-boundedDelta * sensitivity));
+};
+
+const applyZoomAtPointer = (
+  event: WheelEvent,
+  currentViewport: { x: number; y: number; zoom: number },
+  nextZoom: number
+): void => {
+  if (nextZoom === currentViewport.zoom) {
+    return;
+  }
+
+  if (cachedFlowContainer && cachedContainerRect) {
+    const cursorX = event.clientX - cachedContainerRect.left;
+    const cursorY = event.clientY - cachedContainerRect.top;
+    const scale = nextZoom / currentViewport.zoom;
+    const nextViewport = {
+      x: cursorX - (cursorX - currentViewport.x) * scale,
+      y: cursorY - (cursorY - currentViewport.y) * scale,
+      zoom: nextZoom,
+    };
+    viewportState.value = nextViewport;
+    void setViewport(nextViewport, { duration: 0 });
+  } else {
+    void zoomTo(nextZoom, { duration: 0 });
+    syncViewportState();
+  }
+
+  onEdgeVirtualizationViewportChange();
+};
+
+const isHybridCanvasMode = computed(() => {
+  return EDGE_RENDERER_MODE === 'hybrid-canvas-experimental' &&
+    edges.value.length >= EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD;
+});
+
+const renderedEdges = computed(() => (isHybridCanvasMode.value ? [] : edges.value));
+const useOnlyRenderVisibleElements = computed(() => {
+  return !isHybridCanvasMode.value &&
+    edgeVirtualizationEnabled.value &&
+    edges.value.length >= EDGE_VISIBLE_RENDER_THRESHOLD;
+});
+const isHeavyEdgeMode = computed(() => edges.value.length >= HEAVY_EDGE_STYLE_THRESHOLD);
+const minimapAutoHidden = computed(() => edges.value.length >= MINIMAP_AUTO_HIDE_EDGE_THRESHOLD);
+const showMiniMap = computed(() => !isHybridCanvasMode.value && !isPanning.value && !minimapAutoHidden.value);
+
+const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => {
+  const lowDetailEdges =
+    isHybridCanvasMode.value ||
+    edges.value.length >= HIGH_EDGE_MARKER_THRESHOLD ||
+    viewportState.value.zoom < LOW_DETAIL_EDGE_ZOOM_THRESHOLD;
+
+  if (lowDetailEdges) {
+    return {
+      zIndex: 2,
+      type: 'straight',
+    };
+  }
+
+  return {
+    markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
+    zIndex: 2,
+    type: 'smoothstep',
+  };
 });
 
 const onMoveStart = (): void => {
@@ -92,11 +228,17 @@ const onMoveStart = (): void => {
   isPanning.value = true;
 };
 
+const onMove = (): void => {
+  syncViewportState();
+  onEdgeVirtualizationViewportChange();
+};
+
 const onMoveEnd = (): void => {
   // Short delay before removing panning class to avoid flicker on quick gestures
   if (panEndTimer) clearTimeout(panEndTimer);
   panEndTimer = setTimeout(() => {
     isPanning.value = false;
+    syncViewportState();
     // Recalculate edge visibility after pan stops
     onEdgeVirtualizationViewportChange();
   }, 120);
@@ -126,8 +268,17 @@ const searchHighlightState: SearchHighlightState = {
 
 // Layout result cache keyed by hash of node IDs + edge IDs + config.
 // Prevents expensive ELK re-layout when only toggling visual settings.
-const layoutCache = new Map<string, { nodes: DependencyNode[]; edges: GraphEdge[] }>();
+interface LayoutCacheEntry {
+  nodes: DependencyNode[];
+  edges: GraphEdge[];
+  weight: number;
+}
+
+const layoutCache = new Map<string, LayoutCacheEntry>();
 const MAX_LAYOUT_CACHE_ENTRIES = 8;
+const MAX_LAYOUT_CACHE_WEIGHT = 220_000;
+let layoutCacheWeight = 0;
+const MAX_NODE_MEASUREMENT_CACHE_ENTRIES = 4_000;
 const TWO_PASS_MEASURE_NODE_THRESHOLD = 240;
 
 const addSetDiff = (target: Set<string>, previous: Set<string>, next: Set<string>): void => {
@@ -172,12 +323,53 @@ function simpleHash(str: string): number {
   return hash >>> 0;
 }
 
+function estimateLayoutCacheWeight(nodes: DependencyNode[], edgeList: GraphEdge[]): number {
+  // Coarse heuristic to keep cache bounded without expensive deep size checks.
+  return nodes.length * 18 + edgeList.length * 10;
+}
+
+function trimLayoutCache(nextEntryWeight: number): void {
+  while (
+    layoutCache.size >= MAX_LAYOUT_CACHE_ENTRIES ||
+    layoutCacheWeight + nextEntryWeight > MAX_LAYOUT_CACHE_WEIGHT
+  ) {
+    const oldestKey = layoutCache.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    const removed = layoutCache.get(oldestKey);
+    if (removed) {
+      layoutCacheWeight = Math.max(0, layoutCacheWeight - removed.weight);
+    }
+    layoutCache.delete(oldestKey);
+  }
+}
+
+function pruneNodeMeasurementCache(liveNodes: DependencyNode[]): void {
+  if (nodeMeasurementCache.size === 0) {
+    return;
+  }
+
+  const liveIds = new Set(liveNodes.map((node) => node.id));
+  for (const cachedId of nodeMeasurementCache.keys()) {
+    if (!liveIds.has(cachedId)) {
+      nodeMeasurementCache.delete(cachedId);
+    }
+  }
+
+  while (nodeMeasurementCache.size > MAX_NODE_MEASUREMENT_CACHE_ENTRIES) {
+    const oldest = nodeMeasurementCache.keys().next().value;
+    if (!oldest) {
+      break;
+    }
+    nodeMeasurementCache.delete(oldest);
+  }
+}
+
 // Cached DOM references for handleWheel (Issue #19: avoid querySelector/getBoundingClientRect per event)
 let cachedFlowContainer: HTMLElement | null = null;
 let cachedContainerRect: DOMRect | null = null;
 let resizeObserver: ResizeObserver | null = null;
-
-const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
 
 const minimapNodeColor = (node: { type?: string }): string => {
   if (node.type === 'package') return 'rgba(20, 184, 166, 0.8)';
@@ -428,6 +620,12 @@ const measureLayoutInsets = (layoutedNodes: DependencyNode[]): { nodes: Dependen
 
     hasChanges = true;
     nodeMeasurementCache.set(node.id, { width: m.width, height: m.height, topInset: measuredTopInset });
+    if (nodeMeasurementCache.size > MAX_NODE_MEASUREMENT_CACHE_ENTRIES) {
+      const oldest = nodeMeasurementCache.keys().next().value;
+      if (oldest) {
+        nodeMeasurementCache.delete(oldest);
+      }
+    }
     return {
       ...node,
       data: {
@@ -540,13 +738,18 @@ const processGraphLayout = async (
 
     // Check layout cache to avoid expensive ELK re-computation
     const cacheKey = computeLayoutCacheKey(graphData.nodes, graphData.edges as GraphEdge[], layoutConfig);
-    const cached = layoutCache.get(cacheKey);
-    if (cached) {
+    const cachedEntry = layoutCache.get(cacheKey);
+    if (cachedEntry) {
+      // Promote cached entry to MRU position for bounded cache eviction.
+      layoutCache.delete(cacheKey);
+      layoutCache.set(cacheKey, cachedEntry);
+
       const previousNodes = graphStore['nodes'];
-      graphStore['setNodes'](cached.nodes);
-      graphStore['setEdges'](cached.edges);
+      graphStore['setNodes'](cachedEntry.nodes);
+      graphStore['setEdges'](cachedEntry.edges);
+      pruneNodeMeasurementCache(cachedEntry.nodes);
       await nextTick();
-      const changedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, cached.nodes);
+      const changedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, cachedEntry.nodes);
       if (changedNodeIds.length > 0) {
         updateNodeInternals(changedNodeIds);
       }
@@ -558,13 +761,14 @@ const processGraphLayout = async (
           ...(options.fitNodes?.length ? { nodes: options.fitNodes } : {}),
         });
       }
+      syncViewportState();
 
       // Resume edge virtualization now that fitView has settled the viewport
       resumeEdgeVirtualization();
 
       performance.mark('layout-end');
       measurePerformance('graph-layout', 'layout-start', 'layout-end');
-      return cached;
+      return { nodes: cachedEntry.nodes, edges: cachedEntry.edges };
     }
 
     const firstPassResult = await layoutProcessor.processLayout(graphData);
@@ -581,6 +785,7 @@ const processGraphLayout = async (
     const previousNodes = graphStore['nodes'];
     graphStore['setNodes'](normalized.nodes);
     graphStore['setEdges'](normalized.edges);
+    pruneNodeMeasurementCache(normalized.nodes);
 
     await nextTick();
     const firstPassChangedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, normalized.nodes);
@@ -608,6 +813,7 @@ const processGraphLayout = async (
         // Single final commit replaces the first-pass data
         graphStore['setNodes'](normalized.nodes);
         graphStore['setEdges'](normalized.edges);
+        pruneNodeMeasurementCache(normalized.nodes);
         await nextTick();
         const secondPassChangedNodeIds = collectNodesNeedingInternalsUpdate(firstPassNodes, normalized.nodes);
         if (secondPassChangedNodeIds.length > 0) {
@@ -630,17 +836,20 @@ const processGraphLayout = async (
         });
       }
     }
+    syncViewportState();
 
     // Resume edge virtualization now that fitView has settled the viewport
     resumeEdgeVirtualization();
 
     // Cache the result for future identical graph+config combinations
-    if (layoutCache.size >= MAX_LAYOUT_CACHE_ENTRIES) {
-      // Evict oldest entry (first inserted)
-      const firstKey = layoutCache.keys().next().value;
-      if (firstKey !== undefined) layoutCache.delete(firstKey);
-    }
-    layoutCache.set(cacheKey, { nodes: normalized.nodes, edges: normalized.edges });
+    const cacheEntryWeight = estimateLayoutCacheWeight(normalized.nodes, normalized.edges);
+    trimLayoutCache(cacheEntryWeight);
+    layoutCache.set(cacheKey, {
+      nodes: normalized.nodes,
+      edges: normalized.edges,
+      weight: cacheEntryWeight,
+    });
+    layoutCacheWeight += cacheEntryWeight;
 
     performance.mark('layout-end');
     measurePerformance('graph-layout', 'layout-start', 'layout-end');
@@ -723,6 +932,18 @@ watch(
   { immediate: true }
 );
 
+watch(
+  () => graphSettings.showFps,
+  (enabled) => {
+    if (enabled) {
+      startFps();
+      return;
+    }
+    stopFps();
+  },
+  { immediate: true }
+);
+
 const onNodeClick = ({ node }: { node: unknown }): void => {
   const clickedNode = node as DependencyNode;
   if (selectedNode.value?.id === clickedNode.id) {
@@ -746,6 +967,7 @@ const handleFocusNode = async (nodeId: string): Promise<void> => {
     duration: 180,
     padding: 0.4,
   });
+  syncViewportState();
   onEdgeVirtualizationViewportChange();
 };
 
@@ -808,6 +1030,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     padding: 0.35,
     nodes: Array.from(connectedNodeIds),
   });
+  syncViewportState();
   onEdgeVirtualizationViewportChange();
 };
 
@@ -847,27 +1070,6 @@ const onPaneClick = (): void => {
   setSelectedNode(null);
 };
 
-// rAF gate: coalesce rapid wheel events to max 1 per frame (60fps cap)
-let pendingWheelEvent: WheelEvent | null = null;
-let wheelRafId: number | null = null;
-
-const processWheel = (): void => {
-  wheelRafId = null;
-  const event = pendingWheelEvent;
-  if (!event) return;
-  pendingWheelEvent = null;
-
-  const intent = classifyWheelIntent(event, isMac.value);
-
-  if (intent === 'trackpadScroll') {
-    panBy({ x: -event.deltaX, y: -event.deltaY });
-  } else {
-    const currentZoom = getViewport().zoom;
-    const factor = event.deltaY > 0 ? 0.92 : 1.08;
-    void zoomTo(Math.max(0.1, Math.min(2, currentZoom * factor)), { duration: 50 });
-  }
-};
-
 const handleWheel = (event: WheelEvent): void => {
   if (!isMac.value) return;
 
@@ -877,20 +1079,9 @@ const handleWheel = (event: WheelEvent): void => {
   // Pinch-to-zoom: prevent browser page zoom everywhere, handle graph zoom ourselves
   if (intent === 'pinch') {
     event.preventDefault();
-    const vp = getViewport();
-    const factor = event.deltaY > 0 ? 0.95 : 1.05;
-    const newZoom = Math.max(0.1, Math.min(2, vp.zoom * factor));
-    if (cachedFlowContainer && cachedContainerRect) {
-      const cursorX = event.clientX - cachedContainerRect.left;
-      const cursorY = event.clientY - cachedContainerRect.top;
-      const scale = newZoom / vp.zoom;
-      void setViewport(
-        { x: cursorX - (cursorX - vp.x) * scale, y: cursorY - (cursorY - vp.y) * scale, zoom: newZoom },
-        { duration: 0 }
-      );
-    } else {
-      void zoomTo(newZoom, { duration: 50 });
-    }
+    const viewport = getViewport();
+    const nextZoom = computeZoomFromDelta(viewport.zoom, event.deltaY, MAC_PINCH_ZOOM_SENSITIVITY);
+    applyZoomAtPointer(event, viewport, nextZoom);
     return;
   }
 
@@ -899,11 +1090,16 @@ const handleWheel = (event: WheelEvent): void => {
 
   event.preventDefault();
 
-  // Coalesce rapid wheel events into a single rAF callback
-  pendingWheelEvent = event;
-  if (wheelRafId === null) {
-    wheelRafId = requestAnimationFrame(processWheel);
+  if (intent === 'trackpadScroll') {
+    panBy({ x: -event.deltaX, y: -event.deltaY });
+    syncViewportState();
+    onEdgeVirtualizationViewportChange();
+    return;
   }
+
+  const viewport = getViewport();
+  const nextZoom = computeZoomFromDelta(viewport.zoom, event.deltaY, MAC_MOUSE_WHEEL_ZOOM_SENSITIVITY);
+  applyZoomAtPointer(event, viewport, nextZoom);
 };
 
 const handleReturnToOverview = async (): Promise<void> => {
@@ -913,6 +1109,7 @@ const handleReturnToOverview = async (): Promise<void> => {
 
   if (graphStore.restoreOverviewSnapshot()) {
     await fitView({ duration: 180, padding: 0.1 });
+    syncViewportState();
     onEdgeVirtualizationViewportChange();
     return;
   }
@@ -976,6 +1173,14 @@ const handleMemberNodeModeChange = async (value: 'compact' | 'graph') => {
 const handleOrphanGlobalToggle = async (value: boolean) => {
   graphSettings.setHighlightOrphanGlobal(value);
   await requestGraphInitialization();
+};
+
+const handleShowFpsToggle = (value: boolean): void => {
+  graphSettings.setShowFps(value);
+};
+
+const handleFpsAdvancedToggle = (value: boolean): void => {
+  graphSettings.setShowFpsAdvanced(value);
 };
 
 const handleNodesChange = (changes: NodeChange[]) => {
@@ -1182,7 +1387,10 @@ const handleKeyDown = (event: KeyboardEvent) => {
             nodes: [nextNode.id],
             duration: 150,
             padding: 0.5,
-          }).then(() => onEdgeVirtualizationViewportChange());
+          }).then(() => {
+            syncViewportState();
+            onEdgeVirtualizationViewportChange();
+          });
         }
       }
     }
@@ -1192,9 +1400,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
   if (event.key === 'f' && !event.ctrlKey && !event.metaKey && !event.altKey) {
     const tag = (event.target as HTMLElement)?.tagName;
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
-      showFps.value = !showFps.value;
-      if (showFps.value) startFps();
-      else stopFps();
+      graphSettings.setShowFps(!graphSettings.showFps);
     }
   }
 };
@@ -1274,15 +1480,26 @@ onMounted(() => {
     });
     resizeObserver.observe(flowContainer);
   }
+  syncViewportState();
 });
 
 onUnmounted(() => {
+  if (panEndTimer) {
+    clearTimeout(panEndTimer);
+    panEndTimer = null;
+  }
+  if (selectionHighlightRafId !== null) {
+    cancelAnimationFrame(selectionHighlightRafId);
+    selectionHighlightRafId = null;
+  }
+  stopFps();
   graphRootRef.value?.removeEventListener('wheel', handleWheel);
   document.removeEventListener('keydown', handleKeyDown);
   resizeObserver?.disconnect();
   resizeObserver = null;
   cachedFlowContainer = null;
   cachedContainerRect = null;
+  disposeEdgeVirtualization();
   if (hoveredNodeId) {
     restoreHoverZIndex(hoveredNodeId);
     hoveredNodeId = null;
@@ -1291,25 +1508,34 @@ onUnmounted(() => {
     layoutProcessor.dispose();
     layoutProcessor = null;
   }
+  layoutCache.clear();
+  layoutCacheWeight = 0;
 });
 </script>
 
 <template>
   <div
     ref="graphRootRef"
-    :class="['dependency-graph-root relative h-full w-full', { 'graph-panning': isPanning }]"
+    :class="[
+      'dependency-graph-root relative h-full w-full',
+      {
+        'graph-panning': isPanning,
+        'graph-heavy-edges': isHeavyEdgeMode,
+      },
+    ]"
     role="application"
     aria-label="TypeScript dependency graph visualization"
     tabindex="0"
   >
     <VueFlow
       :nodes="nodes"
-      :edges="edges"
+      :edges="renderedEdges"
       :node-types="nodeTypes as any"
       :fit-view-on-init="false"
       :min-zoom="0.1"
       :max-zoom="2"
       :default-viewport="DEFAULT_VIEWPORT"
+      :only-render-visible-elements="useOnlyRenderVisibleElements"
       :snap-to-grid="edges.length < 1000"
       :snap-grid="[15, 15]"
       :pan-on-scroll="false"
@@ -1318,16 +1544,13 @@ onUnmounted(() => {
       :prevent-scrolling="true"
       :zoom-on-double-click="false"
       :elevate-edges-on-select="false"
-      :default-edge-options="{
-        markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
-        zIndex: 2,
-        type: 'smoothstep',
-      }"
+      :default-edge-options="defaultEdgeOptions"
       @node-click="onNodeClick"
       @pane-click="onPaneClick"
       @nodes-change="handleNodesChange"
       @node-mouse-enter="onNodeMouseEnter"
       @node-mouse-leave="onNodeMouseLeave"
+      @move="onMove"
       @move-start="onMoveStart"
       @move-end="onMoveEnd"
     >
@@ -1344,9 +1567,12 @@ onUnmounted(() => {
         @toggle-hide-test-files="handleHideTestFilesToggle"
         @member-node-mode-change="handleMemberNodeModeChange"
         @toggle-orphan-global="handleOrphanGlobalToggle"
+        @toggle-show-fps="handleShowFpsToggle"
+        @toggle-fps-advanced="handleFpsAdvancedToggle"
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <MiniMap
+        v-if="showMiniMap"
         position="bottom-right"
         :pannable="true"
         :zoomable="true"
@@ -1359,16 +1585,63 @@ onUnmounted(() => {
         aria-label="Graph minimap"
         @node-click="handleMinimapNodeClick"
       />
+      <Panel v-if="minimapAutoHidden && !isPanning" position="bottom-right" class="minimap-warning-panel">
+        <div class="minimap-warning-copy">MiniMap auto-hidden for heavy graph mode</div>
+      </Panel>
       <Controls position="bottom-left" :show-interactive="false" />
 
       <Panel v-if="isLayoutPending" position="top-center">
         <div class="layout-loading-indicator">Updating graph layout...</div>
       </Panel>
 
-      <Panel v-if="showFps" position="bottom-center" class="fps-panel">
-        <div class="fps-counter" :class="{ 'fps-low': fps < 30, 'fps-ok': fps >= 30 && fps < 55, 'fps-good': fps >= 55 }">
-          {{ fps }} <span class="fps-label">FPS</span>
+      <Panel v-if="graphSettings.showFps" position="bottom-center" class="fps-panel">
+        <div class="fps-shell" :class="{ 'fps-shell-advanced': graphSettings.showFpsAdvanced }">
+          <div class="fps-counter" :class="{ 'fps-low': fps < 30, 'fps-ok': fps >= 30 && fps < 55, 'fps-good': fps >= 55 }">
+            {{ fps }} <span class="fps-label">FPS</span>
+          </div>
+          <template v-if="graphSettings.showFpsAdvanced">
+            <div class="fps-stats-grid">
+              <div class="fps-stat-card">
+                <span class="fps-stat-label">Min</span>
+                <span class="fps-stat-value">{{ fpsStats.min }}</span>
+              </div>
+              <div class="fps-stat-card">
+                <span class="fps-stat-label">Max</span>
+                <span class="fps-stat-value">{{ fpsStats.max }}</span>
+              </div>
+              <div class="fps-stat-card">
+                <span class="fps-stat-label">Avg</span>
+                <span class="fps-stat-value">{{ fpsStats.avg.toFixed(1) }}</span>
+              </div>
+              <div class="fps-stat-card">
+                <span class="fps-stat-label">P90</span>
+                <span class="fps-stat-value">{{ fpsStats.p90 }}</span>
+              </div>
+            </div>
+            <div class="fps-chart-wrapper">
+              <svg
+                class="fps-chart"
+                :viewBox="`0 0 ${FPS_CHART_WIDTH} ${FPS_CHART_HEIGHT}`"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label="Real-time FPS trend"
+              >
+                <line
+                  x1="0"
+                  :y1="fpsTargetLineY"
+                  :x2="FPS_CHART_WIDTH"
+                  :y2="fpsTargetLineY"
+                  class="fps-chart-target"
+                />
+                <polyline v-if="fpsChartPoints" :points="fpsChartPoints" class="fps-chart-line" />
+              </svg>
+              <div class="fps-chart-caption">Last {{ fpsStats.sampleCount }} samples</div>
+            </div>
+          </template>
         </div>
+      </Panel>
+      <Panel v-if="isHybridCanvasMode" position="top-right" class="renderer-mode-panel">
+        <div class="renderer-mode-copy">Hybrid canvas edge renderer active</div>
       </Panel>
 
       <Panel v-if="scopeMode !== 'overview'" position="bottom-left">
@@ -1381,6 +1654,13 @@ onUnmounted(() => {
         </button>
       </Panel>
     </VueFlow>
+    <CanvasEdgeLayer
+      v-if="isHybridCanvasMode"
+      :edges="edges"
+      :nodes="nodes"
+      :viewport="viewportState"
+      class="absolute inset-0"
+    />
     <NodeDetails
       v-if="selectedNode"
       :node="selectedNode"
@@ -1404,6 +1684,10 @@ onUnmounted(() => {
 
 .dependency-graph-root.graph-panning :deep(.vue-flow__edge) {
   pointer-events: none !important;
+}
+
+.dependency-graph-root.graph-heavy-edges :deep(.vue-flow__edge-path) {
+  transition: none !important;
 }
 
 .dependency-graph-root :deep(.vue-flow__node) {
@@ -1464,6 +1748,68 @@ onUnmounted(() => {
   opacity: 0.1 !important;
 }
 
+/* ── Node Toolbar (teleported outside node DOM) ── */
+
+.dependency-graph-root :deep(.node-toolbar-actions) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(var(--border-default-rgb), 0.6);
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateX(-6px);
+  pointer-events: none;
+  transition:
+    opacity 160ms ease-out,
+    transform 160ms ease-out;
+}
+
+.dependency-graph-root :deep(.node-toolbar-actions.node-toolbar-visible) {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.dependency-graph-root :deep(.node-toolbar-button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(var(--border-default-rgb), 0.5);
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 140ms ease-out,
+    color 140ms ease-out,
+    border-color 140ms ease-out;
+}
+
+.dependency-graph-root :deep(.node-toolbar-icon) {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.dependency-graph-root :deep(.node-toolbar-button:hover) {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.dependency-graph-root :deep(.node-toolbar-button:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
 /* ── Layout loading ── */
 
 .layout-loading-indicator {
@@ -1483,6 +1829,14 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+.fps-shell {
+  min-width: 5rem;
+}
+
+.fps-shell-advanced {
+  min-width: 17rem;
+}
+
 .fps-counter {
   font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
   font-size: 1.1rem;
@@ -1494,6 +1848,75 @@ onUnmounted(() => {
   letter-spacing: 0.05em;
   min-width: 5rem;
   text-align: center;
+}
+
+.fps-stats-grid {
+  margin-top: 0.4rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.fps-stat-card {
+  border-radius: 0.35rem;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(15, 23, 42, 0.84);
+  padding: 0.2rem 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.fps-stat-label {
+  font-family: 'Inter', 'SF Pro Text', system-ui, sans-serif;
+  color: rgba(148, 163, 184, 0.95);
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.fps-stat-value {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  color: rgba(226, 232, 240, 0.98);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.fps-chart-wrapper {
+  margin-top: 0.4rem;
+}
+
+.fps-chart {
+  width: 100%;
+  height: 3.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background:
+    linear-gradient(to top, rgba(34, 211, 238, 0.08), rgba(34, 211, 238, 0.01)),
+    rgba(15, 23, 42, 0.88);
+}
+
+.fps-chart-target {
+  stroke: rgba(244, 63, 94, 0.5);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.fps-chart-line {
+  fill: none;
+  stroke: #22d3ee;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.fps-chart-caption {
+  margin-top: 0.2rem;
+  text-align: right;
+  font-size: 0.62rem;
+  color: rgba(148, 163, 184, 0.9);
+  letter-spacing: 0.01em;
 }
 
 .fps-label {
@@ -1512,5 +1935,21 @@ onUnmounted(() => {
 
 .fps-low {
   color: #f87171;
+}
+
+.minimap-warning-panel,
+.renderer-mode-panel {
+  pointer-events: none;
+}
+
+.minimap-warning-copy,
+.renderer-mode-copy {
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.4rem;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: rgba(226, 232, 240, 0.9);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
 }
 </style>

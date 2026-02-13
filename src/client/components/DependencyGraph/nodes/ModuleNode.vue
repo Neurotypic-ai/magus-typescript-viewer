@@ -368,7 +368,7 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
 
 .metadata-value {
   color: var(--text-primary);
-  word-break: break-word;
+  white-space: nowrap;
 }
 
 .external-dependency {
@@ -388,7 +388,7 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
   font-size: 0.68rem;
   line-height: 1.1;
   margin-top: 0.15rem;
-  word-break: break-word;
+  white-space: nowrap;
 }
 
 .module-empty-state,
@@ -520,13 +520,13 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
 .member-name {
   color: var(--text-primary);
   font-weight: 700;
-  word-break: break-word;
+  white-space: nowrap;
 }
 
 .member-type-annotation {
   color: var(--text-secondary);
   opacity: 0.8;
-  word-break: break-word;
+  white-space: nowrap;
 }
 
 .module-node--high-deps :deep(.base-node-container) {

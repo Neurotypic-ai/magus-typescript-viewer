@@ -142,11 +142,6 @@ body {
   pointer-events: all;
 }
 
-/* Promote viewport to own compositor layer for smooth pan/zoom */
-.vue-flow__viewport {
-  will-change: transform;
-}
-
 .vue-flow__edges {
   z-index: 2;
   position: relative;

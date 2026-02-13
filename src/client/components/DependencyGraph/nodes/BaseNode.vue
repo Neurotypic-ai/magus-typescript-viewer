@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core';
-import { computed, inject } from 'vue';
+import { NodeToolbar } from '@vue-flow/node-toolbar';
+import { computed, inject, ref } from 'vue';
 
 import { useGraphSettings } from '../../../stores/graphSettings';
 
@@ -11,7 +12,6 @@ import type { DependencyProps } from '../types';
 
 interface BaseNodeProps extends DependencyProps {
   minWidth?: string;
-  maxWidth?: string;
   zIndex?: number;
   badgeText: string;
   badgeClass?: string;
@@ -22,7 +22,6 @@ interface BaseNodeProps extends DependencyProps {
 
 const props = withDefaults(defineProps<BaseNodeProps>(), {
   minWidth: '280px',
-  maxWidth: '420px',
   zIndex: 1,
 });
 
@@ -31,6 +30,8 @@ const nodeActions = inject<NodeActions | undefined>(NODE_ACTIONS_KEY, undefined)
 
 const nodeData = computed(() => props.data);
 const isSelected = computed(() => !!props.selected);
+const isHovered = ref(false);
+const isToolbarVisible = computed(() => isSelected.value || isHovered.value);
 
 const isOrphanGlobal = computed(() => {
   if (!graphSettings.highlightOrphanGlobal) {
@@ -101,7 +102,6 @@ const containerStyle = computed(() => {
 
   return {
     minWidth: props.minWidth,
-    maxWidth: props.maxWidth,
     zIndex: props.zIndex,
   };
 });
@@ -114,12 +114,38 @@ const containerStyle = computed(() => {
       'base-node-container',
       {
         'base-node-selected': isSelected,
+        'base-node-elevated': isToolbarVisible,
         'base-node-container--container': inferredContainer,
         'base-node-orphan-global': isOrphanGlobal,
       },
     ]"
     :style="containerStyle"
+    @mouseenter="isHovered = true"
+    @mouseleave="isHovered = false"
   >
+    <NodeToolbar :is-visible="true" :position="Position.Right" align="start" :offset="8">
+      <div :class="['node-toolbar-actions', { 'node-toolbar-visible': isToolbarVisible }]">
+        <button
+          type="button"
+          class="node-toolbar-button nodrag"
+          aria-label="Focus camera on node"
+          title="Focus node"
+          @click.stop="nodeActions?.focusNode(props.id)"
+        >
+          <span class="node-toolbar-icon">◉</span> Focus
+        </button>
+        <button
+          type="button"
+          class="node-toolbar-button nodrag"
+          aria-label="Isolate node and neighbors"
+          title="Isolate neighborhood"
+          @click.stop="nodeActions?.isolateNeighborhood(props.id)"
+        >
+          <span class="node-toolbar-icon">⊚</span> Isolate
+        </button>
+      </div>
+    </NodeToolbar>
+
     <Handle type="target" :position="targetPosition" :key="`target-${targetPosition}`" class="base-node-handle" />
 
     <div class="base-node-header">
@@ -127,26 +153,6 @@ const containerStyle = computed(() => {
         <div class="base-node-title" :title="nodeData.label">
           {{ nodeData.label || 'Unnamed' }}
         </div>
-      </div>
-      <div class="base-node-actions">
-        <button
-          type="button"
-          class="base-node-action-button nodrag"
-          aria-label="Focus camera on node"
-          title="Focus node"
-          @click.stop="nodeActions?.focusNode(props.id)"
-        >
-          ◉
-        </button>
-        <button
-          type="button"
-          class="base-node-action-button nodrag"
-          aria-label="Isolate node and neighbors"
-          title="Isolate neighborhood"
-          @click.stop="nodeActions?.isolateNeighborhood(props.id)"
-        >
-          ⊚
-        </button>
       </div>
       <div :class="['base-node-badge', badgeClass]">
         {{ badgeText }}
@@ -206,6 +212,13 @@ const containerStyle = computed(() => {
   border-color: var(--border-hover);
 }
 
+.base-node-container.base-node-elevated {
+  box-shadow:
+    0 16px 24px -4px rgba(0, 0, 0, 0.22),
+    0 6px 10px -3px rgba(0, 0, 0, 0.12);
+  border-color: var(--border-hover);
+}
+
 .base-node-container.base-node-selected {
   border-color: var(--border-focus);
   box-shadow:
@@ -244,8 +257,6 @@ const containerStyle = computed(() => {
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -298,34 +309,4 @@ const containerStyle = computed(() => {
   opacity: 0.75;
 }
 
-.base-node-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.base-node-action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.2rem;
-  height: 1.2rem;
-  border: 1px solid rgba(var(--border-default-rgb), 0.6);
-  border-radius: 0.25rem;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-secondary);
-  font-size: 0.68rem;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background-color 140ms ease-out,
-    color 140ms ease-out,
-    border-color 140ms ease-out;
-}
-
-.base-node-action-button:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text-primary);
-  border-color: var(--border-hover);
-}
 </style>

@@ -89,7 +89,6 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
     :badge-text="badgeText"
     :badge-class="badgeClass"
     min-width="230px"
-    max-width="380px"
   >
     <template #body>
       <!-- Collapse toggle for collapsible symbol nodes -->
@@ -250,12 +249,12 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
 .member-name {
   color: var(--text-primary);
   font-weight: 700;
-  word-break: break-word;
+  white-space: nowrap;
 }
 
 .member-type-annotation {
   color: var(--text-secondary);
   opacity: 0.8;
-  word-break: break-word;
+  white-space: nowrap;
 }
 </style>

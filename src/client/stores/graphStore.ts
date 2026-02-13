@@ -125,16 +125,38 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
   };
 
   const setEdgeVisibility = (visibilityMap: Map<string, boolean>) => {
-    let changed = false;
-    const updated = edges.value.map((edge) => {
-      const hidden = visibilityMap.get(edge.id);
-      if (hidden !== undefined && edge.hidden !== hidden) {
-        changed = true;
-        return { ...edge, hidden };
-      }
-      return edge;
+    if (visibilityMap.size === 0 || edges.value.length === 0) {
+      return;
+    }
+
+    let updated: GraphEdge[] | null = null;
+    const edgeIndexById = new Map<string, number>();
+    edges.value.forEach((edge, index) => {
+      edgeIndexById.set(edge.id, index);
     });
-    if (changed) {
+
+    visibilityMap.forEach((hidden, edgeId) => {
+      const edgeIndex = edgeIndexById.get(edgeId);
+      if (edgeIndex === undefined) {
+        return;
+      }
+
+      const current = (updated ?? edges.value)[edgeIndex];
+      if (!current || current.hidden === hidden) {
+        return;
+      }
+
+      if (!updated) {
+        updated = [...edges.value];
+      }
+
+      updated[edgeIndex] = {
+        ...current,
+        hidden,
+      };
+    });
+
+    if (updated) {
       edges.value = updated;
     }
   };

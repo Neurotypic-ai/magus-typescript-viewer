@@ -1,4 +1,14 @@
-import { onUnmounted, ref, type Ref } from 'vue';
+import { computed, onUnmounted, ref, type Ref } from 'vue';
+
+const MAX_FPS_HISTORY_POINTS = 90;
+
+export interface FpsStatsSummary {
+  min: number;
+  max: number;
+  avg: number;
+  p90: number;
+  sampleCount: number;
+}
 
 /**
  * Composable that measures rendering FPS using requestAnimationFrame.
@@ -7,8 +17,35 @@ import { onUnmounted, ref, type Ref } from 'vue';
  * The rAF loop only runs while `enabled` is true, so there's zero overhead
  * when the counter is hidden.
  */
-export function useFpsCounter(enabled: Ref<boolean>) {
+export function useFpsCounter(enabled: Readonly<Ref<boolean>>) {
   const fps = ref(0);
+  const fpsHistory = ref<number[]>([]);
+  const fpsStats = computed<FpsStatsSummary>(() => {
+    const samples = fpsHistory.value;
+    if (!samples.length) {
+      return {
+        min: 0,
+        max: 0,
+        avg: 0,
+        p90: 0,
+        sampleCount: 0,
+      };
+    }
+
+    const min = Math.min(...samples);
+    const max = Math.max(...samples);
+    const avgRaw = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+    const sorted = [...samples].sort((a, b) => a - b);
+    const p90Index = Math.max(0, Math.ceil(sorted.length * 0.9) - 1);
+
+    return {
+      min,
+      max,
+      avg: Number(avgRaw.toFixed(1)),
+      p90: sorted[p90Index] ?? 0,
+      sampleCount: samples.length,
+    };
+  });
 
   let rafId: number | null = null;
   let frameCount = 0;
@@ -28,7 +65,12 @@ export function useFpsCounter(enabled: Ref<boolean>) {
 
     const elapsed = timestamp - lastTimestamp;
     if (elapsed >= 1000) {
-      fps.value = Math.round((frameCount * 1000) / elapsed);
+      const nextFps = Math.round((frameCount * 1000) / elapsed);
+      fps.value = nextFps;
+      fpsHistory.value.push(nextFps);
+      if (fpsHistory.value.length > MAX_FPS_HISTORY_POINTS) {
+        fpsHistory.value.splice(0, fpsHistory.value.length - MAX_FPS_HISTORY_POINTS);
+      }
       frameCount = 0;
       lastTimestamp = timestamp;
     }
@@ -40,6 +82,8 @@ export function useFpsCounter(enabled: Ref<boolean>) {
     if (rafId !== null) return;
     frameCount = 0;
     lastTimestamp = 0;
+    fps.value = 0;
+    fpsHistory.value = [];
     rafId = requestAnimationFrame(tick);
   };
 
@@ -49,9 +93,10 @@ export function useFpsCounter(enabled: Ref<boolean>) {
       rafId = null;
     }
     fps.value = 0;
+    fpsHistory.value = [];
   };
 
   onUnmounted(stop);
 
-  return { fps, start, stop };
+  return { fps, fpsHistory, fpsStats, start, stop };
 }

@@ -38,6 +38,8 @@ interface PersistedGraphSettings {
   hideTestFiles?: boolean;
   memberNodeMode?: MemberNodeMode;
   highlightOrphanGlobal?: boolean;
+  showFps?: boolean;
+  showFpsAdvanced?: boolean;
 }
 
 export const useGraphSettings = defineStore('graphSettings', () => {
@@ -48,6 +50,8 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   const hideTestFiles = ref<boolean>(true);
   const memberNodeMode = ref<MemberNodeMode>('compact');
   const highlightOrphanGlobal = ref<boolean>(false);
+  const showFps = ref<boolean>(false);
+  const showFpsAdvanced = ref<boolean>(false);
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     const enabledNodeTypeSet = new Set(enabledNodeTypes.value);
@@ -106,6 +110,12 @@ export const useGraphSettings = defineStore('graphSettings', () => {
       if (typeof parsed.highlightOrphanGlobal === 'boolean') {
         highlightOrphanGlobal.value = parsed.highlightOrphanGlobal;
       }
+      if (typeof parsed.showFps === 'boolean') {
+        showFps.value = parsed.showFps;
+      }
+      if (typeof parsed.showFpsAdvanced === 'boolean') {
+        showFpsAdvanced.value = parsed.showFpsAdvanced;
+      }
     } catch {
       // Ignore persisted settings parse failures.
     }
@@ -125,6 +135,8 @@ export const useGraphSettings = defineStore('graphSettings', () => {
         hideTestFiles: hideTestFiles.value,
         memberNodeMode: memberNodeMode.value,
         highlightOrphanGlobal: highlightOrphanGlobal.value,
+        showFps: showFps.value,
+        showFpsAdvanced: showFpsAdvanced.value,
       };
       localStorage.setItem(GRAPH_SETTINGS_CACHE_KEY, JSON.stringify(payload));
     } catch {
@@ -187,6 +199,16 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
+  function setShowFps(value: boolean): void {
+    showFps.value = value;
+    persistSettings();
+  }
+
+  function setShowFpsAdvanced(value: boolean): void {
+    showFpsAdvanced.value = value;
+    persistSettings();
+  }
+
   loadSettings();
 
   return {
@@ -197,6 +219,8 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     hideTestFiles,
     memberNodeMode,
     highlightOrphanGlobal,
+    showFps,
+    showFpsAdvanced,
     relationshipAvailability,
     activeRelationshipTypes,
     setCollapseScc,
@@ -208,5 +232,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     setHideTestFiles,
     setMemberNodeMode,
     setHighlightOrphanGlobal,
+    setShowFps,
+    setShowFpsAdvanced,
   };
 });
