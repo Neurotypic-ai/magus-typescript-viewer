@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, shallowRef } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
@@ -25,17 +25,17 @@ const embeddedSymbols = computed<EmbeddedSymbol[]>(() => {
 const embeddedClasses = computed(() => embeddedSymbols.value.filter(s => s.type === 'class'));
 const embeddedInterfaces = computed(() => embeddedSymbols.value.filter(s => s.type === 'interface'));
 
-const collapsedSymbols = ref<Set<string>>(new Set());
+const expandedSymbols = shallowRef<Set<string>>(new Set());
 const toggleSymbol = (id: string) => {
-  const next = new Set(collapsedSymbols.value);
+  const next = new Set(expandedSymbols.value);
   if (next.has(id)) {
     next.delete(id);
   } else {
     next.add(id);
   }
-  collapsedSymbols.value = next;
+  expandedSymbols.value = next;
 };
-const isSymbolCollapsed = (id: string) => collapsedSymbols.value.has(id);
+const isSymbolExpanded = (id: string) => expandedSymbols.value.has(id);
 
 const diagnostics = computed(() => nodeData.value.diagnostics as {
   externalDependencyLevel?: 'normal' | 'high' | 'critical';
@@ -137,6 +137,22 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
   name: method.name,
   returnType: method.returnType || 'void',
 });
+
+const formattedEmbeddedClasses = computed(() =>
+  embeddedClasses.value.map(symbol => ({
+    ...symbol,
+    formattedProperties: symbol.properties.map(formatProperty),
+    formattedMethods: symbol.methods.map(formatMethod),
+  }))
+);
+
+const formattedEmbeddedInterfaces = computed(() =>
+  embeddedInterfaces.value.map(symbol => ({
+    ...symbol,
+    formattedProperties: symbol.properties.map(formatProperty),
+    formattedMethods: symbol.methods.map(formatMethod),
+  }))
+);
 </script>
 
 <template>
@@ -154,14 +170,12 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
           <span>Metadata</span>
           <span>{{ showMetadata ? '−' : '+' }}</span>
         </button>
-        <Transition name="section-collapse">
-          <div v-if="showMetadata" class="module-section-content nowheel">
-            <div v-for="(prop, index) in metadataItems" :key="`metadata-${index}`" class="metadata-item">
-              <span class="metadata-key">{{ prop.name }}:</span>
-              <span class="metadata-value" :title="prop.type">{{ prop.type }}</span>
-            </div>
+        <div v-if="showMetadata" class="module-section-content nowheel">
+          <div v-for="(prop, index) in metadataItems" :key="`metadata-${index}`" class="metadata-item">
+            <span class="metadata-key">{{ prop.name }}:</span>
+            <span class="metadata-value" :title="prop.type">{{ prop.type }}</span>
           </div>
-        </Transition>
+        </div>
       </div>
 
       <div v-if="externalDependencies.length > 0" class="module-section">
@@ -169,8 +183,7 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
           <span>External Dependencies</span>
           <span>{{ showExternalDeps ? '−' : '+' }}</span>
         </button>
-        <Transition name="section-collapse">
-          <div v-if="showExternalDeps" class="module-section-content nowheel">
+        <div v-if="showExternalDeps" class="module-section-content nowheel">
             <div
               v-for="dependency in visibleExternalDependencies"
               :key="dependency.packageName"
@@ -191,122 +204,129 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
               +{{ hiddenExternalDependencyCount }} more packages
             </button>
           </div>
-        </Transition>
       </div>
 
       <!-- Embedded symbols in compact mode — type-grouped hierarchy -->
       <div v-if="embeddedSymbols.length > 0" class="module-symbols">
         <!-- Classes category -->
         <CollapsibleSection
-          v-if="embeddedClasses.length > 0"
+          v-if="formattedEmbeddedClasses.length > 0"
           :title="`Classes`"
-          :count="embeddedClasses.length"
+          :count="formattedEmbeddedClasses.length"
           :default-open="true"
         >
           <div
-            v-for="symbol in embeddedClasses"
+            v-for="symbol in formattedEmbeddedClasses"
             :key="symbol.id"
             class="symbol-card"
           >
             <button class="symbol-card-header nodrag" type="button" @click.stop="toggleSymbol(symbol.id)">
               <span class="symbol-card-badge type-class">CLASS</span>
               <span class="symbol-card-name">{{ symbol.name }}</span>
-              <span class="symbol-card-count">{{ symbol.properties.length + symbol.methods.length }}</span>
-              <span class="symbol-card-toggle">{{ isSymbolCollapsed(symbol.id) ? '+' : '\u2212' }}</span>
+              <span class="symbol-card-count">{{ symbol.formattedProperties.length + symbol.formattedMethods.length }}</span>
+              <span class="symbol-card-toggle">{{ isSymbolExpanded(symbol.id) ? '\u2212' : '+' }}</span>
             </button>
-            <Transition name="section-collapse">
-              <div v-if="!isSymbolCollapsed(symbol.id)" class="symbol-card-body">
-                <CollapsibleSection
-                  v-if="symbol.properties.length > 0"
-                  title="Properties"
-                  :count="symbol.properties.length"
-                  :default-open="true"
+            <div v-if="isSymbolExpanded(symbol.id)" class="symbol-card-body">
+              <CollapsibleSection
+                v-if="symbol.formattedProperties.length > 0"
+                title="Properties"
+                :count="symbol.formattedProperties.length"
+                :default-open="true"
+              >
+                <div
+                  v-for="(prop, index) in symbol.formattedProperties.slice(0, 8)"
+                  :key="`prop-${symbol.id}-${index}`"
+                  class="member-item"
                 >
-                  <div
-                    v-for="(prop, index) in symbol.properties"
-                    :key="`prop-${symbol.id}-${index}`"
-                    class="member-item"
-                  >
-                    <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
-                    <span class="member-name">{{ formatProperty(prop).name }}</span>
-                    <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
-                  </div>
-                </CollapsibleSection>
-                <CollapsibleSection
-                  v-if="symbol.methods.length > 0"
-                  title="Methods"
-                  :count="symbol.methods.length"
-                  :default-open="true"
+                  <span class="member-visibility">{{ prop.indicator }}</span>
+                  <span class="member-name">{{ prop.name }}</span>
+                  <span class="member-type-annotation">: {{ prop.type }}</span>
+                </div>
+                <div v-if="symbol.formattedProperties.length > 8" class="member-overflow">
+                  +{{ symbol.formattedProperties.length - 8 }} more
+                </div>
+              </CollapsibleSection>
+              <CollapsibleSection
+                v-if="symbol.formattedMethods.length > 0"
+                title="Methods"
+                :count="symbol.formattedMethods.length"
+                :default-open="true"
+              >
+                <div
+                  v-for="(method, index) in symbol.formattedMethods.slice(0, 8)"
+                  :key="`method-${symbol.id}-${index}`"
+                  class="member-item"
                 >
-                  <div
-                    v-for="(method, index) in symbol.methods"
-                    :key="`method-${symbol.id}-${index}`"
-                    class="member-item"
-                  >
-                    <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
-                    <span class="member-name">{{ formatMethod(method).name }}()</span>
-                    <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
-                  </div>
-                </CollapsibleSection>
-              </div>
-            </Transition>
+                  <span class="member-visibility">{{ method.indicator }}</span>
+                  <span class="member-name">{{ method.name }}()</span>
+                  <span class="member-type-annotation">: {{ method.returnType }}</span>
+                </div>
+                <div v-if="symbol.formattedMethods.length > 8" class="member-overflow">
+                  +{{ symbol.formattedMethods.length - 8 }} more
+                </div>
+              </CollapsibleSection>
+            </div>
           </div>
         </CollapsibleSection>
 
         <!-- Interfaces category -->
         <CollapsibleSection
-          v-if="embeddedInterfaces.length > 0"
+          v-if="formattedEmbeddedInterfaces.length > 0"
           :title="`Interfaces`"
-          :count="embeddedInterfaces.length"
+          :count="formattedEmbeddedInterfaces.length"
           :default-open="true"
         >
           <div
-            v-for="symbol in embeddedInterfaces"
+            v-for="symbol in formattedEmbeddedInterfaces"
             :key="symbol.id"
             class="symbol-card"
           >
             <button class="symbol-card-header nodrag" type="button" @click.stop="toggleSymbol(symbol.id)">
               <span class="symbol-card-badge type-interface">INTERFACE</span>
               <span class="symbol-card-name">{{ symbol.name }}</span>
-              <span class="symbol-card-count">{{ symbol.properties.length + symbol.methods.length }}</span>
-              <span class="symbol-card-toggle">{{ isSymbolCollapsed(symbol.id) ? '+' : '\u2212' }}</span>
+              <span class="symbol-card-count">{{ symbol.formattedProperties.length + symbol.formattedMethods.length }}</span>
+              <span class="symbol-card-toggle">{{ isSymbolExpanded(symbol.id) ? '\u2212' : '+' }}</span>
             </button>
-            <Transition name="section-collapse">
-              <div v-if="!isSymbolCollapsed(symbol.id)" class="symbol-card-body">
-                <CollapsibleSection
-                  v-if="symbol.properties.length > 0"
-                  title="Properties"
-                  :count="symbol.properties.length"
-                  :default-open="true"
+            <div v-if="isSymbolExpanded(symbol.id)" class="symbol-card-body">
+              <CollapsibleSection
+                v-if="symbol.formattedProperties.length > 0"
+                title="Properties"
+                :count="symbol.formattedProperties.length"
+                :default-open="true"
+              >
+                <div
+                  v-for="(prop, index) in symbol.formattedProperties.slice(0, 8)"
+                  :key="`prop-${symbol.id}-${index}`"
+                  class="member-item"
                 >
-                  <div
-                    v-for="(prop, index) in symbol.properties"
-                    :key="`prop-${symbol.id}-${index}`"
-                    class="member-item"
-                  >
-                    <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
-                    <span class="member-name">{{ formatProperty(prop).name }}</span>
-                    <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
-                  </div>
-                </CollapsibleSection>
-                <CollapsibleSection
-                  v-if="symbol.methods.length > 0"
-                  title="Methods"
-                  :count="symbol.methods.length"
-                  :default-open="true"
+                  <span class="member-visibility">{{ prop.indicator }}</span>
+                  <span class="member-name">{{ prop.name }}</span>
+                  <span class="member-type-annotation">: {{ prop.type }}</span>
+                </div>
+                <div v-if="symbol.formattedProperties.length > 8" class="member-overflow">
+                  +{{ symbol.formattedProperties.length - 8 }} more
+                </div>
+              </CollapsibleSection>
+              <CollapsibleSection
+                v-if="symbol.formattedMethods.length > 0"
+                title="Methods"
+                :count="symbol.formattedMethods.length"
+                :default-open="true"
+              >
+                <div
+                  v-for="(method, index) in symbol.formattedMethods.slice(0, 8)"
+                  :key="`method-${symbol.id}-${index}`"
+                  class="member-item"
                 >
-                  <div
-                    v-for="(method, index) in symbol.methods"
-                    :key="`method-${symbol.id}-${index}`"
-                    class="member-item"
-                  >
-                    <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
-                    <span class="member-name">{{ formatMethod(method).name }}()</span>
-                    <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
-                  </div>
-                </CollapsibleSection>
-              </div>
-            </Transition>
+                  <span class="member-visibility">{{ method.indicator }}</span>
+                  <span class="member-name">{{ method.name }}()</span>
+                  <span class="member-type-annotation">: {{ method.returnType }}</span>
+                </div>
+                <div v-if="symbol.formattedMethods.length > 8" class="member-overflow">
+                  +{{ symbol.formattedMethods.length - 8 }} more
+                </div>
+              </CollapsibleSection>
+            </div>
           </div>
         </CollapsibleSection>
       </div>
@@ -529,6 +549,13 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
   white-space: nowrap;
 }
 
+.member-overflow {
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  opacity: 0.7;
+  padding: 0.15rem 0.35rem;
+}
+
 .module-node--high-deps :deep(.base-node-container) {
   box-shadow:
     0 0 0 1px rgba(245, 158, 11, 0.6),
@@ -541,16 +568,4 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
     0 0 14px rgba(239, 68, 68, 0.3);
 }
 
-.section-collapse-enter-active,
-.section-collapse-leave-active {
-  transition:
-    opacity 160ms ease-out,
-    transform 160ms ease-out;
-}
-
-.section-collapse-enter-from,
-.section-collapse-leave-to {
-  opacity: 0;
-  transform: translateY(-2px);
-}
 </style>

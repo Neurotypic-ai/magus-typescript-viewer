@@ -81,6 +81,9 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
   name: method.name,
   returnType: method.returnType || 'void',
 });
+
+const formattedProperties = computed(() => properties.value.map(formatProperty));
+const formattedMethods = computed(() => methods.value.map(formatMethod));
 </script>
 
 <template>
@@ -102,8 +105,7 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
         <span>{{ isCollapsed ? '+' : '\u2212' }}</span>
       </button>
 
-      <Transition name="section-collapse">
-        <div v-if="!isCollapsed" class="symbol-body-content">
+      <div v-if="!isCollapsed" class="symbol-body-content">
           <div v-if="isMemberNode" class="member-node-body">
             <span class="member-type">{{ nodeType }}</span>
           </div>
@@ -116,13 +118,16 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
               :default-open="showProperties"
             >
               <div
-                v-for="(prop, index) in properties"
+                v-for="(prop, index) in formattedProperties.slice(0, 8)"
                 :key="`prop-${index}`"
                 class="member-item"
               >
-                <span class="member-visibility">{{ formatProperty(prop).indicator }}</span>
-                <span class="member-name">{{ formatProperty(prop).name }}</span>
-                <span class="member-type-annotation">: {{ formatProperty(prop).type }}</span>
+                <span class="member-visibility">{{ prop.indicator }}</span>
+                <span class="member-name">{{ prop.name }}</span>
+                <span class="member-type-annotation">: {{ prop.type }}</span>
+              </div>
+              <div v-if="formattedProperties.length > 8" class="member-overflow">
+                +{{ formattedProperties.length - 8 }} more properties
               </div>
             </CollapsibleSection>
 
@@ -133,20 +138,22 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
               :default-open="showMethods"
             >
               <div
-                v-for="(method, index) in methods"
+                v-for="(method, index) in formattedMethods.slice(0, 8)"
                 :key="`method-${index}`"
                 class="member-item"
               >
-                <span class="member-visibility">{{ formatMethod(method).indicator }}</span>
-                <span class="member-name">{{ formatMethod(method).name }}()</span>
-                <span class="member-type-annotation">: {{ formatMethod(method).returnType }}</span>
+                <span class="member-visibility">{{ method.indicator }}</span>
+                <span class="member-name">{{ method.name }}()</span>
+                <span class="member-type-annotation">: {{ method.returnType }}</span>
+              </div>
+              <div v-if="formattedMethods.length > 8" class="member-overflow">
+                +{{ formattedMethods.length - 8 }} more methods
               </div>
             </CollapsibleSection>
           </div>
 
           <div v-else class="symbol-empty-state">No members</div>
         </div>
-      </Transition>
     </template>
   </BaseNode>
 </template>
@@ -256,5 +263,12 @@ const formatMethod = (method: NodeMethod): { indicator: string; name: string; re
   color: var(--text-secondary);
   opacity: 0.8;
   white-space: nowrap;
+}
+
+.member-overflow {
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  opacity: 0.7;
+  padding: 0.15rem 0.35rem;
 }
 </style>

@@ -83,6 +83,8 @@ const isMac = computed(() => isMacPlatform());
 const graphRootRef = ref<HTMLElement | null>(null);
 const edgeVirtualizationEnabled = ref(true);
 const isPanning = ref(false);
+const isIsolateAnimating = ref(false);
+let isolateAnimatingTimer: ReturnType<typeof setTimeout> | null = null;
 const showFps = computed(() => graphSettings.showFps);
 const viewportState = ref({ ...DEFAULT_VIEWPORT });
 const { fps, fpsHistory, fpsStats, start: startFps, stop: stopFps } = useFpsCounter(showFps);
@@ -971,6 +973,53 @@ const handleFocusNode = async (nodeId: string): Promise<void> => {
   onEdgeVirtualizationViewportChange();
 };
 
+const computeRadialPositions = (
+  centerNode: DependencyNode,
+  neighbors: DependencyNode[]
+): Map<string, { x: number; y: number }> => {
+  const allNodes = [centerNode, ...neighbors];
+  const cx = allNodes.reduce((sum, n) => sum + (n.position?.x ?? 0), 0) / allNodes.length;
+  const cy = allNodes.reduce((sum, n) => sum + (n.position?.y ?? 0), 0) / allNodes.length;
+
+  // Estimate the max node diagonal to ensure nodes don't overlap on the circle.
+  // Vue Flow stores measured sizes on node.measured (runtime) or node.width/height.
+  const getNodeSize = (n: DependencyNode): number => {
+    const measured = (n as { measured?: { width?: number; height?: number } }).measured;
+    const w = measured?.width ?? (typeof n.width === 'number' ? n.width : 280);
+    const h = measured?.height ?? (typeof n.height === 'number' ? n.height : 200);
+    return Math.sqrt(w * w + h * h);
+  };
+  const estimatedNodeSize = Math.max(...neighbors.map(getNodeSize), 280);
+
+  // The radius must be large enough that the arc-length between adjacent nodes
+  // exceeds the node size: arcLength = 2πr/n ≥ nodeSize × spacing factor
+  const arcBasedRadius = (neighbors.length * estimatedNodeSize * 1.3) / (2 * Math.PI);
+  const radius = Math.max(500, arcBasedRadius);
+  const positions = new Map<string, { x: number; y: number }>();
+
+  positions.set(centerNode.id, { x: cx, y: cy });
+
+  const angleStep = (2 * Math.PI) / neighbors.length;
+  neighbors.forEach((node, i) => {
+    const angle = angleStep * i - Math.PI / 2;
+    positions.set(node.id, {
+      x: cx + radius * Math.cos(angle),
+      y: cy + radius * Math.sin(angle),
+    });
+  });
+
+  return positions;
+};
+
+const startIsolateAnimation = (): void => {
+  if (isolateAnimatingTimer) clearTimeout(isolateAnimatingTimer);
+  isIsolateAnimating.value = true;
+  isolateAnimatingTimer = setTimeout(() => {
+    isIsolateAnimating.value = false;
+    isolateAnimatingTimer = null;
+  }, 400);
+};
+
 const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   const snapshot = graphStore.overviewSnapshot;
   const sourceNodes = snapshot?.nodes ?? nodes.value;
@@ -989,12 +1038,17 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     }
   });
 
+  const neighbors = sourceNodes.filter((node) => node.id !== nodeId && connectedNodeIds.has(node.id));
+  const radialPositions = computeRadialPositions(targetNode, neighbors);
+
   const isolatedNodes = sourceNodes
     .filter((node) => connectedNodeIds.has(node.id))
     .map((node) => {
       const baseNode = stripNodeClass(node);
+      const radialPos = radialPositions.get(node.id);
       return {
         ...baseNode,
+        position: radialPos ?? baseNode.position,
         selected: node.id === nodeId,
         style: mergeNodeInteractionStyle(baseNode, {
           opacity: node.id === nodeId ? 1 : 0.9,
@@ -1019,6 +1073,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     graphSettings.activeRelationshipTypes
   );
 
+  startIsolateAnimation();
   graphStore['setNodes'](isolatedNodes);
   graphStore['setEdges'](isolatedEdges);
   graphStore.setViewMode('isolate');
@@ -1026,7 +1081,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   setSelectedNode(targetNode);
 
   await fitView({
-    duration: 200,
+    duration: 350,
     padding: 0.35,
     nodes: Array.from(connectedNodeIds),
   });
@@ -1108,7 +1163,8 @@ const handleReturnToOverview = async (): Promise<void> => {
   setSelectedNode(null);
 
   if (graphStore.restoreOverviewSnapshot()) {
-    await fitView({ duration: 180, padding: 0.1 });
+    startIsolateAnimation();
+    await fitView({ duration: 350, padding: 0.1 });
     syncViewportState();
     onEdgeVirtualizationViewportChange();
     return;
@@ -1521,6 +1577,7 @@ onUnmounted(() => {
       {
         'graph-panning': isPanning,
         'graph-heavy-edges': isHeavyEdgeMode,
+        'graph-isolate-animating': isIsolateAnimating,
       },
     ]"
     role="application"
@@ -1680,6 +1737,7 @@ onUnmounted(() => {
 
 .dependency-graph-root.graph-panning :deep(.vue-flow__node) {
   transition: none !important;
+  will-change: transform;
 }
 
 .dependency-graph-root.graph-panning :deep(.vue-flow__edge) {
@@ -1690,11 +1748,17 @@ onUnmounted(() => {
   transition: none !important;
 }
 
+.dependency-graph-root.graph-isolate-animating :deep(.vue-flow__node) {
+  transition:
+    transform 350ms ease-in-out,
+    opacity 180ms ease-out,
+    filter 180ms ease-out !important;
+}
+
 .dependency-graph-root :deep(.vue-flow__node) {
   transition:
     transform 180ms ease-out,
-    opacity 180ms ease-out,
-    filter 180ms ease-out;
+    opacity 180ms ease-out;
 }
 
 .dependency-graph-root :deep(.vue-flow__edge-path) {
@@ -1756,11 +1820,10 @@ onUnmounted(() => {
   align-items: stretch;
   gap: 0.25rem;
   padding: 0.3rem;
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(15, 23, 42, 0.97);
   border: 1px solid rgba(var(--border-default-rgb), 0.6);
   border-radius: 0.375rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
   opacity: 0;
   transform: translateX(-6px);
   pointer-events: none;

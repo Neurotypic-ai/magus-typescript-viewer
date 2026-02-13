@@ -186,7 +186,9 @@ body {
   border-bottom: 1px solid var(--color-border-default) !important;
   color: var(--color-text-secondary) !important;
   padding: 8px !important;
-  transition: background 0.15s ease-out, color 0.15s ease-out !important;
+  transition:
+    background 0.15s ease-out,
+    color 0.15s ease-out !important;
 }
 
 .vue-flow__controls button:hover {
@@ -227,13 +229,16 @@ body {
   overflow: visible !important;
 }
 
-/* Elevate hovered node above the edges layer so its content is readable.
-   The scale + shadow animate via the scoped transition on transform;
-   z-index flips instantly (not animatable) but the scale sells the lift. */
+/* Elevate hovered node above the edges layer so its content is readable. */
 .vue-flow__node:hover {
   z-index: 1000 !important;
-  transform: scale(1.02);
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+/* Browser-native off-screen culling: skip layout/paint/composite for nodes
+   outside the viewport.  contain-intrinsic-size prevents layout thrash. */
+.vue-flow__node {
+  content-visibility: auto;
+  contain-intrinsic-size: 280px 120px;
 }
 
 .vue-flow__node.dragging {

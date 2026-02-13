@@ -24,11 +24,9 @@ const toggle = () => {
       <span class="collapsible-section-title">{{ title }} ({{ count }})</span>
       <span class="collapsible-section-indicator">{{ isOpen ? '\u2212' : '+' }}</span>
     </button>
-    <Transition name="section-collapse">
-      <div v-if="isOpen" class="collapsible-section-content nowheel">
-        <slot />
-      </div>
-    </Transition>
+    <div v-if="isOpen" class="collapsible-section-content nowheel">
+      <slot />
+    </div>
   </div>
 </template>
 
@@ -75,16 +73,4 @@ const toggle = () => {
   gap: 0.15rem;
 }
 
-.section-collapse-enter-active,
-.section-collapse-leave-active {
-  transition:
-    opacity 160ms ease-out,
-    transform 160ms ease-out;
-}
-
-.section-collapse-enter-from,
-.section-collapse-leave-to {
-  opacity: 0;
-  transform: translateY(-2px);
-}
 </style>

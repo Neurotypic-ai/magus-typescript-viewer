@@ -123,7 +123,7 @@ const containerStyle = computed(() => {
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
   >
-    <NodeToolbar :is-visible="true" :position="Position.Right" align="start" :offset="8">
+    <NodeToolbar v-if="isToolbarVisible" :is-visible="true" :position="Position.Right" align="start" :offset="8">
       <div :class="['node-toolbar-actions', { 'node-toolbar-visible': isToolbarVisible }]">
         <button
           type="button"
@@ -187,15 +187,12 @@ const containerStyle = computed(() => {
   border-radius: 0.5rem;
   border: 1px solid var(--border-default);
   background-color: var(--background-node);
+  contain: layout style paint;
   transition:
     transform 180ms ease-out,
-    box-shadow 180ms ease-out,
     border-color 180ms ease-out,
     opacity 180ms ease-out;
   cursor: grab;
-  box-shadow:
-    0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05);
   font-size: 0.75rem;
   line-height: 1rem;
   overflow: hidden;
@@ -204,6 +201,7 @@ const containerStyle = computed(() => {
 }
 
 .base-node-container--container {
+  contain: layout style; /* no paint containment since overflow is visible */
   border-radius: 0.625rem;
   overflow: visible;
 }
