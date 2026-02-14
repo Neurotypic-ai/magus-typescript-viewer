@@ -151,31 +151,6 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
 </template>
 
 <style scoped>
-.type-class {
-  background-color: rgba(59, 130, 246, 0.2);
-  color: rgb(147, 197, 253);
-}
-
-.type-interface {
-  background-color: rgba(168, 85, 247, 0.2);
-  color: rgb(216, 180, 254);
-}
-
-.type-property {
-  background-color: rgba(20, 184, 166, 0.2);
-  color: rgb(94, 234, 212);
-}
-
-.type-method {
-  background-color: rgba(249, 115, 22, 0.2);
-  color: rgb(253, 186, 116);
-}
-
-.type-default {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
-}
-
 .symbol-collapse-toggle {
   width: 100%;
   border: none;

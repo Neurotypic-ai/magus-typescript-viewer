@@ -27,6 +27,17 @@ export const ISOLATE_EXPAND_ALL_KEY: InjectionKey<Ref<boolean>> = Symbol('isolat
 export const HIGHLIGHT_ORPHAN_GLOBAL_KEY: InjectionKey<Ref<boolean>> = Symbol('highlight-orphan-global');
 
 /**
+ * Injection key for folder collapse actions provided by the graph root.
+ * Consumed by GroupNode via inject().
+ */
+export interface FolderCollapseActions {
+  toggleFolderCollapsed: (folderId: string) => void;
+}
+
+export const FOLDER_COLLAPSE_ACTIONS_KEY: InjectionKey<FolderCollapseActions> =
+  Symbol('folder-collapse-actions');
+
+/**
  * Input type compatible with Vue's DefineProps, which adds `| undefined` to optional properties.
  * Required because `exactOptionalPropertyTypes` makes `T?` incompatible with `T | undefined`.
  */

@@ -46,10 +46,6 @@ const baseNodeProps = computed(() => buildBaseNodeProps(props, {
 </template>
 
 <style scoped>
-.package-badge {
-  background-color: var(--background-node-package);
-}
-
 .package-metadata {
   display: flex;
   flex-direction: column;

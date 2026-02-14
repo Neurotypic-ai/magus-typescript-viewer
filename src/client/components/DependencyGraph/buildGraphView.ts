@@ -1,7 +1,9 @@
 import { MarkerType, Position } from '@vue-flow/core';
 
+import { collapseFolders } from '../../graph/cluster/collapseFolders';
 import { clusterByFolder } from '../../graph/cluster/folders';
 import { collapseSccs } from '../../graph/cluster/scc';
+import { aggregateHighFanInEdges } from '../../graph/transforms/hubAggregation';
 import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
 import { createGraphEdges } from '../../utils/createGraphEdges';
 import { createGraphNodes } from '../../utils/createGraphNodes';
@@ -30,9 +32,12 @@ export interface BuildOverviewGraphOptions {
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   clusterByFolder: boolean;
   collapseScc: boolean;
+  collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   memberNodeMode: 'compact' | 'graph';
   highlightOrphanGlobal: boolean;
+  hubAggregationEnabled: boolean;
+  hubAggregationThreshold: number;
 }
 
 export interface BuildModuleDrilldownGraphOptions {
@@ -176,7 +181,7 @@ export function applyEdgeVisibility(edges: GraphEdge[], enabledRelationshipTypes
 
 function applyGraphTransforms(
   graphData: GraphViewData,
-  options: Pick<BuildOverviewGraphOptions, 'clusterByFolder' | 'collapseScc'>
+  options: Pick<BuildOverviewGraphOptions, 'clusterByFolder' | 'collapseScc' | 'collapsedFolderIds'>
 ): GraphViewData {
   let transformedNodes = graphData.nodes;
   let transformedEdges = graphData.edges;
@@ -196,10 +201,16 @@ function applyGraphTransforms(
     transformedNodes = clustered.nodes as DependencyNode[];
     transformedEdges = clustered.edges as GraphEdge[];
 
-    transformedNodes = transformedNodes.map((node) => ({
-      ...node,
-      draggable: node.type === 'group',
-    }));
+    // Collapse selected folders: hide children, lift/dedup edges to folder boundary
+    if (options.collapsedFolderIds.size > 0) {
+      const folderCollapsed = collapseFolders(transformedNodes, transformedEdges, options.collapsedFolderIds);
+      transformedNodes = folderCollapsed.nodes;
+      transformedEdges = folderCollapsed.edges;
+    }
+
+    // All nodes remain draggable in folder mode — group nodes can be
+    // dragged freely and children move with their parent via Vue Flow's
+    // built-in compound node behaviour.
   }
 
   return {
@@ -313,13 +324,26 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const transformedGraph = applyGraphTransforms(filteredGraph, {
     clusterByFolder: options.clusterByFolder,
     collapseScc: options.collapseScc,
+    collapsedFolderIds: options.collapsedFolderIds,
   });
 
   const visibleEdges = applyEdgeVisibility(transformedGraph.edges, options.enabledRelationshipTypes);
-  const bundledEdges = bundleParallelEdges(visibleEdges);
-  const currentDegreeMap = buildDegreeMap(transformedGraph.nodes, bundledEdges, false);
+
+  // Hub aggregation: funnel high-fan-in edges through invisible proxy nodes
+  let finalNodes = transformedGraph.nodes;
+  let finalEdges = visibleEdges;
+  if (options.hubAggregationEnabled) {
+    const hubResult = aggregateHighFanInEdges(finalNodes, finalEdges, {
+      fanInThreshold: options.hubAggregationThreshold,
+    });
+    finalNodes = hubResult.nodes;
+    finalEdges = hubResult.edges;
+  }
+
+  const bundledEdges = bundleParallelEdges(finalEdges);
+  const currentDegreeMap = buildDegreeMap(finalNodes, bundledEdges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
-  const nodesWithDiagnostics = annotateOrphanDiagnostics(transformedGraph.nodes, currentDegreeMap, globalDegreeMap);
+  const nodesWithDiagnostics = annotateOrphanDiagnostics(finalNodes, currentDegreeMap, globalDegreeMap);
 
   return {
     nodes: nodesWithDiagnostics,
@@ -771,19 +795,14 @@ export function toDependencyEdgeKind(type: string | undefined): DependencyEdgeKi
 
 export function filterNodeChangesForFolderMode(
   changes: NodeChange[],
-  nodes: DependencyNode[],
+  _nodes: DependencyNode[],
   folderModeEnabled: boolean
 ): NodeChange[] {
   if (!folderModeEnabled) {
     return changes;
   }
 
-  const nodeTypeById = new Map(nodes.map((node) => [node.id, node.type]));
-
-  return changes.filter((change) => {
-    if (change.type === 'position' || change.type === 'dimensions') {
-      return nodeTypeById.get(change.id) === 'group';
-    }
-    return true;
-  });
+  // In folder mode all position/dimension changes are allowed — Vue Flow
+  // handles compound node parent↔child movement natively.
+  return changes;
 }

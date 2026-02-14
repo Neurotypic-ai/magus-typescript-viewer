@@ -304,11 +304,6 @@ watch(isolateExpandAll, (expand) => {
 </template>
 
 <style scoped>
-.type-module {
-  background-color: rgba(20, 184, 166, 0.2);
-  color: rgb(94, 234, 212);
-}
-
 .metadata-item {
   display: flex;
   justify-content: space-between;

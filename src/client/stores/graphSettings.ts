@@ -45,6 +45,9 @@ interface PersistedGraphSettings {
   showFps?: boolean;
   showFpsAdvanced?: boolean;
   enabledModuleMemberTypes?: string[];
+  collapsedFolderIds?: string[];
+  hubAggregationEnabled?: boolean;
+  hubAggregationThreshold?: number;
 }
 
 export const useGraphSettings = defineStore('graphSettings', () => {
@@ -59,6 +62,9 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   const showFps = ref<boolean>(false);
   const showFpsAdvanced = ref<boolean>(false);
   const enabledModuleMemberTypes = ref<string[]>([...DEFAULT_MODULE_MEMBER_TYPES]);
+  const collapsedFolderIds = ref<Set<string>>(new Set());
+  const hubAggregationEnabled = ref<boolean>(false);
+  const hubAggregationThreshold = ref<number>(8);
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     const enabledNodeTypeSet = new Set(enabledNodeTypes.value);
@@ -129,6 +135,15 @@ export const useGraphSettings = defineStore('graphSettings', () => {
       if (Array.isArray(parsed.enabledModuleMemberTypes)) {
         enabledModuleMemberTypes.value = uniqueStrings(parsed.enabledModuleMemberTypes);
       }
+      if (Array.isArray(parsed.collapsedFolderIds)) {
+        collapsedFolderIds.value = new Set(parsed.collapsedFolderIds);
+      }
+      if (typeof parsed.hubAggregationEnabled === 'boolean') {
+        hubAggregationEnabled.value = parsed.hubAggregationEnabled;
+      }
+      if (typeof parsed.hubAggregationThreshold === 'number') {
+        hubAggregationThreshold.value = parsed.hubAggregationThreshold;
+      }
     } catch {
       // Ignore persisted settings parse failures.
     }
@@ -152,6 +167,9 @@ export const useGraphSettings = defineStore('graphSettings', () => {
         showFps: showFps.value,
         showFpsAdvanced: showFpsAdvanced.value,
         enabledModuleMemberTypes: enabledModuleMemberTypes.value,
+        collapsedFolderIds: Array.from(collapsedFolderIds.value),
+        hubAggregationEnabled: hubAggregationEnabled.value,
+        hubAggregationThreshold: hubAggregationThreshold.value,
       };
       localStorage.setItem(GRAPH_SETTINGS_CACHE_KEY, JSON.stringify(payload));
     } catch {
@@ -229,6 +247,27 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
+  function toggleFolderCollapsed(folderId: string): void {
+    const next = new Set(collapsedFolderIds.value);
+    if (next.has(folderId)) {
+      next.delete(folderId);
+    } else {
+      next.add(folderId);
+    }
+    collapsedFolderIds.value = next;
+    persistSettings();
+  }
+
+  function setHubAggregationEnabled(value: boolean): void {
+    hubAggregationEnabled.value = value;
+    persistSettings();
+  }
+
+  function setHubAggregationThreshold(value: number): void {
+    hubAggregationThreshold.value = value;
+    persistSettings();
+  }
+
   function toggleModuleMemberType(type: ModuleMemberType, enabled: boolean): void {
     if (enabled) {
       enabledModuleMemberTypes.value = uniqueStrings([...enabledModuleMemberTypes.value, type]);
@@ -268,5 +307,11 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     setShowFpsAdvanced,
     enabledModuleMemberTypes,
     toggleModuleMemberType,
+    collapsedFolderIds,
+    toggleFolderCollapsed,
+    hubAggregationEnabled,
+    hubAggregationThreshold,
+    setHubAggregationEnabled,
+    setHubAggregationThreshold,
   };
 });

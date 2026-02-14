@@ -23,7 +23,12 @@ import GraphControls from './components/GraphControls.vue';
 import GraphSearch from './components/GraphSearch.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
-import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, ISOLATE_EXPAND_ALL_KEY, NODE_ACTIONS_KEY } from './nodes/utils';
+import {
+  FOLDER_COLLAPSE_ACTIONS_KEY,
+  HIGHLIGHT_ORPHAN_GLOBAL_KEY,
+  ISOLATE_EXPAND_ALL_KEY,
+  NODE_ACTIONS_KEY,
+} from './nodes/utils';
 import { useEdgeVirtualization } from './useEdgeVirtualization';
 import { useEdgeVirtualizationWorker } from './useEdgeVirtualizationWorker';
 import { useFpsCounter } from './useFpsCounter';
@@ -484,6 +489,63 @@ const selectionAdjacencyByNodeId = computed(() => {
     targetEntry.connectedEdgeIds.add(edge.id);
   }
 
+  // Resolve through hub nodes: connect each hub's real neighbors to each other
+  // so selecting a real node highlights through the hub to the nodes on the other side.
+  const hubNodeIds = new Set(nodes.value.filter((n) => n.type === 'hub').map((n) => n.id));
+  for (const hubId of hubNodeIds) {
+    const hubEntry = adjacency.get(hubId);
+    if (!hubEntry) continue;
+
+    const realNeighbors = [...hubEntry.connectedNodeIds].filter((id) => !hubNodeIds.has(id));
+    const hubEdgeIds = hubEntry.connectedEdgeIds;
+
+    for (const neighborId of realNeighbors) {
+      const neighborEntry = ensureEntry(neighborId);
+      // Add all other real neighbors and all hub edges to this neighbor
+      for (const otherId of realNeighbors) {
+        if (otherId !== neighborId) {
+          neighborEntry.connectedNodeIds.add(otherId);
+        }
+      }
+      hubEdgeIds.forEach((edgeId) => neighborEntry.connectedEdgeIds.add(edgeId));
+    }
+  }
+
+  // Resolve group (folder) nodes: selecting a folder highlights its children,
+  // all edges touching children, and the external nodes on those edges.
+  const childrenByParent = new Map<string, string[]>();
+  for (const node of nodes.value) {
+    if (node.parentNode) {
+      const children = childrenByParent.get(node.parentNode);
+      if (children) {
+        children.push(node.id);
+      } else {
+        childrenByParent.set(node.parentNode, [node.id]);
+      }
+    }
+  }
+
+  for (const [groupId, childIds] of childrenByParent) {
+    const groupEntry = ensureEntry(groupId);
+    const childSet = new Set(childIds);
+
+    // Add all children as connected
+    for (const childId of childIds) {
+      groupEntry.connectedNodeIds.add(childId);
+
+      // Pull in the child's edges and external neighbors
+      const childEntry = adjacency.get(childId);
+      if (childEntry) {
+        childEntry.connectedEdgeIds.forEach((edgeId) => groupEntry.connectedEdgeIds.add(edgeId));
+        for (const neighborId of childEntry.connectedNodeIds) {
+          if (!childSet.has(neighborId) && neighborId !== groupId) {
+            groupEntry.connectedNodeIds.add(neighborId);
+          }
+        }
+      }
+    }
+  }
+
   return adjacency;
 });
 
@@ -602,6 +664,7 @@ let cachedContainerRect: DOMRect | null = null;
 let flowResizeObserver: ResizeObserver | null = null;
 
 const minimapNodeColor = (node: { type?: string }): string => {
+  if (node.type === 'hub') return 'transparent';
   if (node.type === 'package') return 'rgba(20, 184, 166, 0.8)';
   if (node.type === 'module') return 'rgba(59, 130, 246, 0.75)';
   if (node.type === 'class' || node.type === 'interface') return 'rgba(217, 119, 6, 0.7)';
@@ -1543,9 +1606,12 @@ const initializeGraph = async () => {
     direction: layoutConfig.direction,
     clusterByFolder: graphSettings.clusterByFolder,
     collapseScc: graphSettings.collapseScc,
+    collapsedFolderIds: graphSettings.collapsedFolderIds,
     hideTestFiles: graphSettings.hideTestFiles,
     memberNodeMode: graphSettings.memberNodeMode,
     highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
+    hubAggregationEnabled: graphSettings.hubAggregationEnabled,
+    hubAggregationThreshold: graphSettings.hubAggregationThreshold,
   });
 
   const layoutResult = await processGraphLayout(overviewGraph, {
@@ -1604,6 +1670,7 @@ watch(
 
 const onNodeClick = ({ node }: { node: unknown }): void => {
   const clickedNode = node as DependencyNode;
+  if (clickedNode.type === 'hub') return; // Hub nodes are non-interactive
   if (selectedNode.value?.id === clickedNode.id) {
     setSelectedNode(null);
   } else {
@@ -1729,6 +1796,11 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     return;
   }
 
+  const nodeById = new Map(sourceNodes.map((n) => [n.id, n]));
+  const hubNodeIds = new Set(sourceNodes.filter((n) => n.type === 'hub').map((n) => n.id));
+
+  // Collect direct neighbors, then resolve through hub nodes so they don't
+  // appear as endpoints in the isolated view.
   const connectedNodeIds = new Set<string>([nodeId]);
   const inboundIds = new Set<string>();
   const outboundIds = new Set<string>();
@@ -1742,17 +1814,33 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     }
   });
 
-  const nodeById = new Map(sourceNodes.map((n) => [n.id, n]));
+  // Resolve through hub nodes: for each hub neighbor, include the hub's
+  // other connections as if the hub didn't exist, while keeping the hub
+  // itself in connectedNodeIds so its edges remain visible.
+  const hubNeighbors = [...connectedNodeIds].filter((id) => id !== nodeId && hubNodeIds.has(id));
+  for (const hubId of hubNeighbors) {
+    sourceEdges.forEach((edge) => {
+      if (edge.source === hubId && !connectedNodeIds.has(edge.target)) {
+        connectedNodeIds.add(edge.target);
+        outboundIds.add(edge.target);
+      } else if (edge.target === hubId && !connectedNodeIds.has(edge.source)) {
+        connectedNodeIds.add(edge.source);
+        inboundIds.add(edge.source);
+      }
+    });
+  }
+
+  // Exclude hub nodes from inbound/outbound layout groups — they are invisible
   const inbound = [...inboundIds]
-    .filter((id) => !outboundIds.has(id))
+    .filter((id) => !outboundIds.has(id) && !hubNodeIds.has(id))
     .map((id) => nodeById.get(id)!)
     .filter(Boolean);
   const outbound = [...outboundIds]
-    .filter((id) => !inboundIds.has(id))
+    .filter((id) => !inboundIds.has(id) && !hubNodeIds.has(id))
     .map((id) => nodeById.get(id)!)
     .filter(Boolean);
   const bidirectional = [...inboundIds]
-    .filter((id) => outboundIds.has(id))
+    .filter((id) => outboundIds.has(id) && !hubNodeIds.has(id))
     .map((id) => nodeById.get(id)!)
     .filter(Boolean);
 
@@ -1863,6 +1951,33 @@ const highlightOrphanGlobal = computed(() => graphSettings.highlightOrphanGlobal
 provide(NODE_ACTIONS_KEY, nodeActions);
 provide(ISOLATE_EXPAND_ALL_KEY, isolateExpandAll);
 provide(HIGHLIGHT_ORPHAN_GLOBAL_KEY, highlightOrphanGlobal);
+provide(FOLDER_COLLAPSE_ACTIONS_KEY, {
+  toggleFolderCollapsed: (folderId: string) => {
+    graphSettings.toggleFolderCollapsed(folderId);
+
+    // Rebuild graph without resetting viewport — the user toggled a folder
+    // in-place and expects the camera to stay put.
+    const overviewGraph = buildOverviewGraph({
+      data: props.data,
+      enabledNodeTypes: getEnabledNodeTypes(),
+      enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
+      direction: layoutConfig.direction,
+      clusterByFolder: graphSettings.clusterByFolder,
+      collapseScc: graphSettings.collapseScc,
+      collapsedFolderIds: graphSettings.collapsedFolderIds,
+      hideTestFiles: graphSettings.hideTestFiles,
+      memberNodeMode: graphSettings.memberNodeMode,
+      highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
+      hubAggregationEnabled: graphSettings.hubAggregationEnabled,
+      hubAggregationThreshold: graphSettings.hubAggregationThreshold,
+    });
+
+    void processGraphLayout(overviewGraph, {
+      fitViewToResult: false,
+      twoPassMeasure: false,
+    });
+  },
+});
 
 const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
   const targetNode = nodes.value.find((node) => node.id === nodeId) ?? selectedNode.value;
@@ -2026,6 +2141,16 @@ const handleShowFpsToggle = (value: boolean): void => {
 
 const handleFpsAdvancedToggle = (value: boolean): void => {
   graphSettings.setShowFpsAdvanced(value);
+};
+
+const handleHubAggregationToggle = async (value: boolean): Promise<void> => {
+  graphSettings.setHubAggregationEnabled(value);
+  await requestGraphInitialization();
+};
+
+const handleHubThresholdChange = async (value: number): Promise<void> => {
+  graphSettings.setHubAggregationThreshold(value);
+  await requestGraphInitialization();
 };
 
 const handleNodesChange = (changes: NodeChange[]) => {
@@ -2442,6 +2567,8 @@ onUnmounted(() => {
         @toggle-degree-weighted-layers="handleDegreeWeightedLayersToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
+        @toggle-hub-aggregation="handleHubAggregationToggle"
+        @hub-threshold-change="handleHubThresholdChange"
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <MiniMap

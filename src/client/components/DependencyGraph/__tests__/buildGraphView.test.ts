@@ -92,9 +92,12 @@ describe('buildOverviewGraph', () => {
       direction: 'LR',
       clusterByFolder: false,
       collapseScc: false,
+      collapsedFolderIds: new Set(),
       hideTestFiles: true,
       memberNodeMode: 'compact',
       highlightOrphanGlobal: true,
+      hubAggregationEnabled: false,
+      hubAggregationThreshold: 8,
     });
 
     expect(result.nodes.some((node) => node.id === 'module-test')).toBe(false);
@@ -185,7 +188,7 @@ describe('buildSymbolDrilldownGraph', () => {
 });
 
 describe('filterNodeChangesForFolderMode', () => {
-  it('allows only group node position and dimension changes in folder mode', () => {
+  it('passes through all changes in folder mode (Vue Flow handles compound node movement)', () => {
     const nodes: DependencyNode[] = [
       {
         id: 'group-1',
@@ -210,8 +213,7 @@ describe('filterNodeChangesForFolderMode', () => {
 
     const result = filterNodeChangesForFolderMode(changes, nodes, true);
 
-    expect(result).toHaveLength(2);
-    expect(result.some((change) => 'id' in change && change.id === 'group-1' && change.type === 'position')).toBe(true);
-    expect(result.some((change) => 'id' in change && change.id === 'module-1' && change.type === 'select')).toBe(true);
+    expect(result).toHaveLength(4);
+    expect(result).toEqual(changes);
   });
 });

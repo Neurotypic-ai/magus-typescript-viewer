@@ -233,10 +233,20 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         hintHeight = Math.max(hintHeight, 200);
 
       } else if (node.type === 'group') {
-        // Group nodes are containers — ELK will compute their final size from children.
-        // Set a reasonable minimum; the actual size is determined by child layout.
-        hintWidth = Math.max(hintWidth, 250);
-        hintHeight = Math.max(hintHeight, 80);
+        if (data?.['isCollapsed'] === true) {
+          // Collapsed folder: compact leaf node representation
+          hintWidth = Math.max(hintWidth, 200);
+          hintHeight = Math.max(hintHeight, 48);
+        } else {
+          // Expanded group: ELK will compute final size from children.
+          hintWidth = Math.max(hintWidth, 250);
+          hintHeight = Math.max(hintHeight, 80);
+        }
+
+      } else if (node.type === 'hub') {
+        // Invisible proxy node for edge aggregation — minimal footprint
+        hintWidth = 8;
+        hintHeight = 8;
 
       } else if (node.type === 'property' || node.type === 'method') {
         hintWidth = Math.max(hintWidth, 200);
@@ -344,11 +354,18 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     }
 
     // Create ELK edges with correct format (only non-containment edges for layout)
-    const elkEdges: ElkEdge[] = validEdges.map((edge) => ({
-      id: edge.id,
-      sources: [edge.source],
-      targets: [edge.target],
-    }));
+    const elkEdges: ElkEdge[] = validEdges.map((edge) => {
+      const elkEdge: ElkEdge = {
+        id: edge.id,
+        sources: [edge.source],
+        targets: [edge.target],
+      };
+      // Hub→target edges: keep hubs close to their targets via high shortness priority
+      if (edge.data?.hubAggregated) {
+        elkEdge.layoutOptions = { 'elk.layered.priority.shortness': '100' };
+      }
+      return elkEdge;
+    });
 
     // Define ELK graph type
     interface ElkGraph {

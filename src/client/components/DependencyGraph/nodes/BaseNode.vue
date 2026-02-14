@@ -262,6 +262,41 @@ const containerStyle = computed(() => {
   flex-shrink: 0;
 }
 
+/* Badge color variants — defined here because the badge element lives in BaseNode's template */
+.base-node-badge.type-module {
+  background-color: rgba(20, 184, 166, 0.2);
+  color: rgb(94, 234, 212);
+}
+
+.base-node-badge.type-class {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: rgb(147, 197, 253);
+}
+
+.base-node-badge.type-interface {
+  background-color: rgba(168, 85, 247, 0.2);
+  color: rgb(216, 180, 254);
+}
+
+.base-node-badge.type-property {
+  background-color: rgba(20, 184, 166, 0.2);
+  color: rgb(94, 234, 212);
+}
+
+.base-node-badge.type-method {
+  background-color: rgba(249, 115, 22, 0.2);
+  color: rgb(253, 186, 116);
+}
+
+.base-node-badge.type-default {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+}
+
+.base-node-badge.package-badge {
+  background-color: var(--background-node-package);
+}
+
 .base-node-body {
   padding: 0.45rem 0.5rem;
   border-bottom: 1px solid rgba(var(--border-default-rgb), 0.35);

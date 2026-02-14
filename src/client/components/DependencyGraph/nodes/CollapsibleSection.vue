@@ -43,8 +43,10 @@ watch(isolateExpandAll, (expand) => {
       <span class="collapsible-section-title">{{ title }} ({{ count }})</span>
       <span class="collapsible-section-indicator">{{ isOpen ? '\u2212' : '+' }}</span>
     </button>
-    <div v-if="isOpen" class="collapsible-section-content nowheel">
-      <slot />
+    <div :class="['collapsible-section-grid', { 'collapsible-section-grid--open': isOpen }]">
+      <div class="collapsible-section-content nowheel">
+        <slot />
+      </div>
     </div>
   </div>
 </template>
@@ -85,11 +87,28 @@ watch(isolateExpandAll, (expand) => {
   line-height: 1;
 }
 
+.collapsible-section-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.collapsible-section-grid--open {
+  grid-template-rows: 1fr;
+}
+
 .collapsible-section-content {
-  margin-top: 0.35rem;
+  overflow: hidden;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  padding-top: 0.35rem;
+  opacity: 0;
+  transition: opacity 200ms 80ms ease-out;
 }
 
+.collapsible-section-grid--open > .collapsible-section-content {
+  opacity: 1;
+}
 </style>
