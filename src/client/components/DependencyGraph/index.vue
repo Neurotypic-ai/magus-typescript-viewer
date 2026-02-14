@@ -189,10 +189,6 @@ const requestEdgeVirtualizationViewportRecalc = (force = false): void => {
     return;
   }
 
-  if (isPanning.value && !force) {
-    return;
-  }
-
   const runRecalc = () => {
     if (PERF_MARKS_ENABLED) {
       performance.mark('edge-virtualization-viewport-sync-start');
@@ -363,11 +359,11 @@ const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => {
 const onMoveStart = (): void => {
   if (panEndTimer) clearTimeout(panEndTimer);
   isPanning.value = true;
-  suspendEdgeVirtualization();
 };
 
 const onMove = (): void => {
   scheduleViewportStateSync();
+  requestEdgeVirtualizationViewportRecalc();
 };
 
 const onMoveEnd = (): void => {
@@ -376,7 +372,7 @@ const onMoveEnd = (): void => {
   panEndTimer = setTimeout(() => {
     isPanning.value = false;
     syncViewportState();
-    resumeEdgeVirtualization();
+    // Force a final recalc at the settled viewport position
     requestEdgeVirtualizationViewportRecalc(true);
   }, 120);
 };
