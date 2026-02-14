@@ -205,22 +205,21 @@ const containerStyle = computed(() => {
 }
 
 .base-node-container.base-node-elevated {
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
   border-color: var(--border-hover);
 }
 
 .base-node-container.base-node-selected {
   border-color: var(--border-focus);
-  box-shadow:
-    0 0 0 1px rgba(144, 202, 249, 0.45),
-    0 4px 10px rgba(0, 0, 0, 0.16);
+  outline: 1px solid rgba(144, 202, 249, 0.45);
+  outline-offset: 0;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.16);
 }
 
 .base-node-container.base-node-orphan-global {
-  outline: none;
-  box-shadow:
-    inset 0 0 0 2px #ef4444,
-    0 0 8px rgba(239, 68, 68, 0.38);
+  outline: 2px solid #ef4444;
+  outline-offset: 0;
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.24);
 }
 
 .base-node-handle {

@@ -1,5 +1,7 @@
 import { ref, watch } from 'vue';
 
+import { measurePerformance } from '../../utils/performanceMonitoring';
+
 import type { Ref, WatchStopHandle } from 'vue';
 
 import type { DependencyNode, GraphEdge } from './types';
@@ -10,8 +12,22 @@ const VIRTUALIZATION_THRESHOLD = 200;
 /** Padding in screen pixels around the viewport before edges are culled */
 const VIEWPORT_PADDING_PX = 300;
 
+const parseEnvInt = (key: string, fallback: number): number => {
+  const raw = import.meta.env[key] as string | undefined;
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+};
+
 /** Minimum frame spacing for recalculations */
-const RECALC_MIN_FRAME_GAP_MS = 16;
+const RECALC_MIN_FRAME_GAP_MS = parseEnvInt('VITE_EDGE_VIRTUALIZATION_MIN_FRAME_GAP_MS', 48);
+const PERF_MARKS_ENABLED = (import.meta.env['VITE_PERF_MARKS'] as string | undefined) === 'true';
 
 /** At zoom levels below this, apply edge count thresholding */
 const LOW_ZOOM_THRESHOLD = 0.3;
@@ -334,110 +350,125 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
 
   /** Core recalculation: determine which edges should be visible */
   function recalculate(): void {
-    if (suspended) return;
-
-    const edgeList = edges.value;
-    const nodeList = nodes.value;
-
-    // Skip virtualization for small graphs
-    if (!enabled.value || edgeList.length < VIRTUALIZATION_THRESHOLD) {
-      // Restore any edges we previously hid
-      if (virtualizedHiddenIds.value.size > 0) {
-        const restoreVisibilityMap = new Map<string, boolean>();
-        virtualizedHiddenIds.value.forEach((edgeId) => {
-          restoreVisibilityMap.set(edgeId, userHiddenIds.has(edgeId));
-        });
-        isWriting = true;
-        setEdgeVisibility(restoreVisibilityMap);
-        isWriting = false;
-        virtualizedHiddenIds.value = new Set();
-      }
-      return;
+    if (PERF_MARKS_ENABLED) {
+      performance.mark('edge-virtualization-recalc-start');
     }
 
-    const bounds = getViewportBounds();
-    if (!bounds) return;
+    try {
+      if (suspended) return;
 
-    const nodeBoundsMap = buildAbsoluteNodeBoundsMap(nodeList);
-    const vp = getViewport();
-    const isLowZoom = vp.zoom < LOW_ZOOM_THRESHOLD;
+      const edgeList = edges.value;
+      const nodeList = nodes.value;
 
-    // Snapshot which edges are currently user-hidden (by relationship filters)
-    // so we don't accidentally un-hide them when they scroll into viewport.
-    userHiddenIds.clear();
-    for (const edge of edgeList) {
-      if (edge.hidden && !virtualizedHiddenIds.value.has(edge.id)) {
-        userHiddenIds.add(edge.id);
-      }
-    }
-
-    // Determine which edges have at least one endpoint in viewport.
-    // Prefer pre-computed anchor points (from layout worker) for accuracy;
-    // fall back to node position map lookup when anchors aren't available.
-    const viewportVisibleIds = new Set<string>();
-    for (const edge of edgeList) {
-      // Don't un-hide user-hidden edges
-      if (userHiddenIds.has(edge.id)) continue;
-
-      const sourceAnchor = edge.data?.sourceAnchor as { x: number; y: number } | undefined;
-      const targetAnchor = edge.data?.targetAnchor as { x: number; y: number } | undefined;
-
-      if (sourceAnchor && targetAnchor) {
-        // Use exact anchor points — more accurate than node-center heuristic
-        if (isPointInBounds(sourceAnchor, bounds) || isPointInBounds(targetAnchor, bounds)) {
-          viewportVisibleIds.add(edge.id);
-        } else if (segmentIntersectsBounds(sourceAnchor, targetAnchor, bounds)) {
-          viewportVisibleIds.add(edge.id);
+      // Skip virtualization for small graphs
+      if (!enabled.value || edgeList.length < VIRTUALIZATION_THRESHOLD) {
+        // Restore any edges we previously hid
+        if (virtualizedHiddenIds.value.size > 0) {
+          const restoreVisibilityMap = new Map<string, boolean>();
+          virtualizedHiddenIds.value.forEach((edgeId) => {
+            restoreVisibilityMap.set(edgeId, userHiddenIds.has(edgeId));
+          });
+          isWriting = true;
+          setEdgeVisibility(restoreVisibilityMap);
+          isWriting = false;
+          virtualizedHiddenIds.value = new Set();
         }
-        continue;
-      }
-
-      // Fallback: use absolute node bounds and segment-rectangle intersection
-      const sourceBounds = nodeBoundsMap.get(edge.source);
-      const targetBounds = nodeBoundsMap.get(edge.target);
-
-      // If we can't find node bounds, keep the edge visible as a safety fallback
-      if (!sourceBounds || !targetBounds) {
-        viewportVisibleIds.add(edge.id);
-        continue;
-      }
-
-      if (isEdgeSegmentInBounds(sourceBounds, targetBounds, bounds)) {
-        viewportVisibleIds.add(edge.id);
-      }
-    }
-
-    rebuildEdgePriorityOrder(edgeList);
-
-    // Apply low-zoom thresholding if needed
-    const finalVisibleIds = isLowZoom
-      ? applyLowZoomThresholding(viewportVisibleIds, vp.zoom)
-      : viewportVisibleIds;
-
-    // Build the new hidden set and check if anything changed
-    const newHiddenIds = new Set<string>();
-    const visibilityMap = new Map<string, boolean>();
-    edgeList.forEach((edge) => {
-      if (userHiddenIds.has(edge.id)) {
-        // Respect user filtering — don't touch these edges
         return;
       }
 
-      const shouldBeHidden = !finalVisibleIds.has(edge.id);
-      if (shouldBeHidden) {
-        newHiddenIds.add(edge.id);
+      const bounds = getViewportBounds();
+      if (!bounds) return;
+
+      const nodeBoundsMap = buildAbsoluteNodeBoundsMap(nodeList);
+      const vp = getViewport();
+      const isLowZoom = vp.zoom < LOW_ZOOM_THRESHOLD;
+
+      // Snapshot which edges are currently user-hidden (by relationship filters)
+      // so we don't accidentally un-hide them when they scroll into viewport.
+      userHiddenIds.clear();
+      for (const edge of edgeList) {
+        if (edge.hidden && !virtualizedHiddenIds.value.has(edge.id)) {
+          userHiddenIds.add(edge.id);
+        }
       }
 
-      if (edge.hidden !== shouldBeHidden) {
-        visibilityMap.set(edge.id, shouldBeHidden);
-      }
-    });
+      // Determine which edges have at least one endpoint in viewport.
+      // Prefer pre-computed anchor points (from layout worker) for accuracy;
+      // fall back to node position map lookup when anchors aren't available.
+      const viewportVisibleIds = new Set<string>();
+      for (const edge of edgeList) {
+        // Don't un-hide user-hidden edges
+        if (userHiddenIds.has(edge.id)) continue;
 
-    virtualizedHiddenIds.value = newHiddenIds;
-    if (visibilityMap.size > 0) {
-      isWriting = true;
-      setEdgeVisibility(visibilityMap);
-      isWriting = false;
+        const sourceAnchor = edge.data?.sourceAnchor as { x: number; y: number } | undefined;
+        const targetAnchor = edge.data?.targetAnchor as { x: number; y: number } | undefined;
+
+        if (sourceAnchor && targetAnchor) {
+          // Use exact anchor points — more accurate than node-center heuristic
+          if (isPointInBounds(sourceAnchor, bounds) || isPointInBounds(targetAnchor, bounds)) {
+            viewportVisibleIds.add(edge.id);
+          } else if (segmentIntersectsBounds(sourceAnchor, targetAnchor, bounds)) {
+            viewportVisibleIds.add(edge.id);
+          }
+          continue;
+        }
+
+        // Fallback: use absolute node bounds and segment-rectangle intersection
+        const sourceBounds = nodeBoundsMap.get(edge.source);
+        const targetBounds = nodeBoundsMap.get(edge.target);
+
+        // If we can't find node bounds, keep the edge visible as a safety fallback
+        if (!sourceBounds || !targetBounds) {
+          viewportVisibleIds.add(edge.id);
+          continue;
+        }
+
+        if (isEdgeSegmentInBounds(sourceBounds, targetBounds, bounds)) {
+          viewportVisibleIds.add(edge.id);
+        }
+      }
+
+      rebuildEdgePriorityOrder(edgeList);
+
+      // Apply low-zoom thresholding if needed
+      const finalVisibleIds = isLowZoom
+        ? applyLowZoomThresholding(viewportVisibleIds, vp.zoom)
+        : viewportVisibleIds;
+
+      // Build the new hidden set and check if anything changed
+      const newHiddenIds = new Set<string>();
+      const visibilityMap = new Map<string, boolean>();
+      edgeList.forEach((edge) => {
+        if (userHiddenIds.has(edge.id)) {
+          // Respect user filtering — don't touch these edges
+          return;
+        }
+
+        const shouldBeHidden = !finalVisibleIds.has(edge.id);
+        if (shouldBeHidden) {
+          newHiddenIds.add(edge.id);
+        }
+
+        if (edge.hidden !== shouldBeHidden) {
+          visibilityMap.set(edge.id, shouldBeHidden);
+        }
+      });
+
+      virtualizedHiddenIds.value = newHiddenIds;
+      if (visibilityMap.size > 0) {
+        isWriting = true;
+        setEdgeVisibility(visibilityMap);
+        isWriting = false;
+      }
+    } finally {
+      if (PERF_MARKS_ENABLED) {
+        performance.mark('edge-virtualization-recalc-end');
+        measurePerformance(
+          'edge-virtualization-recalc',
+          'edge-virtualization-recalc-start',
+          'edge-virtualization-recalc-end'
+        );
+      }
     }
   }
 

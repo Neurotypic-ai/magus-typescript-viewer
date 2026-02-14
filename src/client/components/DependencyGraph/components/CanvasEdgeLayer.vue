@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { measurePerformance } from '../../../utils/performanceMonitoring';
+
 import type { DependencyNode, GraphEdge } from '../types';
 
 interface ViewportState {
@@ -14,19 +16,28 @@ interface CanvasEdgeLayerProps {
   nodes: DependencyNode[];
   viewport: ViewportState;
   maxEdges?: number;
+  highlightedEdgeIds?: string[];
+  dimNonHighlighted?: boolean;
 }
 
 const props = withDefaults(defineProps<CanvasEdgeLayerProps>(), {
   maxEdges: 2400,
+  highlightedEdgeIds: () => [],
+  dimNonHighlighted: true,
 });
+const emit = defineEmits<{
+  (event: 'canvas-unavailable'): void;
+}>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 let resizeObserver: ResizeObserver | null = null;
 let renderRafId: number | null = null;
+let hasEmittedCanvasUnavailable = false;
 
 const DEFAULT_NODE_WIDTH = 240;
 const DEFAULT_NODE_HEIGHT = 100;
+const PERF_MARKS_ENABLED = (import.meta.env['VITE_PERF_MARKS'] as string | undefined) === 'true';
 
 const parseDimension = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -133,9 +144,17 @@ const scheduleRender = (): void => {
 };
 
 const renderCanvas = (): void => {
+  if (PERF_MARKS_ENABLED) {
+    performance.mark('canvas-render-start');
+  }
+
   const canvas = canvasRef.value;
   const container = containerRef.value;
   if (!canvas || !container) {
+    if (PERF_MARKS_ENABLED) {
+      performance.mark('canvas-render-end');
+      measurePerformance('canvas-edge-render', 'canvas-render-start', 'canvas-render-end');
+    }
     return;
   }
 
@@ -152,6 +171,14 @@ const renderCanvas = (): void => {
 
   const context = canvas.getContext('2d');
   if (!context) {
+    if (!hasEmittedCanvasUnavailable) {
+      hasEmittedCanvasUnavailable = true;
+      emit('canvas-unavailable');
+    }
+    if (PERF_MARKS_ENABLED) {
+      performance.mark('canvas-render-end');
+      measurePerformance('canvas-edge-render', 'canvas-render-start', 'canvas-render-end');
+    }
     return;
   }
 
@@ -160,7 +187,10 @@ const renderCanvas = (): void => {
   context.lineCap = 'round';
 
   const nodeCenters = buildAbsoluteNodeCenters(props.nodes);
-  const visibleEdges = props.edges.filter((edge) => !edge.hidden).slice(0, props.maxEdges);
+  const highlightedEdgeIdSet = new Set(props.highlightedEdgeIds);
+  const visibleEdges = props.edges
+    .filter((edge) => !edge.hidden && !highlightedEdgeIdSet.has(edge.id))
+    .slice(0, props.maxEdges);
 
   for (const edge of visibleEdges) {
     const sourceAnchor = edge.data?.sourceAnchor as { x: number; y: number } | undefined;
@@ -185,9 +215,12 @@ const renderCanvas = (): void => {
     const strokeWidth = typeof edgeStyle['strokeWidth'] === 'number'
       ? edgeStyle['strokeWidth']
       : Number.parseFloat(String(edgeStyle['strokeWidth'] ?? '1.4'));
+    const dimFactor = props.dimNonHighlighted ? 0.65 : 1;
 
     context.strokeStyle = stroke;
-    context.globalAlpha = Number.isFinite(opacity) ? Math.max(0.06, Math.min(1, opacity)) : 0.85;
+    context.globalAlpha = Number.isFinite(opacity)
+      ? Math.max(0.04, Math.min(1, opacity * dimFactor))
+      : 0.55;
     context.lineWidth = Number.isFinite(strokeWidth)
       ? Math.max(0.8, strokeWidth * Math.max(0.55, Math.min(1.1, props.viewport.zoom)))
       : 1.2;
@@ -198,6 +231,11 @@ const renderCanvas = (): void => {
   }
 
   context.globalAlpha = 1;
+
+  if (PERF_MARKS_ENABLED) {
+    performance.mark('canvas-render-end');
+    measurePerformance('canvas-edge-render', 'canvas-render-start', 'canvas-render-end');
+  }
 };
 
 onMounted(() => {
@@ -220,7 +258,7 @@ onUnmounted(() => {
 });
 
 watch(
-  () => [props.edges, props.nodes, props.viewport.x, props.viewport.y, props.viewport.zoom],
+  () => [props.edges, props.nodes, props.viewport.x, props.viewport.y, props.viewport.zoom, props.highlightedEdgeIds],
   () => {
     scheduleRender();
   },

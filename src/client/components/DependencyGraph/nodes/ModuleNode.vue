@@ -823,15 +823,15 @@ const formattedEmbeddedInterfaces = computed(() =>
 }
 
 .module-node--high-deps :deep(.base-node-container) {
-  box-shadow:
-    0 0 0 1px rgba(245, 158, 11, 0.55),
-    0 0 8px rgba(245, 158, 11, 0.18);
+  outline: 1px solid rgba(245, 158, 11, 0.55);
+  outline-offset: 0;
+  box-shadow: 0 1px 4px rgba(245, 158, 11, 0.2);
 }
 
 .module-node--critical-deps :deep(.base-node-container) {
-  box-shadow:
-    0 0 0 1px rgba(239, 68, 68, 0.62),
-    0 0 8px rgba(239, 68, 68, 0.2);
+  outline: 1px solid rgba(239, 68, 68, 0.62);
+  outline-offset: 0;
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.24);
 }
 
 </style>

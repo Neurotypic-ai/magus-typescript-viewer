@@ -3,7 +3,7 @@ import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { MarkerType, Panel, Position, VueFlow, applyNodeChanges, useVueFlow } from '@vue-flow/core';
 import { MiniMap } from '@vue-flow/minimap';
-import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
 
 import { createLogger } from '../../../shared/utils/logger';
 import { WebWorkerLayoutProcessor } from '../../layout/WebWorkerLayoutProcessor';
@@ -27,6 +27,7 @@ import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, ISOLATE_EXPAND_ALL_KEY, NODE_ACTIONS_KEY }
 import { useEdgeVirtualization } from './useEdgeVirtualization';
 import { useFpsCounter } from './useFpsCounter';
 import { useGraphInteractionController } from './useGraphInteractionController';
+import { createNodeDimensionTracker, isContainerNode } from './useNodeDimensions';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 
 import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
@@ -56,14 +57,41 @@ const graphStore = useGraphStore();
 const graphSettings = useGraphSettings();
 const interaction = useGraphInteractionController();
 
-const EDGE_VISIBLE_RENDER_THRESHOLD = 1800;
+const parseEnvInt = (key: string, fallback: number): number => {
+  const raw = import.meta.env[key] as string | undefined;
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+};
+
+const parseEnvBoolean = (key: string, fallback: boolean): boolean => {
+  const raw = import.meta.env[key] as string | undefined;
+  if (!raw) {
+    return fallback;
+  }
+
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return fallback;
+};
+
+const EDGE_VISIBLE_RENDER_THRESHOLD = parseEnvInt('VITE_EDGE_VISIBLE_RENDER_THRESHOLD', 1400);
 const MINIMAP_AUTO_HIDE_EDGE_THRESHOLD = 2800;
 const HEAVY_EDGE_STYLE_THRESHOLD = 2200;
 const HIGH_EDGE_MARKER_THRESHOLD = 1800;
 const LOW_DETAIL_EDGE_ZOOM_THRESHOLD = 0.35;
-const EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD = 3000;
-const NODE_VISIBLE_RENDER_THRESHOLD = 450;
+const EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD = parseEnvInt('VITE_CANVAS_EDGE_THRESHOLD', 2200);
+const NODE_VISIBLE_RENDER_THRESHOLD = parseEnvInt('VITE_NODE_VISIBLE_RENDER_THRESHOLD', 320);
 const EDGE_RENDERER_MODE = (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'svg';
+const USE_CSS_SELECTION_HOVER = parseEnvBoolean('VITE_USE_CSS_SELECTION_HOVER', true);
+const PERF_MARKS_ENABLED = parseEnvBoolean('VITE_PERF_MARKS', false);
+const EDGE_VIEWPORT_RECALC_THROTTLE_MS = parseEnvInt('VITE_EDGE_VIEWPORT_RECALC_THROTTLE_MS', 80);
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
 const MIN_GRAPH_ZOOM = 0.1;
 const MAX_GRAPH_ZOOM = 2;
@@ -86,6 +114,7 @@ const isPanning = ref(false);
 const isIsolateAnimating = ref(false);
 const isolateExpandAll = ref(false);
 const isLayoutMeasuring = ref(false);
+const canvasRendererAvailable = ref(true);
 let isolateAnimatingTimer: ReturnType<typeof setTimeout> | null = null;
 const showFps = computed(() => graphSettings.showFps);
 const viewportState = ref({ ...DEFAULT_VIEWPORT });
@@ -95,6 +124,9 @@ const FPS_CHART_HEIGHT = 56;
 let panEndTimer: ReturnType<typeof setTimeout> | null = null;
 let selectionHighlightRafId: number | null = null;
 let viewportSyncRafId: number | null = null;
+let edgeViewportRecalcTimer: ReturnType<typeof setTimeout> | null = null;
+let lastEdgeViewportRecalcAt = 0;
+const nodeDimensionTracker = createNodeDimensionTracker();
 
 const fpsChartScaleMax = computed(() => {
   if (!fpsHistory.value.length) {
@@ -152,6 +184,59 @@ const syncViewportState = (): void => {
   viewportState.value = { ...getViewport() };
 };
 
+const requestEdgeVirtualizationViewportRecalc = (force = false): void => {
+  if (!edgeVirtualizationEnabled.value) {
+    return;
+  }
+
+  if (isPanning.value && !force) {
+    return;
+  }
+
+  const runRecalc = () => {
+    if (PERF_MARKS_ENABLED) {
+      performance.mark('edge-virtualization-viewport-sync-start');
+    }
+    onEdgeVirtualizationViewportChange();
+    if (PERF_MARKS_ENABLED) {
+      performance.mark('edge-virtualization-viewport-sync-end');
+      measurePerformance(
+        'edge-virtualization-viewport-sync',
+        'edge-virtualization-viewport-sync-start',
+        'edge-virtualization-viewport-sync-end'
+      );
+    }
+  };
+
+  if (force) {
+    if (edgeViewportRecalcTimer) {
+      clearTimeout(edgeViewportRecalcTimer);
+      edgeViewportRecalcTimer = null;
+    }
+    lastEdgeViewportRecalcAt = performance.now();
+    runRecalc();
+    return;
+  }
+
+  const now = performance.now();
+  const elapsed = now - lastEdgeViewportRecalcAt;
+  if (elapsed >= EDGE_VIEWPORT_RECALC_THROTTLE_MS) {
+    lastEdgeViewportRecalcAt = now;
+    runRecalc();
+    return;
+  }
+
+  if (edgeViewportRecalcTimer) {
+    return;
+  }
+
+  edgeViewportRecalcTimer = setTimeout(() => {
+    edgeViewportRecalcTimer = null;
+    lastEdgeViewportRecalcAt = performance.now();
+    runRecalc();
+  }, Math.max(0, EDGE_VIEWPORT_RECALC_THROTTLE_MS - elapsed));
+};
+
 const scheduleViewportStateSync = (): void => {
   if (viewportSyncRafId !== null) {
     return;
@@ -201,16 +286,40 @@ const applyZoomAtPointer = (
     syncViewportState();
   }
 
-  onEdgeVirtualizationViewportChange();
+  requestEdgeVirtualizationViewportRecalc();
 };
+
+const isCanvasModeRequested = computed(() => {
+  return EDGE_RENDERER_MODE === 'hybrid-canvas' || EDGE_RENDERER_MODE === 'hybrid-canvas-experimental';
+});
 
 const isHybridCanvasMode = computed(() => {
   return (
-    EDGE_RENDERER_MODE === 'hybrid-canvas-experimental' && edges.value.length >= EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD
+    canvasRendererAvailable.value &&
+    isCanvasModeRequested.value &&
+    edges.value.length >= EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD
   );
 });
 
-const renderedEdges = computed(() => (isHybridCanvasMode.value ? [] : edges.value));
+const handleCanvasUnavailable = (): void => {
+  if (!canvasRendererAvailable.value) {
+    return;
+  }
+  canvasRendererAvailable.value = false;
+  graphLogger.warn('Canvas edge renderer unavailable, falling back to SVG edges.');
+};
+
+const renderedEdges = computed(() => {
+  if (!isHybridCanvasMode.value) {
+    return visualEdges.value;
+  }
+
+  if (highlightedEdgeIds.value.size === 0) {
+    return [];
+  }
+
+  return visualEdges.value.filter((edge) => highlightedEdgeIds.value.has(edge.id));
+});
 const useOnlyRenderVisibleElements = computed(() => {
   // During two-pass layout measurement all nodes must stay mounted so
   // measureAllNodeDimensions can capture complete sizes.
@@ -229,7 +338,7 @@ const useOnlyRenderVisibleElements = computed(() => {
 });
 const isHeavyEdgeMode = computed(() => edges.value.length >= HEAVY_EDGE_STYLE_THRESHOLD);
 const minimapAutoHidden = computed(() => edges.value.length >= MINIMAP_AUTO_HIDE_EDGE_THRESHOLD);
-const showMiniMap = computed(() => !isHybridCanvasMode.value && !isPanning.value && !minimapAutoHidden.value);
+const showMiniMap = computed(() => !isHybridCanvasMode.value && !minimapAutoHidden.value);
 
 const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => {
   const lowDetailEdges =
@@ -254,11 +363,11 @@ const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => {
 const onMoveStart = (): void => {
   if (panEndTimer) clearTimeout(panEndTimer);
   isPanning.value = true;
+  suspendEdgeVirtualization();
 };
 
 const onMove = (): void => {
   scheduleViewportStateSync();
-  onEdgeVirtualizationViewportChange();
 };
 
 const onMoveEnd = (): void => {
@@ -267,8 +376,8 @@ const onMoveEnd = (): void => {
   panEndTimer = setTimeout(() => {
     isPanning.value = false;
     syncViewportState();
-    // Recalculate edge visibility after pan stops
-    onEdgeVirtualizationViewportChange();
+    resumeEdgeVirtualization();
+    requestEdgeVirtualizationViewportRecalc(true);
   }, 120);
 };
 
@@ -286,13 +395,13 @@ interface SearchHighlightState {
   matchingEdgeIds: Set<string>;
 }
 
-const searchHighlightState: SearchHighlightState = {
+const searchHighlightState = reactive<SearchHighlightState>({
   hasResults: false,
   hasPath: false,
   matchingNodeIds: new Set<string>(),
   pathNodeIds: new Set<string>(),
   matchingEdgeIds: new Set<string>(),
-};
+});
 
 interface SelectionAdjacency {
   connectedNodeIds: Set<string>;
@@ -443,7 +552,7 @@ function pruneNodeMeasurementCache(liveNodes: DependencyNode[]): void {
 // Cached DOM references for handleWheel (Issue #19: avoid querySelector/getBoundingClientRect per event)
 let cachedFlowContainer: HTMLElement | null = null;
 let cachedContainerRect: DOMRect | null = null;
-let resizeObserver: ResizeObserver | null = null;
+let flowResizeObserver: ResizeObserver | null = null;
 
 const minimapNodeColor = (node: { type?: string }): string => {
   if (node.type === 'package') return 'rgba(20, 184, 166, 0.8)';
@@ -549,20 +658,36 @@ const EDGE_HOVER_CLASS = 'edge-hover-highlighted';
 const EDGE_HOVER_Z_INDEX = 12;
 const EDGE_HOVER_BASE_STROKE_VAR = '--edge-hover-base-stroke';
 const EDGE_HOVER_FALLBACK_STROKE = '#404040';
+const NODE_SELECTION_CLASS_TOKENS = ['selection-target', 'selection-connected', 'selection-dimmed'] as const;
+const EDGE_SELECTION_CLASS_TOKENS = [
+  'edge-selection-highlighted',
+  'edge-selection-dimmed',
+  EDGE_HOVER_CLASS,
+] as const;
+const EMPTY_EDGE_SET = new Set<string>();
+const hoveredNodeId = ref<string | null>(null);
 
-const normalizeEdgeClass = (edgeClass: GraphEdge['class']): string => {
-  if (typeof edgeClass !== 'string') {
+const normalizeClassValue = (className: unknown): string => {
+  if (typeof className !== 'string') {
     return '';
   }
-  return edgeClass.trim();
+  return className.trim();
 };
 
-const getEdgeClassTokens = (edgeClass: GraphEdge['class']): Set<string> => {
-  const normalizedClass = normalizeEdgeClass(edgeClass);
+const getClassTokens = (className: unknown): Set<string> => {
+  const normalizedClass = normalizeClassValue(className);
   if (!normalizedClass) {
     return new Set<string>();
   }
   return new Set(normalizedClass.split(/\s+/).filter((token) => token.length > 0));
+};
+
+const normalizeEdgeClass = (edgeClass: GraphEdge['class']): string => {
+  return normalizeClassValue(edgeClass);
+};
+
+const getEdgeClassTokens = (edgeClass: GraphEdge['class']): Set<string> => {
+  return getClassTokens(edgeClass);
 };
 
 const edgeClassTokensToString = (tokens: Set<string>): string => {
@@ -591,6 +716,191 @@ const getEdgeBaseStroke = (edge: GraphEdge): string => {
   return EDGE_HOVER_FALLBACK_STROKE;
 };
 
+const selectedAdjacency = computed(() => {
+  if (!selectedNode.value || interaction.scopeMode.value === 'isolate') {
+    return undefined;
+  }
+  return selectionAdjacencyByNodeId.value.get(selectedNode.value.id);
+});
+
+const selectedConnectedNodeIds = computed<Set<string>>(() => {
+  return selectedAdjacency.value?.connectedNodeIds ?? EMPTY_EDGE_SET;
+});
+
+const selectedConnectedEdgeIds = computed<Set<string>>(() => {
+  return selectedAdjacency.value?.connectedEdgeIds ?? EMPTY_EDGE_SET;
+});
+
+const hoveredConnectedEdgeIds = computed<Set<string>>(() => {
+  if (
+    hoveredNodeId.value === null ||
+    selectedNode.value !== null ||
+    interaction.scopeMode.value === 'isolate'
+  ) {
+    return EMPTY_EDGE_SET;
+  }
+  return selectionAdjacencyByNodeId.value.get(hoveredNodeId.value)?.connectedEdgeIds ?? EMPTY_EDGE_SET;
+});
+
+const highlightedEdgeIds = computed<Set<string>>(() => {
+  const ids = new Set<string>();
+  selectedConnectedEdgeIds.value.forEach((edgeId) => ids.add(edgeId));
+  hoveredConnectedEdgeIds.value.forEach((edgeId) => ids.add(edgeId));
+  if (searchHighlightState.hasResults) {
+    searchHighlightState.matchingEdgeIds.forEach((edgeId) => ids.add(edgeId));
+  }
+  return ids;
+});
+const highlightedEdgeIdList = computed(() => [...highlightedEdgeIds.value]);
+
+const resolveNodeSelectionClass = (node: DependencyNode): string | null => {
+  if (!selectedNode.value || interaction.scopeMode.value === 'isolate') {
+    return null;
+  }
+
+  if (node.id === selectedNode.value.id) {
+    return 'selection-target';
+  }
+  if (selectedConnectedNodeIds.value.has(node.id)) {
+    return 'selection-connected';
+  }
+  return 'selection-dimmed';
+};
+
+const applyEdgeHoverStrokeVariable = (edge: GraphEdge, shouldHover: boolean): GraphEdge['style'] => {
+  const currentStyle = toEdgeStyleRecord(edge.style);
+  if (shouldHover) {
+    const baseStroke = getEdgeBaseStroke(edge);
+    if (currentStyle?.[EDGE_HOVER_BASE_STROKE_VAR] === baseStroke) {
+      return edge.style;
+    }
+    return {
+      ...(currentStyle ?? {}),
+      [EDGE_HOVER_BASE_STROKE_VAR]: baseStroke,
+    };
+  }
+
+  if (!currentStyle || !(EDGE_HOVER_BASE_STROKE_VAR in currentStyle)) {
+    return edge.style;
+  }
+
+  const nextStyle = { ...currentStyle };
+  delete nextStyle[EDGE_HOVER_BASE_STROKE_VAR];
+  return Object.keys(nextStyle).length > 0 ? nextStyle : undefined;
+};
+
+// IDs of nodes/edges that were given visual classes in the previous computed
+// evaluation. We MUST produce fresh objects for these on the next pass so
+// VueFlow sees new references and clears stale classes from its internal state.
+let prevStyledNodeIds = new Set<string>();
+
+const visualNodes = computed<DependencyNode[]>(() => {
+  if (!USE_CSS_SELECTION_HOVER) {
+    prevStyledNodeIds = new Set();
+    return nodes.value;
+  }
+
+  const nextStyledIds = new Set<string>();
+  let nextNodes: DependencyNode[] | null = null;
+
+  nodes.value.forEach((node, index) => {
+    const classTokens = getClassTokens(node.class);
+    NODE_SELECTION_CLASS_TOKENS.forEach((token) => classTokens.delete(token));
+
+    const selectionClass = resolveNodeSelectionClass(node);
+    if (selectionClass) {
+      classTokens.add(selectionClass);
+      nextStyledIds.add(node.id);
+    }
+
+    const nextClass = edgeClassTokensToString(classTokens);
+
+    // Skip only if this node wasn't styled last time AND the class already matches.
+    // Previously-styled nodes MUST get a fresh object so VueFlow drops the old class.
+    if (!prevStyledNodeIds.has(node.id) && normalizeClassValue(node.class) === nextClass) {
+      return;
+    }
+
+    if (!nextNodes) {
+      nextNodes = [...nodes.value];
+    }
+
+    // Always spread a new object — returning the same store reference would
+    // make VueFlow think nothing changed and keep stale classes in its DOM.
+    nextNodes[index] = { ...node, class: nextClass || '' } as DependencyNode;
+  });
+
+  prevStyledNodeIds = nextStyledIds;
+  return nextNodes ?? nodes.value;
+});
+
+let prevStyledEdgeIds = new Set<string>();
+
+const visualEdges = computed<GraphEdge[]>(() => {
+  if (!USE_CSS_SELECTION_HOVER) {
+    prevStyledEdgeIds = new Set();
+    return edges.value;
+  }
+
+  const hasSelection = selectedNode.value !== null && interaction.scopeMode.value !== 'isolate';
+  const selectionEdgeIds = selectedConnectedEdgeIds.value;
+  const hoveredEdgeIdSet = hoveredConnectedEdgeIds.value;
+
+  const nextStyledIds = new Set<string>();
+  let nextEdges: GraphEdge[] | null = null;
+
+  edges.value.forEach((edge, index) => {
+    const classTokens = getEdgeClassTokens(edge.class);
+    EDGE_SELECTION_CLASS_TOKENS.forEach((token) => classTokens.delete(token));
+
+    let isStyled = false;
+
+    if (hasSelection) {
+      classTokens.add(selectionEdgeIds.has(edge.id) ? 'edge-selection-highlighted' : 'edge-selection-dimmed');
+      isStyled = true;
+    }
+
+    const shouldHover = hoveredEdgeIdSet.has(edge.id);
+    if (shouldHover) {
+      classTokens.add(EDGE_HOVER_CLASS);
+      isStyled = true;
+    }
+
+    if (isStyled) {
+      nextStyledIds.add(edge.id);
+    }
+
+    const nextClass = edgeClassTokensToString(classTokens);
+    const nextStyle = applyEdgeHoverStrokeVariable(edge, shouldHover);
+    const nextZIndex = shouldHover ? Math.max(edge.zIndex ?? 0, EDGE_HOVER_Z_INDEX) : edge.zIndex;
+
+    // Previously-styled edges MUST get a fresh object so VueFlow drops stale classes.
+    const wasPreviouslyStyled = prevStyledEdgeIds.has(edge.id);
+    if (
+      !wasPreviouslyStyled &&
+      normalizeEdgeClass(edge.class) === nextClass &&
+      nextStyle === edge.style &&
+      nextZIndex === edge.zIndex
+    ) {
+      return;
+    }
+
+    if (!nextEdges) {
+      nextEdges = [...edges.value];
+    }
+
+    nextEdges[index] = {
+      ...edge,
+      class: nextClass,
+      style: nextStyle,
+      zIndex: nextZIndex,
+    } as GraphEdge;
+  });
+
+  prevStyledEdgeIds = nextStyledIds;
+  return nextEdges ?? edges.value;
+});
+
 const initializeLayoutProcessor = () => {
   layoutRequestVersion += 1;
 
@@ -603,8 +913,16 @@ const initializeLayoutProcessor = () => {
 };
 
 const applySelectionHighlight = (selected: DependencyNode | null): void => {
+  if (USE_CSS_SELECTION_HOVER) {
+    return;
+  }
+
   // Isolation mode manages its own styles
   if (interaction.scopeMode.value === 'isolate') return;
+
+  if (PERF_MARKS_ENABLED) {
+    performance.mark('selection-highlight-start');
+  }
 
   const hasSelection = selected !== null;
   const selectedAdjacency = selected ? selectionAdjacencyByNodeId.value.get(selected.id) : undefined;
@@ -651,12 +969,21 @@ const applySelectionHighlight = (selected: DependencyNode | null): void => {
 
   graphStore['updateNodesById'](nodeUpdates);
   graphStore['updateEdgesById'](edgeUpdates);
+
+  if (PERF_MARKS_ENABLED) {
+    performance.mark('selection-highlight-end');
+    measurePerformance('selection-highlight', 'selection-highlight-start', 'selection-highlight-end');
+  }
 };
 
 let hoveredEdgeIds = new Set<string>();
 const hoveredEdgePrevZIndexById = new Map<string, number | undefined>();
 
 const applyHoverEdgeHighlight = (nodeId: string | null): void => {
+  if (USE_CSS_SELECTION_HOVER) {
+    return;
+  }
+
   const shouldHighlightEdges =
     nodeId !== null && selectedNode.value === null && interaction.scopeMode.value !== 'isolate';
   const nextHoveredEdgeIds = shouldHighlightEdges
@@ -743,11 +1070,18 @@ const applyHoverEdgeHighlight = (nodeId: string | null): void => {
 };
 
 const setSelectedNode = (node: DependencyNode | null) => {
+  if (node !== null || selectedNode.value !== null) {
+    clearHoverState();
+  }
+
   graphStore['setSelectedNode'](node);
   interaction.setSelectionNodeId(node?.id ?? null);
   if (!node) {
     interaction.setCameraMode('free');
     removeSelectedElements();
+  }
+  if (USE_CSS_SELECTION_HOVER) {
+    return;
   }
   // Debounce via rAF to coalesce rapid selection changes (keyboard nav)
   if (selectionHighlightRafId !== null) {
@@ -756,7 +1090,7 @@ const setSelectedNode = (node: DependencyNode | null) => {
   selectionHighlightRafId = requestAnimationFrame(() => {
     selectionHighlightRafId = null;
     applySelectionHighlight(node);
-    applyHoverEdgeHighlight(node ? null : hoveredNodeId);
+    applyHoverEdgeHighlight(node ? null : hoveredNodeId.value);
   });
 };
 
@@ -777,15 +1111,10 @@ const measureAllNodeDimensions = (
     return { nodes: layoutedNodes, hasChanges: false };
   }
 
-  // Batch-collect ALL rendered node DOM elements in a single querySelectorAll.
-  const nodeElements = document.querySelectorAll<HTMLElement>('.vue-flow__node');
-  const elementMap = new Map<string, HTMLElement>();
-  nodeElements.forEach((el) => {
-    const id = el.dataset['id'];
-    if (id) {
-      elementMap.set(id, el);
-    }
-  });
+  // Keep a fresh snapshot from the observer-driven tracker and only fall back
+  // to direct DOM reads if a node has not been observed yet.
+  nodeDimensionTracker.refresh();
+  const fallbackElementMap = new Map<string, HTMLElement>();
 
   // Batch-read measurements in a single layout/reflow pass.
   const measurements = new Map<
@@ -801,13 +1130,35 @@ const measureAllNodeDimensions = (
   >();
 
   layoutedNodes.forEach((node) => {
-    const element = elementMap.get(node.id);
+    const tracked = nodeDimensionTracker.get(node.id);
+    if (tracked) {
+      measurements.set(node.id, {
+        width: tracked.width,
+        height: tracked.height,
+        headerH: tracked.headerHeight,
+        bodyH: tracked.bodyHeight,
+        subnodesH: tracked.subnodesHeight,
+        isContainer: isContainerNode(node),
+      });
+      return;
+    }
+
+    if (fallbackElementMap.size === 0) {
+      const nodeElements = document.querySelectorAll<HTMLElement>('.vue-flow__node');
+      nodeElements.forEach((el) => {
+        const id = el.dataset['id'];
+        if (id) {
+          fallbackElementMap.set(id, el);
+        }
+      });
+    }
+
+    const element = fallbackElementMap.get(node.id);
     if (!element) {
       return;
     }
 
-    const isContainer =
-      node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true;
+    const isContainer = isContainerNode(node);
 
     const measurement = {
       width: element.offsetWidth,
@@ -1228,7 +1579,7 @@ const handleFocusNode = async (nodeId: string): Promise<void> => {
     padding: 0.4,
   });
   syncViewportState();
-  onEdgeVirtualizationViewportChange();
+  requestEdgeVirtualizationViewportRecalc(true);
 };
 
 const getNodeDims = (n: DependencyNode): { w: number; h: number } => {
@@ -1452,7 +1803,7 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     nodes: Array.from(connectedNodeIds),
   });
   syncViewportState();
-  onEdgeVirtualizationViewportChange();
+  requestEdgeVirtualizationViewportRecalc(true);
 };
 
 const nodeActions = {
@@ -1533,7 +1884,7 @@ const handleWheel = (event: WheelEvent): void => {
   if (intent === 'trackpadScroll') {
     panBy({ x: -event.deltaX, y: -event.deltaY });
     syncViewportState();
-    onEdgeVirtualizationViewportChange();
+    requestEdgeVirtualizationViewportRecalc();
     return;
   }
 
@@ -1552,7 +1903,7 @@ const handleReturnToOverview = async (): Promise<void> => {
     startIsolateAnimation();
     await fitView({ duration: 350, padding: 0.1 });
     syncViewportState();
-    onEdgeVirtualizationViewportChange();
+    requestEdgeVirtualizationViewportRecalc(true);
     return;
   }
 
@@ -1671,6 +2022,10 @@ const handleLayoutChange = async (config: {
 };
 
 const handleSearchResult = (result: SearchResult) => {
+  if (PERF_MARKS_ENABLED) {
+    performance.mark('search-highlight-start');
+  }
+
   const matchingNodeIds = new Set(result.nodes.map((n) => n.id));
   const pathNodeIds = new Set(result.path?.map((n) => n.id) ?? []);
   const matchingEdgeIds = new Set(result.edges.map((e) => e.id));
@@ -1782,6 +2137,11 @@ const handleSearchResult = (result: SearchResult) => {
   searchHighlightState.matchingNodeIds = new Set(matchingNodeIds);
   searchHighlightState.pathNodeIds = new Set(pathNodeIds);
   searchHighlightState.matchingEdgeIds = new Set(matchingEdgeIds);
+
+  if (PERF_MARKS_ENABLED) {
+    performance.mark('search-highlight-end');
+    measurePerformance('search-highlight-apply', 'search-highlight-start', 'search-highlight-end');
+  }
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
@@ -1821,7 +2181,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
             padding: 0.5,
           }).then(() => {
             syncViewportState();
-            onEdgeVirtualizationViewportChange();
+            requestEdgeVirtualizationViewportRecalc(true);
           });
         }
       }
@@ -1838,7 +2198,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
 };
 
 // --- Hover z-index elevation (direct DOM for performance) ---
-let hoveredNodeId: string | null = null;
 const HOVER_Z = '9999';
 
 const elevateNodeAndChildren = (nodeId: string): void => {
@@ -1881,20 +2240,29 @@ const restoreHoverZIndex = (nodeId: string): void => {
   }
 };
 
+const clearHoverState = (): void => {
+  if (hoveredNodeId.value) {
+    restoreHoverZIndex(hoveredNodeId.value);
+    hoveredNodeId.value = null;
+  }
+  applyHoverEdgeHighlight(null);
+};
+
 const onNodeMouseEnter = ({ node }: { node: unknown }): void => {
   const entered = node as DependencyNode;
-  if (entered.type === 'package') {
-    if (hoveredNodeId) {
-      restoreHoverZIndex(hoveredNodeId);
-      applyHoverEdgeHighlight(null);
-      hoveredNodeId = null;
-    }
+  if (selectedNode.value !== null) {
+    clearHoverState();
     return;
   }
-  if (hoveredNodeId && hoveredNodeId !== entered.id) {
-    restoreHoverZIndex(hoveredNodeId);
+
+  if (entered.type === 'package') {
+    clearHoverState();
+    return;
   }
-  hoveredNodeId = entered.id;
+  if (hoveredNodeId.value && hoveredNodeId.value !== entered.id) {
+    restoreHoverZIndex(hoveredNodeId.value);
+  }
+  hoveredNodeId.value = entered.id;
   elevateNodeAndChildren(entered.id);
   applyHoverEdgeHighlight(entered.id);
 };
@@ -1904,26 +2272,27 @@ const onNodeMouseLeave = ({ node }: { node: unknown }): void => {
   if (left.type === 'package') {
     return;
   }
-  if (hoveredNodeId === left.id) {
-    restoreHoverZIndex(left.id);
-    applyHoverEdgeHighlight(null);
-    hoveredNodeId = null;
+  if (hoveredNodeId.value === left.id) {
+    clearHoverState();
   }
 };
 
 onMounted(() => {
   graphRootRef.value?.addEventListener('wheel', handleWheel, { passive: false });
   document.addEventListener('keydown', handleKeyDown);
+  if (graphRootRef.value) {
+    nodeDimensionTracker.start(graphRootRef.value);
+  }
 
   // Cache the .vue-flow container element and its rect to avoid DOM queries in handleWheel
   const flowContainer = graphRootRef.value?.querySelector('.vue-flow') as HTMLElement | null;
   if (flowContainer) {
     cachedFlowContainer = flowContainer;
     cachedContainerRect = flowContainer.getBoundingClientRect();
-    resizeObserver = new ResizeObserver(() => {
+    flowResizeObserver = new ResizeObserver(() => {
       cachedContainerRect = cachedFlowContainer?.getBoundingClientRect() ?? null;
     });
-    resizeObserver.observe(flowContainer);
+    flowResizeObserver.observe(flowContainer);
   }
   syncViewportState();
 });
@@ -1941,19 +2310,20 @@ onUnmounted(() => {
     cancelAnimationFrame(viewportSyncRafId);
     viewportSyncRafId = null;
   }
+  if (edgeViewportRecalcTimer) {
+    clearTimeout(edgeViewportRecalcTimer);
+    edgeViewportRecalcTimer = null;
+  }
   stopFps();
   graphRootRef.value?.removeEventListener('wheel', handleWheel);
   document.removeEventListener('keydown', handleKeyDown);
-  resizeObserver?.disconnect();
-  resizeObserver = null;
+  flowResizeObserver?.disconnect();
+  flowResizeObserver = null;
+  nodeDimensionTracker.stop();
   cachedFlowContainer = null;
   cachedContainerRect = null;
   disposeEdgeVirtualization();
-  if (hoveredNodeId) {
-    restoreHoverZIndex(hoveredNodeId);
-    hoveredNodeId = null;
-  }
-  applyHoverEdgeHighlight(null);
+  clearHoverState();
   if (layoutProcessor) {
     layoutProcessor.dispose();
     layoutProcessor = null;
@@ -1978,9 +2348,12 @@ onUnmounted(() => {
     role="application"
     aria-label="TypeScript dependency graph visualization"
     tabindex="0"
+    :data-selection-hover-mode="USE_CSS_SELECTION_HOVER ? 'css' : 'store'"
+    :data-selected-node-id="selectedNode?.id ?? ''"
+    :data-hovered-node-id="hoveredNodeId ?? ''"
   >
     <VueFlow
-      :nodes="nodes"
+      :nodes="visualNodes"
       :edges="renderedEdges"
       :node-types="nodeTypes as any"
       :fit-view-on-init="false"
@@ -2109,7 +2482,10 @@ onUnmounted(() => {
       :edges="edges"
       :nodes="nodes"
       :viewport="viewportState"
+      :highlighted-edge-ids="highlightedEdgeIdList"
+      :dim-non-highlighted="true"
       class="absolute inset-0"
+      @canvas-unavailable="handleCanvasUnavailable"
     />
     <NodeDetails
       v-if="selectedNode"
@@ -2177,9 +2553,9 @@ onUnmounted(() => {
 
 .dependency-graph-root :deep(.vue-flow__node.selection-target .base-node-container) {
   border-color: #22d3ee !important;
-  box-shadow:
-    0 0 0 2px rgba(34, 211, 238, 0.34),
-    0 3px 10px rgba(0, 0, 0, 0.18) !important;
+  outline: 2px solid rgba(34, 211, 238, 0.34);
+  outline-offset: 0;
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.22) !important;
 }
 
 /* Nodes connected to the selection */
@@ -2189,9 +2565,9 @@ onUnmounted(() => {
 
 .dependency-graph-root :deep(.vue-flow__node.selection-connected .base-node-container) {
   border-color: rgba(34, 211, 238, 0.5) !important;
-  box-shadow:
-    0 0 0 1px rgba(34, 211, 238, 0.28),
-    0 2px 8px rgba(0, 0, 0, 0.14) !important;
+  outline: 1px solid rgba(34, 211, 238, 0.26);
+  outline-offset: 0;
+  box-shadow: 0 1px 4px rgba(2, 6, 23, 0.16) !important;
 }
 
 /* Dimmed non-connected nodes */
@@ -2222,7 +2598,7 @@ onUnmounted(() => {
   }
 }
 
-/* Hovered node's connected edges are raised and subtly pulsed. */
+/* Hovered node's connected edges are raised and thickened. */
 .dependency-graph-root :deep(.vue-flow__edge.edge-hover-highlighted) {
   z-index: 12 !important;
 }
