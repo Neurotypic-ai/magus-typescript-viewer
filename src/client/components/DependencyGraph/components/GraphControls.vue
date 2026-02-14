@@ -28,8 +28,6 @@ const emit = defineEmits<{
   'toggle-degree-weighted-layers': [value: boolean];
   'toggle-show-fps': [value: boolean];
   'toggle-fps-advanced': [value: boolean];
-  'toggle-hub-aggregation': [value: boolean];
-  'hub-threshold-change': [value: number];
 }>();
 
 const graphSettings = useGraphSettings();
@@ -141,13 +139,6 @@ const handleFpsAdvancedToggle = (checked: boolean) => {
   emit('toggle-fps-advanced', checked);
 };
 
-const handleHubAggregationToggle = (checked: boolean) => {
-  emit('toggle-hub-aggregation', checked);
-};
-
-const handleHubThresholdChange = (value: number) => {
-  emit('hub-threshold-change', value);
-};
 </script>
 
 <template>
@@ -388,38 +379,6 @@ const handleHubThresholdChange = (value: number) => {
             />
             <span class="text-xs">Highlight global orphans</span>
           </label>
-        </div>
-      </div>
-
-      <!-- Edge Reduction -->
-      <div class="mt-4 pt-4 border-t border-border-default">
-        <h4 class="text-sm font-semibold text-text-primary mb-2">Edge Reduction</h4>
-        <div class="flex flex-col gap-2">
-          <label
-            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-          >
-            <input
-              type="checkbox"
-              class="cursor-pointer accent-primary-main"
-              :checked="graphSettings.hubAggregationEnabled"
-              @change="(e) => handleHubAggregationToggle((e.target as HTMLInputElement).checked)"
-            />
-            <span class="text-xs">Hub aggregation</span>
-          </label>
-          <div v-if="graphSettings.hubAggregationEnabled" class="ml-5">
-            <label class="text-xs text-text-secondary block mb-1">
-              Fan-in threshold: {{ graphSettings.hubAggregationThreshold }}
-            </label>
-            <input
-              type="range"
-              min="3"
-              max="20"
-              step="1"
-              :value="graphSettings.hubAggregationThreshold"
-              @change="(e) => handleHubThresholdChange(Number((e.target as HTMLInputElement).value))"
-              class="w-full cursor-pointer accent-primary-main"
-            />
-          </div>
         </div>
       </div>
 

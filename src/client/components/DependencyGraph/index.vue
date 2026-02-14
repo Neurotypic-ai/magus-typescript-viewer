@@ -1610,7 +1610,7 @@ const initializeGraph = async () => {
     hideTestFiles: graphSettings.hideTestFiles,
     memberNodeMode: graphSettings.memberNodeMode,
     highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-    hubAggregationEnabled: graphSettings.hubAggregationEnabled,
+    hubAggregationEnabled: graphSettings.clusterByFolder,
     hubAggregationThreshold: graphSettings.hubAggregationThreshold,
   });
 
@@ -1968,7 +1968,7 @@ provide(FOLDER_COLLAPSE_ACTIONS_KEY, {
       hideTestFiles: graphSettings.hideTestFiles,
       memberNodeMode: graphSettings.memberNodeMode,
       highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-      hubAggregationEnabled: graphSettings.hubAggregationEnabled,
+      hubAggregationEnabled: graphSettings.clusterByFolder,
       hubAggregationThreshold: graphSettings.hubAggregationThreshold,
     });
 
@@ -2141,16 +2141,6 @@ const handleShowFpsToggle = (value: boolean): void => {
 
 const handleFpsAdvancedToggle = (value: boolean): void => {
   graphSettings.setShowFpsAdvanced(value);
-};
-
-const handleHubAggregationToggle = async (value: boolean): Promise<void> => {
-  graphSettings.setHubAggregationEnabled(value);
-  await requestGraphInitialization();
-};
-
-const handleHubThresholdChange = async (value: number): Promise<void> => {
-  graphSettings.setHubAggregationThreshold(value);
-  await requestGraphInitialization();
 };
 
 const handleNodesChange = (changes: NodeChange[]) => {
@@ -2427,7 +2417,7 @@ const onNodeMouseEnter = ({ node }: { node: unknown }): void => {
     return;
   }
 
-  if (entered.type === 'package') {
+  if (entered.type === 'package' || entered.type === 'group') {
     clearHoverState();
     return;
   }
@@ -2441,7 +2431,7 @@ const onNodeMouseEnter = ({ node }: { node: unknown }): void => {
 
 const onNodeMouseLeave = ({ node }: { node: unknown }): void => {
   const left = node as DependencyNode;
-  if (left.type === 'package') {
+  if (left.type === 'package' || left.type === 'group') {
     return;
   }
   if (hoveredNodeId.value === left.id) {
@@ -2567,8 +2557,6 @@ onUnmounted(() => {
         @toggle-degree-weighted-layers="handleDegreeWeightedLayersToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
-        @toggle-hub-aggregation="handleHubAggregationToggle"
-        @hub-threshold-change="handleHubThresholdChange"
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <MiniMap

@@ -258,11 +258,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
-  function setHubAggregationEnabled(value: boolean): void {
-    hubAggregationEnabled.value = value;
-    persistSettings();
-  }
-
   function setHubAggregationThreshold(value: number): void {
     hubAggregationThreshold.value = value;
     persistSettings();
@@ -309,9 +304,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     toggleModuleMemberType,
     collapsedFolderIds,
     toggleFolderCollapsed,
-    hubAggregationEnabled,
     hubAggregationThreshold,
-    setHubAggregationEnabled,
     setHubAggregationThreshold,
   };
 });

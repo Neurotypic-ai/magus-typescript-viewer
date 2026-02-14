@@ -13,10 +13,11 @@ import { Handle, Position } from '@vue-flow/core';
 
 <style scoped>
 .hub-node {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(148, 163, 184, 0.3);
+  width: 1px;
+  height: 1px;
+  background: transparent;
+  opacity: 0;
   pointer-events: none;
+  overflow: visible;
 }
 </style>

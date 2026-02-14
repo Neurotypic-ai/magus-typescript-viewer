@@ -13,13 +13,6 @@ const label = computed(() => props.data?.label ?? 'Folder');
 const isCollapsed = computed(() => props.data?.['isCollapsed'] === true);
 const childCount = computed(() => (props.data?.['childCount'] as number | undefined) ?? 0);
 
-const displayLabel = computed(() => {
-  if (isCollapsed.value && childCount.value > 0) {
-    return `${label.value} (${childCount.value})`;
-  }
-  return label.value;
-});
-
 function toggleCollapse() {
   folderActions?.toggleFolderCollapsed(props.id);
 }
@@ -41,7 +34,8 @@ function toggleCollapse() {
       >
         <span class="collapse-icon">{{ isCollapsed ? '\u25B6' : '\u25BC' }}</span>
       </button>
-      <div class="group-node-label" :title="displayLabel">{{ displayLabel }}</div>
+      <div class="group-node-label" :title="label">{{ label }}</div>
+      <span v-if="isCollapsed && childCount > 0" class="folder-badge">{{ childCount }}</span>
     </div>
     <template v-if="isCollapsed">
       <Handle type="target" :position="Position.Left" />
@@ -63,17 +57,18 @@ function toggleCollapse() {
   background: rgba(30, 41, 59, 0.25);
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
   overflow: visible;
-  padding: 28px 10px 10px 10px;
+  padding: 8px 8px 8px 8px;
 }
 
 .group-node-collapsed {
   min-width: 180px;
   min-height: 48px;
-  border: 2px solid rgba(96, 165, 250, 0.7);
-  background: rgba(30, 41, 59, 0.5);
+  border: 3px solid rgba(96, 165, 250, 0.85);
+  background: rgba(30, 41, 59, 0.65);
   box-shadow:
-    inset 0 0 0 1px rgba(96, 165, 250, 0.2),
-    0 0 8px rgba(96, 165, 250, 0.15);
+    inset 0 0 0 1px rgba(96, 165, 250, 0.3),
+    0 0 12px rgba(96, 165, 250, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.3);
   padding: 8px 10px;
 }
 
@@ -134,5 +129,20 @@ function toggleCollapse() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.folder-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: rgba(96, 165, 250, 0.3);
+  color: rgba(96, 165, 250, 0.95);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 </style>

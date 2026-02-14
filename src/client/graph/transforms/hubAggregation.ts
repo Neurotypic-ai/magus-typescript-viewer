@@ -82,9 +82,8 @@ export function aggregateHighFanInEdges(
     const hubId = `hub:${targetId}`;
     const sourceIds = incoming.map((e) => e.source);
 
-    // Find the target node to inherit its parentNode (keeps hub near target in layout)
-    const targetNode = nodes.find((n) => n.id === targetId);
-
+    // Hub nodes are top-level (no parentNode) so ELK positions them at the
+    // folder boundary rather than inside the folder.
     hubNodes.push({
       id: hubId,
       type: 'hub',
@@ -95,7 +94,6 @@ export function aggregateHighFanInEdges(
       },
       selectable: false,
       focusable: false,
-      ...(targetNode?.parentNode ? { parentNode: targetNode.parentNode } : {}),
     } as DependencyNode);
 
     hubMeta.set(hubId, {

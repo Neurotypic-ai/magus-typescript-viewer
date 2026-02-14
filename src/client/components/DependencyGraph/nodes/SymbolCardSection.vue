@@ -50,20 +50,22 @@ const memberCount = (symbol: FormattedSymbol) =>
         <span :class="['symbol-card-badge', badgeClass]">{{ badgeText }}</span>
         <span class="symbol-card-toggle">{{ isExpanded(symbol.id) ? '\u2212' : '+' }}</span>
       </button>
-      <div v-if="isExpanded(symbol.id)" class="symbol-card-body">
-        <MemberListSection
-          title="Properties"
-          :members="symbol.formattedProperties"
-          :symbol-id="symbol.id"
-          key-prefix="prop"
-        />
-        <MemberListSection
-          title="Methods"
-          :members="symbol.formattedMethods"
-          :symbol-id="symbol.id"
-          key-prefix="method"
-          :append-parens="true"
-        />
+      <div :class="['symbol-card-grid', { 'symbol-card-grid--open': isExpanded(symbol.id) }]">
+        <div class="symbol-card-body">
+          <MemberListSection
+            title="Properties"
+            :members="symbol.formattedProperties"
+            :symbol-id="symbol.id"
+            key-prefix="prop"
+          />
+          <MemberListSection
+            title="Methods"
+            :members="symbol.formattedMethods"
+            :symbol-id="symbol.id"
+            key-prefix="method"
+            :append-parens="true"
+          />
+        </div>
       </div>
     </div>
   </CollapsibleSection>
@@ -127,11 +129,30 @@ const memberCount = (symbol: FormattedSymbol) =>
   flex-shrink: 0;
 }
 
+.symbol-card-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.symbol-card-grid--open {
+  grid-template-rows: 1fr;
+}
+
 .symbol-card-body {
-  padding: 0.35rem 0.5rem 0.45rem;
+  overflow: hidden;
+  min-height: 0;
+  padding: 0 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  opacity: 0;
+  transition: opacity 200ms 80ms ease-out;
+}
+
+.symbol-card-grid--open > .symbol-card-body {
+  padding: 0.35rem 0.5rem 0.45rem;
+  opacity: 1;
 }
 
 .type-class {

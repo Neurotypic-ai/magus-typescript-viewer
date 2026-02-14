@@ -303,17 +303,22 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       const hasChildren = childIdsByParent.has(elkNode.id);
       if (hasChildren) {
         const sourceNode = inputNodeById.get(elkNode.id);
+        const isGroupNode = sourceNode?.type === 'group';
         const layoutInsets = sourceNode?.data?.layoutInsets as { top?: number } | undefined;
-        const topInset = typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : 120;
+        const defaultTopInset = isGroupNode ? 40 : 120;
+        const topInset = typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : defaultTopInset;
+        const sidePadding = isGroupNode ? 16 : 24;
+        const spacing = isGroupNode ? '16' : '24';
 
         elkNode.layoutOptions = {
           // Child nodes inside containers should stack vertically regardless of global direction.
           'elk.algorithm': 'layered',
           'elk.direction': 'DOWN',
           // Reserve top area for node header/body/subnodes labels.
-          'elk.padding': `[top=${String(topInset)},left=24,bottom=24,right=24]`,
-          'elk.spacing.nodeNode': '24',
-          'elk.layered.spacing.nodeNodeBetweenLayers': '24',
+          // Group (folder) nodes use tighter padding since they only have a small label header.
+          'elk.padding': `[top=${String(topInset)},left=${String(sidePadding)},bottom=${String(sidePadding)},right=${String(sidePadding)}]`,
+          'elk.spacing.nodeNode': spacing,
+          'elk.layered.spacing.nodeNodeBetweenLayers': spacing,
           'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
         };
       }
@@ -543,9 +548,23 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
     // Post-processing: ensure children don't overlap and parents contain all children.
     // ELK should handle this, but we add a safety net.
-    const CONTAINER_HORIZONTAL_PADDING = 48;
-    const DEFAULT_CONTAINER_TOP_PADDING = 120; // space for header/body content
-    const CONTAINER_BOTTOM_PADDING = 48;
+    // Group (folder) nodes use tighter padding than module containers.
+    const MODULE_HORIZONTAL_PADDING = 48;
+    const MODULE_TOP_PADDING = 120; // space for header/body content
+    const MODULE_BOTTOM_PADDING = 48;
+    const GROUP_HORIZONTAL_PADDING = 24;
+    const GROUP_TOP_PADDING = 40; // small label header only
+    const GROUP_BOTTOM_PADDING = 24;
+
+    function getContainerPadding(parentId: string) {
+      const parentNode = inputNodeById.get(parentId);
+      const isGroup = parentNode?.type === 'group';
+      return {
+        horizontal: isGroup ? GROUP_HORIZONTAL_PADDING : MODULE_HORIZONTAL_PADDING,
+        top: isGroup ? GROUP_TOP_PADDING : MODULE_TOP_PADDING,
+        bottom: isGroup ? GROUP_BOTTOM_PADDING : MODULE_BOTTOM_PADDING,
+      };
+    }
 
     // Group nodes by parent so we only compare siblings in the sweep.
     const nodesByParent = new Map<string, string[]>();
@@ -597,14 +616,15 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       childIdsByParent.forEach((childIds, parentId) => {
         const parentSourceNode = inputNodeById.get(parentId);
         const layoutInsets = parentSourceNode?.data?.layoutInsets as { top?: number } | undefined;
+        const padding = getContainerPadding(parentId);
         const containerTopPadding =
-          typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : DEFAULT_CONTAINER_TOP_PADDING;
+          typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : padding.top;
 
         for (const childId of childIds) {
           const box = positionMap.get(childId);
           if (!box) continue;
           if (box.y < containerTopPadding) box.y = containerTopPadding;
-          if (box.x < CONTAINER_HORIZONTAL_PADDING) box.x = CONTAINER_HORIZONTAL_PADDING;
+          if (box.x < padding.horizontal) box.x = padding.horizontal;
         }
       });
     }
@@ -628,11 +648,12 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
         if (childBoxes.length === 0) continue;
 
+        const padding = getContainerPadding(parentId);
         const maxRight = Math.max(...childBoxes.map((box) => box.x + box.width));
         const maxBottom = Math.max(...childBoxes.map((box) => box.y + box.height));
 
-        parentBox.width = Math.max(parentBox.width, maxRight + CONTAINER_HORIZONTAL_PADDING);
-        parentBox.height = Math.max(parentBox.height, maxBottom + CONTAINER_BOTTOM_PADDING);
+        parentBox.width = Math.max(parentBox.width, maxRight + padding.horizontal);
+        parentBox.height = Math.max(parentBox.height, maxBottom + padding.bottom);
       }
     }
 
