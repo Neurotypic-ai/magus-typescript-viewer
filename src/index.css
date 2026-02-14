@@ -229,10 +229,7 @@ body {
   overflow: visible !important;
 }
 
-/* Elevate hovered node above the edges layer so its content is readable. */
-.vue-flow__node:hover {
-  z-index: 1000 !important;
-}
+/* Hover z-index elevation is handled in DependencyGraph/index.vue. */
 
 /* Browser-native off-screen culling: skip layout/paint/composite for nodes
    outside the viewport.  contain-intrinsic-size prevents layout thrash. */

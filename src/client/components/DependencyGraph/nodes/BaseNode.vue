@@ -5,8 +5,8 @@ import { computed, inject, toRef } from 'vue';
 
 import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, NODE_ACTIONS_KEY } from './utils';
 
-import type { NodeActions } from './utils';
 import type { DependencyProps } from '../types';
+import type { NodeActions } from './utils';
 
 interface BaseNodeProps extends DependencyProps {
   minWidth?: string;
@@ -91,6 +91,7 @@ const containerClasses = computed(() => ({
   'base-node-elevated': isSelected.value,
   'base-node-container--container': inferredContainer.value,
   'base-node-orphan-global': isOrphanGlobal.value,
+  'base-node-no-hover': props.type === 'package',
 }));
 
 const containerStyle = computed(() => {
@@ -109,14 +110,10 @@ const containerStyle = computed(() => {
     zIndex: props.zIndex,
   };
 });
-
 </script>
 
 <template>
-  <div
-    :class="containerClasses"
-    :style="containerStyle"
-  >
+  <div :class="containerClasses" :style="containerStyle">
     <NodeToolbar v-if="isSelected" :is-visible="true" :position="Position.Right" align="start" :offset="8">
       <div :class="['node-toolbar-actions', { 'node-toolbar-visible': isSelected }]">
         <button
@@ -203,6 +200,10 @@ const containerStyle = computed(() => {
   border-color: var(--border-hover);
 }
 
+.base-node-container.base-node-no-hover:not(.base-node-selected):hover {
+  border-color: var(--border-default);
+}
+
 .base-node-container.base-node-elevated {
   box-shadow: 0 10px 18px rgba(0, 0, 0, 0.2);
   border-color: var(--border-hover);
@@ -216,9 +217,10 @@ const containerStyle = computed(() => {
 }
 
 .base-node-container.base-node-orphan-global {
-  outline: 2px solid #ef4444;
-  outline-offset: -1px;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.38);
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px #ef4444,
+    0 0 8px rgba(239, 68, 68, 0.38);
 }
 
 .base-node-handle {
@@ -298,5 +300,4 @@ const containerStyle = computed(() => {
   color: var(--text-secondary);
   opacity: 0.75;
 }
-
 </style>

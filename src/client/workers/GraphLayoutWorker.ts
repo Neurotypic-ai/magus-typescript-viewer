@@ -24,6 +24,7 @@ interface LayoutConfig {
   nodesep: number;
   edgesep: number;
   ranksep: number;
+  degreeWeightedLayers?: boolean;
   theme: GraphTheme;
   animationDuration?: number;
 }
@@ -339,6 +340,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       id: string;
       sources: string[];
       targets: string[];
+      layoutOptions?: Record<string, string>;
     }
 
     // Create ELK edges with correct format (only non-containment edges for layout)
@@ -354,6 +356,73 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       layoutOptions: Record<string, string>;
       children: ElkNode[];
       edges: ElkEdge[];
+    }
+
+    // --- Degree-weighted layer constraints ---
+    // When enabled, nodes with more outgoing edges gravitate toward the A-side (start)
+    // and nodes with more incoming edges gravitate toward the B-side (end) of the layout.
+    if (config.algorithm === 'layered' && config.degreeWeightedLayers) {
+      const PRIORITY_SCALE = 10;
+
+      // Compute in-degree and out-degree from non-containment edges
+      const inDegree = new Map<string, number>();
+      const outDegree = new Map<string, number>();
+
+      for (const edge of validEdges) {
+        outDegree.set(edge.source, (outDegree.get(edge.source) ?? 0) + 1);
+        inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
+      }
+
+      // Compute flow score per node: 1.0 = pure source, 0.0 = pure sink, 0.5 = balanced/isolated
+      const flowScore = new Map<string, number>();
+      for (const nodeId of nodeIdSet) {
+        const inD = inDegree.get(nodeId) ?? 0;
+        const outD = outDegree.get(nodeId) ?? 0;
+        const total = inD + outD;
+        flowScore.set(nodeId, total > 0 ? outD / total : 0.5);
+      }
+
+      // Apply layerConstraint to root nodes only (children participate in parent sub-layout)
+      for (const elkNode of rootNodes) {
+        const score = flowScore.get(elkNode.id) ?? 0.5;
+        const outD = outDegree.get(elkNode.id) ?? 0;
+        const inD = inDegree.get(elkNode.id) ?? 0;
+
+        if (score === 1.0 && outD > 0) {
+          elkNode.layoutOptions = {
+            ...elkNode.layoutOptions,
+            'elk.layered.layering.layerConstraint': 'FIRST',
+          };
+        } else if (score === 0.0 && inD > 0) {
+          elkNode.layoutOptions = {
+            ...elkNode.layoutOptions,
+            'elk.layered.layering.layerConstraint': 'LAST',
+          };
+        }
+      }
+
+      // Apply per-edge priorities based on flow score delta:
+      // - priority.direction: edges from sources→sinks point in the layout direction (cycle breaking)
+      // - priority.shortness: edges between very different roles are kept short (layering phase)
+      for (const elkEdge of elkEdges) {
+        const sourceId = elkEdge.sources[0];
+        const targetId = elkEdge.targets[0];
+        if (!sourceId || !targetId) continue;
+
+        const srcScore = flowScore.get(sourceId) ?? 0.5;
+        const tgtScore = flowScore.get(targetId) ?? 0.5;
+
+        const dirPriority = Math.max(0, Math.round((srcScore - tgtScore) * PRIORITY_SCALE));
+        const delta = Math.abs(srcScore - tgtScore);
+        const shortness = Math.max(1, Math.round(delta * PRIORITY_SCALE));
+
+        const edgeOpts: Record<string, string> = { ...elkEdge.layoutOptions };
+        if (dirPriority > 0) {
+          edgeOpts['elk.layered.priority.direction'] = String(dirPriority);
+        }
+        edgeOpts['elk.layered.priority.shortness'] = String(shortness);
+        elkEdge.layoutOptions = edgeOpts;
+      }
     }
 
     // Compute an average node size to inform spacing parameters for non-layered algorithms.
@@ -383,7 +452,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       layoutOptions['elk.layered.spacing.nodeNodeBetweenLayers'] = String(config.ranksep);
       layoutOptions['elk.layered.spacing.edgeNodeBetweenLayers'] = String(config.edgesep);
       layoutOptions['elk.layered.nodePlacement.strategy'] = 'BRANDES_KOEPF';
-      layoutOptions['elk.layered.nodePlacement.bk.fixedAlignment'] = 'BALANCED';
+      layoutOptions['elk.layered.nodePlacement.bk.fixedAlignment'] = 'NONE';
       layoutOptions['elk.layered.layering.strategy'] = 'NETWORK_SIMPLEX';
       layoutOptions['elk.layered.cycleBreaking.strategy'] = 'GREEDY';
       layoutOptions['elk.layered.crossingMinimization.strategy'] = 'LAYER_SWEEP';

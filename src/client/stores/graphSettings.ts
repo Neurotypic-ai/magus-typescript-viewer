@@ -38,6 +38,7 @@ interface PersistedGraphSettings {
   hideTestFiles?: boolean;
   memberNodeMode?: MemberNodeMode;
   highlightOrphanGlobal?: boolean;
+  degreeWeightedLayers?: boolean;
   showFps?: boolean;
   showFpsAdvanced?: boolean;
 }
@@ -50,6 +51,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   const hideTestFiles = ref<boolean>(true);
   const memberNodeMode = ref<MemberNodeMode>('compact');
   const highlightOrphanGlobal = ref<boolean>(false);
+  const degreeWeightedLayers = ref<boolean>(false);
   const showFps = ref<boolean>(false);
   const showFpsAdvanced = ref<boolean>(false);
 
@@ -110,6 +112,9 @@ export const useGraphSettings = defineStore('graphSettings', () => {
       if (typeof parsed.highlightOrphanGlobal === 'boolean') {
         highlightOrphanGlobal.value = parsed.highlightOrphanGlobal;
       }
+      if (typeof parsed.degreeWeightedLayers === 'boolean') {
+        degreeWeightedLayers.value = parsed.degreeWeightedLayers;
+      }
       if (typeof parsed.showFps === 'boolean') {
         showFps.value = parsed.showFps;
       }
@@ -135,6 +140,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
         hideTestFiles: hideTestFiles.value,
         memberNodeMode: memberNodeMode.value,
         highlightOrphanGlobal: highlightOrphanGlobal.value,
+        degreeWeightedLayers: degreeWeightedLayers.value,
         showFps: showFps.value,
         showFpsAdvanced: showFpsAdvanced.value,
       };
@@ -199,6 +205,11 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
+  function setDegreeWeightedLayers(value: boolean): void {
+    degreeWeightedLayers.value = value;
+    persistSettings();
+  }
+
   function setShowFps(value: boolean): void {
     showFps.value = value;
     persistSettings();
@@ -219,6 +230,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     hideTestFiles,
     memberNodeMode,
     highlightOrphanGlobal,
+    degreeWeightedLayers,
     showFps,
     showFpsAdvanced,
     relationshipAvailability,
@@ -232,6 +244,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     setHideTestFiles,
     setMemberNodeMode,
     setHighlightOrphanGlobal,
+    setDegreeWeightedLayers,
     setShowFps,
     setShowFpsAdvanced,
   };

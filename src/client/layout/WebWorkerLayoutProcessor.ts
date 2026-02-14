@@ -18,6 +18,7 @@ export interface LayoutConfig {
   nodesep: number;
   edgesep: number;
   ranksep: number;
+  degreeWeightedLayers: boolean;
   theme: GraphTheme;
   animationDuration?: number;
 }
@@ -54,6 +55,7 @@ export interface WebWorkerLayoutConfig {
   nodeSpacing?: number;
   rankSpacing?: number;
   edgeSpacing?: number;
+  degreeWeightedLayers?: boolean;
   theme?: GraphTheme;
   animationDuration?: number;
 }
@@ -154,6 +156,7 @@ export class WebWorkerLayoutProcessor {
       nodesep: mergedConfig.nodeSpacing ?? 100,
       ranksep: mergedConfig.rankSpacing ?? 150,
       edgesep: mergedConfig.edgeSpacing ?? 50,
+      degreeWeightedLayers: mergedConfig.degreeWeightedLayers ?? false,
       theme: mergedConfig.theme ?? defaultLayoutConfig.theme,
       animationDuration: mergedConfig.animationDuration,
     } as LayoutConfig;

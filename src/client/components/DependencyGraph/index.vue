@@ -25,8 +25,8 @@ import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
 import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, ISOLATE_EXPAND_ALL_KEY, NODE_ACTIONS_KEY } from './nodes/utils';
 import { useEdgeVirtualization } from './useEdgeVirtualization';
-import { useGraphInteractionController } from './useGraphInteractionController';
 import { useFpsCounter } from './useFpsCounter';
+import { useGraphInteractionController } from './useGraphInteractionController';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 
 import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
@@ -63,8 +63,7 @@ const HIGH_EDGE_MARKER_THRESHOLD = 1800;
 const LOW_DETAIL_EDGE_ZOOM_THRESHOLD = 0.35;
 const EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD = 3000;
 const NODE_VISIBLE_RENDER_THRESHOLD = 450;
-const EDGE_RENDERER_MODE =
-  (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'svg';
+const EDGE_RENDERER_MODE = (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'svg';
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.5 };
 const MIN_GRAPH_ZOOM = 0.1;
 const MAX_GRAPH_ZOOM = 2;
@@ -206,8 +205,9 @@ const applyZoomAtPointer = (
 };
 
 const isHybridCanvasMode = computed(() => {
-  return EDGE_RENDERER_MODE === 'hybrid-canvas-experimental' &&
-    edges.value.length >= EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD;
+  return (
+    EDGE_RENDERER_MODE === 'hybrid-canvas-experimental' && edges.value.length >= EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD
+  );
 });
 
 const renderedEdges = computed(() => (isHybridCanvasMode.value ? [] : edges.value));
@@ -375,15 +375,18 @@ const waitForNextPaint = async (): Promise<void> => {
   });
 };
 
-function computeLayoutCacheKey(
-  nodes: DependencyNode[],
-  edgeList: GraphEdge[],
-  config: typeof layoutConfig
-): string {
+function computeLayoutCacheKey(nodes: DependencyNode[], edgeList: GraphEdge[], config: typeof layoutConfig): string {
   // Build a fast hash from node/edge IDs + layout direction/algorithm
-  const nodeIds = nodes.map((n) => n.id).sort().join(',');
-  const edgeIds = edgeList.map((e) => e.id).sort().join(',');
-  return `${config.algorithm}:${config.direction}:${config.nodeSpacing}:${config.rankSpacing}:${config.edgeSpacing}:${nodeIds.length}:${edgeIds.length}:${simpleHash(nodeIds)}:${simpleHash(edgeIds)}`;
+  const nodeIds = nodes
+    .map((n) => n.id)
+    .sort()
+    .join(',');
+  const edgeIds = edgeList
+    .map((e) => e.id)
+    .sort()
+    .join(',');
+  const dwl = graphSettings.degreeWeightedLayers ? 1 : 0;
+  return `${config.algorithm}:${config.direction}:${config.nodeSpacing}:${config.rankSpacing}:${config.edgeSpacing}:dwl${dwl}:${nodeIds.length}:${edgeIds.length}:${simpleHash(nodeIds)}:${simpleHash(edgeIds)}`;
 }
 
 function simpleHash(str: string): number {
@@ -472,6 +475,7 @@ const getLayoutProcessorConfig = () => ({
   nodeSpacing: layoutConfig.nodeSpacing,
   rankSpacing: layoutConfig.rankSpacing,
   edgeSpacing: layoutConfig.edgeSpacing,
+  degreeWeightedLayers: graphSettings.degreeWeightedLayers,
   theme: graphTheme,
   animationDuration: 150,
 });
@@ -541,6 +545,52 @@ const stripEdgeClass = (edge: GraphEdge): GraphEdge => {
   return { ...edge, class: '' } as GraphEdge;
 };
 
+const EDGE_HOVER_CLASS = 'edge-hover-highlighted';
+const EDGE_HOVER_Z_INDEX = 12;
+const EDGE_HOVER_BASE_STROKE_VAR = '--edge-hover-base-stroke';
+const EDGE_HOVER_FALLBACK_STROKE = '#404040';
+
+const normalizeEdgeClass = (edgeClass: GraphEdge['class']): string => {
+  if (typeof edgeClass !== 'string') {
+    return '';
+  }
+  return edgeClass.trim();
+};
+
+const getEdgeClassTokens = (edgeClass: GraphEdge['class']): Set<string> => {
+  const normalizedClass = normalizeEdgeClass(edgeClass);
+  if (!normalizedClass) {
+    return new Set<string>();
+  }
+  return new Set(normalizedClass.split(/\s+/).filter((token) => token.length > 0));
+};
+
+const edgeClassTokensToString = (tokens: Set<string>): string => {
+  return [...tokens].join(' ');
+};
+
+const toEdgeStyleRecord = (style: GraphEdge['style']): Record<string, string | number | undefined> | undefined => {
+  if (typeof style !== 'object' || style === null) {
+    return undefined;
+  }
+  return style as Record<string, string | number | undefined>;
+};
+
+const getEdgeBaseStroke = (edge: GraphEdge): string => {
+  const edgeStyle = toEdgeStyleRecord(edge.style);
+  const styleStroke = edgeStyle?.['stroke'];
+  if (typeof styleStroke === 'string' && styleStroke.length > 0) {
+    return styleStroke;
+  }
+
+  const themedStroke = getEdgeStyle(toDependencyEdgeKind(edge.data?.type))['stroke'];
+  if (typeof themedStroke === 'string' && themedStroke.length > 0) {
+    return themedStroke;
+  }
+
+  return EDGE_HOVER_FALLBACK_STROKE;
+};
+
 const initializeLayoutProcessor = () => {
   layoutRequestVersion += 1;
 
@@ -603,6 +653,95 @@ const applySelectionHighlight = (selected: DependencyNode | null): void => {
   graphStore['updateEdgesById'](edgeUpdates);
 };
 
+let hoveredEdgeIds = new Set<string>();
+const hoveredEdgePrevZIndexById = new Map<string, number | undefined>();
+
+const applyHoverEdgeHighlight = (nodeId: string | null): void => {
+  const shouldHighlightEdges =
+    nodeId !== null && selectedNode.value === null && interaction.scopeMode.value !== 'isolate';
+  const nextHoveredEdgeIds = shouldHighlightEdges
+    ? (selectionAdjacencyByNodeId.value.get(nodeId)?.connectedEdgeIds ?? new Set<string>())
+    : new Set<string>();
+
+  const impactedEdgeIds = new Set<string>([...hoveredEdgeIds, ...nextHoveredEdgeIds]);
+  if (impactedEdgeIds.size === 0) {
+    hoveredEdgeIds = nextHoveredEdgeIds;
+    if (nextHoveredEdgeIds.size === 0) {
+      hoveredEdgePrevZIndexById.clear();
+    }
+    return;
+  }
+
+  const edgeById = new Map(edges.value.map((edge) => [edge.id, edge]));
+  const edgeUpdates = new Map<string, GraphEdge>();
+
+  impactedEdgeIds.forEach((edgeId) => {
+    const edge = edgeById.get(edgeId);
+    if (!edge) {
+      hoveredEdgePrevZIndexById.delete(edgeId);
+      return;
+    }
+
+    const shouldHover = nextHoveredEdgeIds.has(edgeId);
+    if (shouldHover && !hoveredEdgePrevZIndexById.has(edgeId)) {
+      hoveredEdgePrevZIndexById.set(edgeId, edge.zIndex);
+    }
+
+    const classTokens = getEdgeClassTokens(edge.class);
+    if (shouldHover) {
+      classTokens.add(EDGE_HOVER_CLASS);
+    } else {
+      classTokens.delete(EDGE_HOVER_CLASS);
+    }
+
+    const nextClass = edgeClassTokensToString(classTokens);
+    const previousZIndex = hoveredEdgePrevZIndexById.get(edgeId);
+    const nextZIndex = shouldHover ? EDGE_HOVER_Z_INDEX : previousZIndex;
+    if (!shouldHover) {
+      hoveredEdgePrevZIndexById.delete(edgeId);
+    }
+
+    const classChanged = normalizeEdgeClass(edge.class) !== nextClass;
+    const zIndexChanged = edge.zIndex !== nextZIndex;
+    const currentStyle = toEdgeStyleRecord(edge.style);
+    let nextStyle = edge.style;
+    let styleChanged = false;
+
+    if (shouldHover) {
+      const baseStroke = getEdgeBaseStroke(edge);
+      const currentHoverBaseStroke = currentStyle?.[EDGE_HOVER_BASE_STROKE_VAR];
+      if (currentHoverBaseStroke !== baseStroke) {
+        nextStyle = {
+          ...(currentStyle ?? {}),
+          [EDGE_HOVER_BASE_STROKE_VAR]: baseStroke,
+        };
+        styleChanged = true;
+      }
+    } else if (currentStyle && EDGE_HOVER_BASE_STROKE_VAR in currentStyle) {
+      const styleWithoutHoverVar = { ...currentStyle };
+      delete styleWithoutHoverVar[EDGE_HOVER_BASE_STROKE_VAR];
+      nextStyle = Object.keys(styleWithoutHoverVar).length > 0 ? styleWithoutHoverVar : undefined;
+      styleChanged = true;
+    }
+
+    if (!classChanged && !zIndexChanged && !styleChanged) {
+      return;
+    }
+
+    edgeUpdates.set(edge.id, {
+      ...edge,
+      class: nextClass,
+      zIndex: nextZIndex,
+      style: nextStyle,
+    } as GraphEdge);
+  });
+
+  hoveredEdgeIds = new Set(nextHoveredEdgeIds);
+  if (edgeUpdates.size > 0) {
+    graphStore['updateEdgesById'](edgeUpdates);
+  }
+};
+
 const setSelectedNode = (node: DependencyNode | null) => {
   graphStore['setSelectedNode'](node);
   interaction.setSelectionNodeId(node?.id ?? null);
@@ -617,6 +756,7 @@ const setSelectedNode = (node: DependencyNode | null) => {
   selectionHighlightRafId = requestAnimationFrame(() => {
     selectionHighlightRafId = null;
     applySelectionHighlight(node);
+    applyHoverEdgeHighlight(node ? null : hoveredNodeId);
   });
 };
 
@@ -630,7 +770,9 @@ const reconcileSelectedNodeAfterStructuralChange = (updatedNodes: DependencyNode
   setSelectedNode(refreshedSelection);
 };
 
-const measureAllNodeDimensions = (layoutedNodes: DependencyNode[]): { nodes: DependencyNode[]; hasChanges: boolean } => {
+const measureAllNodeDimensions = (
+  layoutedNodes: DependencyNode[]
+): { nodes: DependencyNode[]; hasChanges: boolean } => {
   if (layoutedNodes.length === 0) {
     return { nodes: layoutedNodes, hasChanges: false };
   }
@@ -646,14 +788,17 @@ const measureAllNodeDimensions = (layoutedNodes: DependencyNode[]): { nodes: Dep
   });
 
   // Batch-read measurements in a single layout/reflow pass.
-  const measurements = new Map<string, {
-    width: number;
-    height: number;
-    headerH: number;
-    bodyH: number;
-    subnodesH: number;
-    isContainer: boolean;
-  }>();
+  const measurements = new Map<
+    string,
+    {
+      width: number;
+      height: number;
+      headerH: number;
+      bodyH: number;
+      subnodesH: number;
+      isContainer: boolean;
+    }
+  >();
 
   layoutedNodes.forEach((node) => {
     const element = elementMap.get(node.id);
@@ -661,7 +806,8 @@ const measureAllNodeDimensions = (layoutedNodes: DependencyNode[]): { nodes: Dep
       return;
     }
 
-    const isContainer = node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true;
+    const isContainer =
+      node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true;
 
     const measurement = {
       width: element.offsetWidth,
@@ -769,7 +915,11 @@ const collectNodesNeedingInternalsUpdate = (previous: DependencyNode[], next: De
       return;
     }
 
-    if (prev.sourcePosition !== node.sourcePosition || prev.targetPosition !== node.targetPosition || prev.parentNode !== node.parentNode) {
+    if (
+      prev.sourcePosition !== node.sourcePosition ||
+      prev.targetPosition !== node.targetPosition ||
+      prev.parentNode !== node.parentNode
+    ) {
       changedIds.push(node.id);
       return;
     }
@@ -780,9 +930,11 @@ const collectNodesNeedingInternalsUpdate = (previous: DependencyNode[], next: De
     const nextStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
 
     const prevWidth = prevMeasured?.width ?? toDimensionValue(prevStyle['width']) ?? toDimensionValue(prev.width) ?? 0;
-    const prevHeight = prevMeasured?.height ?? toDimensionValue(prevStyle['height']) ?? toDimensionValue(prev.height) ?? 0;
+    const prevHeight =
+      prevMeasured?.height ?? toDimensionValue(prevStyle['height']) ?? toDimensionValue(prev.height) ?? 0;
     const nextWidth = nextMeasured?.width ?? toDimensionValue(nextStyle['width']) ?? toDimensionValue(node.width) ?? 0;
-    const nextHeight = nextMeasured?.height ?? toDimensionValue(nextStyle['height']) ?? toDimensionValue(node.height) ?? 0;
+    const nextHeight =
+      nextMeasured?.height ?? toDimensionValue(nextStyle['height']) ?? toDimensionValue(node.height) ?? 0;
 
     if (Math.abs(prevWidth - nextWidth) > 1 || Math.abs(prevHeight - nextHeight) > 1) {
       changedIds.push(node.id);
@@ -1193,9 +1345,18 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   });
 
   const nodeById = new Map(sourceNodes.map((n) => [n.id, n]));
-  const inbound = [...inboundIds].filter((id) => !outboundIds.has(id)).map((id) => nodeById.get(id)!).filter(Boolean);
-  const outbound = [...outboundIds].filter((id) => !inboundIds.has(id)).map((id) => nodeById.get(id)!).filter(Boolean);
-  const bidirectional = [...inboundIds].filter((id) => outboundIds.has(id)).map((id) => nodeById.get(id)!).filter(Boolean);
+  const inbound = [...inboundIds]
+    .filter((id) => !outboundIds.has(id))
+    .map((id) => nodeById.get(id)!)
+    .filter(Boolean);
+  const outbound = [...outboundIds]
+    .filter((id) => !inboundIds.has(id))
+    .map((id) => nodeById.get(id)!)
+    .filter(Boolean);
+  const bidirectional = [...inboundIds]
+    .filter((id) => outboundIds.has(id))
+    .map((id) => nodeById.get(id)!)
+    .filter(Boolean);
 
   // Distribute bidirectional nodes to the smaller side for balance
   for (const node of bidirectional) {
@@ -1300,10 +1461,24 @@ const handleWheel = (event: WheelEvent): void => {
   if (!isMac.value) return;
 
   const intent = classifyWheelIntent(event, isMac.value);
-  const target = event.target as HTMLElement;
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
 
-  // Pinch-to-zoom: prevent browser page zoom everywhere, handle graph zoom ourselves
+  const insideGraphNode = Boolean(target.closest('.vue-flow__node'));
+  const overControlSurface = Boolean(target.closest('[data-graph-overlay-scrollable], .vue-flow__panel')) || (
+    !insideGraphNode &&
+    Boolean(target.closest('input, textarea, select, button, [role="slider"], [contenteditable="true"]'))
+  );
+
+  // Pinch-to-zoom should still zoom when over graph nodes, but not when
+  // interacting with control surfaces. Prevent default to avoid page zoom.
   if (intent === 'pinch') {
+    if (overControlSurface) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     const viewport = getViewport();
     const nextZoom = computeZoomFromDelta(viewport.zoom, event.deltaY, MAC_PINCH_ZOOM_SENSITIVITY);
@@ -1311,8 +1486,10 @@ const handleWheel = (event: WheelEvent): void => {
     return;
   }
 
-  // Allow normal scrolling inside scrollable overlay panels (e.g. NodeDetails)
-  if (target.closest('[data-graph-overlay-scrollable]')) return;
+  // Let overlays/controls manage their own wheel behavior.
+  if (overControlSurface) {
+    return;
+  }
 
   event.preventDefault();
 
@@ -1403,6 +1580,11 @@ const handleOrphanGlobalToggle = async (value: boolean) => {
   await requestGraphInitialization();
 };
 
+const handleDegreeWeightedLayersToggle = async (value: boolean) => {
+  graphSettings.setDegreeWeightedLayers(value);
+  await requestGraphInitialization();
+};
+
 const handleShowFpsToggle = (value: boolean): void => {
   graphSettings.setShowFps(value);
 };
@@ -1459,7 +1641,8 @@ const handleSearchResult = (result: SearchResult) => {
   const hasPath = pathNodeIds.size > 0;
 
   const shouldRefreshAllNodes =
-    hasResults !== searchHighlightState.hasResults || (hasResults && searchHighlightState.hasResults && hasPath !== searchHighlightState.hasPath);
+    hasResults !== searchHighlightState.hasResults ||
+    (hasResults && searchHighlightState.hasResults && hasPath !== searchHighlightState.hasPath);
   const shouldRefreshAllEdges = hasResults !== searchHighlightState.hasResults;
 
   const nodeIdsToUpdate = new Set<string>();
@@ -1490,7 +1673,11 @@ const handleSearchResult = (result: SearchResult) => {
     const isOnPath = hasPath && pathNodeIds.has(node.id);
     const opacity = !hasResults ? 1 : hasPath ? (isOnPath ? 1 : 0.2) : isMatch ? 1 : 0.2;
     const borderWidth =
-      hasPath && isOnPath ? graphTheme.edges.sizes.width.selected : hasPath ? graphTheme.edges.sizes.width.default : undefined;
+      hasPath && isOnPath
+        ? graphTheme.edges.sizes.width.selected
+        : hasPath
+          ? graphTheme.edges.sizes.width.default
+          : undefined;
     const currentStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
     const currentOpacity = toDimensionValue(currentStyle['opacity']) ?? 1;
     const currentBorderWidth = currentStyle['borderWidth'];
@@ -1659,17 +1846,30 @@ const restoreHoverZIndex = (nodeId: string): void => {
 
 const onNodeMouseEnter = ({ node }: { node: unknown }): void => {
   const entered = node as DependencyNode;
+  if (entered.type === 'package') {
+    if (hoveredNodeId) {
+      restoreHoverZIndex(hoveredNodeId);
+      applyHoverEdgeHighlight(null);
+      hoveredNodeId = null;
+    }
+    return;
+  }
   if (hoveredNodeId && hoveredNodeId !== entered.id) {
     restoreHoverZIndex(hoveredNodeId);
   }
   hoveredNodeId = entered.id;
   elevateNodeAndChildren(entered.id);
+  applyHoverEdgeHighlight(entered.id);
 };
 
 const onNodeMouseLeave = ({ node }: { node: unknown }): void => {
   const left = node as DependencyNode;
+  if (left.type === 'package') {
+    return;
+  }
   if (hoveredNodeId === left.id) {
     restoreHoverZIndex(left.id);
+    applyHoverEdgeHighlight(null);
     hoveredNodeId = null;
   }
 };
@@ -1716,6 +1916,7 @@ onUnmounted(() => {
     restoreHoverZIndex(hoveredNodeId);
     hoveredNodeId = null;
   }
+  applyHoverEdgeHighlight(null);
   if (layoutProcessor) {
     layoutProcessor.dispose();
     layoutProcessor = null;
@@ -1781,6 +1982,7 @@ onUnmounted(() => {
         @toggle-hide-test-files="handleHideTestFilesToggle"
         @member-node-mode-change="handleMemberNodeModeChange"
         @toggle-orphan-global="handleOrphanGlobalToggle"
+        @toggle-degree-weighted-layers="handleDegreeWeightedLayersToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
       />
@@ -1810,7 +2012,10 @@ onUnmounted(() => {
 
       <Panel v-if="graphSettings.showFps" position="bottom-center" class="fps-panel">
         <div class="fps-shell" :class="{ 'fps-shell-advanced': graphSettings.showFpsAdvanced }">
-          <div class="fps-counter" :class="{ 'fps-low': fps < 30, 'fps-ok': fps >= 30 && fps < 55, 'fps-good': fps >= 55 }">
+          <div
+            class="fps-counter"
+            :class="{ 'fps-low': fps < 30, 'fps-ok': fps >= 30 && fps < 55, 'fps-good': fps >= 55 }"
+          >
             {{ fps }} <span class="fps-label">FPS</span>
           </div>
           <template v-if="graphSettings.showFpsAdvanced">
@@ -1840,13 +2045,7 @@ onUnmounted(() => {
                 role="img"
                 aria-label="Real-time FPS trend"
               >
-                <line
-                  x1="0"
-                  :y1="fpsTargetLineY"
-                  :x2="FPS_CHART_WIDTH"
-                  :y2="fpsTargetLineY"
-                  class="fps-chart-target"
-                />
+                <line x1="0" :y1="fpsTargetLineY" :x2="FPS_CHART_WIDTH" :y2="fpsTargetLineY" class="fps-chart-target" />
                 <polyline v-if="fpsChartPoints" :points="fpsChartPoints" class="fps-chart-line" />
               </svg>
               <div class="fps-chart-caption">Last {{ fpsStats.sampleCount }} samples</div>
@@ -1974,6 +2173,28 @@ onUnmounted(() => {
 /* Dimmed non-connected edges */
 .dependency-graph-root :deep(.vue-flow__edge.edge-selection-dimmed .vue-flow__edge-path) {
   opacity: 0.1 !important;
+}
+
+@keyframes edge-hover-pulse {
+  0%,
+  100% {
+    stroke: var(--edge-hover-base-stroke, #404040);
+  }
+  50% {
+    stroke: #facc15;
+  }
+}
+
+/* Hovered node's connected edges are raised and subtly pulsed. */
+.dependency-graph-root :deep(.vue-flow__edge.edge-hover-highlighted) {
+  z-index: 12 !important;
+}
+
+.dependency-graph-root :deep(.vue-flow__edge.edge-hover-highlighted .vue-flow__edge-path) {
+  stroke-width: 2.8px !important;
+  stroke: var(--edge-hover-base-stroke, #404040);
+  stroke-opacity: 1;
+  animation: edge-hover-pulse 1.4s ease-in-out infinite;
 }
 
 /* ── Node Toolbar (teleported outside node DOM) ── */
@@ -2119,9 +2340,7 @@ onUnmounted(() => {
   height: 3.5rem;
   border-radius: 0.4rem;
   border: 1px solid rgba(100, 116, 139, 0.45);
-  background:
-    linear-gradient(to top, rgba(34, 211, 238, 0.08), rgba(34, 211, 238, 0.01)),
-    rgba(15, 23, 42, 0.88);
+  background: linear-gradient(to top, rgba(34, 211, 238, 0.08), rgba(34, 211, 238, 0.01)), rgba(15, 23, 42, 0.88);
 }
 
 .fps-chart-target {

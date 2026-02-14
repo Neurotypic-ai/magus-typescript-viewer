@@ -6,6 +6,7 @@ export interface LayoutConfig {
   nodeSpacing?: number;
   rankSpacing?: number;
   edgeSpacing?: number;
+  degreeWeightedLayers?: boolean;
 
   // Margins and padding
   margins?: {

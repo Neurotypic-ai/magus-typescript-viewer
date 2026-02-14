@@ -23,6 +23,7 @@ const emit = defineEmits<{
   'toggle-hide-test-files': [value: boolean];
   'member-node-mode-change': [value: 'compact' | 'graph'];
   'toggle-orphan-global': [value: boolean];
+  'toggle-degree-weighted-layers': [value: boolean];
   'toggle-show-fps': [value: boolean];
   'toggle-fps-advanced': [value: boolean];
 }>();
@@ -111,6 +112,10 @@ const handleOrphanGlobalToggle = (checked: boolean) => {
   emit('toggle-orphan-global', checked);
 };
 
+const handleDegreeWeightedLayersToggle = (checked: boolean) => {
+  emit('toggle-degree-weighted-layers', checked);
+};
+
 const handleShowFpsToggle = (checked: boolean) => {
   emit('toggle-show-fps', checked);
 };
@@ -181,6 +186,21 @@ const handleFpsAdvancedToggle = (checked: boolean) => {
             {{ dir }}
           </button>
         </div>
+      </div>
+
+      <!-- Degree-Weighted Layers (layered algorithm only) -->
+      <div v-if="layoutAlgorithm === 'layered'" class="mt-3">
+        <label
+          class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+        >
+          <input
+            type="checkbox"
+            class="cursor-pointer accent-primary-main"
+            :checked="graphSettings.degreeWeightedLayers"
+            @change="(e) => handleDegreeWeightedLayersToggle((e.target as HTMLInputElement).checked)"
+          />
+          <span class="text-xs">Degree-weighted layers</span>
+        </label>
       </div>
 
       <!-- Spacing Controls -->
