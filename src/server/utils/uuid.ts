@@ -16,6 +16,7 @@ const NAMESPACES = {
   export: '33c9c31d-ccfa-47b8-8966-0bb08c51fc45',
   import: 'b9a7d20b-45ff-47a4-8eab-42cf921be416',
   typeAlias: '27473cf4-2ac7-477c-a903-01693f9bcf67',
+  variable: 'c8f3a1e7-5b2d-4a9c-b6e1-d4f7c2a8e3b5',
   moduleDefinition: 'e481a0e5-fac9-4ec1-bd87-7f871c807db5',
 } as const;
 
@@ -68,8 +69,11 @@ export const generateExportUUID = (moduleId: string, exportName: string): string
 export const generateImportUUID = (moduleId: string, importName: string): string =>
   generateUUID('import', `${moduleId}.${importName}`);
 
-export const generateTypeAliasUUID = (moduleId: string, name: string): string =>
-  generateUUID('typeAlias', `${moduleId}.${name}`);
+export const generateTypeAliasUUID = (packageId: string, moduleId: string, name: string): string =>
+  generateUUID('typeAlias', `${packageId}.${moduleId}.${name}`);
+
+export const generateVariableUUID = (packageId: string, moduleId: string, name: string): string =>
+  generateUUID('variable', `${packageId}.${moduleId}.${name}`);
 
 export const generateModuleDefinitionUUID = (moduleId: string, name: string): string =>
   generateUUID('moduleDefinition', `${moduleId}.${name}`);

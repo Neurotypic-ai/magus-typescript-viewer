@@ -8,6 +8,7 @@ import { Import, ImportSpecifier } from '../../shared/types/Import';
 import { createLogger } from '../../shared/utils/logger';
 import {
   generateClassUUID,
+  generateEnumUUID,
   generateExportUUID,
   generateFunctionUUID,
   generateImportUUID,
@@ -16,6 +17,8 @@ import {
   generateModuleUUID,
   generateParameterUUID,
   generatePropertyUUID,
+  generateTypeAliasUUID,
+  generateVariableUUID,
 } from '../utils/uuid';
 
 import type {
@@ -39,12 +42,15 @@ import type {
 
 import type { FileLocation } from '../../shared/types/FileLocation';
 import type { IClassCreateDTO } from '../db/repositories/ClassRepository';
+import type { IEnumCreateDTO } from '../db/repositories/EnumRepository';
 import type { IFunctionCreateDTO } from '../db/repositories/FunctionRepository';
 import type { IInterfaceCreateDTO } from '../db/repositories/InterfaceRepository';
 import type { IMethodCreateDTO } from '../db/repositories/MethodRepository';
 import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
+import type { ITypeAliasCreateDTO } from '../db/repositories/TypeAliasRepository';
+import type { IVariableCreateDTO } from '../db/repositories/VariableRepository';
 import type { ClassExtendsRef, ClassImplementsRef, InterfaceExtendsRef, ParseResult, SymbolUsageRef } from './ParseResult';
 
 export class ModuleParser {
@@ -117,6 +123,9 @@ export class ModuleParser {
         classes: [] as IClassCreateDTO[],
         interfaces: [] as IInterfaceCreateDTO[],
         functions: [] as IFunctionCreateDTO[],
+        typeAliases: [] as ITypeAliasCreateDTO[],
+        enums: [] as IEnumCreateDTO[],
+        variables: [] as IVariableCreateDTO[],
         methods: [] as IMethodCreateDTO[],
         properties: [] as IPropertyCreateDTO[],
         parameters: [] as IParameterCreateDTO[],
@@ -133,6 +142,9 @@ export class ModuleParser {
       this.parseClasses(this.moduleId, result);
       this.parseInterfaces(this.moduleId, result);
       this.parseFunctions(this.moduleId, result);
+      this.parseTypeAliases(this.moduleId, result);
+      this.parseEnums(this.moduleId, result);
+      this.parseVariables(this.moduleId, result);
 
       // Add collected imports and exports to result
       result.imports = Array.from(this.imports.values());
@@ -151,6 +163,9 @@ export class ModuleParser {
         modules: [await this.createModuleDTO(this.moduleId, relativePath)],
         classes: [],
         functions: [],
+        typeAliases: [],
+        enums: [],
+        variables: [],
         interfaces: [],
         methods: [],
         properties: [],
@@ -251,6 +266,12 @@ export class ModuleParser {
             }
           });
         } else if (path.node.declaration.type === 'FunctionDeclaration' && path.node.declaration.id) {
+          const name = this.getIdentifierName(path.node.declaration.id);
+          if (name) this.exports.add(name);
+        } else if (path.node.declaration.type === 'TSTypeAliasDeclaration') {
+          const name = this.getIdentifierName(path.node.declaration.id);
+          if (name) this.exports.add(name);
+        } else if (path.node.declaration.type === 'TSEnumDeclaration') {
           const name = this.getIdentifierName(path.node.declaration.id);
           if (name) this.exports.add(name);
         }
@@ -867,13 +888,16 @@ export class ModuleParser {
       if (!idName) return;
 
       const functionName = idName;
+
+      // Only capture exported functions — this tool visualizes public API surface
+      if (!this.exports.has(functionName)) return;
+
       const functionId = generateFunctionUUID(this.packageId, moduleId, functionName);
       if (seenFunctionIds.has(functionId)) {
         return;
       }
       seenFunctionIds.add(functionId);
 
-      const isExported = this.exports.has(functionName);
       const returnType = this.getReturnTypeFromNode(node);
 
       const functionDTO: IFunctionCreateDTO = {
@@ -883,7 +907,7 @@ export class ModuleParser {
         name: functionName,
         return_type: returnType,
         is_async: node.async ?? false,
-        is_exported: isExported,
+        is_exported: true,
       };
 
       result.functions.push(functionDTO);
@@ -938,5 +962,257 @@ export class ModuleParser {
       this.logger.error('Error getting return type:', error);
     }
     return 'void';
+  }
+
+  /**
+   * Parse module-level type alias declarations (type Foo = ...)
+   */
+  private parseTypeAliases(moduleId: string, result: ParseResult): void {
+    if (!this.root) return;
+
+    const seenIds = new Set<string>();
+
+    const captureTypeAlias = (node: ASTNode): void => {
+      if (node.type !== 'TSTypeAliasDeclaration') return;
+
+      const idName = this.getIdentifierName(node.id);
+      if (!idName) return;
+
+      // Only capture exported type aliases — this tool visualizes public API surface
+      if (!this.exports.has(idName)) return;
+
+      const aliasId = generateTypeAliasUUID(this.packageId, moduleId, idName);
+      if (seenIds.has(aliasId)) return;
+      seenIds.add(aliasId);
+
+      // Extract the type body as source text
+      let typeBody = 'unknown';
+      try {
+        typeBody = this.j(node.typeAnnotation as ASTNode).toSource().replace(/[\n\s]+/g, ' ').trim() || 'unknown';
+      } catch {
+        typeBody = 'unknown';
+      }
+
+      // Extract type parameters
+      let typeParametersJson: string | undefined;
+      try {
+        if ('typeParameters' in node && node.typeParameters) {
+          const params = node.typeParameters as ASTNode;
+          if ('params' in params && Array.isArray(params.params)) {
+            const names = (params.params as TSTypeParameter[])
+              .map((p) => this.getIdentifierName(p as unknown as Identifier))
+              .filter((n): n is string => n !== null);
+            if (names.length > 0) {
+              typeParametersJson = JSON.stringify(names);
+            }
+          }
+        }
+      } catch {
+        // ignore type parameter extraction failures
+      }
+
+      const dto: ITypeAliasCreateDTO = {
+        id: aliasId,
+        package_id: this.packageId,
+        module_id: moduleId,
+        name: idName,
+        type: typeBody,
+        type_parameters_json: typeParametersJson,
+      };
+
+      result.typeAliases.push(dto);
+    };
+
+    this.root.find(this.j.Program).forEach((programPath: ASTPath) => {
+      const programNode = programPath.node;
+      if (programNode.type !== 'Program') return;
+
+      programNode.body.forEach((statement) => {
+        try {
+          if (statement.type === 'TSTypeAliasDeclaration') {
+            captureTypeAlias(statement);
+            return;
+          }
+          if (
+            (statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration') &&
+            statement.declaration
+          ) {
+            captureTypeAlias(statement.declaration as ASTNode);
+          }
+        } catch (error) {
+          this.logger.error('Error parsing type alias:', error);
+        }
+      });
+    });
+  }
+
+  /**
+   * Parse module-level enum declarations
+   */
+  private parseEnums(moduleId: string, result: ParseResult): void {
+    if (!this.root) return;
+
+    const seenIds = new Set<string>();
+
+    const captureEnum = (node: ASTNode): void => {
+      if (node.type !== 'TSEnumDeclaration') return;
+
+      const idName = this.getIdentifierName(node.id);
+      if (!idName) return;
+
+      // Only capture exported enums — this tool visualizes public API surface
+      if (!this.exports.has(idName)) return;
+
+      const enumId = generateEnumUUID(this.packageId, moduleId, idName);
+      if (seenIds.has(enumId)) return;
+      seenIds.add(enumId);
+
+      // Extract member names
+      let membersJson: string | undefined;
+      try {
+        if ('members' in node && Array.isArray(node.members)) {
+          const memberNames = (node.members as ASTNode[])
+            .map((m) => {
+              if ('id' in m && m.id) {
+                const mid = m.id as ASTNode;
+                if (mid.type === 'Identifier' && 'name' in mid) {
+                  return mid.name;
+                }
+              }
+              return null;
+            })
+            .filter((n): n is string => n !== null);
+          if (memberNames.length > 0) {
+            membersJson = JSON.stringify(memberNames);
+          }
+        }
+      } catch {
+        // ignore member extraction failures
+      }
+
+      const dto: IEnumCreateDTO = {
+        id: enumId,
+        package_id: this.packageId,
+        module_id: moduleId,
+        name: idName,
+        members_json: membersJson,
+      };
+
+      result.enums.push(dto);
+    };
+
+    this.root.find(this.j.Program).forEach((programPath: ASTPath) => {
+      const programNode = programPath.node;
+      if (programNode.type !== 'Program') return;
+
+      programNode.body.forEach((statement) => {
+        try {
+          if (statement.type === 'TSEnumDeclaration') {
+            captureEnum(statement);
+            return;
+          }
+          if (
+            (statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration') &&
+            statement.declaration
+          ) {
+            captureEnum(statement.declaration as ASTNode);
+          }
+        } catch (error) {
+          this.logger.error('Error parsing enum:', error);
+        }
+      });
+    });
+  }
+
+  /**
+   * Parse module-level variable declarations (const, let, var)
+   */
+  private parseVariables(moduleId: string, result: ParseResult): void {
+    if (!this.root) return;
+
+    const seenIds = new Set<string>();
+
+    const captureVariableDeclaration = (node: ASTNode): void => {
+      if (node.type !== 'VariableDeclaration') return;
+
+      const kind = (node as { kind: string }).kind as 'const' | 'let' | 'var';
+
+      if (!('declarations' in node) || !Array.isArray(node.declarations)) return;
+
+      for (const declarator of node.declarations as ASTNode[]) {
+        try {
+          if (!('id' in declarator) || !declarator.id) continue;
+
+          const idNode = declarator.id as ASTNode;
+          // Skip destructured patterns — only capture simple identifiers
+          if (idNode.type !== 'Identifier') continue;
+
+          const varName = this.getIdentifierName(idNode);
+          if (!varName) continue;
+
+          // Only capture exported variables — this tool visualizes public API surface
+          if (!this.exports.has(varName)) continue;
+
+          const varId = generateVariableUUID(this.packageId, moduleId, varName);
+          if (seenIds.has(varId)) continue;
+          seenIds.add(varId);
+
+          // Extract type annotation
+          let varType: string | undefined;
+          if ('typeAnnotation' in idNode && idNode.typeAnnotation) {
+            varType = this.getTypeFromAnnotation(idNode.typeAnnotation as TSTypeAnnotation);
+          }
+
+          // Extract initializer source text (truncated to 500 chars)
+          let initializer: string | undefined;
+          try {
+            if ('init' in declarator && declarator.init) {
+              const initSource = this.j(declarator.init as ASTNode).toSource().replace(/[\n\s]+/g, ' ').trim();
+              if (initSource) {
+                initializer = initSource.length > 500 ? initSource.slice(0, 500) + '...' : initSource;
+              }
+            }
+          } catch {
+            // ignore initializer extraction failures
+          }
+
+          const dto: IVariableCreateDTO = {
+            id: varId,
+            package_id: this.packageId,
+            module_id: moduleId,
+            name: varName,
+            kind,
+            type: varType,
+            initializer,
+          };
+
+          result.variables.push(dto);
+        } catch (error) {
+          this.logger.error('Error parsing variable declarator:', error);
+        }
+      }
+    };
+
+    this.root.find(this.j.Program).forEach((programPath: ASTPath) => {
+      const programNode = programPath.node;
+      if (programNode.type !== 'Program') return;
+
+      programNode.body.forEach((statement) => {
+        try {
+          if (statement.type === 'VariableDeclaration') {
+            captureVariableDeclaration(statement);
+            return;
+          }
+          if (
+            (statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration') &&
+            statement.declaration
+          ) {
+            captureVariableDeclaration(statement.declaration as ASTNode);
+          }
+        } catch (error) {
+          this.logger.error('Error parsing variable:', error);
+        }
+      });
+    });
   }
 }

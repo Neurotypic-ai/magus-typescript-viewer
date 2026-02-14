@@ -8,6 +8,7 @@ import type {
   DependencyKind,
   DependencyNode,
   DependencyPackageGraph,
+  EmbeddedModuleEntity,
   EmbeddedSymbol,
   ExternalDependencyRef,
   ImportRef,
@@ -266,6 +267,59 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
     return symbols;
   };
 
+  // Collect module-level entities (functions, types, enums, consts, vars) for display.
+  const collectModuleEntities = (module: ModuleStructure): EmbeddedModuleEntity[] => {
+    const entities: EmbeddedModuleEntity[] = [];
+
+    if (module.functions) {
+      mapTypeCollection(module.functions, (fn) => {
+        entities.push({
+          id: fn.id,
+          type: 'function',
+          name: fn.name,
+          detail: `(): ${fn.returnType}`,
+          tags: fn.isAsync ? ['async'] : undefined,
+        });
+      });
+    }
+
+    if (module.typeAliases) {
+      mapTypeCollection(module.typeAliases, (ta) => {
+        const params = ta.typeParameters && ta.typeParameters.length > 0 ? `<${ta.typeParameters.join(', ')}>` : '';
+        entities.push({
+          id: ta.id,
+          type: 'type',
+          name: `${ta.name}${params}`,
+          detail: ta.type.length > 60 ? ta.type.slice(0, 60) + '...' : ta.type,
+        });
+      });
+    }
+
+    if (module.enums) {
+      mapTypeCollection(module.enums, (en) => {
+        entities.push({
+          id: en.id,
+          type: 'enum',
+          name: en.name,
+          detail: `${en.members.length.toString()} members`,
+        });
+      });
+    }
+
+    if (module.variables) {
+      mapTypeCollection(module.variables, (v) => {
+        entities.push({
+          id: v.id,
+          type: v.kind === 'const' ? 'const' : 'var',
+          name: v.name,
+          detail: v.type,
+        });
+      });
+    }
+
+    return entities;
+  };
+
   // Optionally create package nodes.
   if (includePackages) {
     data.packages.forEach((pkg) => {
@@ -337,6 +391,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
 
         // In compact mode, embed class/interface data as symbols.
         const embeddedSymbols = isCompactMode ? collectEmbeddedSymbols(module) : undefined;
+        const moduleEntities = collectModuleEntities(module);
 
         const moduleNode: DependencyNode = {
           id: module.id,
@@ -350,6 +405,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
             exports: getModuleExports(module),
             externalDependencies,
             ...(embeddedSymbols && embeddedSymbols.length > 0 ? { symbols: embeddedSymbols } : {}),
+            ...(moduleEntities.length > 0 ? { moduleEntities } : {}),
             isContainer: hasVueFlowChildren,
             ...(hasVueFlowChildren ? { layoutInsets: { top: 120 } } : {}),
             diagnostics: createDiagnostics({

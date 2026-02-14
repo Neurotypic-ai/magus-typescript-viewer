@@ -3,18 +3,24 @@ import { createLogger } from '../../shared/utils/logger';
 import { getApiBaseUrl } from '../config/api';
 
 import type { Class } from '../../shared/types/Class';
+import type { Enum } from '../../shared/types/Enum';
+import type { ModuleFunction } from '../../shared/types/Function';
 import type { Interface as SharedInterface } from '../../shared/types/Interface';
 import type { Method } from '../../shared/types/Method';
 import type { Module } from '../../shared/types/Module';
 import type { Package } from '../../shared/types/Package';
 import type { Property as SharedProperty } from '../../shared/types/Property';
 import type { SymbolReference } from '../../shared/types/SymbolReference';
+import type { TypeAlias } from '../../shared/types/TypeAlias';
 import type { TypeCollection } from '../../shared/types/TypeCollection';
+import type { Variable } from '../../shared/types/Variable';
 import type {
   ClassStructure,
   DependencyPackageGraph,
   DependencyRef,
+  EnumStructure,
   ExternalDependencyRef,
+  FunctionStructure,
   ImportRef,
   InterfaceStructure,
   ImportSpecifierRef,
@@ -22,6 +28,8 @@ import type {
   NodeMethod,
   NodeProperty,
   SymbolReferenceRef,
+  TypeAliasStructure,
+  VariableStructure,
 } from '../components/DependencyGraph/types';
 
 // Define the missing structures that are used in the class but not externally defined
@@ -256,6 +264,10 @@ export class GraphDataAssembler {
         symbol_references: this.transformSymbolReferenceCollection(this.typeCollectionToArray(module.symbol_references)),
         classes: this.transformClassCollection(this.typeCollectionToArray(module.classes)),
         interfaces: this.transformInterfaceCollection(this.typeCollectionToArray(module.interfaces)),
+        functions: this.transformFunctionCollection(this.typeCollectionToArray(module.functions)),
+        typeAliases: this.transformTypeAliasCollection(this.typeCollectionToArray(module.typeAliases)),
+        enums: this.transformEnumCollection(this.typeCollectionToArray(module.enums)),
+        variables: this.transformVariableCollection(this.typeCollectionToArray(module.variables)),
         created_at: typeof module.created_at === 'string' ? module.created_at : module.created_at.toISOString(),
       } as ModuleStructure;
     });
@@ -620,6 +632,58 @@ export class GraphDataAssembler {
         target_symbol_name: reference.target_symbol_name,
         access_kind: reference.access_kind,
         qualifier_name: reference.qualifier_name ?? undefined,
+      };
+    });
+    return result;
+  }
+
+  private transformFunctionCollection(functions: ModuleFunction[]): Record<string, FunctionStructure> {
+    const result: Record<string, FunctionStructure> = {};
+    functions.forEach((fn) => {
+      result[fn.id] = {
+        id: fn.id,
+        name: fn.name,
+        returnType: fn.return_type,
+        isAsync: fn.is_async,
+      };
+    });
+    return result;
+  }
+
+  private transformTypeAliasCollection(typeAliases: TypeAlias[]): Record<string, TypeAliasStructure> {
+    const result: Record<string, TypeAliasStructure> = {};
+    typeAliases.forEach((ta) => {
+      result[ta.id] = {
+        id: ta.id,
+        name: ta.name,
+        type: ta.type,
+        typeParameters: ta.typeParameters.length > 0 ? ta.typeParameters : undefined,
+      };
+    });
+    return result;
+  }
+
+  private transformEnumCollection(enums: Enum[]): Record<string, EnumStructure> {
+    const result: Record<string, EnumStructure> = {};
+    enums.forEach((en) => {
+      result[en.id] = {
+        id: en.id,
+        name: en.name,
+        members: en.members,
+      };
+    });
+    return result;
+  }
+
+  private transformVariableCollection(variables: Variable[]): Record<string, VariableStructure> {
+    const result: Record<string, VariableStructure> = {};
+    variables.forEach((v) => {
+      result[v.id] = {
+        id: v.id,
+        name: v.name,
+        type: v.type,
+        kind: v.kind,
+        initializer: v.initializer,
       };
     });
     return result;

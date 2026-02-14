@@ -4,6 +4,8 @@ import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
 import { RepositoryError } from './db/errors/RepositoryError';
 import { ClassRepository } from './db/repositories/ClassRepository';
+import { EnumRepository } from './db/repositories/EnumRepository';
+import { FunctionRepository } from './db/repositories/FunctionRepository';
 import { ImportRepository } from './db/repositories/ImportRepository';
 import { InterfaceRepository } from './db/repositories/InterfaceRepository';
 import { MethodRepository } from './db/repositories/MethodRepository';
@@ -11,6 +13,8 @@ import { ModuleRepository } from './db/repositories/ModuleRepository';
 import { PackageRepository } from './db/repositories/PackageRepository';
 import { PropertyRepository } from './db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from './db/repositories/SymbolReferenceRepository';
+import { TypeAliasRepository } from './db/repositories/TypeAliasRepository';
+import { VariableRepository } from './db/repositories/VariableRepository';
 
 import type { Package } from '../shared/types/Package';
 import type { TypeCollection } from '../shared/types/TypeCollection';
@@ -113,6 +117,8 @@ export class ApiServerResponder {
   private readonly readOnly: boolean;
 
   private readonly classRepository: ClassRepository;
+  private readonly enumRepository: EnumRepository;
+  private readonly functionRepository: FunctionRepository;
   private readonly interfaceRepository: InterfaceRepository;
   private readonly importRepository: ImportRepository;
   private readonly methodRepository: MethodRepository;
@@ -120,6 +126,8 @@ export class ApiServerResponder {
   private readonly packageRepository: PackageRepository;
   private readonly propertyRepository: PropertyRepository;
   private readonly symbolReferenceRepository: SymbolReferenceRepository;
+  private readonly typeAliasRepository: TypeAliasRepository;
+  private readonly variableRepository: VariableRepository;
 
   constructor(options: ApiServerResponderOptions = {}) {
     const dbPath = options.dbPath ?? 'typescript-viewer.duckdb';
@@ -130,6 +138,8 @@ export class ApiServerResponder {
 
     // Initialize repositories
     this.classRepository = new ClassRepository(this.dbAdapter);
+    this.enumRepository = new EnumRepository(this.dbAdapter);
+    this.functionRepository = new FunctionRepository(this.dbAdapter);
     this.interfaceRepository = new InterfaceRepository(this.dbAdapter);
     this.importRepository = new ImportRepository(this.dbAdapter);
     this.methodRepository = new MethodRepository(this.dbAdapter);
@@ -137,6 +147,8 @@ export class ApiServerResponder {
     this.packageRepository = new PackageRepository(this.dbAdapter);
     this.propertyRepository = new PropertyRepository(this.dbAdapter);
     this.symbolReferenceRepository = new SymbolReferenceRepository(this.dbAdapter);
+    this.typeAliasRepository = new TypeAliasRepository(this.dbAdapter);
+    this.variableRepository = new VariableRepository(this.dbAdapter);
   }
 
   async initialize(): Promise<void> {
@@ -245,13 +257,18 @@ export class ApiServerResponder {
       // Collect all module IDs upfront
       const moduleIds = modules.map((m) => m.id);
 
-      // Batch-fetch all classes and interfaces for all modules in one query each
-      const [allClasses, allInterfaces, allImports, allSymbolRefs] = await Promise.all([
-        this.classRepository.retrieveByModuleIds(moduleIds),
-        this.interfaceRepository.retrieveByModuleIds(moduleIds),
-        this.importRepository.retrieveByModuleIds(moduleIds),
-        this.symbolReferenceRepository.retrieveByModuleIds(moduleIds),
-      ]);
+      // Batch-fetch all entities for all modules in one query each
+      const [allClasses, allInterfaces, allFunctions, allTypeAliases, allEnums, allVariables, allImports, allSymbolRefs] =
+        await Promise.all([
+          this.classRepository.retrieveByModuleIds(moduleIds),
+          this.interfaceRepository.retrieveByModuleIds(moduleIds),
+          this.functionRepository.retrieveByModuleIds(moduleIds),
+          this.typeAliasRepository.retrieveByModuleIds(moduleIds),
+          this.enumRepository.retrieveByModuleIds(moduleIds),
+          this.variableRepository.retrieveByModuleIds(moduleIds),
+          this.importRepository.retrieveByModuleIds(moduleIds),
+          this.symbolReferenceRepository.retrieveByModuleIds(moduleIds),
+        ]);
 
       // Collect all class IDs and interface IDs for batch method/property retrieval
       const classIds = allClasses.map((c) => c.id);
@@ -296,6 +313,50 @@ export class ApiServerResponder {
           importsByModule.set(imp.module_id, arr);
         }
         arr.push(imp);
+      }
+
+      // Group functions by module_id
+      const functionsByModule = new Map<string, typeof allFunctions>();
+      for (const fn of allFunctions) {
+        let arr = functionsByModule.get(fn.module_id);
+        if (!arr) {
+          arr = [];
+          functionsByModule.set(fn.module_id, arr);
+        }
+        arr.push(fn);
+      }
+
+      // Group type aliases by module_id
+      const typeAliasesByModule = new Map<string, typeof allTypeAliases>();
+      for (const ta of allTypeAliases) {
+        let arr = typeAliasesByModule.get(ta.module_id);
+        if (!arr) {
+          arr = [];
+          typeAliasesByModule.set(ta.module_id, arr);
+        }
+        arr.push(ta);
+      }
+
+      // Group enums by module_id
+      const enumsByModule = new Map<string, typeof allEnums>();
+      for (const en of allEnums) {
+        let arr = enumsByModule.get(en.module_id);
+        if (!arr) {
+          arr = [];
+          enumsByModule.set(en.module_id, arr);
+        }
+        arr.push(en);
+      }
+
+      // Group variables by module_id
+      const variablesByModule = new Map<string, typeof allVariables>();
+      for (const v of allVariables) {
+        let arr = variablesByModule.get(v.module_id);
+        if (!arr) {
+          arr = [];
+          variablesByModule.set(v.module_id, arr);
+        }
+        arr.push(v);
       }
 
       // Group symbol references by module_id
@@ -368,6 +429,34 @@ export class ApiServerResponder {
             });
           }
 
+          // Build functions map for this module
+          const functions = new Map();
+          const moduleFunctions = functionsByModule.get(mod.id) ?? [];
+          for (const fn of moduleFunctions) {
+            functions.set(fn.id, fn);
+          }
+
+          // Build type aliases map for this module
+          const typeAliases = new Map();
+          const moduleTypeAliases = typeAliasesByModule.get(mod.id) ?? [];
+          for (const ta of moduleTypeAliases) {
+            typeAliases.set(ta.id, ta);
+          }
+
+          // Build enums map for this module
+          const enums = new Map();
+          const moduleEnums = enumsByModule.get(mod.id) ?? [];
+          for (const en of moduleEnums) {
+            enums.set(en.id, en);
+          }
+
+          // Build variables map for this module
+          const variables = new Map();
+          const moduleVariables = variablesByModule.get(mod.id) ?? [];
+          for (const v of moduleVariables) {
+            variables.set(v.id, v);
+          }
+
           // Build symbol references map for this module
           const symbolReferences = new Map();
           const moduleSymbolRefs = symbolRefsByModule.get(mod.id) ?? [];
@@ -390,8 +479,10 @@ export class ApiServerResponder {
               imports,
               mod.exports,
               mod.packages,
-              mod.typeAliases,
-              mod.enums,
+              typeAliases,
+              enums,
+              functions,
+              variables,
               mod.referencePaths,
               symbolReferences
             )

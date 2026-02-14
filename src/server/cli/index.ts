@@ -9,6 +9,7 @@ import { readPackage } from 'read-pkg';
 import { Database } from '../db/Database';
 import { DuckDBAdapter } from '../db/adapter/DuckDBAdapter';
 import { ClassRepository } from '../db/repositories/ClassRepository';
+import { EnumRepository } from '../db/repositories/EnumRepository';
 import { ExportRepository } from '../db/repositories/ExportRepository';
 import { FunctionRepository } from '../db/repositories/FunctionRepository';
 import { ImportRepository } from '../db/repositories/ImportRepository';
@@ -19,6 +20,8 @@ import { PackageRepository } from '../db/repositories/PackageRepository';
 import { ParameterRepository } from '../db/repositories/ParameterRepository';
 import { PropertyRepository } from '../db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from '../db/repositories/SymbolReferenceRepository';
+import { TypeAliasRepository } from '../db/repositories/TypeAliasRepository';
+import { VariableRepository } from '../db/repositories/VariableRepository';
 import { PackageParser } from '../parsers/PackageParser';
 import { generateRelationshipUUID } from '../utils/uuid';
 
@@ -226,6 +229,9 @@ program
         export: new ExportRepository(adapter),
         interface: new InterfaceRepository(adapter),
         function: new FunctionRepository(adapter),
+        typeAlias: new TypeAliasRepository(adapter),
+        enum: new EnumRepository(adapter),
+        variable: new VariableRepository(adapter),
         import: new ImportRepository(adapter),
         method: new MethodRepository(adapter),
         parameter: new ParameterRepository(adapter),
@@ -262,6 +268,15 @@ program
 
         // Batch-insert functions
         await repositories.function.createBatch(dedupeById(parseResult.functions));
+
+        // Batch-insert type aliases
+        await repositories.typeAlias.createBatch(dedupeById(parseResult.typeAliases));
+
+        // Batch-insert enums
+        await repositories.enum.createBatch(dedupeById(parseResult.enums));
+
+        // Batch-insert variables
+        await repositories.variable.createBatch(dedupeById(parseResult.variables));
 
         // Batch-insert methods
         await repositories.method.createBatch(dedupeById(parseResult.methods));
@@ -482,6 +497,10 @@ program
       console.log(chalk.gray('- Modules found:'), parseResult.modules.length);
       console.log(chalk.gray('- Classes found:'), parseResult.classes.length);
       console.log(chalk.gray('- Interfaces found:'), parseResult.interfaces.length);
+      console.log(chalk.gray('- Functions found:'), parseResult.functions.length);
+      console.log(chalk.gray('- Type aliases found:'), parseResult.typeAliases.length);
+      console.log(chalk.gray('- Enums found:'), parseResult.enums.length);
+      console.log(chalk.gray('- Variables found:'), parseResult.variables.length);
       console.log(chalk.gray('- Methods found:'), parseResult.methods.length);
       console.log(chalk.gray('- Properties found:'), parseResult.properties.length);
       console.log(chalk.gray('- Parameters found:'), parseResult.parameters.length);

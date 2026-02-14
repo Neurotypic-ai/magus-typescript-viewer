@@ -12,6 +12,7 @@ import { ModuleParser } from './ModuleParser';
 import type { Export } from '../../shared/types/Export';
 import type { Import } from '../../shared/types/Import';
 import type { IClassCreateDTO } from '../db/repositories/ClassRepository';
+import type { IEnumCreateDTO } from '../db/repositories/EnumRepository';
 import type { IFunctionCreateDTO } from '../db/repositories/FunctionRepository';
 import type { IInterfaceCreateDTO } from '../db/repositories/InterfaceRepository';
 import type { IMethodCreateDTO } from '../db/repositories/MethodRepository';
@@ -20,6 +21,8 @@ import type { IPackageCreateDTO } from '../db/repositories/PackageRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
 import type { ISymbolReferenceCreateDTO } from '../db/repositories/SymbolReferenceRepository';
+import type { ITypeAliasCreateDTO } from '../db/repositories/TypeAliasRepository';
+import type { IVariableCreateDTO } from '../db/repositories/VariableRepository';
 import type { ParseResult, SymbolUsageRef } from './ParseResult';
 
 interface PackageDependencies {
@@ -445,6 +448,9 @@ export class PackageParser {
     const classes: IClassCreateDTO[] = [];
     const interfaces: IInterfaceCreateDTO[] = [];
     const functions: IFunctionCreateDTO[] = [];
+    const typeAliases: ITypeAliasCreateDTO[] = [];
+    const enums: IEnumCreateDTO[] = [];
+    const variables: IVariableCreateDTO[] = [];
     const methods: IMethodCreateDTO[] = [];
     const properties: IPropertyCreateDTO[] = [];
     const parameters: IParameterCreateDTO[] = [];
@@ -476,6 +482,9 @@ export class PackageParser {
       classes.push(...moduleResult.classes);
       interfaces.push(...moduleResult.interfaces);
       functions.push(...moduleResult.functions);
+      typeAliases.push(...moduleResult.typeAliases);
+      enums.push(...moduleResult.enums);
+      variables.push(...moduleResult.variables);
       methods.push(...moduleResult.methods);
       moduleResult.properties.forEach((property) => properties.push(property));
       moduleResult.parameters.forEach((parameter) => parameters.push(parameter));
@@ -535,6 +544,9 @@ export class PackageParser {
     const uniqueClasses = this.uniqueById(classes);
     const uniqueInterfaces = this.uniqueById(interfaces);
     const uniqueFunctions = this.uniqueById(functions);
+    const uniqueTypeAliases = this.uniqueById(typeAliases);
+    const uniqueEnums = this.uniqueById(enums);
+    const uniqueVariables = this.uniqueById(variables);
     const uniqueMethods = this.uniqueById(methods);
     const uniqueProperties = this.uniqueById(properties);
     const uniqueParameters = this.uniqueById(parameters);
@@ -551,6 +563,9 @@ export class PackageParser {
       classes: uniqueClasses,
       interfaces: uniqueInterfaces,
       functions: uniqueFunctions,
+      typeAliases: uniqueTypeAliases,
+      enums: uniqueEnums,
+      variables: uniqueVariables,
       methods: uniqueMethods,
       properties: uniqueProperties,
       parameters: uniqueParameters,

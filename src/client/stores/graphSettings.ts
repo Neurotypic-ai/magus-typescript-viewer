@@ -15,7 +15,10 @@ const GRAPH_SETTINGS_CACHE_KEY = 'v1:typescript-viewer-graph-settings';
 
 type RelationshipType = (typeof DEFAULT_RELATIONSHIP_TYPES)[number];
 type NodeTypeFilter = (typeof DEFAULT_NODE_TYPES)[number] | 'class' | 'interface' | 'package';
+export type ModuleMemberType = 'function' | 'type' | 'enum' | 'const' | 'var';
 type MemberNodeMode = 'compact' | 'graph';
+
+export const DEFAULT_MODULE_MEMBER_TYPES: ModuleMemberType[] = ['function', 'type', 'enum', 'const', 'var'];
 
 export interface RelationshipAvailability {
   available: boolean;
@@ -41,6 +44,7 @@ interface PersistedGraphSettings {
   degreeWeightedLayers?: boolean;
   showFps?: boolean;
   showFpsAdvanced?: boolean;
+  enabledModuleMemberTypes?: string[];
 }
 
 export const useGraphSettings = defineStore('graphSettings', () => {
@@ -54,6 +58,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   const degreeWeightedLayers = ref<boolean>(false);
   const showFps = ref<boolean>(false);
   const showFpsAdvanced = ref<boolean>(false);
+  const enabledModuleMemberTypes = ref<string[]>([...DEFAULT_MODULE_MEMBER_TYPES]);
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     const enabledNodeTypeSet = new Set(enabledNodeTypes.value);
@@ -121,6 +126,9 @@ export const useGraphSettings = defineStore('graphSettings', () => {
       if (typeof parsed.showFpsAdvanced === 'boolean') {
         showFpsAdvanced.value = parsed.showFpsAdvanced;
       }
+      if (Array.isArray(parsed.enabledModuleMemberTypes)) {
+        enabledModuleMemberTypes.value = uniqueStrings(parsed.enabledModuleMemberTypes);
+      }
     } catch {
       // Ignore persisted settings parse failures.
     }
@@ -143,6 +151,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
         degreeWeightedLayers: degreeWeightedLayers.value,
         showFps: showFps.value,
         showFpsAdvanced: showFpsAdvanced.value,
+        enabledModuleMemberTypes: enabledModuleMemberTypes.value,
       };
       localStorage.setItem(GRAPH_SETTINGS_CACHE_KEY, JSON.stringify(payload));
     } catch {
@@ -220,6 +229,16 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
+  function toggleModuleMemberType(type: ModuleMemberType, enabled: boolean): void {
+    if (enabled) {
+      enabledModuleMemberTypes.value = uniqueStrings([...enabledModuleMemberTypes.value, type]);
+      persistSettings();
+      return;
+    }
+    enabledModuleMemberTypes.value = enabledModuleMemberTypes.value.filter((t) => t !== type);
+    persistSettings();
+  }
+
   loadSettings();
 
   return {
@@ -247,5 +266,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     setDegreeWeightedLayers,
     setShowFps,
     setShowFpsAdvanced,
+    enabledModuleMemberTypes,
+    toggleModuleMemberType,
   };
 });

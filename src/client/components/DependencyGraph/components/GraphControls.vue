@@ -2,7 +2,9 @@
 import { Panel } from '@vue-flow/core';
 import { ref } from 'vue';
 
-import { DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../../../stores/graphSettings';
+import { DEFAULT_MODULE_MEMBER_TYPES, DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../../../stores/graphSettings';
+
+import type { ModuleMemberType } from '../../../stores/graphSettings';
 
 interface GraphControlsProps {
   relationshipAvailability?: Record<string, { available: boolean; reason?: string }>;
@@ -50,6 +52,19 @@ const handleResetLayout = () => {
 
 const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
 const nodeTypes = ['module', 'class', 'interface', 'package'] as const;
+
+const moduleMemberTypes = [...DEFAULT_MODULE_MEMBER_TYPES];
+const moduleMemberLabels: Record<ModuleMemberType, string> = {
+  function: 'Functions',
+  type: 'Type Aliases',
+  enum: 'Enums',
+  const: 'Constants',
+  var: 'Variables',
+};
+
+const handleModuleMemberTypeToggle = (type: ModuleMemberType, checked: boolean) => {
+  graphSettings.toggleModuleMemberType(type, checked);
+};
 
 const getRelationshipAvailability = (type: string) => props.relationshipAvailability[type] ?? { available: true };
 const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
@@ -280,6 +295,27 @@ const handleFpsAdvancedToggle = (checked: boolean) => {
               class="cursor-pointer accent-primary-main"
             />
             <span class="text-xs capitalize">{{ nodeType }}</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Module Sections -->
+      <div class="mt-4 pt-4 border-t border-border-default">
+        <h4 class="text-sm font-semibold text-text-primary mb-1">Module Sections</h4>
+        <p class="text-[10px] text-text-secondary mb-2 leading-tight">Toggle which entity types are shown inside module nodes</p>
+        <div class="flex flex-col gap-1.5">
+          <label
+            v-for="memberType in moduleMemberTypes"
+            :key="memberType"
+            class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
+          >
+            <input
+              type="checkbox"
+              :checked="graphSettings.enabledModuleMemberTypes.includes(memberType)"
+              @change="(e) => handleModuleMemberTypeToggle(memberType, (e.target as HTMLInputElement).checked)"
+              class="cursor-pointer accent-primary-main"
+            />
+            <span class="text-xs">{{ moduleMemberLabels[memberType] }}</span>
           </label>
         </div>
       </div>

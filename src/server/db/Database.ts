@@ -101,6 +101,9 @@ export class Database {
       'functions',
       'class_extends',
       'symbol_references',
+      'type_aliases',
+      'enums',
+      'variables',
     ];
 
     for (const table of requiredTables) {

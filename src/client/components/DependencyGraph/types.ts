@@ -119,6 +119,7 @@ export interface DependencyData {
   exports?: string[];
   externalDependencies?: ExternalDependencyRef[];
   symbols?: EmbeddedSymbol[];
+  moduleEntities?: EmbeddedModuleEntity[];
   subnodes?: SubnodeMetadata;
   members?: MemberMetadata;
   diagnostics?: NodeDiagnostics;
@@ -206,6 +207,57 @@ export interface InterfaceRef {
 }
 
 /**
+ * Function structure for module-level functions
+ */
+export interface FunctionStructure {
+  id: string;
+  name: string;
+  returnType: string;
+  isAsync: boolean;
+}
+
+/**
+ * Type alias structure for module-level type aliases
+ */
+export interface TypeAliasStructure {
+  id: string;
+  name: string;
+  type: string;
+  typeParameters?: string[] | undefined;
+}
+
+/**
+ * Enum structure for module-level enums
+ */
+export interface EnumStructure {
+  id: string;
+  name: string;
+  members: string[];
+}
+
+/**
+ * Variable structure for module-level const/let/var
+ */
+export interface VariableStructure {
+  id: string;
+  name: string;
+  type: string;
+  kind: 'const' | 'let' | 'var';
+  initializer?: string | undefined;
+}
+
+/**
+ * Entity embedded in a module node (simpler than EmbeddedSymbol since these don't have properties/methods)
+ */
+export interface EmbeddedModuleEntity {
+  id: string;
+  type: 'function' | 'type' | 'enum' | 'const' | 'var';
+  name: string;
+  detail: string;
+  tags?: string[] | undefined;
+}
+
+/**
  * Module structure
  */
 export interface ModuleStructure {
@@ -220,6 +272,10 @@ export interface ModuleStructure {
   symbol_references?: Record<string, SymbolReferenceRef>;
   classes?: Record<string, ClassStructure>;
   interfaces?: Record<string, InterfaceStructure>;
+  functions?: Record<string, FunctionStructure>;
+  typeAliases?: Record<string, TypeAliasStructure>;
+  enums?: Record<string, EnumStructure>;
+  variables?: Record<string, VariableStructure>;
   [key: string]: unknown;
 }
 

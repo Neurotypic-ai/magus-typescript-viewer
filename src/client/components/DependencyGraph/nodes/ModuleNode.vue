@@ -5,7 +5,9 @@ import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import { buildBaseNodeProps, ISOLATE_EXPAND_ALL_KEY } from './utils';
 
-import type { DependencyProps, EmbeddedSymbol, ExternalDependencyRef, NodeMethod, NodeProperty } from '../types';
+import { useGraphSettings } from '../../../stores/graphSettings';
+
+import type { DependencyProps, EmbeddedModuleEntity, EmbeddedSymbol, ExternalDependencyRef, NodeMethod, NodeProperty } from '../types';
 
 const props = defineProps<DependencyProps>();
 
@@ -24,6 +26,47 @@ const embeddedSymbols = computed<EmbeddedSymbol[]>(() => {
 
 const embeddedClasses = computed(() => embeddedSymbols.value.filter(s => s.type === 'class'));
 const embeddedInterfaces = computed(() => embeddedSymbols.value.filter(s => s.type === 'interface'));
+
+const graphSettings = useGraphSettings();
+
+const moduleEntities = computed<EmbeddedModuleEntity[]>(() => {
+  const entities = nodeData.value.moduleEntities;
+  return Array.isArray(entities) ? entities : [];
+});
+
+const embeddedFunctions = computed(() =>
+  graphSettings.enabledModuleMemberTypes.includes('function')
+    ? moduleEntities.value.filter(e => e.type === 'function')
+    : []
+);
+const embeddedTypes = computed(() =>
+  graphSettings.enabledModuleMemberTypes.includes('type')
+    ? moduleEntities.value.filter(e => e.type === 'type')
+    : []
+);
+const embeddedEnums = computed(() =>
+  graphSettings.enabledModuleMemberTypes.includes('enum')
+    ? moduleEntities.value.filter(e => e.type === 'enum')
+    : []
+);
+const embeddedConsts = computed(() =>
+  graphSettings.enabledModuleMemberTypes.includes('const')
+    ? moduleEntities.value.filter(e => e.type === 'const')
+    : []
+);
+const embeddedVars = computed(() =>
+  graphSettings.enabledModuleMemberTypes.includes('var')
+    ? moduleEntities.value.filter(e => e.type === 'var')
+    : []
+);
+
+const hasModuleEntities = computed(() =>
+  embeddedFunctions.value.length > 0 ||
+  embeddedTypes.value.length > 0 ||
+  embeddedEnums.value.length > 0 ||
+  embeddedConsts.value.length > 0 ||
+  embeddedVars.value.length > 0
+);
 
 const expandedSymbols = shallowRef<Set<string>>(new Set());
 const toggleSymbol = (id: string) => {
@@ -366,7 +409,116 @@ const formattedEmbeddedInterfaces = computed(() =>
         </CollapsibleSection>
       </div>
 
-      <div v-if="metadataItems.length === 0 && externalDependencies.length === 0 && embeddedSymbols.length === 0" class="module-empty-state">
+      <!-- Module-level entities: functions, types, enums, consts, vars -->
+      <div v-if="hasModuleEntities" class="module-entities">
+        <!-- Functions -->
+        <CollapsibleSection
+          v-if="embeddedFunctions.length > 0"
+          title="Functions"
+          :count="embeddedFunctions.length"
+          :default-open="false"
+        >
+          <div
+            v-for="entity in (isolateExpandAll ? embeddedFunctions : embeddedFunctions.slice(0, 12))"
+            :key="entity.id"
+            class="entity-item"
+          >
+            <span class="entity-badge entity-function">FN</span>
+            <span class="entity-name">{{ entity.name }}</span>
+            <span class="entity-detail">{{ entity.detail }}</span>
+            <span v-if="entity.tags?.includes('async')" class="entity-tag">async</span>
+          </div>
+          <div v-if="!isolateExpandAll && embeddedFunctions.length > 12" class="member-overflow">
+            +{{ embeddedFunctions.length - 12 }} more
+          </div>
+        </CollapsibleSection>
+
+        <!-- Type Aliases -->
+        <CollapsibleSection
+          v-if="embeddedTypes.length > 0"
+          title="Types"
+          :count="embeddedTypes.length"
+          :default-open="false"
+        >
+          <div
+            v-for="entity in (isolateExpandAll ? embeddedTypes : embeddedTypes.slice(0, 12))"
+            :key="entity.id"
+            class="entity-item"
+          >
+            <span class="entity-badge entity-type">TYPE</span>
+            <span class="entity-name">{{ entity.name }}</span>
+            <span class="entity-detail">{{ entity.detail }}</span>
+          </div>
+          <div v-if="!isolateExpandAll && embeddedTypes.length > 12" class="member-overflow">
+            +{{ embeddedTypes.length - 12 }} more
+          </div>
+        </CollapsibleSection>
+
+        <!-- Enums -->
+        <CollapsibleSection
+          v-if="embeddedEnums.length > 0"
+          title="Enums"
+          :count="embeddedEnums.length"
+          :default-open="false"
+        >
+          <div
+            v-for="entity in (isolateExpandAll ? embeddedEnums : embeddedEnums.slice(0, 12))"
+            :key="entity.id"
+            class="entity-item"
+          >
+            <span class="entity-badge entity-enum">ENUM</span>
+            <span class="entity-name">{{ entity.name }}</span>
+            <span class="entity-detail">{{ entity.detail }}</span>
+          </div>
+          <div v-if="!isolateExpandAll && embeddedEnums.length > 12" class="member-overflow">
+            +{{ embeddedEnums.length - 12 }} more
+          </div>
+        </CollapsibleSection>
+
+        <!-- Constants -->
+        <CollapsibleSection
+          v-if="embeddedConsts.length > 0"
+          title="Constants"
+          :count="embeddedConsts.length"
+          :default-open="false"
+        >
+          <div
+            v-for="entity in (isolateExpandAll ? embeddedConsts : embeddedConsts.slice(0, 12))"
+            :key="entity.id"
+            class="entity-item"
+          >
+            <span class="entity-badge entity-const">CONST</span>
+            <span class="entity-name">{{ entity.name }}</span>
+            <span class="entity-detail">{{ entity.detail }}</span>
+          </div>
+          <div v-if="!isolateExpandAll && embeddedConsts.length > 12" class="member-overflow">
+            +{{ embeddedConsts.length - 12 }} more
+          </div>
+        </CollapsibleSection>
+
+        <!-- Variables -->
+        <CollapsibleSection
+          v-if="embeddedVars.length > 0"
+          title="Variables"
+          :count="embeddedVars.length"
+          :default-open="false"
+        >
+          <div
+            v-for="entity in (isolateExpandAll ? embeddedVars : embeddedVars.slice(0, 12))"
+            :key="entity.id"
+            class="entity-item"
+          >
+            <span class="entity-badge entity-var">VAR</span>
+            <span class="entity-name">{{ entity.name }}</span>
+            <span class="entity-detail">{{ entity.detail }}</span>
+          </div>
+          <div v-if="!isolateExpandAll && embeddedVars.length > 12" class="member-overflow">
+            +{{ embeddedVars.length - 12 }} more
+          </div>
+        </CollapsibleSection>
+      </div>
+
+      <div v-if="metadataItems.length === 0 && externalDependencies.length === 0 && embeddedSymbols.length === 0 && !hasModuleEntities" class="module-empty-state">
         No module metadata
       </div>
     </template>
@@ -586,6 +738,88 @@ const formattedEmbeddedInterfaces = computed(() =>
   font-size: 0.65rem;
   opacity: 0.7;
   padding: 0.15rem 0.35rem;
+}
+
+.module-entities {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.entity-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.entity-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.entity-badge {
+  padding: 0.05rem 0.2rem;
+  border-radius: 0.2rem;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.entity-name {
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.entity-detail {
+  color: var(--text-secondary);
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.entity-tag {
+  padding: 0.02rem 0.15rem;
+  border-radius: 0.15rem;
+  font-size: 0.5rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.entity-function {
+  background-color: rgba(251, 191, 36, 0.2);
+  color: rgb(253, 224, 71);
+}
+
+.entity-type {
+  background-color: rgba(34, 197, 94, 0.2);
+  color: rgb(134, 239, 172);
+}
+
+.entity-enum {
+  background-color: rgba(244, 114, 182, 0.2);
+  color: rgb(249, 168, 212);
+}
+
+.entity-const {
+  background-color: rgba(56, 189, 248, 0.2);
+  color: rgb(125, 211, 252);
+}
+
+.entity-var {
+  background-color: rgba(251, 146, 60, 0.2);
+  color: rgb(253, 186, 116);
 }
 
 .module-node--high-deps :deep(.base-node-container) {

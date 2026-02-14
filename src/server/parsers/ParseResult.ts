@@ -9,6 +9,9 @@ import type { IPackageCreateDTO } from '../db/repositories/PackageRepository';
 import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
 import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
 import type { ISymbolReferenceCreateDTO } from '../db/repositories/SymbolReferenceRepository';
+import type { ITypeAliasCreateDTO } from '../db/repositories/TypeAliasRepository';
+import type { IEnumCreateDTO } from '../db/repositories/EnumRepository';
+import type { IVariableCreateDTO } from '../db/repositories/VariableRepository';
 
 /**
  * Represents a deferred relationship between a class and its parent class.
@@ -56,6 +59,9 @@ export interface ParseResult {
   classes: IClassCreateDTO[];
   interfaces: IInterfaceCreateDTO[];
   functions: IFunctionCreateDTO[];
+  typeAliases: ITypeAliasCreateDTO[];
+  enums: IEnumCreateDTO[];
+  variables: IVariableCreateDTO[];
   methods: IMethodCreateDTO[];
   properties: IPropertyCreateDTO[];
   parameters: IParameterCreateDTO[];

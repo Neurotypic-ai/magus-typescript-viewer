@@ -191,6 +191,8 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
       new Map(), // packages
       new Map(), // typeAliases
       new Map(), // enums
+      new Map(), // functions
+      new Map(), // variables
       [] // referencePaths
     );
   }
@@ -255,6 +257,9 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
       await this.executeQuery('delete properties', 'DELETE FROM properties WHERE module_id = ?', [id]);
       await this.executeQuery('delete parameters', 'DELETE FROM parameters WHERE module_id = ?', [id]);
       await this.executeQuery('delete imports', 'DELETE FROM imports WHERE module_id = ?', [id]);
+      await this.executeQuery('delete type_aliases', 'DELETE FROM type_aliases WHERE module_id = ?', [id]);
+      await this.executeQuery('delete enums', 'DELETE FROM enums WHERE module_id = ?', [id]);
+      await this.executeQuery('delete variables', 'DELETE FROM variables WHERE module_id = ?', [id]);
 
       // Delete the module itself
       await this.executeQuery('delete module', 'DELETE FROM modules WHERE id = ?', [id]);

@@ -239,6 +239,27 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
     }
   }
 
+  async retrieveByModuleIds(moduleIds: string[]): Promise<ModuleFunction[]> {
+    if (moduleIds.length === 0) return [];
+    try {
+      const placeholders = moduleIds.map(() => '?').join(', ');
+      const results = await this.executeQuery<IFunctionRow>(
+        'retrieveByModuleIds',
+        `SELECT * FROM functions WHERE module_id IN (${placeholders}) ORDER BY name`,
+        moduleIds
+      );
+      return results.map((row) => this.mapToEntity(row));
+    } catch (error) {
+      this.logger.error('Failed to retrieve functions by module IDs', error);
+      throw new RepositoryError(
+        'Failed to retrieve functions by module IDs',
+        'retrieveByModuleIds',
+        this.errorTag,
+        error as Error
+      );
+    }
+  }
+
   async delete(id: string): Promise<void> {
     try {
       await this.executeQuery('delete', 'DELETE FROM functions WHERE id = ?', [id]);

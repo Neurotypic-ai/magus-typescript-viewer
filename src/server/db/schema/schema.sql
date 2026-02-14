@@ -219,3 +219,41 @@ CREATE INDEX idx_class_extends_class_id ON class_extends (class_id);
 -- Indexes for symbol references
 CREATE INDEX idx_symbol_references_module_id ON symbol_references (module_id);
 CREATE INDEX idx_symbol_references_target_symbol_id ON symbol_references (target_symbol_id);
+
+-- Type aliases table for module-level type alias declarations
+CREATE TABLE type_aliases (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  type_parameters_json TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+-- Enums table for module-level enum declarations
+CREATE TABLE enums (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  name TEXT NOT NULL,
+  members_json TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+-- Variables table for module-level const/let/var declarations
+CREATE TABLE variables (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('const', 'let', 'var')),
+  type TEXT,
+  initializer TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+-- Indexes for type aliases, enums, variables (queried by module_id)
+CREATE INDEX idx_type_aliases_module_id ON type_aliases (module_id);
+CREATE INDEX idx_enums_module_id ON enums (module_id);
+CREATE INDEX idx_variables_module_id ON variables (module_id);
