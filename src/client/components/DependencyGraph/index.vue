@@ -25,6 +25,7 @@ import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
 import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, ISOLATE_EXPAND_ALL_KEY, NODE_ACTIONS_KEY } from './nodes/utils';
 import { useEdgeVirtualization } from './useEdgeVirtualization';
+import { useEdgeVirtualizationWorker } from './useEdgeVirtualizationWorker';
 import { useFpsCounter } from './useFpsCounter';
 import { useGraphInteractionController } from './useGraphInteractionController';
 import { createNodeDimensionTracker, isContainerNode } from './useNodeDimensions';
@@ -89,6 +90,9 @@ const LOW_DETAIL_EDGE_ZOOM_THRESHOLD = 0.35;
 const EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD = parseEnvInt('VITE_CANVAS_EDGE_THRESHOLD', 2200);
 const NODE_VISIBLE_RENDER_THRESHOLD = parseEnvInt('VITE_NODE_VISIBLE_RENDER_THRESHOLD', 320);
 const EDGE_RENDERER_MODE = (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'svg';
+const EDGE_VIRTUALIZATION_MODE = (import.meta.env['VITE_EDGE_VIRTUALIZATION_MODE'] as string | undefined) === 'worker'
+  ? 'worker'
+  : 'main';
 const USE_CSS_SELECTION_HOVER = parseEnvBoolean('VITE_USE_CSS_SELECTION_HOVER', true);
 const PERF_MARKS_ENABLED = parseEnvBoolean('VITE_PERF_MARKS', false);
 const EDGE_VIEWPORT_RECALC_THROTTLE_MS = parseEnvInt('VITE_EDGE_VIEWPORT_RECALC_THROTTLE_MS', 80);
@@ -110,6 +114,13 @@ const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport, r
 const isMac = computed(() => isMacPlatform());
 const graphRootRef = ref<HTMLElement | null>(null);
 const edgeVirtualizationEnabled = ref(true);
+const edgeVirtualizationRuntimeMode = ref<'main' | 'worker'>(EDGE_VIRTUALIZATION_MODE);
+const edgeVirtualizationMainEnabled = computed(() => {
+  return edgeVirtualizationEnabled.value && edgeVirtualizationRuntimeMode.value === 'main';
+});
+const edgeVirtualizationWorkerEnabled = computed(() => {
+  return edgeVirtualizationEnabled.value && edgeVirtualizationRuntimeMode.value === 'worker';
+});
 const isPanning = ref(false);
 const isIsolateAnimating = ref(false);
 const isolateExpandAll = ref(false);
@@ -166,19 +177,59 @@ const fpsTargetLineY = computed(() => {
 
 // Edge virtualization: hides off-screen edges to reduce DOM count.
 // Uses passed-in getters to avoid direct dependency on DOM state at init time.
-const {
-  onViewportChange: onEdgeVirtualizationViewportChange,
-  suspend: suspendEdgeVirtualization,
-  resume: resumeEdgeVirtualization,
-  dispose: disposeEdgeVirtualization,
-} = useEdgeVirtualization({
+const handleEdgeVirtualizationWorkerUnavailable = (reason: string): void => {
+  if (edgeVirtualizationRuntimeMode.value !== 'worker') {
+    return;
+  }
+  edgeVirtualizationRuntimeMode.value = 'main';
+  graphLogger.warn(`Edge visibility worker unavailable (${reason}). Falling back to main-thread virtualization.`);
+};
+
+const mainEdgeVirtualization = useEdgeVirtualization({
   nodes: computed(() => graphStore['nodes']),
   edges: computed(() => graphStore['edges']),
   getViewport,
   getContainerRect: () => cachedContainerRect,
   setEdgeVisibility: (visibilityMap) => graphStore.setEdgeVisibility(visibilityMap),
-  enabled: edgeVirtualizationEnabled,
+  enabled: edgeVirtualizationMainEnabled,
 });
+
+const workerEdgeVirtualization = useEdgeVirtualizationWorker({
+  nodes: computed(() => graphStore['nodes']),
+  edges: computed(() => graphStore['edges']),
+  getViewport,
+  getContainerRect: () => cachedContainerRect,
+  setEdgeVisibility: (visibilityMap) => graphStore.setEdgeVisibility(visibilityMap),
+  enabled: edgeVirtualizationWorkerEnabled,
+  onWorkerUnavailable: handleEdgeVirtualizationWorkerUnavailable,
+});
+const edgeVirtualizationWorkerStats = computed(() => workerEdgeVirtualization.stats.value);
+
+const onEdgeVirtualizationViewportChange = (): void => {
+  if (edgeVirtualizationRuntimeMode.value === 'worker') {
+    workerEdgeVirtualization.onViewportChange();
+    return;
+  }
+  mainEdgeVirtualization.onViewportChange();
+};
+
+const suspendEdgeVirtualization = (): void => {
+  mainEdgeVirtualization.suspend();
+  workerEdgeVirtualization.suspend();
+};
+
+const resumeEdgeVirtualization = (): void => {
+  if (edgeVirtualizationRuntimeMode.value === 'worker') {
+    workerEdgeVirtualization.resume();
+    return;
+  }
+  mainEdgeVirtualization.resume();
+};
+
+const disposeEdgeVirtualization = (): void => {
+  mainEdgeVirtualization.dispose();
+  workerEdgeVirtualization.dispose();
+};
 
 const syncViewportState = (): void => {
   viewportState.value = { ...getViewport() };
@@ -2455,6 +2506,17 @@ onUnmounted(() => {
                 <polyline v-if="fpsChartPoints" :points="fpsChartPoints" class="fps-chart-line" />
               </svg>
               <div class="fps-chart-caption">Last {{ fpsStats.sampleCount }} samples</div>
+              <div class="fps-chart-caption">
+                Edge virtualization:
+                <template v-if="edgeVirtualizationRuntimeMode === 'worker'">
+                  worker (visible {{ edgeVirtualizationWorkerStats.lastVisibleCount }}, hidden
+                  {{ edgeVirtualizationWorkerStats.lastHiddenCount }}, stale
+                  {{ edgeVirtualizationWorkerStats.staleResponses }})
+                </template>
+                <template v-else>
+                  main-thread
+                </template>
+              </div>
             </div>
           </template>
         </div>
