@@ -225,7 +225,36 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 10. Back to overview
+  // 10. Isolate layout spacing
+  // ---------------------------------------------------------------------------
+  test('isolate action lays out neighborhood nodes without overlap', async ({ page }) => {
+    const firstNode = page.locator('.vue-flow__node').first();
+    await firstNode.click();
+
+    const isolateButton = firstNode.locator('.base-node-action-button[aria-label="Isolate node and neighbors"]');
+    await isolateButton.click();
+    await page.waitForTimeout(700);
+
+    const isolatedNodeBoxes = await getVisibleNodeBoxes(page);
+    expect(isolatedNodeBoxes.length).toBeGreaterThan(1);
+
+    const overlaps: string[] = [];
+    for (const [index, first] of isolatedNodeBoxes.entries()) {
+      for (const second of isolatedNodeBoxes.slice(index + 1)) {
+        if (hasMeaningfulNodeOverlap(first, second, 6)) {
+          overlaps.push(`${first.id}<->${second.id}`);
+        }
+      }
+    }
+
+    expect(
+      overlaps,
+      overlaps.length > 0 ? `Overlapping isolate nodes: ${overlaps.join(', ')}` : undefined
+    ).toEqual([]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 11. Back to overview
   // ---------------------------------------------------------------------------
   test('back to full graph restores all nodes after isolate', async ({ page }) => {
     const totalNodesBefore = await page.locator('.vue-flow__node').count();
@@ -253,7 +282,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 11. Keyboard navigation
+  // 12. Keyboard navigation
   // ---------------------------------------------------------------------------
   test('arrow key navigates to a connected node', async ({ page }) => {
     // Focus the graph root so keyboard events are captured.
@@ -286,7 +315,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 12. Graph controls panel
+  // 13. Graph controls panel
   // ---------------------------------------------------------------------------
   test('graph controls panel renders with layout algorithm buttons', async ({ page }) => {
     // The controls are inside a Vue Flow panel at top-left.
@@ -301,7 +330,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 13. Mac wheel handling placeholder
+  // 14. Mac wheel handling placeholder
   // ---------------------------------------------------------------------------
   // NOTE: macOS trackpad pinch-to-zoom and two-finger scroll behavior cannot
   // be reliably tested in headless Chromium. The DependencyGraph component
@@ -358,4 +387,29 @@ async function getViewportTransform(page: Page): Promise<{ x: number; y: number;
     y: parseFloat(translateMatch[2] ?? '0'),
     zoom: parseFloat(scaleMatch[1] ?? '1'),
   };
+}
+
+type NodeBox = { id: string; x: number; y: number; width: number; height: number };
+
+async function getVisibleNodeBoxes(page: Page): Promise<NodeBox[]> {
+  return page.locator('.vue-flow__node').evaluateAll((elements) =>
+    elements
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          id: (element as HTMLElement).dataset['id'] ?? '',
+          x: rect.left,
+          y: rect.top,
+          width: rect.width,
+          height: rect.height,
+        };
+      })
+      .filter((box) => box.id.length > 0 && box.width > 0 && box.height > 0)
+  );
+}
+
+function hasMeaningfulNodeOverlap(first: NodeBox, second: NodeBox, tolerancePx = 0): boolean {
+  const overlapWidth = Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x);
+  const overlapHeight = Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y);
+  return overlapWidth > tolerancePx && overlapHeight > tolerancePx;
 }

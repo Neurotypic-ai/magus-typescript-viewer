@@ -1367,24 +1367,26 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     }
   }
 
-  const layoutPositions = computeIsolateLayout(targetNode, inbound, outbound, layoutConfig.direction);
+  const isolatedSourceNodes = sourceNodes.filter((node) => connectedNodeIds.has(node.id));
+  const styleIsolatedNode = (
+    node: DependencyNode,
+    layoutPositions?: Map<string, { x: number; y: number }>
+  ) => {
+    const baseNode = stripNodeClass(node);
+    const layoutPos = layoutPositions?.get(node.id);
+    return {
+      ...baseNode,
+      position: layoutPos ?? baseNode.position,
+      selected: node.id === nodeId,
+      style: mergeNodeInteractionStyle(baseNode, {
+        opacity: node.id === nodeId ? 1 : 0.9,
+        borderColor: node.id === nodeId ? '#22d3ee' : undefined,
+        borderWidth: node.id === nodeId ? '2px' : undefined,
+      }),
+    };
+  };
 
-  const isolatedNodes = sourceNodes
-    .filter((node) => connectedNodeIds.has(node.id))
-    .map((node) => {
-      const baseNode = stripNodeClass(node);
-      const layoutPos = layoutPositions.get(node.id);
-      return {
-        ...baseNode,
-        position: layoutPos ?? baseNode.position,
-        selected: node.id === nodeId,
-        style: mergeNodeInteractionStyle(baseNode, {
-          opacity: node.id === nodeId ? 1 : 0.9,
-          borderColor: node.id === nodeId ? '#22d3ee' : undefined,
-          borderWidth: node.id === nodeId ? '2px' : undefined,
-        }),
-      };
-    });
+  const provisionalNodes = isolatedSourceNodes.map((node) => styleIsolatedNode(node));
 
   const isolatedEdges = applyEdgeVisibility(
     sourceEdges
@@ -1402,12 +1404,47 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   );
 
   startIsolateAnimation();
-  isolateExpandAll.value = true;
-  graphStore['setNodes'](isolatedNodes);
-  graphStore['setEdges'](isolatedEdges);
-  graphStore.setViewMode('isolate');
-  interaction.setScopeMode('isolate');
-  setSelectedNode(targetNode);
+  const previousLayoutMeasuring = isLayoutMeasuring.value;
+  isLayoutMeasuring.value = true;
+  try {
+    graphStore['setNodes'](provisionalNodes);
+    graphStore['setEdges'](isolatedEdges);
+    graphStore.setViewMode('isolate');
+    interaction.setScopeMode('isolate');
+    isolateExpandAll.value = true;
+
+    // Let isolate expansion settle before measuring dimensions.
+    await nextTick();
+    await waitForNextPaint();
+    await nextTick();
+    await waitForNextPaint();
+
+    const measuredIsolation = measureAllNodeDimensions(provisionalNodes);
+    const measuredNodes = measuredIsolation.nodes;
+    const measuredNodeById = new Map(measuredNodes.map((node) => [node.id, node]));
+    const measuredTargetNode = measuredNodeById.get(nodeId) ?? targetNode;
+    const measuredInbound = inbound.map((node) => measuredNodeById.get(node.id) ?? node);
+    const measuredOutbound = outbound.map((node) => measuredNodeById.get(node.id) ?? node);
+    const layoutPositions = computeIsolateLayout(
+      measuredTargetNode,
+      measuredInbound,
+      measuredOutbound,
+      layoutConfig.direction
+    );
+    const finalizedNodes = measuredNodes.map((node) => styleIsolatedNode(node, layoutPositions));
+
+    graphStore['setNodes'](finalizedNodes);
+    await nextTick();
+    const changedNodeIds = collectNodesNeedingInternalsUpdate(provisionalNodes, finalizedNodes);
+    if (changedNodeIds.length > 0) {
+      updateNodeInternals(changedNodeIds);
+    }
+
+    const finalizedTargetNode = finalizedNodes.find((node) => node.id === nodeId) ?? measuredTargetNode;
+    setSelectedNode(finalizedTargetNode);
+  } finally {
+    isLayoutMeasuring.value = previousLayoutMeasuring;
+  }
 
   await fitView({
     duration: 350,
