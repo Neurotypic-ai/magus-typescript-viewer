@@ -93,6 +93,11 @@ export interface FormattedMember {
   indicator: string;
 }
 
+function normalizeTypeAnnotation(annotation: string | undefined, fallback: string): string {
+  const normalized = annotation?.replace(/^:\s*/, '').trim();
+  return normalized && normalized.length > 0 ? normalized : fallback;
+}
+
 export function visibilityIndicator(visibility: string): string {
   switch (visibility) {
     case 'public':
@@ -111,7 +116,7 @@ export function formatProperty(prop: NodeProperty): FormattedMember {
     key: `${prop.name}:${prop.type || 'unknown'}:${prop.visibility || 'default'}`,
     indicator: visibilityIndicator(prop.visibility),
     name: prop.name,
-    typeAnnotation: prop.type || 'unknown',
+    typeAnnotation: normalizeTypeAnnotation(prop.type, 'unknown'),
   };
 }
 
@@ -120,7 +125,7 @@ export function formatMethod(method: NodeMethod): FormattedMember {
     key: `${method.name}:${method.returnType || 'void'}:${method.visibility || 'default'}`,
     indicator: visibilityIndicator(method.visibility),
     name: method.name,
-    typeAnnotation: method.returnType || 'void',
+    typeAnnotation: normalizeTypeAnnotation(method.returnType, 'void'),
   };
 }
 
