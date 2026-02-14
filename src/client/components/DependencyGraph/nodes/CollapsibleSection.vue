@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<CollapsibleSectionProps>(), {
 });
 
 const isOpen = ref(props.defaultOpen);
+const preIsolateOpenState = ref<boolean | null>(null);
 
 const toggle = () => {
   isOpen.value = !isOpen.value;
@@ -22,7 +23,16 @@ const toggle = () => {
 const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
 watch(isolateExpandAll, (expand) => {
   if (expand) {
+    if (preIsolateOpenState.value === null) {
+      preIsolateOpenState.value = isOpen.value;
+    }
     isOpen.value = true;
+    return;
+  }
+
+  if (preIsolateOpenState.value !== null) {
+    isOpen.value = preIsolateOpenState.value;
+    preIsolateOpenState.value = null;
   }
 });
 </script>

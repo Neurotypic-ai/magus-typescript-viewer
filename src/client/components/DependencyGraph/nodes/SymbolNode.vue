@@ -27,6 +27,7 @@ const isCollapsible = computed(() => {
   return nodeData.value.collapsible === true;
 });
 const isCollapsed = ref(false);
+const preIsolateCollapsedState = ref<boolean | null>(null);
 const toggleCollapsed = () => {
   if (isCollapsible.value) {
     isCollapsed.value = !isCollapsed.value;
@@ -36,7 +37,16 @@ const toggleCollapsed = () => {
 const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
 watch(isolateExpandAll, (expand) => {
   if (expand) {
+    if (preIsolateCollapsedState.value === null) {
+      preIsolateCollapsedState.value = isCollapsed.value;
+    }
     isCollapsed.value = false;
+    return;
+  }
+
+  if (preIsolateCollapsedState.value !== null) {
+    isCollapsed.value = preIsolateCollapsedState.value;
+    preIsolateCollapsedState.value = null;
   }
 });
 

@@ -106,14 +106,37 @@ const baseNodeProps = computed(() => buildBaseNodeProps(props, {
 const showMetadata = ref(true);
 const showExternalDeps = ref(true);
 const showAllExternalDeps = ref(false);
+const preIsolateExpandState = shallowRef<{
+  showMetadata: boolean;
+  showExternalDeps: boolean;
+  showAllExternalDeps: boolean;
+  expandedSymbols: Set<string>;
+} | null>(null);
 
 const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
 watch(isolateExpandAll, (expand) => {
   if (expand) {
+    if (!preIsolateExpandState.value) {
+      preIsolateExpandState.value = {
+        showMetadata: showMetadata.value,
+        showExternalDeps: showExternalDeps.value,
+        showAllExternalDeps: showAllExternalDeps.value,
+        expandedSymbols: new Set(expandedSymbols.value),
+      };
+    }
     showMetadata.value = true;
     showExternalDeps.value = true;
     showAllExternalDeps.value = true;
     expandedSymbols.value = new Set(embeddedSymbols.value.map((s) => s.id));
+    return;
+  }
+
+  if (preIsolateExpandState.value) {
+    showMetadata.value = preIsolateExpandState.value.showMetadata;
+    showExternalDeps.value = preIsolateExpandState.value.showExternalDeps;
+    showAllExternalDeps.value = preIsolateExpandState.value.showAllExternalDeps;
+    expandedSymbols.value = new Set(preIsolateExpandState.value.expandedSymbols);
+    preIsolateExpandState.value = null;
   }
 });
 
