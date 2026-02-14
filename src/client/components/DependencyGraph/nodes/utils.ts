@@ -1,7 +1,7 @@
 import type { Position } from '@vue-flow/core';
 import type { InjectionKey, Ref } from 'vue';
 
-import type { DependencyData, DependencyKind } from '../types';
+import type { DependencyData, DependencyKind, EmbeddedModuleEntity, NodeMethod, NodeProperty } from '../types';
 
 /**
  * Injection key for node actions provided by the graph root.
@@ -72,3 +72,60 @@ export function buildBaseNodeProps(
     ...overrides,
   };
 }
+
+// ── Shared member formatting ──────────────────────────────────────
+
+export interface FormattedMember {
+  key: string;
+  name: string;
+  typeAnnotation: string;
+  indicator: string;
+}
+
+export function visibilityIndicator(visibility: string): string {
+  switch (visibility) {
+    case 'public':
+      return 'p';
+    case 'protected':
+      return '#';
+    case 'private':
+      return '-';
+    default:
+      return 'p';
+  }
+}
+
+export function formatProperty(prop: NodeProperty): FormattedMember {
+  return {
+    key: `${prop.name}:${prop.type || 'unknown'}:${prop.visibility || 'default'}`,
+    indicator: visibilityIndicator(prop.visibility),
+    name: prop.name,
+    typeAnnotation: prop.type || 'unknown',
+  };
+}
+
+export function formatMethod(method: NodeMethod): FormattedMember {
+  return {
+    key: `${method.name}:${method.returnType || 'void'}:${method.visibility || 'default'}`,
+    indicator: visibilityIndicator(method.visibility),
+    name: method.name,
+    typeAnnotation: method.returnType || 'void',
+  };
+}
+
+// ── Entity type display config ────────────────────────────────────
+
+export interface EntityTypeConfig {
+  type: EmbeddedModuleEntity['type'];
+  title: string;
+  badgeText: string;
+  badgeClass: string;
+}
+
+export const ENTITY_TYPE_CONFIGS: EntityTypeConfig[] = [
+  { type: 'function', title: 'Functions', badgeText: 'FN', badgeClass: 'entity-function' },
+  { type: 'type', title: 'Types', badgeText: 'TYPE', badgeClass: 'entity-type' },
+  { type: 'enum', title: 'Enums', badgeText: 'ENUM', badgeClass: 'entity-enum' },
+  { type: 'const', title: 'Constants', badgeText: 'CONST', badgeClass: 'entity-const' },
+  { type: 'var', title: 'Variables', badgeText: 'VAR', badgeClass: 'entity-var' },
+];

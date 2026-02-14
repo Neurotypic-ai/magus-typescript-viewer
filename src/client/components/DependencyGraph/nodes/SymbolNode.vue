@@ -3,9 +3,9 @@ import { computed, inject, ref, toRef, watch } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
-import { buildBaseNodeProps, ISOLATE_EXPAND_ALL_KEY } from './utils';
+import { ISOLATE_EXPAND_ALL_KEY, buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 
-import type { DependencyProps, NodeMethod, NodeProperty } from '../types';
+import type { DependencyProps } from '../types';
 
 const props = defineProps<DependencyProps>();
 
@@ -74,33 +74,6 @@ const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase(
 const showProperties = ref(true);
 const showMethods = ref(true);
 
-const visibilityIndicator = (visibility: string): string => {
-  switch (visibility) {
-    case 'public':
-      return 'p';
-    case 'protected':
-      return '#';
-    case 'private':
-      return '-';
-    default:
-      return 'p';
-  }
-};
-
-const formatProperty = (prop: NodeProperty): { key: string; indicator: string; name: string; type: string } => ({
-  key: `${prop.name}:${prop.type ?? 'unknown'}:${prop.visibility ?? 'default'}`,
-  indicator: visibilityIndicator(prop.visibility),
-  name: prop.name,
-  type: prop.type || 'unknown',
-});
-
-const formatMethod = (method: NodeMethod): { key: string; indicator: string; name: string; returnType: string } => ({
-  key: `${method.name}:${method.returnType ?? 'void'}:${method.visibility ?? 'default'}`,
-  indicator: visibilityIndicator(method.visibility),
-  name: method.name,
-  returnType: method.returnType || 'void',
-});
-
 const formattedProperties = computed(() => properties.value.map(formatProperty));
 const formattedMethods = computed(() => methods.value.map(formatMethod));
 </script>
@@ -143,7 +116,7 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
               >
                 <span class="member-visibility">{{ prop.indicator }}</span>
                 <span class="member-name">{{ prop.name }}</span>
-                <span class="member-type-annotation">: {{ prop.type }}</span>
+                <span class="member-type-annotation">: {{ prop.typeAnnotation }}</span>
               </div>
               <div v-if="formattedProperties.length > 8" class="member-overflow">
                 +{{ formattedProperties.length - 8 }} more properties
@@ -163,7 +136,7 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
               >
                 <span class="member-visibility">{{ method.indicator }}</span>
                 <span class="member-name">{{ method.name }}()</span>
-                <span class="member-type-annotation">: {{ method.returnType }}</span>
+                <span class="member-type-annotation">: {{ method.typeAnnotation }}</span>
               </div>
               <div v-if="formattedMethods.length > 8" class="member-overflow">
                 +{{ formattedMethods.length - 8 }} more methods

@@ -215,12 +215,12 @@ const renderCanvas = (): void => {
     const strokeWidth = typeof edgeStyle['strokeWidth'] === 'number'
       ? edgeStyle['strokeWidth']
       : Number.parseFloat(String(edgeStyle['strokeWidth'] ?? '1.4'));
-    const dimFactor = props.dimNonHighlighted ? 0.65 : 1;
+    const dimFactor = props.dimNonHighlighted && highlightedEdgeIdSet.size > 0 ? 0.65 : 1;
 
     context.strokeStyle = stroke;
     context.globalAlpha = Number.isFinite(opacity)
       ? Math.max(0.04, Math.min(1, opacity * dimFactor))
-      : 0.55;
+      : 0.85 * dimFactor;
     context.lineWidth = Number.isFinite(strokeWidth)
       ? Math.max(0.8, strokeWidth * Math.max(0.55, Math.min(1.1, props.viewport.zoom)))
       : 1.2;
