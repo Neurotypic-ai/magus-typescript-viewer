@@ -1,6 +1,6 @@
 import { Position } from '@vue-flow/core';
 
-import { mapTypeCollection } from '../lib/mapTypeCollection';
+import { mapTypeCollection } from './collections';
 import { getNodeStyle } from '../theme/graphTheme';
 import { isTestFilePath } from './testFileMatcher';
 

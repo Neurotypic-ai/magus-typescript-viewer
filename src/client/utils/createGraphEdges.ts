@@ -1,6 +1,6 @@
 import { createEdgeMarker } from './edgeMarkers';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
-import { mapTypeCollection, typeCollectionToArray } from '../lib/mapTypeCollection';
+import { mapTypeCollection, typeCollectionToArray } from './collections';
 import { getEdgeStyle } from '../theme/graphTheme';
 
 import type {

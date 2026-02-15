@@ -2,8 +2,10 @@ import { reactive } from 'vue';
 
 import { getEdgeStyle } from '../theme/graphTheme';
 import { measurePerformance } from '../utils/performanceMonitoring';
-import { applyEdgeVisibility, toDependencyEdgeKind } from '../lib/buildGraphView';
-import { addSetDiff, mergeNodeInteractionStyle, parseDimension, stripEdgeClass, stripNodeClass } from '../lib/graphUtils';
+import { applyEdgeVisibility, toDependencyEdgeKind } from '../graph/buildGraphView';
+import { parseDimension } from '../layout/geometryBounds';
+import { mergeNodeInteractionStyle, stripEdgeClass, stripNodeClass } from '../theme/graphClasses';
+import { addSetDiff } from '../utils/sets';
 
 import type { Ref } from 'vue';
 

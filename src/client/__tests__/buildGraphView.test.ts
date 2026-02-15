@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyEdgeVisibility, buildOverviewGraph, buildSymbolDrilldownGraph, filterNodeChangesForFolderMode } from '../lib/buildGraphView';
+import { applyEdgeVisibility, buildOverviewGraph, buildSymbolDrilldownGraph, filterNodeChangesForFolderMode } from '../graph/buildGraphView';
 
 import type { NodeChange } from '@vue-flow/core';
 

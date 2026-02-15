@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { mapTypeCollection } from '../lib/mapTypeCollection';
+import { mapTypeCollection } from '../utils/collections';
 
 import type { DependencyNode, DependencyPackageGraph, GraphEdge, ModuleStructure } from '../types';
 

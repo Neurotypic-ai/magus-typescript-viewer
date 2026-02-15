@@ -6,8 +6,11 @@ import { graphTheme } from '../theme/graphTheme';
 import { measurePerformance } from '../utils/performanceMonitoring';
 
 import type { GraphTheme } from '../theme/graphTheme';
-import { buildOverviewGraph } from '../lib/buildGraphView';
-import { collectNodesNeedingInternalsUpdate, getEnabledNodeTypes, getHandlePositions, simpleHash, waitForNextPaint } from '../lib/graphUtils';
+import { buildOverviewGraph } from '../graph/buildGraphView';
+import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
+import { getHandlePositions } from '../graph/handleRouting';
+import { simpleHash } from '../utils/hash';
+import { waitForNextPaint } from '../utils/dom';
 import { isContainerNode } from './useNodeDimensions';
 
 import type { Ref } from 'vue';
@@ -691,7 +694,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
     const overviewGraph = buildOverviewGraph({
       data: propsData.value,
-      enabledNodeTypes: getEnabledNodeTypes(graphSettings.enabledNodeTypes),
+      enabledNodeTypes: new Set(graphSettings.enabledNodeTypes),
       enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
       direction: layoutConfig.direction,
       clusterByFolder: graphSettings.clusterByFolder,

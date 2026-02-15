@@ -1,15 +1,15 @@
-import { collapseFolders } from '../graph/cluster/collapseFolders';
-import { clusterByFolder } from '../graph/cluster/folders';
-import { collapseSccs } from '../graph/cluster/scc';
-import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
-import { EDGE_KIND_PRIORITY } from '../graph/edgePriority';
-import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
+import { collapseFolders } from './cluster/collapseFolders';
+import { clusterByFolder } from './cluster/folders';
+import { collapseSccs } from './cluster/scc';
+import { isValidEdgeConnection } from './edgeTypeRegistry';
+import { EDGE_KIND_PRIORITY } from './edgePriority';
+import { applyEdgeHighways } from './transforms/edgeHighways';
 import { createEdgeMarker } from '../utils/edgeMarkers';
 import { getEdgeStyle, getNodeStyle } from '../theme/graphTheme';
 import { createGraphEdges } from '../utils/createGraphEdges';
 import { createGraphNodes } from '../utils/createGraphNodes';
-import { getHandlePositions } from './graphUtils';
-import { mapTypeCollection, typeCollectionToArray } from './mapTypeCollection';
+import { getHandlePositions } from './handleRouting';
+import { mapTypeCollection, typeCollectionToArray } from '../utils/collections';
 
 import type { NodeChange } from '@vue-flow/core';
 
@@ -109,8 +109,8 @@ function bundleParallelEdges(edges: GraphEdge[]): GraphEdge[] {
     group.sort((a, b) => {
       const typeA = a.data?.type;
       const typeB = b.data?.type;
-      const prioA = typeA ? (EDGE_KIND_PRIORITY[typeA] ?? 0) : 0;
-      const prioB = typeB ? (EDGE_KIND_PRIORITY[typeB] ?? 0) : 0;
+      const prioA = typeA ? EDGE_KIND_PRIORITY[typeA] : 0;
+      const prioB = typeB ? EDGE_KIND_PRIORITY[typeB] : 0;
       return prioB - prioA;
     });
 
@@ -823,7 +823,7 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
   };
 }
 
-export { toDependencyEdgeKind } from '../graph/edgeKindUtils';
+export { toDependencyEdgeKind } from './edgeKindUtils';
 
 export function filterNodeChangesForFolderMode(
   changes: NodeChange[],

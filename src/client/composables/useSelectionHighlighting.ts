@@ -7,17 +7,15 @@ import {
   EDGE_HOVER_Z_INDEX,
   EDGE_SELECTION_CLASS_TOKENS,
   NODE_SELECTION_CLASS_TOKENS,
-  applyEdgeHoverStrokeVariable,
   edgeClassTokensToString,
   getClassTokens,
-  getEdgeBaseStroke,
   getEdgeClassTokens,
   normalizeClassValue,
   normalizeEdgeClass,
   stripEdgeClass,
   stripNodeClass,
-  toEdgeStyleRecord,
-} from '../lib/graphUtils';
+} from '../theme/graphClasses';
+import { applyEdgeHoverStrokeVariable, getEdgeBaseStroke, toEdgeStyleRecord } from '../theme/edgeStyles';
 
 import type { Ref } from 'vue';
 

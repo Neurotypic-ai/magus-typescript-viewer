@@ -2,7 +2,7 @@ import { ref } from 'vue';
 
 import { applyNodeChanges } from '@vue-flow/core';
 
-import { filterNodeChangesForFolderMode } from '../lib/buildGraphView';
+import { filterNodeChangesForFolderMode } from '../graph/buildGraphView';
 import { resolveCollisions, buildPositionMap, DEFAULT_COLLISION_CONFIG } from '../layout/collisionResolver';
 
 import type { Ref } from 'vue';

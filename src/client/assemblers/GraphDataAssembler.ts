@@ -12,7 +12,7 @@ import type { Package } from '../../shared/types/Package';
 import type { Property as SharedProperty } from '../../shared/types/Property';
 import type { SymbolReference } from '../../shared/types/SymbolReference';
 import type { TypeAlias } from '../../shared/types/TypeAlias';
-import { typeCollectionToArray } from '../lib/mapTypeCollection';
+import { typeCollectionToArray } from '../utils/collections';
 import type { Variable } from '../../shared/types/Variable';
 import type {
   ClassStructure,

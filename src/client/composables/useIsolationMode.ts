@@ -5,8 +5,10 @@ import { clusterByFolder } from '../graph/cluster/folders';
 import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
 import { traverseGraph } from '../graph/traversal';
 import { getEdgeStyle } from '../theme/graphTheme';
-import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../lib/buildGraphView';
-import { getNodeDims, mergeNodeInteractionStyle, stripNodeClass, waitForNextPaint } from '../lib/graphUtils';
+import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../graph/buildGraphView';
+import { getNodeDims } from '../layout/geometryBounds';
+import { mergeNodeInteractionStyle, stripNodeClass } from '../theme/graphClasses';
+import { waitForNextPaint } from '../utils/dom';
 
 import type { Ref } from 'vue';
 

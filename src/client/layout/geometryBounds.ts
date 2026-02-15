@@ -82,6 +82,14 @@ export const resolveNodeDimensions = (
   return { width: Math.max(1, width), height: Math.max(1, height) };
 };
 
+/** Quick measured-or-fallback dimensions for a graph node. */
+export const getNodeDims = (n: { measured?: { width?: number; height?: number }; width?: unknown; height?: unknown }): { w: number; h: number } => {
+  return {
+    w: n.measured?.width ?? parseDimension(n.width) ?? 280,
+    h: n.measured?.height ?? parseDimension(n.height) ?? 200,
+  };
+};
+
 /**
  * Build a map of node-id to absolute (graph-space) bounding rectangles.
  * Recursively resolves `parentNode` chains to convert relative positions

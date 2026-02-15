@@ -7,8 +7,8 @@ import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
 import { buildParentMap } from '../graph/cluster/folderMembership';
 import { traverseGraph } from '../graph/traversal';
-import { getEnabledNodeTypes, parseEnvBoolean, parseEnvInt } from '../lib/graphUtils';
-import { buildOverviewGraph } from '../lib/buildGraphView';
+import { parseEnvBoolean, parseEnvInt } from '../utils/env';
+import { buildOverviewGraph } from '../graph/buildGraphView';
 import { nodeTypes } from '../nodes/nodes';
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
@@ -695,7 +695,7 @@ provide(FOLDER_COLLAPSE_ACTIONS_KEY, {
 
     const overviewGraph = buildOverviewGraph({
       data: props.data,
-      enabledNodeTypes: getEnabledNodeTypes(graphSettings.enabledNodeTypes),
+      enabledNodeTypes: new Set(graphSettings.enabledNodeTypes),
       enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
       direction: layoutConfig.direction,
       clusterByFolder: graphSettings.clusterByFolder,

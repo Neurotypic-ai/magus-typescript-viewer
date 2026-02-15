@@ -1,5 +1,5 @@
 export function getApiBaseUrl(): string {
-  const configured = import.meta.env['VITE_API_BASE_URL'];
+  const configured = import.meta.env['VITE_API_BASE_URL'] as string | undefined;
   if (configured && configured.length > 0) {
     return configured;
   }

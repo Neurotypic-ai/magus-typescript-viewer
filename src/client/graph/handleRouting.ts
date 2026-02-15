@@ -1,3 +1,5 @@
+import { Position } from '@vue-flow/core';
+
 export const FOLDER_HANDLE_IDS = {
   topIn: 'folder-top-in',
   topOut: 'folder-top-out',
@@ -19,6 +21,21 @@ export const FOLDER_INNER_HANDLE_IDS = {
   leftIn: 'folder-left-in-inner',
   leftOut: 'folder-left-out-inner',
 } as const;
+
+export const getHandlePositions = (
+  direction: 'LR' | 'RL' | 'TB' | 'BT'
+): { sourcePosition: Position; targetPosition: Position } => {
+  switch (direction) {
+    case 'LR':
+      return { sourcePosition: Position.Right, targetPosition: Position.Left };
+    case 'RL':
+      return { sourcePosition: Position.Left, targetPosition: Position.Right };
+    case 'TB':
+      return { sourcePosition: Position.Bottom, targetPosition: Position.Top };
+    case 'BT':
+      return { sourcePosition: Position.Top, targetPosition: Position.Bottom };
+  }
+};
 
 export function selectFolderHandle(
   direction: 'LR' | 'RL' | 'TB' | 'BT',
