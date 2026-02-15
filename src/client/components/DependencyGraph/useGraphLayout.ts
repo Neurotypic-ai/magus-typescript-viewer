@@ -3,6 +3,8 @@ import { nextTick, ref } from 'vue';
 import { optimizeHighwayHandleRouting } from '../../graph/transforms/edgeHighways';
 import { WebWorkerLayoutProcessor } from '../../layout/WebWorkerLayoutProcessor';
 import { graphTheme } from '../../theme/graphTheme';
+
+import type { GraphTheme } from '../../theme/graphTheme';
 import { measurePerformance } from '../../utils/performanceMonitoring';
 import { buildOverviewGraph } from './buildGraphView';
 import { collectNodesNeedingInternalsUpdate, getEnabledNodeTypes, getHandlePositions, simpleHash, waitForNextPaint } from './graphUtils';
@@ -33,10 +35,32 @@ export interface LayoutProcessOptions {
 
 // ── Layout cache ──
 
-interface LayoutCacheEntry {
+/** One entry in the layout cache (nodes, edges, weight). */
+export interface LayoutCacheEntry {
   nodes: DependencyNode[];
   edges: GraphEdge[];
   weight: number;
+}
+
+/** Internal: one measurement entry (width, height, header/body/subnodes, isContainer). */
+interface NodeMeasurementEntry {
+  width: number;
+  height: number;
+  headerH: number;
+  bodyH: number;
+  subnodesH: number;
+  isContainer: boolean;
+}
+
+/** Layout insets on node.data (e.g. top inset for containers). */
+export interface LayoutInsets {
+  top?: number;
+}
+
+/** Measured width/height on a node (node.measured). */
+export interface NodeMeasuredData {
+  width?: number;
+  height?: number;
 }
 
 const MAX_LAYOUT_CACHE_ENTRIES = 8;
@@ -73,15 +97,30 @@ export type ApplyManualOffsets = (nodes: DependencyNode[]) => DependencyNode[];
 /** How member nodes are displayed inside container nodes. */
 export type MemberNodeMode = 'compact' | 'graph';
 
+/** Sets the nodes array in the graph store. */
+export type SetNodes = (nodes: DependencyNode[]) => void;
+
+/** Sets the edges array in the graph store. */
+export type SetEdges = (edges: GraphEdge[]) => void;
+
+/** Sets the current view mode (e.g. 'overview', 'isolate'). */
+export type SetViewMode = (mode: string) => void;
+
+/** Suspends cache writes (e.g. during layout). */
+export type SuspendCacheWrites = () => void;
+
+/** Resumes cache writes. */
+export type ResumeCacheWrites = () => void;
+
 export interface GraphStore {
   nodes: DependencyNode[];
-  setNodes: (nodes: DependencyNode[]) => void;
-  setEdges: (edges: GraphEdge[]) => void;
+  setNodes: SetNodes;
+  setEdges: SetEdges;
   setOverviewSnapshot: SetOverviewSnapshot;
   setSemanticSnapshot: SetSemanticSnapshot;
-  setViewMode: (mode: string) => void;
-  suspendCacheWrites: () => void;
-  resumeCacheWrites: () => void;
+  setViewMode: SetViewMode;
+  suspendCacheWrites: SuspendCacheWrites;
+  resumeCacheWrites: ResumeCacheWrites;
   manualOffsets: ManualOffsetsMap;
   applyManualOffsets: ApplyManualOffsets;
 }
@@ -108,48 +147,114 @@ export interface FitViewOptions {
 /** Fits the viewport to the graph or to given nodes. */
 export type FitView = (opts?: FitViewOptions) => Promise<void>;
 
-interface NodeDimensionTracker {
+// ── Callbacks & interaction ──
+
+/** Resets pan/zoom/selection interaction state. */
+export type ResetInteraction = () => void;
+
+/** Updates Vue Flow node internals for given node ids. */
+export type UpdateNodeInternals = (ids: string[]) => void;
+
+/** Suspends edge virtualization (e.g. during layout). */
+export type SuspendEdgeVirtualization = () => void;
+
+/** Resumes edge virtualization. */
+export type ResumeEdgeVirtualization = () => void;
+
+/** Syncs viewport state to external store. */
+export type SyncViewportState = () => void;
+
+/** Clears search highlight state. */
+export type ResetSearchHighlightState = () => void;
+
+/** Interaction API passed into layout composable. */
+export interface GraphLayoutInteraction {
+  resetInteraction: ResetInteraction;
+}
+
+// ── Node dimensions (tracker & measurement) ──
+
+/** Dimensions for a single node from the dimension tracker. */
+export interface NodeDimensions {
+  width: number;
+  height: number;
+  headerHeight: number;
+  bodyHeight: number;
+  subnodesHeight: number;
+}
+
+/** Tracks node dimensions (from DOM or measured). */
+export interface NodeDimensionTracker {
   refresh: () => void;
-  get: (nodeId: string) => {
-    width: number;
-    height: number;
-    headerHeight: number;
-    bodyHeight: number;
-    subnodesHeight: number;
-  } | undefined;
+  get: (nodeId: string) => NodeDimensions | undefined;
+}
+
+/** One entry in the node measurement cache (width, height, topInset). */
+export interface NodeMeasurementCacheEntry {
+  width: number;
+  height: number;
+  topInset: number;
+}
+
+/** Result of measureAllNodeDimensions. */
+export interface MeasureNodesResult {
+  nodes: DependencyNode[];
+  hasChanges: boolean;
+}
+
+// ── Layout processor config (passed to WebWorkerLayoutProcessor) ──
+
+/** Config object passed to the layout processor. */
+export interface LayoutProcessorConfig {
+  algorithm: LayoutConfig['algorithm'];
+  direction: LayoutConfig['direction'];
+  nodeSpacing: number;
+  rankSpacing: number;
+  edgeSpacing: number;
+  degreeWeightedLayers: boolean;
+  theme: GraphTheme;
+  animationDuration: number;
 }
 
 export interface UseGraphLayoutOptions {
   propsData: Ref<DependencyPackageGraph>;
   graphStore: GraphStore;
   graphSettings: GraphSettings;
-  interaction: {
-    resetInteraction: () => void;
-  };
+  interaction: GraphLayoutInteraction;
   fitView: FitView;
-  updateNodeInternals: (ids: string[]) => void;
-  suspendEdgeVirtualization: () => void;
-  resumeEdgeVirtualization: () => void;
-  syncViewportState: () => void;
+  updateNodeInternals: UpdateNodeInternals;
+  suspendEdgeVirtualization: SuspendEdgeVirtualization;
+  resumeEdgeVirtualization: ResumeEdgeVirtualization;
+  syncViewportState: SyncViewportState;
   nodeDimensionTracker: NodeDimensionTracker;
-  resetSearchHighlightState: () => void;
+  resetSearchHighlightState: ResetSearchHighlightState;
 }
+
+/** Processes graph layout; returns normalized nodes/edges or null. */
+export type ProcessGraphLayout = (
+  graphData: GraphSnapshot,
+  options?: LayoutProcessOptions
+) => Promise<GraphSnapshot | null>;
+
+/** Measures all node dimensions; returns updated nodes and hasChanges. */
+export type MeasureAllNodeDimensions = (layoutedNodes: DependencyNode[]) => MeasureNodesResult;
+
+/** Returns whether two-pass measurement should run for the given node count. */
+export type ShouldRunTwoPassMeasure = (nodeCount: number) => boolean;
+
+/** Sets layout config from a partial. */
+export type SetLayoutConfig = (partial: Partial<LayoutConfig>) => void;
 
 export interface GraphLayout {
   isLayoutPending: Readonly<Ref<boolean>>;
   isLayoutMeasuring: Readonly<Ref<boolean>>;
   layoutConfig: LayoutConfig;
-  processGraphLayout: (
-    graphData: GraphSnapshot,
-    options?: LayoutProcessOptions
-  ) => Promise<GraphSnapshot | null>;
+  processGraphLayout: ProcessGraphLayout;
   initializeGraph: () => Promise<void>;
   requestGraphInitialization: () => Promise<void>;
-  measureAllNodeDimensions: (
-    layoutedNodes: DependencyNode[]
-  ) => { nodes: DependencyNode[]; hasChanges: boolean };
-  shouldRunTwoPassMeasure: (nodeCount: number) => boolean;
-  setLayoutConfig: (partial: Partial<LayoutConfig>) => void;
+  measureAllNodeDimensions: MeasureAllNodeDimensions;
+  shouldRunTwoPassMeasure: ShouldRunTwoPassMeasure;
+  setLayoutConfig: SetLayoutConfig;
   resetLayoutConfig: () => void;
   dispose: () => void;
 }
@@ -176,7 +281,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   let layoutRequestVersion = 0;
   let graphInitPromise: Promise<void> | null = null;
   let graphInitQueued = false;
-  const nodeMeasurementCache = new Map<string, { width: number; height: number; topInset: number }>();
+  const nodeMeasurementCache = new Map<string, NodeMeasurementCacheEntry>();
   const layoutCache = new Map<string, LayoutCacheEntry>();
   let layoutCacheWeight = 0;
 
@@ -184,7 +289,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   // ── Layout processor config ──
 
-  const getLayoutProcessorConfig = () => ({
+  const getLayoutProcessorConfig = (): LayoutProcessorConfig => ({
     algorithm: layoutConfig.algorithm,
     direction: layoutConfig.direction,
     nodeSpacing: layoutConfig.nodeSpacing,
@@ -270,9 +375,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   const shouldRunTwoPassMeasure = (nodeCount: number): boolean => nodeCount <= TWO_PASS_MEASURE_NODE_THRESHOLD;
 
-  const measureAllNodeDimensions = (
-    layoutedNodes: DependencyNode[]
-  ): { nodes: DependencyNode[]; hasChanges: boolean } => {
+  const measureAllNodeDimensions = (layoutedNodes: DependencyNode[]): MeasureNodesResult => {
     if (layoutedNodes.length === 0) {
       return { nodes: layoutedNodes, hasChanges: false };
     }
@@ -280,17 +383,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     nodeDimensionTracker.refresh();
     const fallbackElementMap = new Map<string, HTMLElement>();
 
-    const measurements = new Map<
-      string,
-      {
-        width: number;
-        height: number;
-        headerH: number;
-        bodyH: number;
-        subnodesH: number;
-        isContainer: boolean;
-      }
-    >();
+    const measurements = new Map<string, NodeMeasurementEntry>();
 
     layoutedNodes.forEach((node) => {
       const tracked = nodeDimensionTracker.get(node.id);
@@ -348,7 +441,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         return node;
       }
 
-      const currentMeasured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
+      const currentMeasured = (node as unknown as { measured?: NodeMeasuredData }).measured;
       const widthDelta = Math.abs((currentMeasured?.width ?? 0) - m.width);
       const heightDelta = Math.abs((currentMeasured?.height ?? 0) - m.height);
       const cached = nodeMeasurementCache.get(node.id);
@@ -360,7 +453,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
       if (m.isContainer) {
         measuredTopInset = Math.max(96, Math.round(m.headerH + m.bodyH + m.subnodesH + 12));
-        const currentTopInset = (node.data?.layoutInsets as { top?: number } | undefined)?.top ?? 0;
+        const currentTopInset = (node.data?.layoutInsets as LayoutInsets | undefined)?.top ?? 0;
         const insetDelta = Math.abs(currentTopInset - measuredTopInset);
         const cacheDeltaInset = Math.abs((cached?.topInset ?? 0) - measuredTopInset);
         insetChanged = insetDelta > 1 || cacheDeltaInset > 1;
@@ -410,7 +503,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   const normalizeLayoutResult = (
     resultNodes: DependencyNode[],
     resultEdges: GraphEdge[]
-  ): { nodes: DependencyNode[]; edges: GraphEdge[] } => {
+  ): GraphSnapshot => {
     const { sourcePosition, targetPosition } = getHandlePositions(layoutConfig.direction);
 
     const nodesWithHandles = resultNodes.map((node) => ({
@@ -428,9 +521,9 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   // ── Main layout pipeline ──
 
   const processGraphLayout = async (
-    graphData: { nodes: DependencyNode[]; edges: GraphEdge[] },
+    graphData: GraphSnapshot,
     layoutOptions: LayoutProcessOptions = {}
-  ): Promise<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null> => {
+  ): Promise<GraphSnapshot | null> => {
     if (!layoutProcessor) {
       return null;
     }

@@ -10,53 +10,94 @@ import { getNodeDims, mergeNodeInteractionStyle, stripNodeClass, waitForNextPain
 
 import type { Ref } from 'vue';
 
-import type { LayoutConfig, LayoutProcessOptions } from './useGraphLayout';
+import type {
+  FitView,
+  FitViewOptions,
+  GraphSnapshot,
+  LayoutConfig,
+  MeasureAllNodeDimensions,
+  ProcessGraphLayout,
+  ShouldRunTwoPassMeasure,
+} from './useGraphLayout';
 import type { DependencyNode, DependencyPackageGraph, GraphEdge } from './types';
+
+// ── Isolate graph store (subset of full graph store) ──
+
+/** Restores the overview snapshot; returns true if restored. */
+export type RestoreOverviewSnapshot = () => boolean;
+
+/** Graph store API used by isolation mode (setNodes, setEdges, snapshots, restore). */
+export interface IsolateGraphStore {
+  setNodes: (nodes: DependencyNode[]) => void;
+  setEdges: (edges: GraphEdge[]) => void;
+  setViewMode: (mode: string) => void;
+  overviewSnapshot: GraphSnapshot | null;
+  semanticSnapshot: GraphSnapshot | null;
+  restoreOverviewSnapshot: RestoreOverviewSnapshot;
+}
+
+/** Graph settings used by isolation mode. */
+export interface IsolateGraphSettings {
+  clusterByFolder: boolean;
+  activeRelationshipTypes: string[];
+}
+
+/** Interaction API for scope mode (isolate, symbolDrilldown, overview). */
+export interface IsolateInteraction {
+  setScopeMode: (mode: string) => void;
+  scopeMode: Readonly<Ref<string>>;
+}
+
+/** Requests edge virtualization to recalc viewport (optionally force). */
+export type RequestEdgeVirtualizationViewportRecalc = (force?: boolean) => void;
+
+/** Sets the currently selected node (or null). */
+export type SetSelectedNode = (node: DependencyNode | null) => void;
+
+/** Requests full graph initialization (overview layout). */
+export type RequestGraphInitialization = () => Promise<void>;
+
+/** Map of node id → position (x, y). */
+export type NodePositionMap = Map<string, { x: number; y: number }>;
+
+/** Layout direction for isolate layout (LR, RL, TB, BT). */
+export type LayoutDirection = LayoutConfig['direction'];
 
 export interface UseIsolationModeOptions {
   propsData: Ref<DependencyPackageGraph>;
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
-  graphStore: {
-    setNodes: (nodes: DependencyNode[]) => void;
-    setEdges: (edges: GraphEdge[]) => void;
-    setViewMode: (mode: string) => void;
-    overviewSnapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null;
-    semanticSnapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null;
-    restoreOverviewSnapshot: () => boolean;
-  };
-  graphSettings: {
-    clusterByFolder: boolean;
-    activeRelationshipTypes: string[];
-  };
-  interaction: {
-    setScopeMode: (mode: string) => void;
-    scopeMode: Readonly<Ref<string>>;
-  };
+  graphStore: IsolateGraphStore;
+  graphSettings: IsolateGraphSettings;
+  interaction: IsolateInteraction;
   layoutConfig: LayoutConfig;
   isLayoutMeasuring: Ref<boolean>;
-  fitView: (opts?: { duration?: number; padding?: number; nodes?: string[] }) => Promise<void>;
+  fitView: FitView;
   updateNodeInternals: (ids: string[]) => void;
   syncViewportState: () => void;
-  requestEdgeVirtualizationViewportRecalc: (force?: boolean) => void;
-  setSelectedNode: (node: DependencyNode | null) => void;
-  processGraphLayout: (
-    graphData: { nodes: DependencyNode[]; edges: GraphEdge[] },
-    options?: LayoutProcessOptions
-  ) => Promise<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
-  measureAllNodeDimensions: (
-    layoutedNodes: DependencyNode[]
-  ) => { nodes: DependencyNode[]; hasChanges: boolean };
-  shouldRunTwoPassMeasure: (nodeCount: number) => boolean;
-  requestGraphInitialization: () => Promise<void>;
+  requestEdgeVirtualizationViewportRecalc: RequestEdgeVirtualizationViewportRecalc;
+  setSelectedNode: SetSelectedNode;
+  processGraphLayout: ProcessGraphLayout;
+  measureAllNodeDimensions: MeasureAllNodeDimensions;
+  shouldRunTwoPassMeasure: ShouldRunTwoPassMeasure;
+  requestGraphInitialization: RequestGraphInitialization;
 }
+
+/** Isolates the neighborhood of a node (inbound/outbound). */
+export type IsolateNeighborhood = (nodeId: string) => Promise<void>;
+
+/** Opens the symbol drilldown graph for a node. */
+export type HandleOpenSymbolUsageGraph = (nodeId: string) => Promise<void>;
+
+/** Returns to overview (restore snapshot or re-init). */
+export type HandleReturnToOverview = () => Promise<void>;
 
 export interface IsolationMode {
   isIsolateAnimating: Readonly<Ref<boolean>>;
   isolateExpandAll: Ref<boolean>;
-  isolateNeighborhood: (nodeId: string) => Promise<void>;
-  handleOpenSymbolUsageGraph: (nodeId: string) => Promise<void>;
-  handleReturnToOverview: () => Promise<void>;
+  isolateNeighborhood: IsolateNeighborhood;
+  handleOpenSymbolUsageGraph: HandleOpenSymbolUsageGraph;
+  handleReturnToOverview: HandleReturnToOverview;
   startIsolateAnimation: () => void;
   dispose: () => void;
 }
@@ -99,8 +140,8 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     centerNode: DependencyNode,
     inbound: DependencyNode[],
     outbound: DependencyNode[],
-    direction: 'LR' | 'RL' | 'TB' | 'BT'
-  ): Map<string, { x: number; y: number }> => {
+    direction: LayoutDirection
+  ): NodePositionMap => {
     const allNodes = [centerNode, ...inbound, ...outbound];
     const cx = allNodes.reduce((sum, n) => sum + n.position.x, 0) / allNodes.length;
     const cy = allNodes.reduce((sum, n) => sum + n.position.y, 0) / allNodes.length;
@@ -114,7 +155,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     const beforeNodes = isReversed ? outbound : inbound;
     const afterNodes = isReversed ? inbound : outbound;
 
-    const positions = new Map<string, { x: number; y: number }>();
+    const positions: NodePositionMap = new Map();
     positions.set(centerNode.id, { x: cx, y: cy });
 
     if (isHorizontal) {
@@ -269,7 +310,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     const isolatedSourceNodes = sourceNodes.filter((node) => connectedNodeIds.has(node.id));
     const styleIsolatedNode = (
       node: DependencyNode,
-      layoutPositions?: Map<string, { x: number; y: number }>
+      layoutPositions?: NodePositionMap
     ) => {
       const baseNode = stripNodeClass(node);
       const layoutPos = layoutPositions?.get(node.id);
@@ -354,11 +395,12 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
       isLayoutMeasuring.value = previousLayoutMeasuring;
     }
 
-    await fitView({
+    const fitOpts: FitViewOptions = {
       duration: 350,
       padding: 0.35,
       nodes: Array.from(connectedNodeIds),
-    });
+    };
+    await fitView(fitOpts);
     syncViewportState();
     requestEdgeVirtualizationViewportRecalc(true);
   };

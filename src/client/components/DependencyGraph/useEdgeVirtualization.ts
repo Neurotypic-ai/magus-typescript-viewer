@@ -10,7 +10,34 @@ import {
 
 import type { Ref, WatchStopHandle } from 'vue';
 
+import type {
+  GetContainerRect,
+  GetViewport,
+  SetEdgeVisibility,
+} from './useEdgeVirtualizationWorker';
 import type { DependencyNode, GraphEdge } from './types';
+
+// ── Types (reused from worker where applicable) ──
+
+/** Options for the main-thread edge virtualization composable. */
+export interface UseEdgeVirtualizationOptions {
+  nodes: Ref<DependencyNode[]>;
+  edges: Ref<GraphEdge[]>;
+  getViewport: GetViewport;
+  getContainerRect: GetContainerRect;
+  setEdgeVisibility: SetEdgeVisibility;
+  enabled: Ref<boolean>;
+}
+
+/** Return type of useEdgeVirtualization (subset of worker return). */
+export interface UseEdgeVirtualizationReturn {
+  onViewportChange: () => void;
+  recalculate: () => void;
+  virtualizedHiddenCount: Ref<Set<string>>;
+  suspend: () => void;
+  resume: () => void;
+  dispose: () => void;
+}
 
 /** Minimum edge count before virtualization kicks in */
 const VIRTUALIZATION_THRESHOLD = 200;
@@ -49,15 +76,6 @@ const DEFAULT_NODE_HEIGHT = 100;
 /** Edge type priority for thresholding (higher = kept longer) */
 const EDGE_TYPE_PRIORITY = DEFAULT_EDGE_TYPE_PRIORITY;
 
-interface UseEdgeVirtualizationOptions {
-  nodes: Ref<DependencyNode[]>;
-  edges: Ref<GraphEdge[]>;
-  getViewport: () => { x: number; y: number; zoom: number };
-  getContainerRect: () => DOMRect | null;
-  setEdgeVisibility: (visibilityMap: Map<string, boolean>) => void;
-  enabled: Ref<boolean>;
-}
-
 /**
  * Composable that hides off-screen edges to reduce DOM element count.
  *
@@ -67,7 +85,9 @@ interface UseEdgeVirtualizationOptions {
  * At low zoom levels (< 0.3), it also applies priority-based thresholding
  * to keep only the most important edges visible.
  */
-export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
+export function useEdgeVirtualization(
+  options: UseEdgeVirtualizationOptions
+): UseEdgeVirtualizationReturn {
   const { nodes, edges, getViewport, getContainerRect, setEdgeVisibility, enabled } = options;
 
   // Track which edges are hidden by virtualization vs. by user filtering.
