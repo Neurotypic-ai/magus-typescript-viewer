@@ -7,7 +7,7 @@ export interface HandleAnchorNodeBounds {
 
 const FOLDER_HANDLE_PATTERN = /^folder-(top|right|bottom|left)-(in|out)(-inner)?$/;
 const RELATIONAL_SIDE_HANDLE_PATTERN = /^relational-(in|out)-(top|right|bottom|left)$/;
-const INNER_FOLDER_HANDLE_INSET_PX = 8;
+const INNER_FOLDER_HANDLE_INSET_PX = 14;
 
 export function getHandleAnchor(
   nodeBounds: HandleAnchorNodeBounds,

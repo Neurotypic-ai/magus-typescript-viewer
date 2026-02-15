@@ -8,32 +8,32 @@ todos:
     content:
       Extract absolute-bounds and dimension helpers into shared geometry utilities used by edge virtualization and
       collision resolution.
-    status: pending
+    status: completed
   - id: build-collision-engine
     content:
       Implement deterministic hierarchical collision resolver with bounded settle cycles, container growth, and ancestor
       propagation.
-    status: pending
+    status: completed
   - id: add-persistent-offset-model
     content: Add manual offset overlay model so pushed positions persist across relayout and folder toggle rebuilds.
-    status: pending
+    status: completed
   - id: wire-safe-event-pipeline
     content:
       Integrate collision resolution into nodes-change with reentrancy guards, source gating, and drag-time throttling.
-    status: pending
+    status: completed
   - id: animate-size-a11y
     content:
       Animate container size changes on collapse/expand while honoring reduced-motion preferences and preserving
       keyboard accessibility.
-    status: pending
+    status: completed
   - id: add-performance-guardrails
     content: Add concrete thresholds and degradation policy for dense graphs to prevent drag-time frame drops.
-    status: pending
+    status: completed
   - id: add-unit-and-integration-tests
     content:
       Add pure resolver tests and interaction tests covering no-loop guarantees, persistence across relayout, and group
       push behavior.
-    status: pending
+    status: completed
 isProject: false
 ---
 

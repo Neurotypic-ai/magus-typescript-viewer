@@ -1,11 +1,13 @@
 import { MarkerType } from '@vue-flow/core';
 
+import { getHandleAnchor } from '../../components/DependencyGraph/handleAnchors';
+import { buildAbsoluteNodeBoundsMap } from '../../components/DependencyGraph/layout/geometryBounds';
+import { getEdgeStyle } from '../../theme/graphTheme';
+import { buildNodeToFolderMap } from '../cluster/folderMembership';
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
-import { buildNodeToFolderMap } from '../cluster/folderMembership';
-import { getHandleAnchor } from '../../components/DependencyGraph/handleAnchors';
-import { getEdgeStyle } from '../../theme/graphTheme';
 
+import type { Rect } from '../../components/DependencyGraph/layout/geometryBounds';
 import type {
   DependencyEdgeKind,
   DependencyKind,
@@ -54,9 +56,7 @@ const addToAccumulator = (
   accumulator.set(key, current);
 };
 
-const getPrimaryEdgeType = (
-  breakdown: Partial<Record<DependencyEdgeKind, number>>
-): DependencyEdgeKind => {
+const getPrimaryEdgeType = (breakdown: Partial<Record<DependencyEdgeKind, number>>): DependencyEdgeKind => {
   let best: DependencyEdgeKind = 'import';
   let bestCount = -1;
   let bestPriority = -1;
@@ -75,8 +75,8 @@ const getPrimaryEdgeType = (
 };
 
 const createMarker = () => ({ type: MarkerType.ArrowClosed, width: 12, height: 12 });
-const DEFAULT_NODE_WIDTH = 260;
-const DEFAULT_NODE_HEIGHT = 100;
+const HIGHWAY_DEFAULT_NODE_WIDTH = 260;
+const HIGHWAY_DEFAULT_NODE_HEIGHT = 100;
 
 const OUTGOING_HANDLE_IDS = [
   FOLDER_HANDLE_IDS.topOut,
@@ -117,63 +117,18 @@ const FOLDER_INNER_IN_HANDLE_BY_SIDE: Record<HandleSide, string> = {
   left: FOLDER_INNER_HANDLE_IDS.leftIn,
 };
 
-const parseDimension = (value: unknown): number | undefined => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-};
-
-function buildAbsoluteNodeBoundsMap(
-  nodes: DependencyNode[]
-): Map<string, { x: number; y: number; width: number; height: number }> {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const boundsById = new Map<string, { x: number; y: number; width: number; height: number }>();
-  const resolving = new Set<string>();
-
-  const resolveBounds = (nodeId: string): { x: number; y: number; width: number; height: number } | null => {
-    const cached = boundsById.get(nodeId);
-    if (cached) return cached;
-    if (resolving.has(nodeId)) return null;
-
-    const node = nodeById.get(nodeId);
-    if (!node?.position) return null;
-    resolving.add(nodeId);
-
-    const nodeStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
-    const measured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
-    const width = parseDimension(nodeStyle['width']) ?? measured?.width ?? DEFAULT_NODE_WIDTH;
-    const height = parseDimension(nodeStyle['height']) ?? measured?.height ?? DEFAULT_NODE_HEIGHT;
-
-    let absoluteX = node.position.x;
-    let absoluteY = node.position.y;
-    if (node.parentNode) {
-      const parentBounds = resolveBounds(node.parentNode);
-      if (parentBounds) {
-        absoluteX += parentBounds.x;
-        absoluteY += parentBounds.y;
-      }
-    }
-
-    const resolved = { x: absoluteX, y: absoluteY, width, height };
-    boundsById.set(nodeId, resolved);
-    resolving.delete(nodeId);
-    return resolved;
-  };
-
-  nodes.forEach((node) => {
-    resolveBounds(node.id);
+/**
+ * Build highway-local absolute bounds map using shared geometry helper.
+ * DependencyNode is compatible with BoundsNode thanks to matching shape.
+ */
+function buildHighwayAbsoluteNodeBoundsMap(nodes: DependencyNode[]): Map<string, Rect> {
+  return buildAbsoluteNodeBoundsMap(nodes, {
+    defaultNodeWidth: HIGHWAY_DEFAULT_NODE_WIDTH,
+    defaultNodeHeight: HIGHWAY_DEFAULT_NODE_HEIGHT,
   });
-
-  return boundsById;
 }
 
-const getBoundsCenter = (bounds: { x: number; y: number; width: number; height: number }): { x: number; y: number } => ({
+const getBoundsCenter = (bounds: Rect): { x: number; y: number } => ({
   x: bounds.x + bounds.width / 2,
   y: bounds.y + bounds.height / 2,
 });
@@ -282,7 +237,6 @@ export function applyEdgeHighways(
         ...getEdgeStyle(primaryType),
         strokeWidth: Math.min(3, 1 + acc.count * 0.2),
       },
-      markerEnd: createMarker(),
     } as GraphEdge);
   }
 
@@ -335,7 +289,6 @@ export function applyEdgeHighways(
         ...getEdgeStyle(primaryType),
         strokeWidth: Math.min(3, 1 + acc.count * 0.2),
       },
-      markerEnd: createMarker(),
     } as GraphEdge);
   }
 
@@ -346,7 +299,7 @@ export function applyEdgeHighways(
 }
 
 export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: GraphEdge[]): GraphEdge[] {
-  const boundsById = buildAbsoluteNodeBoundsMap(nodes);
+  const boundsById = buildHighwayAbsoluteNodeBoundsMap(nodes);
   let changed = false;
 
   const nextEdges = edges.map((edge) => {
@@ -360,9 +313,7 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
       const sourceCenter = sourceBounds ? getBoundsCenter(sourceBounds) : undefined;
       const targetBounds = boundsById.get(edge.target);
       const groupId = edge.data?.highwayGroupId;
-      const peerFolderId = typeof groupId === 'string' && groupId.includes('|')
-        ? groupId.split('|')[1]
-        : undefined;
+      const peerFolderId = typeof groupId === 'string' && groupId.includes('|') ? groupId.split('|')[1] : undefined;
       const peerFolderBounds = peerFolderId ? boundsById.get(peerFolderId) : undefined;
       const routingTarget = peerFolderBounds ? getBoundsCenter(peerFolderBounds) : sourceCenter;
       const targetHandle = chooseClosestHandle(
@@ -454,4 +405,3 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
 
   return changed ? nextEdges : edges;
 }
-

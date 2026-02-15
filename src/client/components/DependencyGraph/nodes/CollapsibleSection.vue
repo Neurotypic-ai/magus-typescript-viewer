@@ -111,4 +111,13 @@ watch(isolateExpandAll, (expand) => {
 .collapsible-section-grid--open > .collapsible-section-content {
   opacity: 1;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsible-section-grid {
+    transition: none;
+  }
+  .collapsible-section-content {
+    transition: none;
+  }
+}
 </style>

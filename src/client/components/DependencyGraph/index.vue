@@ -39,8 +39,10 @@ import { useFpsCounter } from './useFpsCounter';
 import { useGraphInteractionController } from './useGraphInteractionController';
 import { createNodeDimensionTracker, isContainerNode } from './useNodeDimensions';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
+import { resolveCollisions, buildPositionMap, DEFAULT_COLLISION_CONFIG } from './layout/collisionResolver';
 
 import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
+import type { ManualOffset } from '../../stores/graphStore';
 
 import type { DependencyKind, DependencyNode, DependencyPackageGraph, GraphEdge, SearchResult } from './types';
 
@@ -118,7 +120,16 @@ const selectedNode = computed(() => graphStore['selectedNode']);
 const scopeMode = computed(() => interaction.scopeMode.value);
 const isLayoutPending = ref(false);
 
-const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport, removeSelectedElements } = useVueFlow();
+// ---- Collision resolution state & thresholds ----
+const LIVE_SETTLE_NODE_THRESHOLD = 350;
+const LIVE_SETTLE_MIN_INTERVAL_MS = 32;
+const DRAG_END_ONLY_THRESHOLD = 700;
+const isApplyingCollisionResolution = ref(false);
+let collisionSettleRafId: number | null = null;
+let collisionDimensionTimer: ReturnType<typeof setTimeout> | null = null;
+let lastCollisionSettleTime = 0;
+
+const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport, removeSelectedElements, getNodes: getVueFlowNodes } = useVueFlow();
 
 const isMac = computed(() => isMacPlatform());
 const graphRootRef = ref<HTMLElement | null>(null);
@@ -1543,11 +1554,15 @@ const processGraphLayout = async (
       layoutCache.set(cacheKey, cachedEntry);
 
       const previousNodes = graphStore['nodes'];
-      graphStore['setNodes'](cachedEntry.nodes);
+      // Apply manual offsets to cached layout nodes as well
+      const cachedNodes = graphStore.manualOffsets.value.size > 0
+        ? graphStore.applyManualOffsets(cachedEntry.nodes)
+        : cachedEntry.nodes;
+      graphStore['setNodes'](cachedNodes);
       graphStore['setEdges'](cachedEntry.edges);
-      pruneNodeMeasurementCache(cachedEntry.nodes);
+      pruneNodeMeasurementCache(cachedNodes);
       await nextTick();
-      const changedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, cachedEntry.nodes);
+      const changedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, cachedNodes);
       if (changedNodeIds.length > 0) {
         updateNodeInternals(changedNodeIds);
       }
@@ -1622,6 +1637,14 @@ const processGraphLayout = async (
 
     if (pendingNodeInternalUpdates.size > 0) {
       updateNodeInternals(Array.from(pendingNodeInternalUpdates));
+    }
+
+    // Apply persisted manual offsets from previous collision-resolution pushes
+    // so that user-adjusted positions survive relayout and folder toggle rebuilds.
+    if (graphStore.manualOffsets.value.size > 0) {
+      const offsetNodes = graphStore.applyManualOffsets(normalized.nodes);
+      graphStore['setNodes'](offsetNodes);
+      normalized = { nodes: offsetNodes, edges: normalized.edges };
     }
 
     if (fitViewToResult) {
@@ -2291,8 +2314,179 @@ const handleFpsAdvancedToggle = (value: boolean): void => {
   graphSettings.setShowFpsAdvanced(value);
 };
 
+// ---- Collision resolution helpers ----
+
+/**
+ * Run the deterministic collision resolver against the current node list
+ * and apply the results (position/size updates + manual offsets) in a single
+ * batched store commit. Guarded by `isApplyingCollisionResolution` to prevent
+ * reentrancy from reactive VueFlow `nodes-change` events.
+ */
+const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
+  if (isApplyingCollisionResolution.value || isLayoutPending.value || isLayoutMeasuring.value) {
+    return;
+  }
+
+  const currentNodes = nodes.value;
+  if (currentNodes.length === 0) return;
+
+  isApplyingCollisionResolution.value = true;
+  try {
+    // Use VueFlow's internal GraphNode objects which have actual DOM-measured
+    // dimensions (node.dimensions.width/height). Our store's DependencyNode
+    // objects don't carry measured dimensions, so buildPositionMap would fall
+    // back to defaults and miss real overlaps.
+    const vfNodes = getVueFlowNodes.value ?? getVueFlowNodes;
+    const enrichedNodes = (Array.isArray(vfNodes) ? vfNodes : []) as Array<{
+      id: string;
+      position: { x: number; y: number };
+      parentNode?: string;
+      style?: unknown;
+      dimensions?: { width: number; height: number };
+      measured?: { width?: number; height?: number };
+      type?: string;
+      data?: unknown;
+    }>;
+
+    // Map VueFlow dimensions into the BoundsNode.measured shape that
+    // buildPositionMap understands.
+    const boundsNodes = enrichedNodes.map((n) => ({
+      id: n.id,
+      position: n.position,
+      parentNode: n.parentNode,
+      style: n.style,
+      type: n.type,
+      data: n.data,
+      measured: n.dimensions
+        ? { width: n.dimensions.width, height: n.dimensions.height }
+        : n.measured,
+    }));
+
+    // Build mutable position map from current node positions (parent-relative)
+    const posMap = buildPositionMap(boundsNodes, {
+      defaultNodeWidth: 260,
+      defaultNodeHeight: 100,
+    });
+
+    // anchoredNodeIds = nodes being dragged or that just changed.
+    // The resolver treats them as immovable and pushes overlapping neighbors away.
+    const result = resolveCollisions(boundsNodes, posMap, anchoredNodeIds, DEFAULT_COLLISION_CONFIG);
+
+    if (result.updatedPositions.size === 0 && result.updatedSizes.size === 0) {
+      return; // Nothing to do — no overlaps found
+    }
+
+    // Build batched node updates — the resolver already excludes anchored
+    // nodes from updatedPositions, so every entry here is a node that was
+    // repelled away from the anchored node.
+    const nodeUpdates = new Map<string, DependencyNode>();
+    const offsetUpdates = new Map<string, ManualOffset>();
+    const nodeById = new Map(currentNodes.map((n) => [n.id, n]));
+
+    for (const [id, newPos] of result.updatedPositions) {
+      const node = nodeById.get(id);
+      if (!node || !node.position) continue;
+
+      const dx = newPos.x - node.position.x;
+      const dy = newPos.y - node.position.y;
+
+      const updatedNode = {
+        ...node,
+        position: { x: newPos.x, y: newPos.y },
+      } as DependencyNode;
+      nodeUpdates.set(id, updatedNode);
+      offsetUpdates.set(id, { dx, dy });
+    }
+
+    // Apply container size updates
+    for (const [id, newSize] of result.updatedSizes) {
+      const existing = nodeUpdates.get(id) ?? nodeById.get(id);
+      if (!existing) continue;
+
+      const currentStyle = typeof existing.style === 'object' ? (existing.style as Record<string, unknown>) : {};
+      const updatedNode = {
+        ...existing,
+        style: {
+          ...currentStyle,
+          width: `${newSize.width}px`,
+          height: `${newSize.height}px`,
+        },
+      } as DependencyNode;
+      nodeUpdates.set(id, updatedNode);
+    }
+
+    if (nodeUpdates.size > 0) {
+      graphStore['updateNodesById'](nodeUpdates);
+    }
+    if (offsetUpdates.size > 0) {
+      graphStore.mergeManualOffsets(offsetUpdates);
+    }
+
+    lastCollisionSettleTime = performance.now();
+  } finally {
+    isApplyingCollisionResolution.value = false;
+  }
+};
+
+/**
+ * Schedule collision resolution for drag events. Uses rAF for live settling
+ * when node count is below threshold; otherwise defers to drag-end.
+ */
+const scheduleCollisionSettle = (changedNodeIds: Set<string>, isDragging: boolean) => {
+  const nodeCount = nodes.value.length;
+
+  // Above hard threshold: only settle on drag-end
+  if (nodeCount > DRAG_END_ONLY_THRESHOLD && isDragging) {
+    return;
+  }
+
+  // Above soft threshold: settle on drag-end only (no live settle)
+  if (nodeCount > LIVE_SETTLE_NODE_THRESHOLD && isDragging) {
+    return;
+  }
+
+  // Throttle live settling
+  if (isDragging) {
+    const elapsed = performance.now() - lastCollisionSettleTime;
+    if (elapsed < LIVE_SETTLE_MIN_INTERVAL_MS) {
+      // Already scheduled or too soon — skip
+      if (collisionSettleRafId !== null) return;
+      collisionSettleRafId = requestAnimationFrame(() => {
+        collisionSettleRafId = null;
+        runCollisionSettle(changedNodeIds);
+      });
+      return;
+    }
+  }
+
+  // Cancel any pending frame
+  if (collisionSettleRafId !== null) {
+    cancelAnimationFrame(collisionSettleRafId);
+    collisionSettleRafId = null;
+  }
+
+  runCollisionSettle(changedNodeIds);
+};
+
+/**
+ * Schedule collision resolution for dimension changes via a short debounce
+ * to batch rapid ResizeObserver callbacks.
+ */
+const scheduleDimensionSettle = () => {
+  if (collisionDimensionTimer !== null) {
+    clearTimeout(collisionDimensionTimer);
+  }
+  collisionDimensionTimer = setTimeout(() => {
+    collisionDimensionTimer = null;
+    runCollisionSettle(null);
+  }, 60);
+};
+
 const handleNodesChange = (changes: NodeChange[]) => {
   if (!changes.length) return;
+
+  // Guard: skip events that are replays from our own collision resolution
+  if (isApplyingCollisionResolution.value) return;
 
   const filteredChanges = filterNodeChangesForFolderMode(changes, nodes.value, graphSettings.clusterByFolder);
   if (!filteredChanges.length) return;
@@ -2301,12 +2495,42 @@ const handleNodesChange = (changes: NodeChange[]) => {
   const structuralChanges = filteredChanges.filter((change) => change.type !== 'select');
   if (!structuralChanges.length) return;
 
+  // Classify events by source for collision scheduling
+  const dragPositionIds = new Set<string>();
+  let hasLiveDrag = false;
+  let hasDragEnd = false;
+  let hasDimensionChange = false;
+
+  for (const change of structuralChanges) {
+    if (change.type === 'position') {
+      const posChange = change as { id: string; dragging?: boolean };
+      dragPositionIds.add(posChange.id);
+      if (posChange.dragging) {
+        hasLiveDrag = true;
+      } else {
+        // position change with dragging=false/undefined = drag-end or programmatic
+        hasDragEnd = true;
+      }
+    } else if (change.type === 'dimensions') {
+      hasDimensionChange = true;
+    }
+  }
+
   const updatedNodes = applyNodeChanges(
     structuralChanges,
     nodes.value as unknown as never[]
   ) as unknown as DependencyNode[];
   graphStore['setNodes'](updatedNodes);
   reconcileSelectedNodeAfterStructuralChange(updatedNodes);
+
+  // Schedule collision resolution based on event source
+  if (dragPositionIds.size > 0) {
+    // Live dragging = at least one change has dragging=true and none ended
+    const isDragging = hasLiveDrag && !hasDragEnd;
+    scheduleCollisionSettle(dragPositionIds, isDragging);
+  } else if (hasDimensionChange && !isLayoutPending.value && !isLayoutMeasuring.value) {
+    scheduleDimensionSettle();
+  }
 };
 
 const handleLayoutChange = async (config: {
@@ -2611,6 +2835,14 @@ onUnmounted(() => {
   if (panEndTimer) {
     clearTimeout(panEndTimer);
     panEndTimer = null;
+  }
+  if (collisionSettleRafId !== null) {
+    cancelAnimationFrame(collisionSettleRafId);
+    collisionSettleRafId = null;
+  }
+  if (collisionDimensionTimer !== null) {
+    clearTimeout(collisionDimensionTimer);
+    collisionDimensionTimer = null;
   }
   if (selectionHighlightRafId !== null) {
     cancelAnimationFrame(selectionHighlightRafId);

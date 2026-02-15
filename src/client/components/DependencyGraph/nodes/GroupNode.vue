@@ -50,8 +50,8 @@ function toggleCollapse() {
       id="folder-top-in-inner"
       type="target"
       :position="Position.Top"
-      :style="{ left: '33%', top: '8px' }"
-      class="folder-handle folder-handle-inner"
+      :style="{ left: '33%' }"
+      class="folder-handle folder-handle-inner folder-handle-inner-top"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -68,8 +68,8 @@ function toggleCollapse() {
       id="folder-top-out-inner"
       type="source"
       :position="Position.Top"
-      :style="{ left: '66%', top: '8px' }"
-      class="folder-handle folder-handle-inner"
+      :style="{ left: '66%' }"
+      class="folder-handle folder-handle-inner folder-handle-inner-top"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -86,8 +86,8 @@ function toggleCollapse() {
       id="folder-right-in-inner"
       type="target"
       :position="Position.Right"
-      :style="{ top: '33%', right: '8px' }"
-      class="folder-handle folder-handle-inner"
+      :style="{ top: '33%' }"
+      class="folder-handle folder-handle-inner folder-handle-inner-right"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -104,8 +104,8 @@ function toggleCollapse() {
       id="folder-right-out-inner"
       type="source"
       :position="Position.Right"
-      :style="{ top: '66%', right: '8px' }"
-      class="folder-handle folder-handle-inner"
+      :style="{ top: '66%' }"
+      class="folder-handle folder-handle-inner folder-handle-inner-right"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -122,8 +122,8 @@ function toggleCollapse() {
       id="folder-bottom-in-inner"
       type="target"
       :position="Position.Bottom"
-      :style="{ left: '33%', bottom: '8px' }"
-      class="folder-handle folder-handle-inner"
+      :style="{ left: '33%' }"
+      class="folder-handle folder-handle-inner folder-handle-inner-bottom"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -140,8 +140,8 @@ function toggleCollapse() {
       id="folder-bottom-out-inner"
       type="source"
       :position="Position.Bottom"
-      :style="{ left: '66%', bottom: '8px' }"
-      class="folder-handle folder-handle-inner"
+      :style="{ left: '66%' }"
+      class="folder-handle folder-handle-inner folder-handle-inner-bottom"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -158,8 +158,8 @@ function toggleCollapse() {
       id="folder-left-in-inner"
       type="target"
       :position="Position.Left"
-      :style="{ top: '33%', left: '8px' }"
-      class="folder-handle folder-handle-inner"
+      :style="{ top: '33%' }"
+      class="folder-handle folder-handle-inner folder-handle-inner-left"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -176,8 +176,8 @@ function toggleCollapse() {
       id="folder-left-out-inner"
       type="source"
       :position="Position.Left"
-      :style="{ top: '66%', left: '8px' }"
-      class="folder-handle folder-handle-inner"
+      :style="{ top: '66%' }"
+      class="folder-handle folder-handle-inner folder-handle-inner-left"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -186,6 +186,7 @@ function toggleCollapse() {
 
 <style scoped>
 .group-node-container {
+  --folder-inner-handle-inset: 14px;
   width: 100%;
   height: 100%;
   min-width: 220px;
@@ -196,6 +197,13 @@ function toggleCollapse() {
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
   overflow: visible;
   padding: 8px 8px 8px 8px;
+  transition:
+    min-width 220ms ease-out,
+    min-height 220ms ease-out,
+    border 180ms ease-out,
+    background 180ms ease-out,
+    box-shadow 180ms ease-out,
+    padding 180ms ease-out;
 }
 
 .group-node-collapsed {
@@ -208,6 +216,13 @@ function toggleCollapse() {
     0 0 12px rgba(96, 165, 250, 0.25),
     0 2px 8px rgba(0, 0, 0, 0.3);
   padding: 8px 10px;
+}
+
+/* Accessibility: respect reduced-motion preferences (WCAG 2.1 SC 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  .group-node-container {
+    transition: none;
+  }
 }
 
 .group-node-selected {
@@ -303,5 +318,25 @@ function toggleCollapse() {
   opacity: 0;
   pointer-events: none;
   box-shadow: none !important;
+}
+
+.folder-handle-inner-top {
+  top: var(--folder-inner-handle-inset) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+.folder-handle-inner-right {
+  right: var(--folder-inner-handle-inset) !important;
+  transform: translate(0, -50%) !important;
+}
+
+.folder-handle-inner-bottom {
+  bottom: var(--folder-inner-handle-inset) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+.folder-handle-inner-left {
+  left: var(--folder-inner-handle-inset) !important;
+  transform: translate(0, -50%) !important;
 }
 </style>

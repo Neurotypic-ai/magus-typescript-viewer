@@ -244,6 +244,20 @@ const containerStyle = computed(() => {
   contain: layout style; /* no paint containment since overflow is visible */
   border-radius: 0.625rem;
   overflow: visible;
+  transition:
+    transform 180ms ease-out,
+    border-color 180ms ease-out,
+    opacity 180ms ease-out,
+    min-width 220ms ease-out,
+    min-height 220ms ease-out;
+}
+
+/* Accessibility: respect reduced-motion preferences (WCAG 2.1 SC 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  .base-node-container,
+  .base-node-container--container {
+    transition: none;
+  }
 }
 
 .base-node-container:hover {

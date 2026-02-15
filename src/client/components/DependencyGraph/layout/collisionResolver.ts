@@ -1,0 +1,495 @@
+/**
+ * Deterministic hierarchical collision resolver with directional repulsion.
+ *
+ * Operates on a mutable position map (parent-relative coordinates) to:
+ *   1. Detect sibling overlaps within each scope
+ *   2. Repel overlapping nodes AWAY from anchored (dragged/changed) nodes
+ *   3. Push along the axis of minimum overlap for natural-feeling separation
+ *   4. Grow parent containers to maintain margin around children
+ *   5. Propagate growth up the ancestor chain so group nodes push each other
+ *
+ * Key difference from a layout-time forward sweep: the user-controlled
+ * (anchored) nodes are immovable and all other overlapping siblings are
+ * pushed *away* from them in the direction of least penetration.
+ *
+ * All functions are pure and deterministic for straightforward unit testing.
+ */
+
+import type { BoundsNode } from './geometryBounds';
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+export interface CollisionConfig {
+  /** Minimum gap between sibling bounding boxes (px). */
+  overlapGap: number;
+  /** Maximum settle iterations per resolve call. */
+  maxCycles: number;
+  /** Maximum total displacement per node per cycle (px). 0 = unlimited. */
+  maxDisplacementPerCycle: number;
+  /** Container padding for modules. */
+  modulePadding: { horizontal: number; top: number; bottom: number };
+  /** Container padding for groups. */
+  groupPadding: { horizontal: number; top: number; bottom: number };
+}
+
+export const DEFAULT_COLLISION_CONFIG: CollisionConfig = {
+  overlapGap: 40,
+  maxCycles: 20,
+  maxDisplacementPerCycle: 0, // unlimited — bounded by cycle count
+  modulePadding: { horizontal: 20, top: 42, bottom: 20 },
+  groupPadding: { horizontal: 24, top: 40, bottom: 24 },
+};
+
+// ---------------------------------------------------------------------------
+// Internal types
+// ---------------------------------------------------------------------------
+
+/** Mutable bounding box used during resolution. */
+interface MutableBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Result of a single resolve() call. */
+export interface CollisionResult {
+  /** Map of node ID -> updated position (parent-relative). */
+  updatedPositions: Map<string, { x: number; y: number }>;
+  /** Map of container ID -> updated size. */
+  updatedSizes: Map<string, { width: number; height: number }>;
+  /** Number of settle cycles used. */
+  cyclesUsed: number;
+  /** Whether the resolver converged within the cycle budget. */
+  converged: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getContainerPadding(
+  nodeType: string | undefined,
+  config: CollisionConfig
+): { horizontal: number; top: number; bottom: number } {
+  return nodeType === 'group' ? config.groupPadding : config.modulePadding;
+}
+
+/**
+ * Build a depth map for parent IDs. Depth 0 = leaf parent (no grandchildren).
+ * Higher depth = further from leaves. Used for bottom-up processing order.
+ */
+function computeParentDepths(childIdsByParent: Map<string, string[]>): Map<string, number> {
+  const depths = new Map<string, number>();
+
+  function resolveDepth(parentId: string): number {
+    const cached = depths.get(parentId);
+    if (cached !== undefined) return cached;
+
+    const children = childIdsByParent.get(parentId);
+    if (!children || children.length === 0) {
+      depths.set(parentId, 0);
+      return 0;
+    }
+
+    let maxChildDepth = 0;
+    for (const childId of children) {
+      if (childIdsByParent.has(childId)) {
+        maxChildDepth = Math.max(maxChildDepth, resolveDepth(childId) + 1);
+      }
+    }
+    depths.set(parentId, maxChildDepth);
+    return maxChildDepth;
+  }
+
+  for (const parentId of childIdsByParent.keys()) {
+    resolveDepth(parentId);
+  }
+  return depths;
+}
+
+/**
+ * Check if two boxes overlap considering a gap.
+ */
+function boxesOverlap(a: MutableBox, b: MutableBox, gap: number): boolean {
+  return (
+    a.x < b.x + b.width + gap &&
+    a.x + a.width + gap > b.x &&
+    a.y < b.y + b.height + gap &&
+    a.y + a.height + gap > b.y
+  );
+}
+
+/**
+ * Compute the separation vector to push `movable` away from `anchor`.
+ * Finds the axis of minimum overlap and pushes in the direction that
+ * moves `movable` away from `anchor`'s center.
+ *
+ * Returns { dx, dy } where exactly one axis is non-zero.
+ */
+function computeRepulsionVector(
+  anchor: MutableBox,
+  movable: MutableBox,
+  gap: number,
+  maxDisplacement: number
+): { dx: number; dy: number } {
+  // Center of each box
+  const anchorCx = anchor.x + anchor.width / 2;
+  const anchorCy = anchor.y + anchor.height / 2;
+  const movableCx = movable.x + movable.width / 2;
+  const movableCy = movable.y + movable.height / 2;
+
+  // Compute how far we'd need to push on each axis to clear the overlap + gap
+  // Push right: movable.x needs to be >= anchor.x + anchor.width + gap
+  const pushRight = anchor.x + anchor.width + gap - movable.x;
+  // Push left: movable.x + movable.width + gap needs to be <= anchor.x
+  const pushLeft = movable.x + movable.width + gap - anchor.x;
+  // Push down: movable.y needs to be >= anchor.y + anchor.height + gap
+  const pushDown = anchor.y + anchor.height + gap - movable.y;
+  // Push up: movable.y + movable.height + gap needs to be <= anchor.y
+  const pushUp = movable.y + movable.height + gap - anchor.y;
+
+  // For each axis, pick the direction that's "away" from the anchor center
+  const xDirection = movableCx >= anchorCx ? 'right' : 'left';
+  const yDirection = movableCy >= anchorCy ? 'down' : 'up';
+
+  const xCost = xDirection === 'right' ? pushRight : pushLeft;
+  const yCost = yDirection === 'down' ? pushDown : pushUp;
+
+  // Pick axis of minimum cost (minimum displacement needed)
+  let dx = 0;
+  let dy = 0;
+
+  if (xCost <= yCost) {
+    dx = xDirection === 'right' ? xCost : -xCost;
+  } else {
+    dy = yDirection === 'down' ? yCost : -yCost;
+  }
+
+  // Clamp to max displacement if configured
+  if (maxDisplacement > 0) {
+    if (Math.abs(dx) > maxDisplacement) dx = Math.sign(dx) * maxDisplacement;
+    if (Math.abs(dy) > maxDisplacement) dy = Math.sign(dy) * maxDisplacement;
+  }
+
+  return { dx, dy };
+}
+
+// ---------------------------------------------------------------------------
+// Core resolve entry point
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve collisions across the entire node tree using directional repulsion.
+ *
+ * @param nodes - Complete list of nodes (used for hierarchy and type info).
+ * @param positionMap - Mutable map of nodeId -> { x, y, width, height }
+ *   in **parent-relative** coordinates. Modified in place; the returned
+ *   `updatedPositions` / `updatedSizes` describe what changed.
+ * @param anchoredNodeIds - Optional set of node IDs that are immovable
+ *   (e.g. being actively dragged by the user). When provided, these
+ *   nodes will not be pushed — only their overlapping neighbors move.
+ *   Also determines which sibling scopes to resolve (scoped resolution).
+ *   When null/undefined, full resolution across all scopes is performed
+ *   with no anchored nodes (all nodes movable, forward sweep fallback).
+ * @param config - Tuning knobs.
+ */
+export function resolveCollisions(
+  nodes: BoundsNode[],
+  positionMap: Map<string, MutableBox>,
+  anchoredNodeIds: Set<string> | null | undefined,
+  config: CollisionConfig = DEFAULT_COLLISION_CONFIG
+): CollisionResult {
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const anchored = anchoredNodeIds ?? new Set<string>();
+
+  // ---- Build hierarchy helpers ----
+  const childIdsByParent = new Map<string, string[]>();
+  const siblingsByParent = new Map<string, string[]>();
+
+  for (const node of nodes) {
+    const parentId = node.parentNode ?? '__root__';
+    {
+      const arr = childIdsByParent.get(parentId);
+      if (arr) arr.push(node.id);
+      else childIdsByParent.set(parentId, [node.id]);
+    }
+    {
+      const arr = siblingsByParent.get(parentId);
+      if (arr) arr.push(node.id);
+      else siblingsByParent.set(parentId, [node.id]);
+    }
+  }
+
+  const parentDepths = computeParentDepths(childIdsByParent);
+
+  // Sort parents ascending by depth: leaf parents first, grandparents later.
+  const sortedParentIds = [...childIdsByParent.keys()]
+    .filter((id) => id !== '__root__')
+    .sort((a, b) => (parentDepths.get(a) ?? 0) - (parentDepths.get(b) ?? 0));
+
+  // Determine which sibling scopes to resolve.
+  const affectedScopes = new Set<string>();
+  if (anchored.size > 0) {
+    for (const nodeId of anchored) {
+      const node = nodeById.get(nodeId);
+      affectedScopes.add(node?.parentNode ?? '__root__');
+    }
+    // Also propagate to ancestor scopes — a pushed parent may collide with its siblings.
+    const parentSet = new Set(affectedScopes);
+    for (const scopeId of parentSet) {
+      if (scopeId === '__root__') continue;
+      const ancestor = nodeById.get(scopeId);
+      affectedScopes.add(ancestor?.parentNode ?? '__root__');
+    }
+  } else {
+    // Full resolve — all scopes.
+    for (const parentId of siblingsByParent.keys()) {
+      affectedScopes.add(parentId);
+    }
+  }
+
+  // Snapshot original positions for diff at the end.
+  const originalPositions = new Map<string, { x: number; y: number }>();
+  const originalSizes = new Map<string, { width: number; height: number }>();
+  for (const [id, box] of positionMap) {
+    originalPositions.set(id, { x: box.x, y: box.y });
+    originalSizes.set(id, { width: box.width, height: box.height });
+  }
+
+  // Track which nodes were displaced in the current cycle so we can
+  // cascade: nodes pushed by the resolver become "soft anchors" that
+  // push further neighbors in subsequent cycles.
+  const displacedThisResolve = new Set<string>();
+
+  // ---- Phase functions ----
+
+  function enforceMinPositions(): void {
+    for (const [parentId, childIds] of childIdsByParent) {
+      if (parentId === '__root__') continue;
+      const parentNode = nodeById.get(parentId);
+      const layoutInsets = (parentNode as { data?: { layoutInsets?: { top?: number } } })?.data?.layoutInsets;
+      const nodeType = (parentNode as { type?: string })?.type;
+      const resolvedPadding = getContainerPadding(nodeType, config);
+
+      const containerTopPadding =
+        typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : resolvedPadding.top;
+
+      for (const childId of childIds) {
+        const box = positionMap.get(childId);
+        if (!box) continue;
+        if (box.y < containerTopPadding) box.y = containerTopPadding;
+        if (box.x < resolvedPadding.horizontal) box.x = resolvedPadding.horizontal;
+      }
+    }
+  }
+
+  function expandParentsBottomUp(): void {
+    for (const parentId of sortedParentIds) {
+      const childIds = childIdsByParent.get(parentId);
+      if (!childIds) continue;
+
+      const parentBox = positionMap.get(parentId);
+      if (!parentBox) continue;
+
+      const childBoxes = childIds.map((id) => positionMap.get(id)).filter((box): box is MutableBox => Boolean(box));
+
+      if (childBoxes.length === 0) continue;
+
+      const parentNode = nodeById.get(parentId);
+      const nodeType = (parentNode as { type?: string })?.type;
+      const padding = getContainerPadding(nodeType, config);
+
+      const maxRight = Math.max(...childBoxes.map((box) => box.x + box.width));
+      const maxBottom = Math.max(...childBoxes.map((box) => box.y + box.height));
+
+      parentBox.width = Math.max(parentBox.width, maxRight + padding.horizontal);
+      parentBox.height = Math.max(parentBox.height, maxBottom + padding.bottom);
+    }
+  }
+
+  /**
+   * Repulsion-based collision resolution.
+   *
+   * For each sibling scope, check all pairs. When overlap is found:
+   * - If one node is anchored (or was displaced this resolve) and the
+   *   other is free, push the free node away.
+   * - If both are free, push the one whose center is further from the
+   *   other (i.e. it was "arrived upon").
+   * - If both are anchored, skip (can't move either).
+   *
+   * Returns true if any overlap was resolved.
+   */
+  function repelSiblings(): boolean {
+    let anyOverlap = false;
+    const gap = config.overlapGap;
+    const maxDisp = config.maxDisplacementPerCycle;
+
+    for (const scopeId of affectedScopes) {
+      const siblingIds = siblingsByParent.get(scopeId);
+      if (!siblingIds || siblingIds.length < 2) continue;
+
+      const siblings = siblingIds
+        .map((id) => ({ id, box: positionMap.get(id) }))
+        .filter((entry): entry is { id: string; box: MutableBox } => Boolean(entry.box));
+
+      if (siblings.length < 2) continue;
+
+      // Check all pairs
+      for (let i = 0; i < siblings.length; i++) {
+        const a = siblings[i]!;
+        for (let j = i + 1; j < siblings.length; j++) {
+          const b = siblings[j]!;
+
+          if (!boxesOverlap(a.box, b.box, gap)) continue;
+
+          anyOverlap = true;
+
+          const aIsAnchored = anchored.has(a.id) || displacedThisResolve.has(a.id);
+          const bIsAnchored = anchored.has(b.id) || displacedThisResolve.has(b.id);
+
+          if (aIsAnchored && bIsAnchored) {
+            // Both immovable — only push if one is truly user-anchored and the other just displaced
+            const aIsHardAnchored = anchored.has(a.id);
+            const bIsHardAnchored = anchored.has(b.id);
+            if (aIsHardAnchored && !bIsHardAnchored) {
+              // Push b away from a
+              const vec = computeRepulsionVector(a.box, b.box, gap, maxDisp);
+              b.box.x += vec.dx;
+              b.box.y += vec.dy;
+              displacedThisResolve.add(b.id);
+            } else if (bIsHardAnchored && !aIsHardAnchored) {
+              // Push a away from b
+              const vec = computeRepulsionVector(b.box, a.box, gap, maxDisp);
+              a.box.x += vec.dx;
+              a.box.y += vec.dy;
+              displacedThisResolve.add(a.id);
+            }
+            // Both hard-anchored: skip
+            continue;
+          }
+
+          if (aIsAnchored) {
+            // Push b away from a
+            const vec = computeRepulsionVector(a.box, b.box, gap, maxDisp);
+            b.box.x += vec.dx;
+            b.box.y += vec.dy;
+            displacedThisResolve.add(b.id);
+          } else if (bIsAnchored) {
+            // Push a away from b
+            const vec = computeRepulsionVector(b.box, a.box, gap, maxDisp);
+            a.box.x += vec.dx;
+            a.box.y += vec.dy;
+            displacedThisResolve.add(a.id);
+          } else {
+            // Neither anchored: push the one further from the pair center
+            // (effectively: the "later arrival" gets pushed)
+            const aCx = a.box.x + a.box.width / 2;
+            const aCy = a.box.y + a.box.height / 2;
+            const bCx = b.box.x + b.box.width / 2;
+            const bCy = b.box.y + b.box.height / 2;
+            const midX = (aCx + bCx) / 2;
+            const midY = (aCy + bCy) / 2;
+
+            const aDist = (aCx - midX) ** 2 + (aCy - midY) ** 2;
+            const bDist = (bCx - midX) ** 2 + (bCy - midY) ** 2;
+
+            if (bDist >= aDist) {
+              // Push b away from a
+              const vec = computeRepulsionVector(a.box, b.box, gap, maxDisp);
+              b.box.x += vec.dx;
+              b.box.y += vec.dy;
+              displacedThisResolve.add(b.id);
+            } else {
+              // Push a away from b
+              const vec = computeRepulsionVector(b.box, a.box, gap, maxDisp);
+              a.box.x += vec.dx;
+              a.box.y += vec.dy;
+              displacedThisResolve.add(a.id);
+            }
+          }
+        }
+      }
+    }
+
+    return anyOverlap;
+  }
+
+  // ---- Main settle loop ----
+
+  enforceMinPositions();
+
+  let cyclesUsed = 0;
+  let converged = false;
+  for (let cycle = 0; cycle < config.maxCycles; cycle++) {
+    cyclesUsed = cycle + 1;
+    expandParentsBottomUp();
+    const hadOverlaps = repelSiblings();
+    if (!hadOverlaps) {
+      converged = true;
+      break;
+    }
+    enforceMinPositions();
+  }
+
+  // ---- Compute delta maps ----
+
+  const updatedPositions = new Map<string, { x: number; y: number }>();
+  const updatedSizes = new Map<string, { width: number; height: number }>();
+
+  for (const [id, box] of positionMap) {
+    // Never report position changes for hard-anchored (user-dragged) nodes
+    if (anchored.has(id)) continue;
+
+    const origPos = originalPositions.get(id);
+    if (origPos && (Math.abs(box.x - origPos.x) > 0.01 || Math.abs(box.y - origPos.y) > 0.01)) {
+      updatedPositions.set(id, { x: box.x, y: box.y });
+    }
+  }
+
+  for (const [id, box] of positionMap) {
+    const origSize = originalSizes.get(id);
+    if (origSize && (Math.abs(box.width - origSize.width) > 0.01 || Math.abs(box.height - origSize.height) > 0.01)) {
+      updatedSizes.set(id, { width: box.width, height: box.height });
+    }
+  }
+
+  return { updatedPositions, updatedSizes, cyclesUsed, converged };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: build mutable position map from node list
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a mutable position map from a list of BoundsNode items
+ * in parent-relative coordinates (as stored in VueFlow node.position).
+ * Uses `resolveNodeDimensions` logic inline to avoid circular deps.
+ */
+export function buildPositionMap(
+  nodes: BoundsNode[],
+  defaults: { defaultNodeWidth: number; defaultNodeHeight: number }
+): Map<string, MutableBox> {
+  const map = new Map<string, MutableBox>();
+  for (const node of nodes) {
+    if (!node.position) continue;
+    const nodeStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
+    const parseDim = (v: unknown) =>
+      typeof v === 'number' && Number.isFinite(v)
+        ? v
+        : typeof v === 'string'
+          ? Number.parseFloat(v) || undefined
+          : undefined;
+    const width = parseDim(nodeStyle['width']) ?? node.measured?.width ?? defaults.defaultNodeWidth;
+    const height = parseDim(nodeStyle['height']) ?? node.measured?.height ?? defaults.defaultNodeHeight;
+    map.set(node.id, {
+      x: node.position.x,
+      y: node.position.y,
+      width: Math.max(1, width),
+      height: Math.max(1, height),
+    });
+  }
+  return map;
+}

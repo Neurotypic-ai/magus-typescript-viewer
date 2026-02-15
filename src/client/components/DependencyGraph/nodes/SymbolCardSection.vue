@@ -155,4 +155,13 @@ const isExpanded = (id: string) => props.expandedSymbols.has(id);
   background-color: rgba(168, 85, 247, 0.2);
   color: rgb(216, 180, 254);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .symbol-card-grid {
+    transition: none;
+  }
+  .symbol-card-body {
+    transition: none;
+  }
+}
 </style>

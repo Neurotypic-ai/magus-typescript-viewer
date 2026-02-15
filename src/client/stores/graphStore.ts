@@ -15,6 +15,13 @@ const CACHE_DEBOUNCE_MS = 500;
 const MAX_CACHEABLE_NODE_COUNT = 1200;
 const MAX_CACHEABLE_EDGE_COUNT = 5000;
 
+/** Per-node position offset produced by collision resolution.
+ *  Stored in parent-relative coordinates and applied on top of layout results. */
+export interface ManualOffset {
+  dx: number;
+  dy: number;
+}
+
 interface GraphStore {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
@@ -23,6 +30,8 @@ interface GraphStore {
   viewMode: Ref<GraphViewMode>;
   overviewSnapshot: Ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
   semanticSnapshot: ShallowRef<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
+  /** Manual offsets from collision-resolution pushes, keyed by node ID. */
+  manualOffsets: Ref<Map<string, ManualOffset>>;
   setNodes: (newNodes: DependencyNode[]) => void;
   setEdges: (newEdges: GraphEdge[]) => void;
   updateNodesById: (updates: Map<string, DependencyNode>) => void;
@@ -37,12 +46,15 @@ interface GraphStore {
   clearCache: () => void;
   suspendCacheWrites: () => void;
   resumeCacheWrites: () => void;
+  /** Merge collision-resolution offsets into the overlay map. */
+  mergeManualOffsets: (offsets: Map<string, ManualOffset>) => void;
+  /** Apply stored manual offsets to a list of nodes (mutates positions in-place). */
+  applyManualOffsets: (nodeList: DependencyNode[]) => DependencyNode[];
+  /** Clear all manual offsets (e.g. on explicit layout reset or graph identity change). */
+  clearManualOffsets: () => void;
 }
 
-function debounce<T extends (...args: any[]) => void>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
+function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   return (...args: Parameters<T>) => {
     if (timeoutId) {
@@ -67,6 +79,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
   const overviewSnapshot = ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>(null);
   const semanticSnapshot = shallowRef<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>(null);
   const cacheWriteSuspended = ref(false);
+  const manualOffsets = ref<Map<string, ManualOffset>>(new Map());
 
   // Load cached data from localStorage on initialization
   const loadCache = () => {
@@ -264,6 +277,43 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     return true;
   };
 
+  // ---- Manual offset overlay for collision-resolution persistence ----
+
+  const mergeManualOffsets = (offsets: Map<string, ManualOffset>): void => {
+    if (offsets.size === 0) return;
+    const next = new Map(manualOffsets.value);
+    for (const [id, offset] of offsets) {
+      const existing = next.get(id);
+      if (existing) {
+        next.set(id, { dx: existing.dx + offset.dx, dy: existing.dy + offset.dy });
+      } else {
+        next.set(id, offset);
+      }
+    }
+    manualOffsets.value = next;
+  };
+
+  const applyManualOffsets = (nodeList: DependencyNode[]): DependencyNode[] => {
+    const offsets = manualOffsets.value;
+    if (offsets.size === 0) return nodeList;
+
+    return nodeList.map((node) => {
+      const offset = offsets.get(node.id);
+      if (!offset || !node.position) return node;
+      return {
+        ...node,
+        position: {
+          x: node.position.x + offset.dx,
+          y: node.position.y + offset.dy,
+        },
+      };
+    });
+  };
+
+  const clearManualOffsets = (): void => {
+    manualOffsets.value = new Map();
+  };
+
   const clearCache = (): void => {
     try {
       localStorage.removeItem(NODES_CACHE_KEY);
@@ -275,6 +325,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
       viewMode.value = 'overview';
       overviewSnapshot.value = null;
       semanticSnapshot.value = null;
+      manualOffsets.value = new Map();
     } catch {
       // Silently fail if cache clearing fails
     }
@@ -292,6 +343,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     viewMode,
     overviewSnapshot,
     semanticSnapshot,
+    manualOffsets,
     // Actions
     setNodes,
     setEdges,
@@ -305,6 +357,9 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     setSemanticSnapshot,
     restoreOverviewSnapshot,
     clearCache,
+    mergeManualOffsets,
+    applyManualOffsets,
+    clearManualOffsets,
     suspendCacheWrites: () => {
       cacheWriteSuspended.value = true;
     },

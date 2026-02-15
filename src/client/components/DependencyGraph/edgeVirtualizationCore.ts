@@ -1,4 +1,7 @@
 import { getHandleAnchor } from './handleAnchors';
+import { buildAbsoluteNodeBoundsMap as sharedBuildAbsoluteNodeBoundsMap } from './layout/geometryBounds';
+
+import type { Rect } from './layout/geometryBounds';
 
 interface ViewportBounds {
   minX: number;
@@ -7,12 +10,7 @@ interface ViewportBounds {
   maxY: number;
 }
 
-interface NodeBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+type NodeBounds = Rect;
 
 export interface EdgeVirtualizationPoint {
   x: number;
@@ -119,17 +117,7 @@ export interface EdgeVirtualizationComputationResult {
   lowZoomApplied: boolean;
 }
 
-const parseDimension = (value: unknown): number | undefined => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-};
+// parseDimension is re-exported from shared geometry module (imported above).
 
 const toUserHiddenSet = (hiddenIds: Set<string> | string[] | undefined): Set<string> => {
   if (!hiddenIds) {
@@ -141,59 +129,18 @@ const toUserHiddenSet = (hiddenIds: Set<string> | string[] | undefined): Set<str
   return new Set(hiddenIds);
 };
 
+/**
+ * Delegate to shared geometry helper, adapting the edge-virtualization config
+ * shape to the shared `BoundsDefaults` interface.
+ */
 const buildAbsoluteNodeBoundsMap = (
   nodeList: EdgeVirtualizationNode[],
   config: EdgeVirtualizationConfig
 ): Map<string, NodeBounds> => {
-  const nodeById = new Map(nodeList.map((node) => [node.id, node]));
-  const boundsById = new Map<string, NodeBounds>();
-  const resolving = new Set<string>();
-
-  const resolveBounds = (nodeId: string): NodeBounds | null => {
-    const cached = boundsById.get(nodeId);
-    if (cached) {
-      return cached;
-    }
-
-    if (resolving.has(nodeId)) {
-      return null;
-    }
-
-    const node = nodeById.get(nodeId);
-    if (!node?.position) {
-      return null;
-    }
-
-    resolving.add(nodeId);
-    const nodeStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
-    const width = parseDimension(nodeStyle['width']) ?? node.measured?.width ?? config.defaultNodeWidth;
-    const height = parseDimension(nodeStyle['height']) ?? node.measured?.height ?? config.defaultNodeHeight;
-
-    let absoluteX = node.position.x;
-    let absoluteY = node.position.y;
-    if (node.parentNode) {
-      const parentBounds = resolveBounds(node.parentNode);
-      if (parentBounds) {
-        absoluteX += parentBounds.x;
-        absoluteY += parentBounds.y;
-      }
-    }
-
-    const computedBounds: NodeBounds = {
-      x: absoluteX,
-      y: absoluteY,
-      width: Math.max(1, width),
-      height: Math.max(1, height),
-    };
-    boundsById.set(nodeId, computedBounds);
-    resolving.delete(nodeId);
-    return computedBounds;
-  };
-
-  for (const node of nodeList) {
-    resolveBounds(node.id);
-  }
-  return boundsById;
+  return sharedBuildAbsoluteNodeBoundsMap(nodeList, {
+    defaultNodeWidth: config.defaultNodeWidth,
+    defaultNodeHeight: config.defaultNodeHeight,
+  });
 };
 
 const getViewportBounds = (
@@ -210,10 +157,10 @@ const getViewportBounds = (
   const padding = config.viewportPaddingPx / viewport.zoom;
 
   return {
-    minX: (-viewport.x / viewport.zoom) - padding,
-    minY: (-viewport.y / viewport.zoom) - padding,
-    maxX: ((-viewport.x + width) / viewport.zoom) + padding,
-    maxY: ((-viewport.y + height) / viewport.zoom) + padding,
+    minX: -viewport.x / viewport.zoom - padding,
+    minY: -viewport.y / viewport.zoom - padding,
+    maxX: (-viewport.x + width) / viewport.zoom + padding,
+    maxY: (-viewport.y + height) / viewport.zoom + padding,
   };
 };
 
@@ -227,12 +174,7 @@ const isNodeInBounds = (node: NodeBounds, bounds: ViewportBounds): boolean => {
 };
 
 const isPointInBounds = (pos: EdgeVirtualizationPoint, bounds: ViewportBounds): boolean => {
-  return (
-    pos.x >= bounds.minX &&
-    pos.x <= bounds.maxX &&
-    pos.y >= bounds.minY &&
-    pos.y <= bounds.maxY
-  );
+  return pos.x >= bounds.minX && pos.x <= bounds.maxX && pos.y >= bounds.minY && pos.y <= bounds.maxY;
 };
 
 const segmentIntersectsBounds = (
@@ -319,9 +261,7 @@ export function computeAdaptiveLowZoomBudget(
   config: EdgeVirtualizationConfig,
   deviceProfile?: EdgeVirtualizationDeviceProfile
 ): number {
-  const nav = typeof navigator !== 'undefined'
-    ? (navigator as Navigator & { deviceMemory?: number })
-    : null;
+  const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { deviceMemory?: number }) : null;
 
   const cores = deviceProfile?.hardwareConcurrency ?? nav?.hardwareConcurrency ?? 8;
   const memoryGb = deviceProfile?.deviceMemory ?? nav?.deviceMemory ?? 8;
@@ -398,12 +338,10 @@ export function computeEdgeVirtualizationResult(
     const sourceBounds = nodeBoundsMap.get(edge.source);
     const targetBounds = nodeBoundsMap.get(edge.target);
 
-    const sourceHandleAnchor = sourceBounds && edge.sourceHandle
-      ? getHandleAnchor(sourceBounds, edge.sourceHandle)
-      : undefined;
-    const targetHandleAnchor = targetBounds && edge.targetHandle
-      ? getHandleAnchor(targetBounds, edge.targetHandle)
-      : undefined;
+    const sourceHandleAnchor =
+      sourceBounds && edge.sourceHandle ? getHandleAnchor(sourceBounds, edge.sourceHandle) : undefined;
+    const targetHandleAnchor =
+      targetBounds && edge.targetHandle ? getHandleAnchor(targetBounds, edge.targetHandle) : undefined;
 
     const sourceAnchor = sourceHandleAnchor ?? edge.data?.sourceAnchor;
     const targetAnchor = targetHandleAnchor ?? edge.data?.targetAnchor;
