@@ -3,7 +3,7 @@ import {
   buildEdgePriorityOrder,
   computeEdgePrioritySignature,
   computeEdgeVirtualizationResult,
-} from '../components/DependencyGraph/edgeVirtualizationCore';
+} from '../composables/edgeVirtualizationCore';
 
 import type {
   EdgeVirtualizationComputationInput,
@@ -11,13 +11,13 @@ import type {
   EdgeVirtualizationConfig,
   EdgeVirtualizationEdge,
   EdgeVirtualizationNode,
-} from '../components/DependencyGraph/edgeVirtualizationCore';
+} from '../composables/edgeVirtualizationCore';
 import type {
   EdgeVisibilityErrorMessage,
   RecalculateResultMessage,
   RecalculateResultPayload,
   WorkerRequestMessage,
-} from '../components/DependencyGraph/edgeVisibilityMessages';
+} from '../composables/edgeVisibilityMessages';
 
 let cachedNodes: EdgeVirtualizationNode[] = [];
 let cachedEdges: EdgeVirtualizationEdge[] = [];

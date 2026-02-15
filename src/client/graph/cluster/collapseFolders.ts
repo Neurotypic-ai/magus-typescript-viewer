@@ -1,10 +1,10 @@
 import { MarkerType } from '@vue-flow/core';
 
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../components/DependencyGraph/layout/edgeGeometryPolicy';
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../layout/edgeGeometryPolicy';
 import { getNodeStyle } from '../../theme/graphTheme';
 import { buildParentMap, findCollapsedAncestor } from './folderMembership';
 
-import type { DependencyNode, GraphEdge } from '../../components/DependencyGraph/types';
+import type { DependencyNode, GraphEdge } from '../../types';
 
 export interface CollapseFolderMeta {
   childIds: string[];

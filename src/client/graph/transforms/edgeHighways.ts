@@ -1,24 +1,24 @@
 import { MarkerType } from '@vue-flow/core';
 
-import { getHandleAnchor } from '../../components/DependencyGraph/handleAnchors';
-import { buildAbsoluteNodeBoundsMap } from '../../components/DependencyGraph/layout/geometryBounds';
+import { buildAbsoluteNodeBoundsMap } from '../../layout/geometryBounds';
+import { getHandleAnchor } from '../../lib/handleAnchors';
 import {
   EDGE_MARKER_HEIGHT_PX,
   EDGE_MARKER_WIDTH_PX,
   GROUP_ENTRY_STUB_PX,
-} from '../../components/DependencyGraph/layout/edgeGeometryPolicy';
+} from '../../layout/edgeGeometryPolicy';
 import { getEdgeStyle } from '../../theme/graphTheme';
 import { buildNodeToFolderMap } from '../cluster/folderMembership';
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
 
-import type { Rect } from '../../components/DependencyGraph/layout/geometryBounds';
+import type { Rect } from '../../layout/geometryBounds';
 import type {
   DependencyEdgeKind,
   DependencyKind,
   DependencyNode,
   GraphEdge,
-} from '../../components/DependencyGraph/types';
+} from '../../types';
 
 export interface EdgeHighwayOptions {
   direction: 'LR' | 'RL' | 'TB' | 'BT';

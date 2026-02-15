@@ -5,8 +5,8 @@
 
 import type { Edge } from '@vue-flow/core';
 
-import { GROUP_EXCLUSION_ZONE_PX } from '../components/DependencyGraph/layout/edgeGeometryPolicy';
-import type { DependencyNode } from '../components/DependencyGraph/types';
+import { GROUP_EXCLUSION_ZONE_PX } from '../layout/edgeGeometryPolicy';
+import type { DependencyNode } from '../types';
 import type { GraphTheme } from '../theme/graphTheme';
 
 // Worker message types

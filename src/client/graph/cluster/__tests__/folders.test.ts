@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { clusterByFolder } from '../folders';
 
-import type { DependencyNode, GraphEdge } from '../../../components/DependencyGraph/types';
+import type { DependencyNode, GraphEdge } from '../../../types';
 
 function createModuleNode(id: string, relativePath: string, pkg = 'app'): DependencyNode {
   return {

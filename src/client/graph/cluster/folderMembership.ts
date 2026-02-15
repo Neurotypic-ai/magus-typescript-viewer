@@ -1,4 +1,4 @@
-import type { DependencyNode } from '../../components/DependencyGraph/types';
+import type { DependencyNode } from '../../types';
 
 /** Build nodeId -> immediate parentNode map. */
 export function buildParentMap(nodes: DependencyNode[]): Map<string, string> {

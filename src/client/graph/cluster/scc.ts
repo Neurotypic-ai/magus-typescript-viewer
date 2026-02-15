@@ -1,9 +1,9 @@
 import { MarkerType } from '@vue-flow/core';
 
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../components/DependencyGraph/layout/edgeGeometryPolicy';
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../layout/edgeGeometryPolicy';
 import { getNodeStyle } from '../../theme/graphTheme';
 
-import type { DependencyKind, DependencyNode, GraphEdge } from '../../components/DependencyGraph/types';
+import type { DependencyKind, DependencyNode, GraphEdge } from '../../types';
 
 interface StronglyConnectedComponent {
   id: string;

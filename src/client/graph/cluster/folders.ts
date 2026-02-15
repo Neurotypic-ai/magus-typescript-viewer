@@ -1,6 +1,6 @@
 import { getNodeStyle } from '../../theme/graphTheme';
 
-import type { DependencyKind, DependencyNode, GraphEdge } from '../../components/DependencyGraph/types';
+import type { DependencyKind, DependencyNode, GraphEdge } from '../../types';
 
 function getPathFromNode(node: DependencyNode): string | null {
   const props = node.data?.properties;

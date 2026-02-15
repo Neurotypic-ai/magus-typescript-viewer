@@ -1,6 +1,6 @@
 import { getHandleCategory } from './edgeTypeRegistry';
 
-import type { DependencyEdgeKind, DependencyNode, GraphEdge } from '../components/DependencyGraph/types';
+import type { DependencyEdgeKind, DependencyNode, GraphEdge } from '../types';
 
 export interface TraversalOptions {
   maxDepth: number;

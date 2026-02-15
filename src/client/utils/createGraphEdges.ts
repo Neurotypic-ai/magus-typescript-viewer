@@ -1,8 +1,8 @@
 import { MarkerType } from '@vue-flow/core';
 
-import { mapTypeCollection } from '../components/DependencyGraph/mapTypeCollection';
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../components/DependencyGraph/layout/edgeGeometryPolicy';
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
+import { mapTypeCollection } from '../lib/mapTypeCollection';
 import { getEdgeStyle } from '../theme/graphTheme';
 
 import type {
@@ -10,7 +10,7 @@ import type {
   DependencyKind,
   DependencyPackageGraph,
   GraphEdge,
-} from '../components/DependencyGraph/types';
+} from '../types';
 
 type ImportDirection = 'importer-to-imported' | 'imported-to-importer';
 

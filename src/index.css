@@ -229,7 +229,7 @@ body {
   overflow: visible !important;
 }
 
-/* Hover z-index elevation is handled in DependencyGraph/index.vue. */
+/* Hover z-index elevation is handled in DependencyGraph.vue. */
 
 /* Browser-native off-screen culling: skip layout/paint/composite for nodes
    outside the viewport.  contain-intrinsic-size prevents layout thrash. */

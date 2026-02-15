@@ -3,12 +3,12 @@
  * Handles communication with the web worker for offloading CPU-intensive layout calculations
  */
 
-import { defaultLayoutConfig } from '../components/DependencyGraph/layout/config';
+import { defaultLayoutConfig } from './config';
 import { isProxy, toRaw } from 'vue';
 
 import type { Edge } from '@vue-flow/core';
 
-import type { DependencyNode } from '../components/DependencyGraph/types';
+import type { DependencyNode } from '../types';
 import type { GraphTheme } from '../theme/graphTheme';
 
 // Internal layout configuration type used by the worker

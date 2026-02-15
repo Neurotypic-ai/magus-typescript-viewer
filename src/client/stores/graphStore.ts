@@ -3,7 +3,7 @@ import { ref, shallowRef, watch } from 'vue';
 
 import type { Ref, ShallowRef } from 'vue';
 
-import type { DependencyNode, GraphEdge } from '../components/DependencyGraph/types';
+import type { DependencyNode, GraphEdge } from '../types';
 
 export type GraphViewMode = 'overview' | 'isolate' | 'moduleDrilldown' | 'symbolDrilldown';
 

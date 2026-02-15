@@ -1,6 +1,6 @@
 import { Position } from '@vue-flow/core';
 
-import { mapTypeCollection } from '../components/DependencyGraph/mapTypeCollection';
+import { mapTypeCollection } from '../lib/mapTypeCollection';
 import { getNodeStyle } from '../theme/graphTheme';
 import { isTestFilePath } from './testFileMatcher';
 
@@ -16,7 +16,7 @@ import type {
   NodeDiagnostics,
   NodeMethod,
   NodeProperty,
-} from '../components/DependencyGraph/types';
+} from '../types';
 
 interface CreateGraphNodeOptions {
   includePackages?: boolean;

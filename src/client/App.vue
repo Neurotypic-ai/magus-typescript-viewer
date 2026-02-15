@@ -5,10 +5,10 @@ import { createLogger } from '../shared/utils/logger';
 import { GraphDataAssembler } from './assemblers/GraphDataAssembler';
 import ErrorBoundary from './components/ErrorBoundary.vue';
 
-import type { DependencyPackageGraph } from './components/DependencyGraph/types';
+import type { DependencyPackageGraph } from './types';
 
 // Lazy load the DependencyGraph component for code splitting and better performance
-const DependencyGraph = defineAsyncComponent(() => import('./components/DependencyGraph/DependencyGraphLazy.vue'));
+const DependencyGraph = defineAsyncComponent(() => import('./components/DependencyGraphLazy.vue'));
 
 // Create an app-specific logger
 const appLogger = createLogger('App');

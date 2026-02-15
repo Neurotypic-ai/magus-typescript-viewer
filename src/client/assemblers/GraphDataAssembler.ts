@@ -30,7 +30,7 @@ import type {
   SymbolReferenceRef,
   TypeAliasStructure,
   VariableStructure,
-} from '../components/DependencyGraph/types';
+} from '../types';
 
 // Define the missing structures that are used in the class but not externally defined
 // These were previously used but now NodeProperty/NodeMethod are used more directly

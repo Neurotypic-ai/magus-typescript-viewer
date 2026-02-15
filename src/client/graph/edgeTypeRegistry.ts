@@ -1,4 +1,4 @@
-import type { DependencyEdgeKind, DependencyKind, HandleCategory } from '../components/DependencyGraph/types';
+import type { DependencyEdgeKind, DependencyKind, HandleCategory } from '../types';
 
 export interface EdgeTypeDefinition {
   kind: DependencyEdgeKind;

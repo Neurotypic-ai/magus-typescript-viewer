@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildParentMap } from '../cluster/folderMembership';
 import { traverseGraph } from '../traversal';
 
-import type { DependencyNode, GraphEdge } from '../../components/DependencyGraph/types';
+import type { DependencyNode, GraphEdge } from '../../types';
 
 describe('traverseGraph', () => {
   const nodes: DependencyNode[] = [

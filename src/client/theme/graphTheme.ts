@@ -1,4 +1,4 @@
-import type { DependencyEdgeKind, DependencyKind } from '../components/DependencyGraph/types';
+import type { DependencyEdgeKind, DependencyKind } from '../types';
 
 type CSSProperties = Record<string, string | number | undefined>;
 

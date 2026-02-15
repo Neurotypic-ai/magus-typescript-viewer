@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { collapseFolders } from '../../cluster/collapseFolders';
-import { GROUP_ENTRY_STUB_PX } from '../../../components/DependencyGraph/layout/edgeGeometryPolicy';
+import { GROUP_ENTRY_STUB_PX } from '../../../layout/edgeGeometryPolicy';
 import { applyEdgeHighways, optimizeHighwayHandleRouting } from '../edgeHighways';
 
-import type { DependencyEdgeKind, DependencyNode, GraphEdge } from '../../../components/DependencyGraph/types';
+import type { DependencyEdgeKind, DependencyNode, GraphEdge } from '../../../types';
 
 const makeGroup = (id: string): DependencyNode =>
   ({
