@@ -6,6 +6,10 @@ import { MiniMap } from '@vue-flow/minimap';
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
 
 import { createLogger } from '../../../shared/utils/logger';
+import { buildParentMap } from '../../graph/cluster/folderMembership';
+import { clusterByFolder } from '../../graph/cluster/folders';
+import { applyEdgeHighways } from '../../graph/transforms/edgeHighways';
+import { traverseGraph } from '../../graph/traversal';
 import { WebWorkerLayoutProcessor } from '../../layout/WebWorkerLayoutProcessor';
 import { useGraphSettings } from '../../stores/graphSettings';
 import { useGraphStore } from '../../stores/graphStore';
@@ -508,6 +512,36 @@ const selectionAdjacencyByNodeId = computed(() => {
         }
       }
       hubEdgeIds.forEach((edgeId) => neighborEntry.connectedEdgeIds.add(edgeId));
+    }
+  }
+
+  // Resolve through hub chains (e.g. hub -> hub -> real node) with a small
+  // depth cap to avoid runaway propagation in dense graphs.
+  for (let depth = 0; depth < 3; depth += 1) {
+    let changed = false;
+    for (const [nodeId, entry] of adjacency.entries()) {
+      if (hubNodeIds.has(nodeId)) {
+        continue;
+      }
+      const hubNeighbors = [...entry.connectedNodeIds].filter((id) => hubNodeIds.has(id));
+      for (const hubId of hubNeighbors) {
+        const hubEntry = adjacency.get(hubId);
+        if (!hubEntry) continue;
+        const beforeNodeCount = entry.connectedNodeIds.size;
+        const beforeEdgeCount = entry.connectedEdgeIds.size;
+        for (const neighborId of hubEntry.connectedNodeIds) {
+          if (neighborId !== nodeId) {
+            entry.connectedNodeIds.add(neighborId);
+          }
+        }
+        hubEntry.connectedEdgeIds.forEach((edgeId) => entry.connectedEdgeIds.add(edgeId));
+        if (entry.connectedNodeIds.size !== beforeNodeCount || entry.connectedEdgeIds.size !== beforeEdgeCount) {
+          changed = true;
+        }
+      }
+    }
+    if (!changed) {
+      break;
     }
   }
 
@@ -1661,6 +1695,7 @@ const initializeGraph = async () => {
     hubAggregationEnabled: graphSettings.clusterByFolder,
     hubAggregationThreshold: graphSettings.hubAggregationThreshold,
   });
+  graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 
   const layoutResult = await processGraphLayout(overviewGraph, {
     fitViewToResult: true,
@@ -1740,6 +1775,17 @@ const handleFocusNode = async (nodeId: string): Promise<void> => {
     duration: 180,
     padding: 0.4,
   });
+
+  const semanticSnapshot = graphStore.semanticSnapshot;
+  if (semanticSnapshot) {
+    void traverseGraph(nodeId, {
+      maxDepth: 1,
+      semanticEdges: semanticSnapshot.edges,
+      semanticNodes: semanticSnapshot.nodes,
+      parentMap: buildParentMap(semanticSnapshot.nodes),
+    });
+  }
+
   syncViewportState();
   requestEdgeVirtualizationViewportRecalc(true);
 };
@@ -1837,8 +1883,42 @@ const startIsolateAnimation = (): void => {
 
 const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   const snapshot = graphStore.overviewSnapshot;
-  const sourceNodes = snapshot?.nodes ?? nodes.value;
-  const sourceEdges = snapshot?.edges ?? edges.value;
+  let sourceNodes = snapshot?.nodes ?? nodes.value;
+  let sourceEdges = snapshot?.edges ?? edges.value;
+  const semanticSnapshot = graphStore.semanticSnapshot;
+  let semanticTraversalNodeIds: Set<string> | null = null;
+  let semanticInboundIds: Set<string> | null = null;
+  let semanticOutboundIds: Set<string> | null = null;
+
+  if (semanticSnapshot) {
+    const semanticResult = traverseGraph(nodeId, {
+      maxDepth: 1,
+      semanticEdges: semanticSnapshot.edges,
+      semanticNodes: semanticSnapshot.nodes,
+      parentMap: buildParentMap(semanticSnapshot.nodes),
+    });
+    semanticTraversalNodeIds = semanticResult.nodeIds;
+    semanticInboundIds = semanticResult.inbound;
+    semanticOutboundIds = semanticResult.outbound;
+
+    const isolatedSemanticNodes = semanticSnapshot.nodes.filter((node) => semanticResult.nodeIds.has(node.id));
+    const isolatedSemanticEdges = semanticResult.edges.filter(
+      (edge) => semanticResult.nodeIds.has(edge.source) && semanticResult.nodeIds.has(edge.target)
+    );
+
+    if (graphSettings.clusterByFolder) {
+      const clustered = clusterByFolder(isolatedSemanticNodes, isolatedSemanticEdges);
+      const highwayProjected = applyEdgeHighways(clustered.nodes, clustered.edges, {
+        direction: layoutConfig.direction,
+      });
+      sourceNodes = highwayProjected.nodes;
+      sourceEdges = highwayProjected.edges;
+    } else {
+      sourceNodes = isolatedSemanticNodes;
+      sourceEdges = isolatedSemanticEdges;
+    }
+  }
+
   const targetNode = sourceNodes.find((node) => node.id === nodeId);
   if (!targetNode) {
     return;
@@ -1852,13 +1932,32 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   const connectedNodeIds = new Set<string>([nodeId]);
   const inboundIds = new Set<string>();
   const outboundIds = new Set<string>();
-  sourceEdges.forEach((edge) => {
-    if (edge.source === nodeId) {
-      connectedNodeIds.add(edge.target);
-      outboundIds.add(edge.target);
-    } else if (edge.target === nodeId) {
-      connectedNodeIds.add(edge.source);
-      inboundIds.add(edge.source);
+  if (semanticTraversalNodeIds) {
+    semanticTraversalNodeIds.forEach((id) => {
+      if (nodeById.has(id)) {
+        connectedNodeIds.add(id);
+      }
+    });
+    semanticInboundIds?.forEach((id) => inboundIds.add(id));
+    semanticOutboundIds?.forEach((id) => outboundIds.add(id));
+  } else {
+    sourceEdges.forEach((edge) => {
+      if (edge.source === nodeId) {
+        connectedNodeIds.add(edge.target);
+        outboundIds.add(edge.target);
+      } else if (edge.target === nodeId) {
+        connectedNodeIds.add(edge.source);
+        inboundIds.add(edge.source);
+      }
+    });
+  }
+
+  // Ensure all ancestor containers are present so isolated nodes remain visible.
+  connectedNodeIds.forEach((id) => {
+    let parent = nodeById.get(id)?.parentNode;
+    while (parent) {
+      connectedNodeIds.add(parent);
+      parent = nodeById.get(parent)?.parentNode;
     }
   });
 
@@ -2019,6 +2118,7 @@ provide(FOLDER_COLLAPSE_ACTIONS_KEY, {
       hubAggregationEnabled: graphSettings.clusterByFolder,
       hubAggregationThreshold: graphSettings.hubAggregationThreshold,
     });
+    graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 
     void processGraphLayout(overviewGraph, {
       fitViewToResult: false,

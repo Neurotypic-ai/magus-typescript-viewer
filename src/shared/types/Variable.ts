@@ -20,7 +20,7 @@ export class Variable implements IVariable {
     public readonly name: string,
     public readonly kind: 'const' | 'let' | 'var',
     public readonly type: string = 'unknown',
-    public readonly initializer?: string,
+    public readonly initializer: string = '',
     public readonly created_at: Date = new Date()
   ) {}
 }

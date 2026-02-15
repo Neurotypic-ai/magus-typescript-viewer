@@ -165,6 +165,12 @@ const serializeEdgesForWorker = (edges: GraphEdge[]): EdgeVirtualizationEdge[] =
       source: edge.source,
       target: edge.target,
     };
+    if (edge.sourceHandle) {
+      serialized.sourceHandle = edge.sourceHandle;
+    }
+    if (edge.targetHandle) {
+      serialized.targetHandle = edge.targetHandle;
+    }
 
     if (edge.hidden !== undefined) {
       serialized.hidden = edge.hidden;

@@ -37,12 +37,78 @@ function toggleCollapse() {
       <div class="group-node-label" :title="label">{{ label }}</div>
       <span v-if="isCollapsed && childCount > 0" class="folder-badge">{{ childCount }}</span>
     </div>
-    <template v-if="isCollapsed">
-      <Handle type="target" :position="Position.Left" />
-      <Handle type="source" :position="Position.Right" />
-      <Handle type="target" :position="Position.Top" />
-      <Handle type="source" :position="Position.Bottom" />
-    </template>
+    <Handle
+      id="folder-top-in"
+      type="target"
+      :position="Position.Top"
+      :style="{ left: '33%' }"
+      class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-top-out"
+      type="source"
+      :position="Position.Top"
+      :style="{ left: '66%' }"
+      class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-right-in"
+      type="target"
+      :position="Position.Right"
+      :style="{ top: '33%' }"
+      class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-right-out"
+      type="source"
+      :position="Position.Right"
+      :style="{ top: '66%' }"
+      class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-bottom-in"
+      type="target"
+      :position="Position.Bottom"
+      :style="{ left: '33%' }"
+      class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-bottom-out"
+      type="source"
+      :position="Position.Bottom"
+      :style="{ left: '66%' }"
+      class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-left-in"
+      type="target"
+      :position="Position.Left"
+      :style="{ top: '33%' }"
+      class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-left-out"
+      type="source"
+      :position="Position.Left"
+      :style="{ top: '66%' }"
+      class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
@@ -144,5 +210,20 @@ function toggleCollapse() {
   font-size: 10px;
   font-weight: 700;
   flex-shrink: 0;
+}
+
+.folder-handle {
+  width: 4px !important;
+  height: 4px !important;
+  opacity: 0.15;
+  border: none;
+  background: rgba(96, 165, 250, 0.85);
+  box-shadow: none;
+  transition: opacity 120ms ease, box-shadow 120ms ease;
+}
+
+.group-node-container:hover .folder-handle {
+  opacity: 0.42;
+  box-shadow: 0 0 4px rgba(96, 165, 250, 0.65);
 }
 </style>

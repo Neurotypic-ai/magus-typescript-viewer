@@ -1,3 +1,5 @@
+import { getHandleAnchor } from './handleAnchors';
+
 interface ViewportBounds {
   minX: number;
   maxX: number;
@@ -44,6 +46,8 @@ export interface EdgeVirtualizationEdge {
   source: string;
   target: string;
   hidden?: boolean;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
   data?: {
     type?: string;
     sourceAnchor?: EdgeVirtualizationPoint;
@@ -391,8 +395,18 @@ export function computeEdgeVirtualizationResult(
       continue;
     }
 
-    const sourceAnchor = edge.data?.sourceAnchor;
-    const targetAnchor = edge.data?.targetAnchor;
+    const sourceBounds = nodeBoundsMap.get(edge.source);
+    const targetBounds = nodeBoundsMap.get(edge.target);
+
+    const sourceHandleAnchor = sourceBounds && edge.sourceHandle
+      ? getHandleAnchor(sourceBounds, edge.sourceHandle)
+      : undefined;
+    const targetHandleAnchor = targetBounds && edge.targetHandle
+      ? getHandleAnchor(targetBounds, edge.targetHandle)
+      : undefined;
+
+    const sourceAnchor = sourceHandleAnchor ?? edge.data?.sourceAnchor;
+    const targetAnchor = targetHandleAnchor ?? edge.data?.targetAnchor;
     if (sourceAnchor && targetAnchor) {
       if (isPointInBounds(sourceAnchor, bounds) || isPointInBounds(targetAnchor, bounds)) {
         viewportVisibleIds.add(edge.id);
@@ -402,8 +416,6 @@ export function computeEdgeVirtualizationResult(
       continue;
     }
 
-    const sourceBounds = nodeBoundsMap.get(edge.source);
-    const targetBounds = nodeBoundsMap.get(edge.target);
     if (!sourceBounds || !targetBounds) {
       viewportVisibleIds.add(edge.id);
       continue;

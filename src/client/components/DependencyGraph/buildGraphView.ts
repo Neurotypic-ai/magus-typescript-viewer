@@ -3,6 +3,8 @@ import { MarkerType, Position } from '@vue-flow/core';
 import { collapseFolders } from '../../graph/cluster/collapseFolders';
 import { clusterByFolder } from '../../graph/cluster/folders';
 import { collapseSccs } from '../../graph/cluster/scc';
+import { isValidEdgeConnection } from '../../graph/edgeTypeRegistry';
+import { applyEdgeHighways } from '../../graph/transforms/edgeHighways';
 import { aggregateHighFanInEdges } from '../../graph/transforms/hubAggregation';
 import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
 import { createGraphEdges } from '../../utils/createGraphEdges';
@@ -11,6 +13,7 @@ import { mapTypeCollection } from './mapTypeCollection';
 
 import type {
   DependencyEdgeKind,
+  DependencyKind,
   DependencyNode,
   DependencyPackageGraph,
   GraphEdge,
@@ -23,6 +26,7 @@ import type { NodeChange } from '@vue-flow/core';
 export interface GraphViewData {
   nodes: DependencyNode[];
   edges: GraphEdge[];
+  semanticSnapshot?: { nodes: DependencyNode[]; edges: GraphEdge[] };
 }
 
 export interface BuildOverviewGraphOptions {
@@ -119,6 +123,13 @@ function bundleParallelEdges(edges: GraphEdge[]): GraphEdge[] {
       continue;
     }
 
+    // Preserve highway trunk groups as-is to avoid blending trunk semantics
+    // with any non-highway visual edges sharing the same source/target pair.
+    if (group.some((edge) => edge.data?.highwaySegment === 'highway')) {
+      result.push(...group);
+      continue;
+    }
+
     // Pick the highest-priority edge as the visual representative
     group.sort((a, b) => {
       const prioA = EDGE_BUNDLE_PRIORITY[a.data?.type ?? ''] ?? 0;
@@ -181,7 +192,7 @@ export function applyEdgeVisibility(edges: GraphEdge[], enabledRelationshipTypes
 
 function applyGraphTransforms(
   graphData: GraphViewData,
-  options: Pick<BuildOverviewGraphOptions, 'clusterByFolder' | 'collapseScc' | 'collapsedFolderIds'>
+  options: Pick<BuildOverviewGraphOptions, 'clusterByFolder' | 'collapseScc'>
 ): GraphViewData {
   let transformedNodes = graphData.nodes;
   let transformedEdges = graphData.edges;
@@ -201,13 +212,6 @@ function applyGraphTransforms(
     transformedNodes = clustered.nodes as DependencyNode[];
     transformedEdges = clustered.edges as GraphEdge[];
 
-    // Collapse selected folders: hide children, lift/dedup edges to folder boundary
-    if (options.collapsedFolderIds.size > 0) {
-      const folderCollapsed = collapseFolders(transformedNodes, transformedEdges, options.collapsedFolderIds);
-      transformedNodes = folderCollapsed.nodes;
-      transformedEdges = folderCollapsed.edges;
-    }
-
     // All nodes remain draggable in folder mode — group nodes can be
     // dragged freely and children move with their parent via Vue Flow's
     // built-in compound node behaviour.
@@ -217,6 +221,39 @@ function applyGraphTransforms(
     nodes: transformedNodes,
     edges: filterEdgesByNodeSet(transformedNodes, transformedEdges),
   };
+}
+
+function validateEdgesAgainstRegistry(nodes: DependencyNode[], edges: GraphEdge[]): void {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+
+  const kindByNodeId = new Map<string, DependencyKind>();
+  for (const node of nodes) {
+    if (node.type) {
+      kindByNodeId.set(node.id, node.type as DependencyKind);
+    }
+  }
+
+  edges.forEach((edge) => {
+    const kind = edge.data?.type;
+    if (!kind) return;
+
+    const sourceKind = kindByNodeId.get(edge.source);
+    const targetKind = kindByNodeId.get(edge.target);
+    if (!sourceKind || !targetKind) return;
+
+    if (!isValidEdgeConnection(kind, sourceKind, targetKind)) {
+      console.warn('[buildGraphView] Edge kind and endpoint kinds do not match registry', {
+        edgeId: edge.id,
+        kind,
+        source: edge.source,
+        sourceKind,
+        target: edge.target,
+        targetKind,
+      });
+    }
+  });
 }
 
 function filterGraphByTestVisibility(graphData: GraphViewData, hideTestFiles: boolean): GraphViewData {
@@ -320,17 +357,37 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   };
 
   const filteredGraph = filterGraphByTestVisibility(unfilteredGraph, options.hideTestFiles);
+  const semanticSnapshot = {
+    nodes: filteredGraph.nodes,
+    edges: filteredGraph.edges,
+  };
+
+  validateEdgesAgainstRegistry(semanticSnapshot.nodes, semanticSnapshot.edges);
 
   const transformedGraph = applyGraphTransforms(filteredGraph, {
     clusterByFolder: options.clusterByFolder,
     collapseScc: options.collapseScc,
-    collapsedFolderIds: options.collapsedFolderIds,
   });
 
-  const visibleEdges = applyEdgeVisibility(transformedGraph.edges, options.enabledRelationshipTypes);
+  let projectedGraph = transformedGraph;
+  if (options.clusterByFolder) {
+    projectedGraph = applyEdgeHighways(transformedGraph.nodes, transformedGraph.edges, {
+      direction: options.direction,
+    });
+
+    if (options.collapsedFolderIds.size > 0) {
+      const folderCollapsed = collapseFolders(projectedGraph.nodes, projectedGraph.edges, options.collapsedFolderIds);
+      projectedGraph = {
+        nodes: folderCollapsed.nodes,
+        edges: folderCollapsed.edges,
+      };
+    }
+  }
+
+  const visibleEdges = applyEdgeVisibility(projectedGraph.edges, options.enabledRelationshipTypes);
 
   // Hub aggregation: funnel high-fan-in edges through invisible proxy nodes
-  let finalNodes = transformedGraph.nodes;
+  let finalNodes = projectedGraph.nodes;
   let finalEdges = visibleEdges;
   if (options.hubAggregationEnabled) {
     const hubResult = aggregateHighFanInEdges(finalNodes, finalEdges, {
@@ -348,6 +405,7 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   return {
     nodes: nodesWithDiagnostics,
     edges: bundledEdges,
+    semanticSnapshot,
   };
 }
 

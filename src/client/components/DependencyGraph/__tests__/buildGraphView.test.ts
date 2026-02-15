@@ -105,6 +105,61 @@ describe('buildOverviewGraph', () => {
     expect(mainNode?.data?.diagnostics?.orphanCurrent).toBe(true);
     expect(mainNode?.data?.diagnostics?.orphanGlobal).toBe(true);
   });
+
+  it('returns a semantic snapshot and projects folder highways in folder mode', () => {
+    const data: DependencyPackageGraph = {
+      packages: [
+        {
+          id: 'pkg-1',
+          name: 'pkg',
+          version: '1.0.0',
+          path: '/pkg',
+          created_at: '2024-01-01T00:00:00.000Z',
+          modules: {
+            a: {
+              id: 'module-a',
+              name: 'a.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/a/a.ts' },
+              imports: {
+                i1: {
+                  uuid: 'i1',
+                  name: 'b',
+                  path: '../b/b',
+                },
+              },
+            },
+            b: {
+              id: 'module-b',
+              name: 'b.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/b/b.ts' },
+              imports: {},
+            },
+          },
+        },
+      ],
+    };
+
+    const result = buildOverviewGraph({
+      data,
+      enabledNodeTypes: ['module'],
+      enabledRelationshipTypes: ['import'],
+      direction: 'LR',
+      clusterByFolder: true,
+      collapseScc: false,
+      collapsedFolderIds: new Set(),
+      hideTestFiles: false,
+      memberNodeMode: 'compact',
+      highlightOrphanGlobal: false,
+      hubAggregationEnabled: false,
+      hubAggregationThreshold: 8,
+    });
+
+    expect(result.semanticSnapshot).toBeDefined();
+    expect(result.semanticSnapshot?.nodes.some((node) => node.type === 'group')).toBe(false);
+    expect(result.edges.some((edge) => edge.data?.highwaySegment === 'highway')).toBe(true);
+  });
 });
 
 describe('buildSymbolDrilldownGraph', () => {

@@ -31,6 +31,8 @@ export type DependencyEdgeKind =
   | 'contains'
   | 'uses';
 
+export type HandleCategory = 'structural' | 'relational';
+
 /**
  * Node method format for display
  */
@@ -166,6 +168,11 @@ export type GraphEdge = Edge<{
   targetAnchor?: { x: number; y: number };
   hubAggregated?: boolean;
   aggregatedCount?: number;
+  highwaySegment?: 'exit' | 'highway' | 'entry';
+  highwayCount?: number;
+  highwayTypes?: DependencyEdgeKind[];
+  highwayGroupId?: string;
+  highwayTypeBreakdown?: Partial<Record<DependencyEdgeKind, number>>;
 }>;
 
 /**

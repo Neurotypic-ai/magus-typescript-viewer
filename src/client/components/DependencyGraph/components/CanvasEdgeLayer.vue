@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { getHandleAnchor } from '../handleAnchors';
 import { measurePerformance } from '../../../utils/performanceMonitoring';
 
 import type { DependencyNode, GraphEdge } from '../types';
@@ -52,13 +53,17 @@ const parseDimension = (value: unknown): number | undefined => {
   return undefined;
 };
 
-const buildAbsoluteNodeCenters = (nodeList: DependencyNode[]): Map<string, { x: number; y: number }> => {
+const buildAbsoluteNodeGeometry = (nodeList: DependencyNode[]): {
+  centerById: Map<string, { x: number; y: number }>;
+  boundsById: Map<string, { x: number; y: number; width: number; height: number }>;
+} => {
   const nodeById = new Map(nodeList.map((node) => [node.id, node]));
   const centerById = new Map<string, { x: number; y: number }>();
+  const boundsById = new Map<string, { x: number; y: number; width: number; height: number }>();
   const resolving = new Set<string>();
 
-  const resolveCenter = (nodeId: string): { x: number; y: number } | null => {
-    const cached = centerById.get(nodeId);
+  const resolveBounds = (nodeId: string): { x: number; y: number; width: number; height: number } | null => {
+    const cached = boundsById.get(nodeId);
     if (cached) {
       return cached;
     }
@@ -83,33 +88,33 @@ const buildAbsoluteNodeCenters = (nodeList: DependencyNode[]): Map<string, { x: 
 
     const parentId = (node as { parentNode?: string }).parentNode;
     if (parentId) {
-      const parentCenter = resolveCenter(parentId);
-      const parentNode = nodeById.get(parentId);
-      if (parentCenter && parentNode?.position) {
-        const parentStyle =
-          typeof parentNode.style === 'object' ? (parentNode.style as Record<string, unknown>) : {};
-        const parentMeasured = (parentNode as unknown as { measured?: { width?: number; height?: number } }).measured;
-        const parentWidth = parseDimension(parentStyle['width']) ?? parentMeasured?.width ?? DEFAULT_NODE_WIDTH;
-        const parentHeight = parseDimension(parentStyle['height']) ?? parentMeasured?.height ?? DEFAULT_NODE_HEIGHT;
-        absoluteX += parentCenter.x - parentWidth / 2;
-        absoluteY += parentCenter.y - parentHeight / 2;
+      const parentBounds = resolveBounds(parentId);
+      if (parentBounds) {
+        absoluteX += parentBounds.x;
+        absoluteY += parentBounds.y;
       }
     }
 
     const resolved = {
+      x: absoluteX,
+      y: absoluteY,
+      width,
+      height,
+    };
+    boundsById.set(nodeId, resolved);
+    centerById.set(nodeId, {
       x: absoluteX + width / 2,
       y: absoluteY + height / 2,
-    };
-    centerById.set(nodeId, resolved);
+    });
     resolving.delete(nodeId);
     return resolved;
   };
 
   nodeList.forEach((node) => {
-    resolveCenter(node.id);
+    resolveBounds(node.id);
   });
 
-  return centerById;
+  return { centerById, boundsById };
 };
 
 const toScreenPoint = (point: { x: number; y: number }, viewport: ViewportState): { x: number; y: number } => {
@@ -186,7 +191,8 @@ const renderCanvas = (): void => {
   context.clearRect(0, 0, width, height);
   context.lineCap = 'round';
 
-  const nodeCenters = buildAbsoluteNodeCenters(props.nodes);
+  const nodeGeometry = buildAbsoluteNodeGeometry(props.nodes);
+  const nodeCenters = nodeGeometry.centerById;
   const highlightedEdgeIdSet = new Set(props.highlightedEdgeIds);
   const visibleEdges = props.edges
     .filter((edge) => !edge.hidden && !highlightedEdgeIdSet.has(edge.id))
@@ -195,8 +201,16 @@ const renderCanvas = (): void => {
   for (const edge of visibleEdges) {
     const sourceAnchor = edge.data?.sourceAnchor as { x: number; y: number } | undefined;
     const targetAnchor = edge.data?.targetAnchor as { x: number; y: number } | undefined;
-    const sourcePoint = sourceAnchor ?? nodeCenters.get(edge.source);
-    const targetPoint = targetAnchor ?? nodeCenters.get(edge.target);
+    const sourceHandle = edge.sourceHandle ?? undefined;
+    const targetHandle = edge.targetHandle ?? undefined;
+    const sourceBounds = nodeGeometry.boundsById.get(edge.source);
+    const targetBounds = nodeGeometry.boundsById.get(edge.target);
+    const sourcePoint = (sourceBounds && sourceHandle ? getHandleAnchor(sourceBounds, sourceHandle) : undefined)
+      ?? sourceAnchor
+      ?? nodeCenters.get(edge.source);
+    const targetPoint = (targetBounds && targetHandle ? getHandleAnchor(targetBounds, targetHandle) : undefined)
+      ?? targetAnchor
+      ?? nodeCenters.get(edge.target);
     if (!sourcePoint || !targetPoint) {
       continue;
     }

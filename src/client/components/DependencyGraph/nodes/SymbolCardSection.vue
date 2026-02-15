@@ -30,8 +30,6 @@ const emit = defineEmits<{
 }>();
 
 const isExpanded = (id: string) => props.expandedSymbols.has(id);
-
-const memberCount = (symbol: FormattedSymbol) => symbol.formattedProperties.length + symbol.formattedMethods.length;
 </script>
 
 <template>

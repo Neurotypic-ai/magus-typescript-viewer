@@ -1,9 +1,15 @@
 import { MarkerType } from '@vue-flow/core';
 
 import { mapTypeCollection } from '../components/DependencyGraph/mapTypeCollection';
+import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
 import { getEdgeStyle } from '../theme/graphTheme';
 
-import type { DependencyEdgeKind, DependencyPackageGraph, GraphEdge } from '../components/DependencyGraph/types';
+import type {
+  DependencyEdgeKind,
+  DependencyKind,
+  DependencyPackageGraph,
+  GraphEdge,
+} from '../components/DependencyGraph/types';
 
 type ImportDirection = 'importer-to-imported' | 'imported-to-importer';
 
@@ -297,6 +303,78 @@ function buildNodeIdSet(data: DependencyPackageGraph, options: ResolvedOptions):
   return nodeIds;
 }
 
+function buildNodeKindLookup(data: DependencyPackageGraph, options: ResolvedOptions): Map<string, DependencyKind> {
+  const nodeKinds = new Map<string, DependencyKind>();
+
+  data.packages.forEach((pkg) => {
+    if (options.includePackageEdges) {
+      nodeKinds.set(pkg.id, 'package');
+    }
+
+    if (!pkg.modules) {
+      return;
+    }
+
+    mapTypeCollection(pkg.modules, (module) => {
+      nodeKinds.set(module.id, 'module');
+
+      if (!options.includeClassEdges) {
+        return;
+      }
+
+      if (module.classes) {
+        mapTypeCollection(module.classes, (cls) => {
+          nodeKinds.set(cls.id, 'class');
+
+          if (!options.includeMemberContainmentEdges) {
+            return;
+          }
+
+          toCollectionValues(
+            cls.properties as Record<string, { id?: string; name?: string }> | { id?: string; name?: string }[]
+          ).forEach((property) => {
+            const propertyId = property.id ?? `${cls.id}:property:${property.name ?? 'unknown'}`;
+            nodeKinds.set(propertyId, 'property');
+          });
+
+          toCollectionValues(
+            cls.methods as Record<string, { id?: string; name?: string }> | { id?: string; name?: string }[]
+          ).forEach((method) => {
+            const methodId = method.id ?? `${cls.id}:method:${method.name ?? 'unknown'}`;
+            nodeKinds.set(methodId, 'method');
+          });
+        });
+      }
+
+      if (module.interfaces) {
+        mapTypeCollection(module.interfaces, (iface) => {
+          nodeKinds.set(iface.id, 'interface');
+
+          if (!options.includeMemberContainmentEdges) {
+            return;
+          }
+
+          toCollectionValues(
+            iface.properties as Record<string, { id?: string; name?: string }> | { id?: string; name?: string }[]
+          ).forEach((property) => {
+            const propertyId = property.id ?? `${iface.id}:property:${property.name ?? 'unknown'}`;
+            nodeKinds.set(propertyId, 'property');
+          });
+
+          toCollectionValues(
+            iface.methods as Record<string, { id?: string; name?: string }> | { id?: string; name?: string }[]
+          ).forEach((method) => {
+            const methodId = method.id ?? `${iface.id}:method:${method.name ?? 'unknown'}`;
+            nodeKinds.set(methodId, 'method');
+          });
+        });
+      }
+    });
+  });
+
+  return nodeKinds;
+}
+
 function buildSymbolToModuleMap(data: DependencyPackageGraph): Map<string, string> {
   const symbolToModuleMap = new Map<string, string>();
 
@@ -335,12 +413,16 @@ function createEdge(
   source: string,
   target: string,
   type: DependencyEdgeKind,
-  importName?: string
+  importName?: string,
+  sourceHandle?: string,
+  targetHandle?: string
 ): GraphEdge {
   return {
     id: `${source}-${target}-${type}`,
     source,
     target,
+    sourceHandle,
+    targetHandle,
     hidden: false,
     data: {
       type,
@@ -386,6 +468,7 @@ export function createGraphEdges(
 
   const lookup = buildModulePathLookup(data);
   const validNodeIds = buildNodeIdSet(data, resolvedOptions);
+  const nodeKindsById = buildNodeKindLookup(data, resolvedOptions);
   const symbolToModuleMap = buildSymbolToModuleMap(data);
   const edgeMap = new Map<string, GraphEdge>();
   const classRelationshipEdges: GraphEdge[] = [];
@@ -393,6 +476,24 @@ export function createGraphEdges(
   const addEdge = (edge: GraphEdge, keyOverride?: string): void => {
     if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {
       return;
+    }
+
+    if (import.meta.env.DEV && edge.data?.type) {
+      const sourceKind = nodeKindsById.get(edge.source);
+      const targetKind = nodeKindsById.get(edge.target);
+      if (sourceKind && targetKind && !isValidEdgeConnection(edge.data.type, sourceKind, targetKind)) {
+        console.warn(
+          '[createGraphEdges] Edge kind and endpoint kinds do not match registry',
+          {
+            edgeId: edge.id,
+            type: edge.data.type,
+            source: edge.source,
+            sourceKind,
+            target: edge.target,
+            targetKind,
+          }
+        );
+      }
     }
 
     const key =

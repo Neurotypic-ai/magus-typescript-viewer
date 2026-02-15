@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
+import { ref, shallowRef, watch } from 'vue';
 
-import type { Ref } from 'vue';
+import type { Ref, ShallowRef } from 'vue';
 
 import type { DependencyNode, GraphEdge } from '../components/DependencyGraph/types';
 
@@ -22,6 +22,7 @@ interface GraphStore {
   cacheKey: Ref<string | null>;
   viewMode: Ref<GraphViewMode>;
   overviewSnapshot: Ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
+  semanticSnapshot: ShallowRef<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
   setNodes: (newNodes: DependencyNode[]) => void;
   setEdges: (newEdges: GraphEdge[]) => void;
   updateNodesById: (updates: Map<string, DependencyNode>) => void;
@@ -31,6 +32,7 @@ interface GraphStore {
   setCacheKey: (key: string | null) => void;
   setViewMode: (mode: GraphViewMode) => void;
   setOverviewSnapshot: (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => void;
+  setSemanticSnapshot: (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => void;
   restoreOverviewSnapshot: () => boolean;
   clearCache: () => void;
   suspendCacheWrites: () => void;
@@ -63,6 +65,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
   const cacheKey = ref<string | null>(null);
   const viewMode = ref<GraphViewMode>('overview');
   const overviewSnapshot = ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>(null);
+  const semanticSnapshot = shallowRef<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>(null);
   const cacheWriteSuspended = ref(false);
 
   // Load cached data from localStorage on initialization
@@ -247,6 +250,10 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     overviewSnapshot.value = snapshot;
   };
 
+  const setSemanticSnapshot = (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => {
+    semanticSnapshot.value = snapshot;
+  };
+
   const restoreOverviewSnapshot = (): boolean => {
     const snapshot = overviewSnapshot.value;
     if (!snapshot) {
@@ -267,6 +274,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
       cacheKey.value = null;
       viewMode.value = 'overview';
       overviewSnapshot.value = null;
+      semanticSnapshot.value = null;
     } catch {
       // Silently fail if cache clearing fails
     }
@@ -283,6 +291,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     cacheKey,
     viewMode,
     overviewSnapshot,
+    semanticSnapshot,
     // Actions
     setNodes,
     setEdges,
@@ -293,6 +302,7 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
     setCacheKey,
     setViewMode,
     setOverviewSnapshot,
+    setSemanticSnapshot,
     restoreOverviewSnapshot,
     clearCache,
     suspendCacheWrites: () => {

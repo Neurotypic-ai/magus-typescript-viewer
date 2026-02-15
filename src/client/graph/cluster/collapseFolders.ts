@@ -1,6 +1,7 @@
 import { MarkerType } from '@vue-flow/core';
 
 import { getNodeStyle } from '../../theme/graphTheme';
+import { buildParentMap, findCollapsedAncestor } from './folderMembership';
 
 import type { DependencyNode, GraphEdge } from '../../components/DependencyGraph/types';
 
@@ -15,27 +16,24 @@ export interface CollapseFolderResult {
   collapsedMeta: Map<string, CollapseFolderMeta>;
 }
 
-/**
- * Walk up the parentNode chain to find the outermost collapsed ancestor.
- * Handles nested folders: if folder A contains folder B and both are collapsed,
- * children of B map to A (the outermost).
- */
-function findCollapsedAncestor(
-  nodeId: string,
-  parentMap: Map<string, string>,
-  collapsedIds: Set<string>
-): string | undefined {
-  let current = nodeId;
-  let collapsedAncestor: string | undefined;
+export { buildParentMap };
 
-  for (let parent = parentMap.get(current); parent !== undefined; parent = parentMap.get(current)) {
-    if (collapsedIds.has(parent)) {
-      collapsedAncestor = parent;
+export function buildChildToFolderMap(
+  nodes: DependencyNode[],
+  collapsedFolderIds: Set<string>
+): Map<string, string> {
+  const parentMap = buildParentMap(nodes);
+  const childToFolder = new Map<string, string>();
+
+  for (const node of nodes) {
+    if (collapsedFolderIds.has(node.id)) continue;
+    const ancestor = findCollapsedAncestor(node.id, parentMap, collapsedFolderIds);
+    if (ancestor) {
+      childToFolder.set(node.id, ancestor);
     }
-    current = parent;
   }
 
-  return collapsedAncestor;
+  return childToFolder;
 }
 
 /**
@@ -51,16 +49,8 @@ export function collapseFolders(
     return { nodes, edges, collapsedMeta: new Map() };
   }
 
-  // Build parent lookup: nodeId → parentNode id
-  const parentMap = new Map<string, string>();
-  for (const node of nodes) {
-    if (node.parentNode) {
-      parentMap.set(node.id, node.parentNode);
-    }
-  }
-
   // Map each node to its outermost collapsed ancestor (if any)
-  const childToFolder = new Map<string, string>();
+  const childToFolder = buildChildToFolderMap(nodes, collapsedFolderIds);
   const folderChildren = new Map<string, string[]>();
 
   // Initialize children lists for collapsed folders
@@ -68,14 +58,9 @@ export function collapseFolders(
     folderChildren.set(folderId, []);
   }
 
-  for (const node of nodes) {
-    if (collapsedFolderIds.has(node.id)) continue; // skip folder nodes themselves
-
-    const ancestor = findCollapsedAncestor(node.id, parentMap, collapsedFolderIds);
-    if (ancestor) {
-      childToFolder.set(node.id, ancestor);
-      folderChildren.get(ancestor)?.push(node.id);
-    }
+  for (const [nodeId, ancestor] of childToFolder.entries()) {
+    if (collapsedFolderIds.has(nodeId)) continue;
+    folderChildren.get(ancestor)?.push(nodeId);
   }
 
   // Build output nodes: filter out hidden children, mark collapsed folders
@@ -117,6 +102,13 @@ export function collapseFolders(
     const mappedSource = childToFolder.get(edge.source) ?? edge.source;
     const mappedTarget = childToFolder.get(edge.target) ?? edge.target;
 
+    // Highway entry/exit edges become invalid when collapse remaps one endpoint.
+    // Keep trunks, but drop remapped connectors so collapsed folders show only trunk paths.
+    const segment = edge.data?.highwaySegment;
+    if ((segment === 'exit' || segment === 'entry') && (mappedSource !== edge.source || mappedTarget !== edge.target)) {
+      continue;
+    }
+
     // Drop intra-folder edges
     if (mappedSource === mappedTarget) continue;
 
@@ -130,6 +122,8 @@ export function collapseFolders(
         id: key,
         source: mappedSource,
         target: mappedTarget,
+        sourceHandle: mappedSource === edge.source ? (edge.sourceHandle ?? null) : null,
+        targetHandle: mappedTarget === edge.target ? (edge.targetHandle ?? null) : null,
         hidden: false,
         markerEnd: edge.markerEnd ?? { type: MarkerType.ArrowClosed, width: 20, height: 20 },
       });

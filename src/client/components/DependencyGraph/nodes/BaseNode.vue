@@ -137,7 +137,13 @@ const containerStyle = computed(() => {
       </div>
     </NodeToolbar>
 
-    <Handle type="target" :position="targetPosition" :key="`target-${targetPosition}`" class="base-node-handle" />
+    <Handle
+      id="relational-in"
+      type="target"
+      :position="targetPosition"
+      :key="`target-${targetPosition}`"
+      class="base-node-handle"
+    />
 
     <div class="base-node-header">
       <div class="base-node-title-container">
@@ -168,7 +174,13 @@ const containerStyle = computed(() => {
 
     <slot name="empty" />
 
-    <Handle type="source" :position="sourcePosition" :key="`source-${sourcePosition}`" class="base-node-handle" />
+    <Handle
+      id="relational-out"
+      type="source"
+      :position="sourcePosition"
+      :key="`source-${sourcePosition}`"
+      class="base-node-handle"
+    />
   </div>
 </template>
 
