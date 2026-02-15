@@ -6,7 +6,7 @@ import { applyEdgeHighways } from '../../graph/transforms/edgeHighways';
 import { traverseGraph } from '../../graph/traversal';
 import { getEdgeStyle } from '../../theme/graphTheme';
 import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from './buildGraphView';
-import { getNodeDims, mergeNodeInteractionStyle, stripNodeClass } from './graphUtils';
+import { getNodeDims, mergeNodeInteractionStyle, stripNodeClass, waitForNextPaint } from './graphUtils';
 
 import type { Ref } from 'vue';
 
@@ -85,12 +85,6 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
   const isIsolateAnimating = ref(false);
   const isolateExpandAll = ref(false);
   let isolateAnimatingTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const waitForNextPaint = async (): Promise<void> => {
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => { resolve(); });
-    });
-  };
 
   const startIsolateAnimation = (): void => {
     if (isolateAnimatingTimer) clearTimeout(isolateAnimatingTimer);

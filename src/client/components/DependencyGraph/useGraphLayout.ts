@@ -5,7 +5,7 @@ import { WebWorkerLayoutProcessor } from '../../layout/WebWorkerLayoutProcessor'
 import { graphTheme } from '../../theme/graphTheme';
 import { measurePerformance } from '../../utils/performanceMonitoring';
 import { buildOverviewGraph } from './buildGraphView';
-import { collectNodesNeedingInternalsUpdate, getEnabledNodeTypes, getHandlePositions, simpleHash } from './graphUtils';
+import { collectNodesNeedingInternalsUpdate, getEnabledNodeTypes, getHandlePositions, simpleHash, waitForNextPaint } from './graphUtils';
 import { isContainerNode } from './useNodeDimensions';
 
 import type { Ref } from 'vue';
@@ -228,12 +228,6 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   // ── Measurement ──
 
   const shouldRunTwoPassMeasure = (nodeCount: number): boolean => nodeCount <= TWO_PASS_MEASURE_NODE_THRESHOLD;
-
-  const waitForNextPaint = async (): Promise<void> => {
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => { resolve(); });
-    });
-  };
 
   const measureAllNodeDimensions = (
     layoutedNodes: DependencyNode[]

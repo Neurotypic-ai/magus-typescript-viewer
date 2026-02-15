@@ -251,6 +251,14 @@ export const collectNodesNeedingInternalsUpdate = (previous: DependencyNode[], n
   return changedIds;
 };
 
+// ── Async paint helpers ──
+
+export const waitForNextPaint = async (): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => { resolve(); });
+  });
+};
+
 // ── Set difference utility ──
 
 export const addSetDiff = (target: Set<string>, previous: Set<string>, next: Set<string>): void => {
