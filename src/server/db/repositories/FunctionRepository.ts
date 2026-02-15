@@ -33,6 +33,7 @@ export interface IFunctionCreateDTO {
   return_type?: string;
   is_async?: boolean;
   is_exported?: boolean;
+  has_explicit_return_type?: boolean;
 }
 
 interface IFunctionUpdateDTO {
@@ -52,8 +53,8 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
    */
   async createBatch(items: IFunctionCreateDTO[]): Promise<void> {
     await this.executeBatchInsert(
-      '(id, package_id, module_id, name, return_type, is_async, is_exported)',
-      7,
+      '(id, package_id, module_id, name, return_type, is_async, is_exported, has_explicit_return_type)',
+      8,
       items,
       (dto) => [
         dto.id,
@@ -63,6 +64,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
         dto.return_type ?? null,
         dto.is_async ?? false,
         dto.is_exported ?? false,
+        dto.has_explicit_return_type ?? false,
       ]
     );
   }
@@ -71,7 +73,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
     try {
       const results = await this.executeQuery<IFunctionRow>(
         'create',
-        'INSERT INTO functions (id, package_id, module_id, name, return_type, is_async, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *',
+        'INSERT INTO functions (id, package_id, module_id, name, return_type, is_async, is_exported, has_explicit_return_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
         [
           dto.id,
           dto.package_id,
@@ -80,6 +82,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
           dto.return_type ?? null,
           dto.is_async ?? false,
           dto.is_exported ?? false,
+          dto.has_explicit_return_type ?? false,
         ]
       );
 

@@ -31,6 +31,11 @@ export interface IModuleCreateDTO {
    * The source location information for this module.
    */
   source: FileLocation;
+
+  /**
+   * Number of lines of code in the source file.
+   */
+  line_count?: number;
 }
 
 interface IModuleUpdateDTO {
@@ -73,8 +78,8 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
    */
   async createBatch(items: IModuleCreateDTO[]): Promise<void> {
     await this.executeBatchInsert(
-      '(id, package_id, name, source, directory, filename, relative_path, is_barrel)',
-      8,
+      '(id, package_id, name, source, directory, filename, relative_path, is_barrel, line_count)',
+      9,
       items,
       (dto) => [
         dto.id,
@@ -85,6 +90,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
         dto.source.filename,
         dto.source.relativePath,
         Boolean(dto.source.isBarrel ?? false) ? 1 : 0,
+        dto.line_count ?? 0,
       ]
     );
   }
@@ -94,8 +100,8 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
       const results = await this.executeQuery<IModuleRow>(
         'create',
         `INSERT INTO modules (
-          id, package_id, name, source, directory, filename, relative_path, is_barrel
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+          id, package_id, name, source, directory, filename, relative_path, is_barrel, line_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
         [
           dto.id,
           dto.package_id,
@@ -105,6 +111,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
           dto.source.filename,
           dto.source.relativePath,
           Boolean(dto.source.isBarrel ?? false) ? 1 : 0,
+          dto.line_count ?? 0,
         ]
       );
 

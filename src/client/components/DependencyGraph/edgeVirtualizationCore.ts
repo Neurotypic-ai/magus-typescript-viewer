@@ -1,4 +1,5 @@
 import { getHandleAnchor } from './handleAnchors';
+import { buildEdgePolyline, toLineSegments } from './layout/edgeGeometryPolicy';
 import { buildAbsoluteNodeBoundsMap as sharedBuildAbsoluteNodeBoundsMap } from './layout/geometryBounds';
 
 import type { Rect } from './layout/geometryBounds';
@@ -30,6 +31,7 @@ export interface EdgeVirtualizationContainerSize {
 
 export interface EdgeVirtualizationNode {
   id: string;
+  type?: string;
   position?: EdgeVirtualizationPoint;
   parentNode?: string;
   style?: unknown;
@@ -211,14 +213,34 @@ const segmentIntersectsBounds = (
   );
 };
 
-const isEdgeSegmentInBounds = (source: NodeBounds, target: NodeBounds, bounds: ViewportBounds): boolean => {
+const isPolylineInBounds = (points: EdgeVirtualizationPoint[], bounds: ViewportBounds): boolean => {
+  if (points.length === 0) return false;
+  if (points.some((point) => isPointInBounds(point, bounds))) {
+    return true;
+  }
+  const segments = toLineSegments(points);
+  return segments.some((segment) => segmentIntersectsBounds(segment.start, segment.end, bounds));
+};
+
+const isEdgeSegmentInBounds = (
+  source: NodeBounds,
+  target: NodeBounds,
+  bounds: ViewportBounds,
+  options: {
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+    sourceNodeType?: string;
+    targetNodeType?: string;
+  }
+): boolean => {
   if (isNodeInBounds(source, bounds) || isNodeInBounds(target, bounds)) {
     return true;
   }
 
   const sourceCenter = { x: source.x + source.width / 2, y: source.y + source.height / 2 };
   const targetCenter = { x: target.x + target.width / 2, y: target.y + target.height / 2 };
-  return segmentIntersectsBounds(sourceCenter, targetCenter, bounds);
+  const polyline = buildEdgePolyline(sourceCenter, targetCenter, options);
+  return isPolylineInBounds(polyline, bounds);
 };
 
 export function computeEdgePrioritySignature(edgeList: EdgeVirtualizationEdge[]): string {
@@ -327,6 +349,7 @@ export function computeEdgeVirtualizationResult(
   }
 
   const userHiddenIds = toUserHiddenSet(input.userHiddenEdgeIds);
+  const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
   const nodeBoundsMap = buildAbsoluteNodeBoundsMap(input.nodes, config);
 
   const viewportVisibleIds = new Set<string>();
@@ -337,6 +360,8 @@ export function computeEdgeVirtualizationResult(
 
     const sourceBounds = nodeBoundsMap.get(edge.source);
     const targetBounds = nodeBoundsMap.get(edge.target);
+    const sourceNode = nodeById.get(edge.source);
+    const targetNode = nodeById.get(edge.target);
 
     const sourceHandleAnchor =
       sourceBounds && edge.sourceHandle ? getHandleAnchor(sourceBounds, edge.sourceHandle) : undefined;
@@ -346,9 +371,16 @@ export function computeEdgeVirtualizationResult(
     const sourceAnchor = sourceHandleAnchor ?? edge.data?.sourceAnchor;
     const targetAnchor = targetHandleAnchor ?? edge.data?.targetAnchor;
     if (sourceAnchor && targetAnchor) {
-      if (isPointInBounds(sourceAnchor, bounds) || isPointInBounds(targetAnchor, bounds)) {
-        viewportVisibleIds.add(edge.id);
-      } else if (segmentIntersectsBounds(sourceAnchor, targetAnchor, bounds)) {
+      const polylineOptions = {
+        sourceHandle: edge.sourceHandle ?? null,
+        targetHandle: edge.targetHandle ?? null,
+        ...(sourceNode?.type ? { sourceNodeType: sourceNode.type } : {}),
+        ...(targetNode?.type ? { targetNodeType: targetNode.type } : {}),
+      };
+      const polyline = buildEdgePolyline(sourceAnchor, targetAnchor, {
+        ...polylineOptions,
+      });
+      if (isPolylineInBounds(polyline, bounds)) {
         viewportVisibleIds.add(edge.id);
       }
       continue;
@@ -359,7 +391,13 @@ export function computeEdgeVirtualizationResult(
       continue;
     }
 
-    if (isEdgeSegmentInBounds(sourceBounds, targetBounds, bounds)) {
+    const fallbackPolylineOptions = {
+      sourceHandle: edge.sourceHandle ?? null,
+      targetHandle: edge.targetHandle ?? null,
+      ...(sourceNode?.type ? { sourceNodeType: sourceNode.type } : {}),
+      ...(targetNode?.type ? { targetNodeType: targetNode.type } : {}),
+    };
+    if (isEdgeSegmentInBounds(sourceBounds, targetBounds, bounds, fallbackPolylineOptions)) {
       viewportVisibleIds.add(edge.id);
     }
   }

@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { getHandleAnchor } from '../handleAnchors';
+import { buildEdgePolyline } from '../layout/edgeGeometryPolicy';
 import { measurePerformance } from '../../../utils/performanceMonitoring';
 
 import type { DependencyNode, GraphEdge } from '../types';
@@ -138,6 +139,20 @@ const isSegmentNearViewport = (
   return !(maxX < -padding || minX > width + padding || maxY < -padding || minY > height + padding);
 };
 
+const isPolylineNearViewport = (
+  points: Array<{ x: number; y: number }>,
+  width: number,
+  height: number
+): boolean => {
+  if (points.length < 2) return false;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    if (isSegmentNearViewport(points[i]!, points[i + 1]!, width, height)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const scheduleRender = (): void => {
   if (renderRafId !== null) {
     cancelAnimationFrame(renderRafId);
@@ -193,6 +208,7 @@ const renderCanvas = (): void => {
 
   const nodeGeometry = buildAbsoluteNodeGeometry(props.nodes);
   const nodeCenters = nodeGeometry.centerById;
+  const nodeById = new Map(props.nodes.map((node) => [node.id, node]));
   const highlightedEdgeIdSet = new Set(props.highlightedEdgeIds);
   const visibleEdges = props.edges
     .filter((edge) => !edge.hidden && !highlightedEdgeIdSet.has(edge.id))
@@ -205,6 +221,8 @@ const renderCanvas = (): void => {
     const targetHandle = edge.targetHandle ?? undefined;
     const sourceBounds = nodeGeometry.boundsById.get(edge.source);
     const targetBounds = nodeGeometry.boundsById.get(edge.target);
+    const sourceNode = nodeById.get(edge.source);
+    const targetNode = nodeById.get(edge.target);
     const sourcePoint = (sourceBounds && sourceHandle ? getHandleAnchor(sourceBounds, sourceHandle) : undefined)
       ?? sourceAnchor
       ?? nodeCenters.get(edge.source);
@@ -215,9 +233,15 @@ const renderCanvas = (): void => {
       continue;
     }
 
-    const sourceScreen = toScreenPoint(sourcePoint, props.viewport);
-    const targetScreen = toScreenPoint(targetPoint, props.viewport);
-    if (!isSegmentNearViewport(sourceScreen, targetScreen, width, height)) {
+    const polylineOptions = {
+      ...(sourceHandle ? { sourceHandle } : {}),
+      ...(targetHandle ? { targetHandle } : {}),
+      ...(sourceNode?.type ? { sourceNodeType: sourceNode.type } : {}),
+      ...(targetNode?.type ? { targetNodeType: targetNode.type } : {}),
+    };
+    const worldPolyline = buildEdgePolyline(sourcePoint, targetPoint, polylineOptions);
+    const screenPolyline = worldPolyline.map((point) => toScreenPoint(point, props.viewport));
+    if (!isPolylineNearViewport(screenPolyline, width, height)) {
       continue;
     }
 
@@ -239,8 +263,11 @@ const renderCanvas = (): void => {
       ? Math.max(0.8, strokeWidth * Math.max(0.55, Math.min(1.1, props.viewport.zoom)))
       : 1.2;
     context.beginPath();
-    context.moveTo(sourceScreen.x, sourceScreen.y);
-    context.lineTo(targetScreen.x, targetScreen.y);
+    context.moveTo(screenPolyline[0]!.x, screenPolyline[0]!.y);
+    for (let i = 1; i < screenPolyline.length; i += 1) {
+      const point = screenPolyline[i]!;
+      context.lineTo(point.x, point.y);
+    }
     context.stroke();
   }
 

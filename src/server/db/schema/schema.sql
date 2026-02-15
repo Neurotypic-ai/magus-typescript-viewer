@@ -33,6 +33,7 @@ CREATE TABLE modules (
   filename TEXT NOT NULL,
   relative_path TEXT NOT NULL,
   is_barrel BOOLEAN NOT NULL DEFAULT FALSE,
+  line_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -81,6 +82,7 @@ CREATE TABLE methods (
   is_abstract BOOLEAN NOT NULL DEFAULT FALSE,
   is_async BOOLEAN NOT NULL DEFAULT FALSE,
   visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'private', 'protected')),
+  has_explicit_return_type BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -120,6 +122,7 @@ CREATE TABLE imports (
   module_id CHAR(36) NOT NULL REFERENCES modules (id),
   source TEXT NOT NULL,
   specifiers_json TEXT,
+  is_type_only BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -173,6 +176,7 @@ CREATE TABLE functions (
   return_type TEXT,
   is_async BOOLEAN NOT NULL DEFAULT FALSE,
   is_exported BOOLEAN NOT NULL DEFAULT FALSE,
+  has_explicit_return_type BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -257,3 +261,32 @@ CREATE TABLE variables (
 CREATE INDEX idx_type_aliases_module_id ON type_aliases (module_id);
 CREATE INDEX idx_enums_module_id ON enums (module_id);
 CREATE INDEX idx_variables_module_id ON variables (module_id);
+
+-- Code issues table for analysis rule findings
+CREATE TABLE code_issues (
+  id CHAR(36) PRIMARY KEY,
+  rule_code TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'error')),
+  message TEXT NOT NULL,
+  suggestion TEXT,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  file_path TEXT NOT NULL,
+  entity_id CHAR(36),
+  entity_type TEXT CHECK (entity_type IN ('class', 'interface', 'property', 'method', 'function', 'typeAlias', 'variable')),
+  entity_name TEXT,
+  parent_entity_id CHAR(36),
+  parent_entity_type TEXT CHECK (parent_entity_type IN ('class', 'interface')),
+  parent_entity_name TEXT,
+  property_name TEXT,
+  line INTEGER,
+  "column" INTEGER,
+  refactor_action TEXT,
+  refactor_context_json TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+CREATE INDEX idx_code_issues_module_id ON code_issues (module_id);
+CREATE INDEX idx_code_issues_package_id ON code_issues (package_id);
+CREATE INDEX idx_code_issues_entity_id ON code_issues (entity_id);
+CREATE INDEX idx_code_issues_rule_code ON code_issues (rule_code);

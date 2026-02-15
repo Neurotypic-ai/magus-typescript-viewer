@@ -18,6 +18,7 @@ const NAMESPACES = {
   typeAlias: '27473cf4-2ac7-477c-a903-01693f9bcf67',
   variable: 'c8f3a1e7-5b2d-4a9c-b6e1-d4f7c2a8e3b5',
   moduleDefinition: 'e481a0e5-fac9-4ec1-bd87-7f871c807db5',
+  codeIssue: 'a3b2c1d0-e4f5-6789-abcd-ef0123456789',
 } as const;
 
 /**
@@ -80,6 +81,9 @@ export const generateModuleDefinitionUUID = (moduleId: string, name: string): st
 
 export const generateFunctionUUID = (packageId: string, moduleId: string, name: string): string =>
   generateUUID('function', `${packageId}.${moduleId}.${name}`);
+
+export const generateCodeIssueUUID = (moduleId: string, ruleCode: string, entityKey: string): string =>
+  generateUUID('codeIssue', `${moduleId}:${ruleCode}:${entityKey}`);
 
 /** Generate a deterministic UUID for a relationship record (junction table row) */
 export const generateRelationshipUUID = (sourceId: string, targetId: string, type: string): string =>

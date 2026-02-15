@@ -186,7 +186,7 @@ function toggleCollapse() {
 
 <style scoped>
 .group-node-container {
-  --folder-inner-handle-inset: 14px;
+  --folder-inner-handle-inset: 12px;
   width: 100%;
   height: 100%;
   min-width: 220px;

@@ -23,6 +23,8 @@ import { SymbolReferenceRepository } from '../db/repositories/SymbolReferenceRep
 import { TypeAliasRepository } from '../db/repositories/TypeAliasRepository';
 import { VariableRepository } from '../db/repositories/VariableRepository';
 import { PackageParser } from '../parsers/PackageParser';
+import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
+import { RulesEngine } from '../rules/RulesEngine';
 import { generateRelationshipUUID } from '../utils/uuid';
 
 import type { IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
@@ -248,6 +250,11 @@ program
       const packageParser = new PackageParser(dir, pkgJson.name, pkgJson.version);
       const parseResult = await packageParser.parse();
 
+      // Run code analysis rules
+      spinner.text = 'Running code analysis rules...';
+      const rulesEngine = new RulesEngine();
+      const codeIssues = await rulesEngine.analyze(parseResult);
+
       // Save all entities using batch inserts within a transaction
       spinner.text = 'Saving to database...';
 
@@ -293,13 +300,19 @@ program
             new Map(parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
           );
 
-          const importDTOs = dedupedImports.map(({ import: imp, moduleId }) => ({
-            id: imp.uuid,
-            package_id: parseResult.package?.id ?? '',
-            module_id: moduleId,
-            source: imp.relativePath,
-            specifiers_json: serializeImportSpecifiers(imp),
-          }));
+          const importDTOs = dedupedImports.map(({ import: imp, moduleId }) => {
+            // An import is type-only if all its specifiers have kind 'type'
+            const specifierValues = Array.from(imp.specifiers.values());
+            const isTypeOnly = specifierValues.length > 0 && specifierValues.every((s) => s.kind === 'type');
+            return {
+              id: imp.uuid,
+              package_id: parseResult.package?.id ?? '',
+              module_id: moduleId,
+              source: imp.relativePath,
+              specifiers_json: serializeImportSpecifiers(imp),
+              is_type_only: isTypeOnly,
+            };
+          });
           await repositories.import.createBatch(importDTOs);
         }
 
@@ -315,6 +328,32 @@ program
 
         // Batch-insert symbol references
         await repositories.symbolReference.createBatch(dedupeById(parseResult.symbolReferences));
+
+        // Persist code analysis issues
+        const codeIssueRepository = new CodeIssueRepository(adapter);
+        await codeIssueRepository.deleteByPackageId(parseResult.package?.id ?? '');
+        const issueDTOs = codeIssues.map((issue) => ({
+          id: issue.id,
+          rule_code: issue.rule_code,
+          severity: issue.severity,
+          message: issue.message,
+          suggestion: issue.suggestion,
+          package_id: issue.package_id,
+          module_id: issue.module_id,
+          file_path: issue.file_path,
+          entity_id: issue.entity_id,
+          entity_type: issue.entity_type,
+          entity_name: issue.entity_name,
+          parent_entity_id: issue.parent_entity_id,
+          parent_entity_type: issue.parent_entity_type,
+          parent_entity_name: issue.parent_entity_name,
+          property_name: issue.property_name,
+          line: issue.line,
+          column: issue.column,
+          refactor_action: issue.refactor_action,
+          refactor_context_json: issue.refactor_context ? JSON.stringify(issue.refactor_context) : undefined,
+        }));
+        await codeIssueRepository.createBatch(issueDTOs);
       });
 
       // Save relationship records to junction tables

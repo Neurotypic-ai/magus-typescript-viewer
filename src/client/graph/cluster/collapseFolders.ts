@@ -1,5 +1,6 @@
 import { MarkerType } from '@vue-flow/core';
 
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../components/DependencyGraph/layout/edgeGeometryPolicy';
 import { getNodeStyle } from '../../theme/graphTheme';
 import { buildParentMap, findCollapsedAncestor } from './folderMembership';
 
@@ -125,7 +126,11 @@ export function collapseFolders(
         sourceHandle: mappedSource === edge.source ? (edge.sourceHandle ?? null) : null,
         targetHandle: mappedTarget === edge.target ? (edge.targetHandle ?? null) : null,
         hidden: false,
-        markerEnd: edge.markerEnd ?? { type: MarkerType.ArrowClosed, width: 20, height: 20 },
+        markerEnd: edge.markerEnd ?? {
+          type: MarkerType.ArrowClosed,
+          width: EDGE_MARKER_WIDTH_PX,
+          height: EDGE_MARKER_HEIGHT_PX,
+        },
       });
     }
   }

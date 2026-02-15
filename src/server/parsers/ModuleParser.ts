@@ -110,6 +110,7 @@ export class ModuleParser {
 
     try {
       const content = this.sourceOverride ?? (await readFile(this.filePath, 'utf-8'));
+      const lineCount = content.split('\n').length;
       this.root = this.j(content);
 
       // Reset tracking collections
@@ -119,7 +120,7 @@ export class ModuleParser {
 
       const result: ParseResult = {
         package: undefined,
-        modules: [await this.createModuleDTO(this.moduleId, relativePath)],
+        modules: [await this.createModuleDTO(this.moduleId, relativePath, lineCount)],
         classes: [] as IClassCreateDTO[],
         interfaces: [] as IInterfaceCreateDTO[],
         functions: [] as IFunctionCreateDTO[],
@@ -300,7 +301,7 @@ export class ModuleParser {
     return reExportRatio > 0.8;
   }
 
-  private async createModuleDTO(moduleId: string, relativePath: string): Promise<IModuleCreateDTO> {
+  private async createModuleDTO(moduleId: string, relativePath: string, lineCount?: number): Promise<IModuleCreateDTO> {
     const directory = dirname(this.filePath);
     const fullName = relativePath.split('/').pop() ?? '';
     const name = fullName.replace(/\.[^/.]+$/, '');
@@ -331,6 +332,7 @@ export class ModuleParser {
         index: indexFile,
         isBarrel: this.isBarrelFile(),
       } as FileLocation,
+      line_count: lineCount ?? 0,
     };
   }
 
@@ -580,6 +582,7 @@ export class ModuleParser {
           }
 
           const methodId = generateMethodUUID(this.packageId, moduleId, parentId, methodName);
+          const hasExplicitReturnType = this.getReturnTypeNode(node) != null;
           const returnType = this.getReturnType(node);
 
           // Parse parameters and store them in the result object
@@ -607,6 +610,7 @@ export class ModuleParser {
             is_static: isStatic,
             is_async: isAsync,
             visibility: 'public', // Default visibility
+            has_explicit_return_type: hasExplicitReturnType,
           });
 
           const usages = this.extractSymbolUsages(node, {
@@ -898,6 +902,7 @@ export class ModuleParser {
       }
       seenFunctionIds.add(functionId);
 
+      const hasExplicitReturnType = 'returnType' in node && node.returnType != null;
       const returnType = this.getReturnTypeFromNode(node);
 
       const functionDTO: IFunctionCreateDTO = {
@@ -908,6 +913,7 @@ export class ModuleParser {
         return_type: returnType,
         is_async: node.async ?? false,
         is_exported: true,
+        has_explicit_return_type: hasExplicitReturnType,
       };
 
       result.functions.push(functionDTO);

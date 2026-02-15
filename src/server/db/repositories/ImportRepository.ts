@@ -32,6 +32,11 @@ export interface IImportCreateDTO {
    * JSON-serialized import specifiers metadata.
    */
   specifiers_json?: string | undefined;
+
+  /**
+   * Whether this is a type-only import (import type { ... }).
+   */
+  is_type_only?: boolean;
 }
 
 /**
@@ -70,6 +75,7 @@ interface IImportRow extends IDatabaseRow {
   module_id: string;
   source: string;
   specifiers_json: string | null;
+  is_type_only: boolean | string;
   created_at: string;
 }
 
@@ -83,28 +89,29 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
    */
   async createBatch(items: IImportCreateDTO[]): Promise<void> {
     await this.executeBatchInsert(
-      '(id, package_id, module_id, source, specifiers_json)',
-      5,
+      '(id, package_id, module_id, source, specifiers_json, is_type_only)',
+      6,
       items,
-      (dto) => [dto.id, dto.package_id, dto.module_id, dto.source, dto.specifiers_json ?? null]
+      (dto) => [dto.id, dto.package_id, dto.module_id, dto.source, dto.specifiers_json ?? null, dto.is_type_only ?? false]
     );
   }
 
   async create(dto: IImportCreateDTO): Promise<IImportCreateDTO> {
     try {
-      const params: (string | null)[] = [
+      const params: (string | boolean | null)[] = [
         dto.id,
         dto.package_id,
         dto.module_id,
         dto.source,
         dto.specifiers_json ?? null,
+        dto.is_type_only ?? false,
       ];
 
       await this.executeQuery<IImportRow>(
         'create',
         `
-        INSERT INTO imports (id, package_id, module_id, source, specifiers_json)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO imports (id, package_id, module_id, source, specifiers_json, is_type_only)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
         params
       );
@@ -259,6 +266,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
       module_id: row.module_id,
       source: row.source,
       specifiers_json: row.specifiers_json ?? undefined,
+      is_type_only: row.is_type_only === true || row.is_type_only === 'true' || row.is_type_only === '1',
     };
   }
 }

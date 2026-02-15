@@ -9,6 +9,7 @@ import { aggregateHighFanInEdges } from '../../graph/transforms/hubAggregation';
 import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
 import { createGraphEdges } from '../../utils/createGraphEdges';
 import { createGraphNodes } from '../../utils/createGraphNodes';
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from './layout/edgeGeometryPolicy';
 import { mapTypeCollection } from './mapTypeCollection';
 
 import type {
@@ -437,8 +438,8 @@ function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod 
 function createMarker() {
   return {
     type: MarkerType.ArrowClosed,
-    width: 12,
-    height: 12,
+    width: EDGE_MARKER_WIDTH_PX,
+    height: EDGE_MARKER_HEIGHT_PX,
   };
 }
 

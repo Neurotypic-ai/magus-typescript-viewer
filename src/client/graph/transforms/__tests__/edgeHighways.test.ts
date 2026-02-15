@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { collapseFolders } from '../../cluster/collapseFolders';
+import { GROUP_ENTRY_STUB_PX } from '../../../components/DependencyGraph/layout/edgeGeometryPolicy';
 import { applyEdgeHighways, optimizeHighwayHandleRouting } from '../edgeHighways';
 
 import type { DependencyEdgeKind, DependencyNode, GraphEdge } from '../../../components/DependencyGraph/types';
@@ -71,13 +72,13 @@ describe('applyEdgeHighways', () => {
     expect(exit?.sourceHandle).toMatch(/^relational-out-(top|right|bottom|left)$/);
     expect(exit?.targetHandle).toMatch(/^folder-(top|right|bottom|left)-out-inner$/);
     expect(exit?.type).toBe('smoothstep');
-    expect(exit?.pathOptions).toMatchObject({ offset: 0, borderRadius: 0 });
+    expect(exit?.pathOptions).toMatchObject({ offset: GROUP_ENTRY_STUB_PX, borderRadius: 0 });
     expect(getHandleSide(exit?.sourceHandle)).toBe(getHandleSide(exit?.targetHandle));
     expect(entry?.sourceHandle).toMatch(/^folder-(top|right|bottom|left)-in-inner$/);
     expect(entry?.targetHandle).toMatch(/^relational-in-(top|right|bottom|left)$/);
     expect(getHandleSide(entry?.sourceHandle)).toBe(getHandleSide(entry?.targetHandle));
     expect(entry?.type).toBe('smoothstep');
-    expect(entry?.pathOptions).toMatchObject({ offset: 0, borderRadius: 0 });
+    expect(entry?.pathOptions).toMatchObject({ offset: GROUP_ENTRY_STUB_PX, borderRadius: 0 });
   });
 
   it('aggregates trunk counts and type breakdown per folder pair', () => {

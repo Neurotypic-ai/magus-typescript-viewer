@@ -1,6 +1,7 @@
 import { MarkerType } from '@vue-flow/core';
 
 import { mapTypeCollection } from '../components/DependencyGraph/mapTypeCollection';
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../components/DependencyGraph/layout/edgeGeometryPolicy';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
 import { getEdgeStyle } from '../theme/graphTheme';
 
@@ -404,8 +405,8 @@ function buildSymbolToModuleMap(data: DependencyPackageGraph): Map<string, strin
 function createArrowMarker() {
   return {
     type: MarkerType.ArrowClosed,
-    width: 12,
-    height: 12,
+    width: EDGE_MARKER_WIDTH_PX,
+    height: EDGE_MARKER_HEIGHT_PX,
   };
 }
 

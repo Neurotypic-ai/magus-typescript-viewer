@@ -1,5 +1,6 @@
 import { MarkerType } from '@vue-flow/core';
 
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../components/DependencyGraph/layout/edgeGeometryPolicy';
 import { getEdgeStyle } from '../../theme/graphTheme';
 
 import type { DependencyEdgeKind, DependencyNode, GraphEdge } from '../../components/DependencyGraph/types';
@@ -131,7 +132,7 @@ export function aggregateHighFanInEdges(
         ...getEdgeStyle(primaryType),
         strokeWidth: aggregatedWidth,
       },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+      markerEnd: { type: MarkerType.ArrowClosed, width: EDGE_MARKER_WIDTH_PX, height: EDGE_MARKER_HEIGHT_PX },
     } as GraphEdge);
   }
 

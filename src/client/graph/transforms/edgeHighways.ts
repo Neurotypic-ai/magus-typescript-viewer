@@ -2,6 +2,11 @@ import { MarkerType } from '@vue-flow/core';
 
 import { getHandleAnchor } from '../../components/DependencyGraph/handleAnchors';
 import { buildAbsoluteNodeBoundsMap } from '../../components/DependencyGraph/layout/geometryBounds';
+import {
+  EDGE_MARKER_HEIGHT_PX,
+  EDGE_MARKER_WIDTH_PX,
+  GROUP_ENTRY_STUB_PX,
+} from '../../components/DependencyGraph/layout/edgeGeometryPolicy';
 import { getEdgeStyle } from '../../theme/graphTheme';
 import { buildNodeToFolderMap } from '../cluster/folderMembership';
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
@@ -74,7 +79,11 @@ const getPrimaryEdgeType = (breakdown: Partial<Record<DependencyEdgeKind, number
   return best;
 };
 
-const createMarker = () => ({ type: MarkerType.ArrowClosed, width: 12, height: 12 });
+const createMarker = () => ({
+  type: MarkerType.ArrowClosed,
+  width: EDGE_MARKER_WIDTH_PX,
+  height: EDGE_MARKER_HEIGHT_PX,
+});
 const HIGHWAY_DEFAULT_NODE_WIDTH = 260;
 const HIGHWAY_DEFAULT_NODE_HEIGHT = 100;
 
@@ -91,7 +100,7 @@ const INCOMING_HANDLE_IDS = [
   FOLDER_HANDLE_IDS.bottomIn,
   FOLDER_HANDLE_IDS.leftIn,
 ] as const;
-const CONNECTOR_SMOOTHSTEP_PATH_OPTIONS = { offset: 0, borderRadius: 0 };
+const CONNECTOR_SMOOTHSTEP_PATH_OPTIONS = { offset: GROUP_ENTRY_STUB_PX, borderRadius: 0 };
 const CHILD_OUT_HANDLE_BY_SIDE: Record<HandleSide, string> = {
   top: 'relational-out-top',
   right: 'relational-out-right',

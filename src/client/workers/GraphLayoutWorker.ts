@@ -5,6 +5,7 @@
 
 import type { Edge } from '@vue-flow/core';
 
+import { GROUP_EXCLUSION_ZONE_PX } from '../components/DependencyGraph/layout/edgeGeometryPolicy';
 import type { DependencyNode } from '../components/DependencyGraph/types';
 import type { GraphTheme } from '../theme/graphTheme';
 
@@ -552,9 +553,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     const MODULE_HORIZONTAL_PADDING = 48;
     const MODULE_TOP_PADDING = 120; // space for header/body content
     const MODULE_BOTTOM_PADDING = 48;
-    const GROUP_HORIZONTAL_PADDING = 24;
-    const GROUP_TOP_PADDING = 40; // small label header only
-    const GROUP_BOTTOM_PADDING = 24;
+    const GROUP_HORIZONTAL_PADDING = GROUP_EXCLUSION_ZONE_PX;
+    const GROUP_TOP_PADDING = GROUP_EXCLUSION_ZONE_PX;
+    const GROUP_BOTTOM_PADDING = GROUP_EXCLUSION_ZONE_PX;
 
     function getContainerPadding(parentId: string) {
       const parentNode = inputNodeById.get(parentId);
@@ -617,14 +618,24 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         const parentSourceNode = inputNodeById.get(parentId);
         const layoutInsets = parentSourceNode?.data?.layoutInsets as { top?: number } | undefined;
         const padding = getContainerPadding(parentId);
-        const containerTopPadding =
-          typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : padding.top;
+        const containerTopPadding = Math.max(
+          typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : 0,
+          padding.top
+        );
+        const parentBox = positionMap.get(parentId);
+        if (!parentBox) return;
+        const minX = padding.horizontal;
+        const minY = containerTopPadding;
 
         for (const childId of childIds) {
           const box = positionMap.get(childId);
           if (!box) continue;
-          if (box.y < containerTopPadding) box.y = containerTopPadding;
-          if (box.x < padding.horizontal) box.x = padding.horizontal;
+          const maxX = Math.max(minX, parentBox.width - padding.horizontal - box.width);
+          const maxY = Math.max(minY, parentBox.height - padding.bottom - box.height);
+          if (box.y < minY) box.y = minY;
+          if (box.x < minX) box.x = minX;
+          if (box.x > maxX) box.x = maxX;
+          if (box.y > maxY) box.y = maxY;
         }
       });
     }

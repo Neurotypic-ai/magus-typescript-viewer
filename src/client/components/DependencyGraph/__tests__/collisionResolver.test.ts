@@ -5,6 +5,7 @@ import {
   buildPositionMap,
   DEFAULT_COLLISION_CONFIG,
 } from '../layout/collisionResolver';
+import { GROUP_EXCLUSION_ZONE_PX } from '../layout/edgeGeometryPolicy';
 
 import type { CollisionConfig } from '../layout/collisionResolver';
 import type { BoundsNode } from '../layout/geometryBounds';
@@ -188,6 +189,55 @@ describe('resolveCollisions', () => {
       const childBox = posMap.get('child')!;
       expect(parentBox.width).toBeGreaterThanOrEqual(childBox.x + childBox.width);
       expect(parentBox.height).toBeGreaterThanOrEqual(childBox.y + childBox.height);
+    });
+  });
+
+  describe('group exclusion zone and anchored drag priority', () => {
+    it('does not clamp an anchored child inside group exclusion padding', () => {
+      const parent = makeTypedNode('group-parent', 0, 0, 320, 220, undefined, 'group');
+      const anchoredChild = makeNode('anchored-child', 8, 8, 120, 80, 'group-parent');
+      const nodes: BoundsNode[] = [parent, anchoredChild];
+      const posMap = buildPositionMap(nodes, DEFAULTS);
+
+      const result = resolveCollisions(nodes, posMap, new Set(['anchored-child']));
+      const childBox = posMap.get('anchored-child')!;
+
+      expect(childBox.x).toBe(8);
+      expect(childBox.y).toBe(8);
+      expect(result.updatedPositions.has('anchored-child')).toBe(false);
+    });
+
+    it('clamps non-anchored children to all group exclusion boundaries', () => {
+      const parent = makeTypedNode('group-parent', 0, 0, 300, 220, undefined, 'group');
+      const child = makeNode('child', 260, 200, 80, 60, 'group-parent');
+      const nodes: BoundsNode[] = [parent, child];
+      const posMap = buildPositionMap(nodes, DEFAULTS);
+
+      resolveCollisions(nodes, posMap, null);
+      const childBox = posMap.get('child')!;
+      const maxX = 300 - GROUP_EXCLUSION_ZONE_PX - 80;
+      const maxY = 220 - GROUP_EXCLUSION_ZONE_PX - 60;
+
+      expect(childBox.x).toBeLessThanOrEqual(maxX);
+      expect(childBox.y).toBeLessThanOrEqual(maxY);
+      expect(childBox.x).toBeGreaterThanOrEqual(GROUP_EXCLUSION_ZONE_PX);
+      expect(childBox.y).toBeGreaterThanOrEqual(GROUP_EXCLUSION_ZONE_PX);
+    });
+
+    it('expands group size instead of moving anchored child near right/bottom edge', () => {
+      const parent = makeTypedNode('group-parent', 0, 0, 220, 160, undefined, 'group');
+      const anchoredChild = makeNode('anchored-child', 200, 140, 100, 80, 'group-parent');
+      const nodes: BoundsNode[] = [parent, anchoredChild];
+      const posMap = buildPositionMap(nodes, DEFAULTS);
+
+      resolveCollisions(nodes, posMap, new Set(['anchored-child']));
+
+      const childBox = posMap.get('anchored-child')!;
+      const parentBox = posMap.get('group-parent')!;
+      expect(childBox.x).toBe(200);
+      expect(childBox.y).toBe(140);
+      expect(parentBox.width).toBeGreaterThanOrEqual(childBox.x + childBox.width + GROUP_EXCLUSION_ZONE_PX);
+      expect(parentBox.height).toBeGreaterThanOrEqual(childBox.y + childBox.height + GROUP_EXCLUSION_ZONE_PX);
     });
   });
 

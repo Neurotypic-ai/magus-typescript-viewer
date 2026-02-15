@@ -1,3 +1,5 @@
+import { GROUP_ENTRY_STUB_PX } from './layout/edgeGeometryPolicy';
+
 export interface HandleAnchorNodeBounds {
   x: number;
   y: number;
@@ -7,7 +9,7 @@ export interface HandleAnchorNodeBounds {
 
 const FOLDER_HANDLE_PATTERN = /^folder-(top|right|bottom|left)-(in|out)(-inner)?$/;
 const RELATIONAL_SIDE_HANDLE_PATTERN = /^relational-(in|out)-(top|right|bottom|left)$/;
-const INNER_FOLDER_HANDLE_INSET_PX = 14;
+const INNER_FOLDER_HANDLE_INSET_PX = GROUP_ENTRY_STUB_PX;
 
 export function getHandleAnchor(
   nodeBounds: HandleAnchorNodeBounds,

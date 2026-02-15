@@ -1,5 +1,6 @@
 import { MarkerType } from '@vue-flow/core';
 
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../components/DependencyGraph/layout/edgeGeometryPolicy';
 import { getNodeStyle } from '../../theme/graphTheme';
 
 import type { DependencyKind, DependencyNode, GraphEdge } from '../../components/DependencyGraph/types';
@@ -149,7 +150,11 @@ export function collapseSccs(
         source: mappedSource,
         target: mappedTarget,
         hidden: false,
-        markerEnd: e.markerEnd ?? { type: MarkerType.ArrowClosed, width: 20, height: 20 },
+        markerEnd: e.markerEnd ?? {
+          type: MarkerType.ArrowClosed,
+          width: EDGE_MARKER_WIDTH_PX,
+          height: EDGE_MARKER_HEIGHT_PX,
+        },
       });
     }
   });

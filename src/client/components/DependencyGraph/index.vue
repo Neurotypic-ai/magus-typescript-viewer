@@ -40,6 +40,8 @@ import { useGraphInteractionController } from './useGraphInteractionController';
 import { createNodeDimensionTracker, isContainerNode } from './useNodeDimensions';
 import { classifyWheelIntent, isMacPlatform } from './utils/wheelIntent';
 import { resolveCollisions, buildPositionMap, DEFAULT_COLLISION_CONFIG } from './layout/collisionResolver';
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from './layout/edgeGeometryPolicy';
+import type { BoundsNode } from './layout/geometryBounds';
 
 import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
 import type { ManualOffset } from '../../stores/graphStore';
@@ -124,7 +126,9 @@ const isLayoutPending = ref(false);
 const LIVE_SETTLE_NODE_THRESHOLD = 350;
 const LIVE_SETTLE_MIN_INTERVAL_MS = 32;
 const DRAG_END_ONLY_THRESHOLD = 700;
+const DRAG_POSITION_EPSILON = 0.01;
 const isApplyingCollisionResolution = ref(false);
+const userPinnedNodeIds = ref<Set<string>>(new Set());
 let collisionSettleRafId: number | null = null;
 let collisionDimensionTimer: ReturnType<typeof setTimeout> | null = null;
 let lastCollisionSettleTime = 0;
@@ -421,7 +425,7 @@ const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => {
   }
 
   return {
-    markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
+    markerEnd: { type: MarkerType.ArrowClosed, width: EDGE_MARKER_WIDTH_PX, height: EDGE_MARKER_HEIGHT_PX },
     zIndex: 2,
     type: 'smoothstep',
   };
@@ -1555,7 +1559,7 @@ const processGraphLayout = async (
 
       const previousNodes = graphStore['nodes'];
       // Apply manual offsets to cached layout nodes as well
-      const cachedNodes = graphStore.manualOffsets.value.size > 0
+      const cachedNodes = graphStore.manualOffsets.size > 0
         ? graphStore.applyManualOffsets(cachedEntry.nodes)
         : cachedEntry.nodes;
       graphStore['setNodes'](cachedNodes);
@@ -1641,7 +1645,7 @@ const processGraphLayout = async (
 
     // Apply persisted manual offsets from previous collision-resolution pushes
     // so that user-adjusted positions survive relayout and folder toggle rebuilds.
-    if (graphStore.manualOffsets.value.size > 0) {
+    if (graphStore.manualOffsets.size > 0) {
       const offsetNodes = graphStore.applyManualOffsets(normalized.nodes);
       graphStore['setNodes'](offsetNodes);
       normalized = { nodes: offsetNodes, edges: normalized.edges };
@@ -2332,6 +2336,26 @@ const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
 
   isApplyingCollisionResolution.value = true;
   try {
+    const nodeById = new Map(currentNodes.map((n) => [n.id, n]));
+    const persistentAnchors = new Set<string>();
+    for (const id of userPinnedNodeIds.value) {
+      if (nodeById.has(id)) {
+        persistentAnchors.add(id);
+      }
+    }
+    if (persistentAnchors.size !== userPinnedNodeIds.value.size) {
+      userPinnedNodeIds.value = persistentAnchors;
+    }
+
+    const resolverAnchors = new Set<string>(persistentAnchors);
+    if (anchoredNodeIds) {
+      for (const id of anchoredNodeIds) {
+        if (nodeById.has(id)) {
+          resolverAnchors.add(id);
+        }
+      }
+    }
+
     // Use VueFlow's internal GraphNode objects which have actual DOM-measured
     // dimensions (node.dimensions.width/height). Our store's DependencyNode
     // objects don't carry measured dimensions, so buildPositionMap would fall
@@ -2350,17 +2374,20 @@ const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
 
     // Map VueFlow dimensions into the BoundsNode.measured shape that
     // buildPositionMap understands.
-    const boundsNodes = enrichedNodes.map((n) => ({
-      id: n.id,
-      position: n.position,
-      parentNode: n.parentNode,
-      style: n.style,
-      type: n.type,
-      data: n.data,
-      measured: n.dimensions
+    const boundsNodes: BoundsNode[] = enrichedNodes.map((n) => {
+      const measured = n.dimensions
         ? { width: n.dimensions.width, height: n.dimensions.height }
-        : n.measured,
-    }));
+        : n.measured;
+      return {
+        id: n.id,
+        position: n.position,
+        ...(n.parentNode ? { parentNode: n.parentNode } : {}),
+        ...(n.style !== undefined ? { style: n.style } : {}),
+        ...(n.type ? { type: n.type } : {}),
+        ...(n.data !== undefined ? { data: n.data } : {}),
+        ...(measured ? { measured } : {}),
+      } as BoundsNode;
+    });
 
     // Build mutable position map from current node positions (parent-relative)
     const posMap = buildPositionMap(boundsNodes, {
@@ -2368,9 +2395,14 @@ const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
       defaultNodeHeight: 100,
     });
 
-    // anchoredNodeIds = nodes being dragged or that just changed.
-    // The resolver treats them as immovable and pushes overlapping neighbors away.
-    const result = resolveCollisions(boundsNodes, posMap, anchoredNodeIds, DEFAULT_COLLISION_CONFIG);
+    // Always include persistent user-pinned nodes as hard anchors so dragged
+    // nodes never snap back during later settles.
+    const result = resolveCollisions(
+      boundsNodes,
+      posMap,
+      resolverAnchors.size > 0 ? resolverAnchors : null,
+      DEFAULT_COLLISION_CONFIG
+    );
 
     if (result.updatedPositions.size === 0 && result.updatedSizes.size === 0) {
       return; // Nothing to do — no overlaps found
@@ -2381,7 +2413,6 @@ const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
     // repelled away from the anchored node.
     const nodeUpdates = new Map<string, DependencyNode>();
     const offsetUpdates = new Map<string, ManualOffset>();
-    const nodeById = new Map(currentNodes.map((n) => [n.id, n]));
 
     for (const [id, newPos] of result.updatedPositions) {
       const node = nodeById.get(id);
@@ -2495,8 +2526,13 @@ const handleNodesChange = (changes: NodeChange[]) => {
   const structuralChanges = filteredChanges.filter((change) => change.type !== 'select');
   if (!structuralChanges.length) return;
 
+  const previousNodes = nodes.value;
+  const previousNodeById = new Map(previousNodes.map((node) => [node.id, node]));
+
   // Classify events by source for collision scheduling
   const dragPositionIds = new Set<string>();
+  const dragLifecycleIds = new Set<string>();
+  const dragEndedIds = new Set<string>();
   let hasLiveDrag = false;
   let hasDragEnd = false;
   let hasDimensionChange = false;
@@ -2505,10 +2541,13 @@ const handleNodesChange = (changes: NodeChange[]) => {
     if (change.type === 'position') {
       const posChange = change as { id: string; dragging?: boolean };
       dragPositionIds.add(posChange.id);
-      if (posChange.dragging) {
+      if (posChange.dragging === true) {
+        dragLifecycleIds.add(posChange.id);
         hasLiveDrag = true;
-      } else {
-        // position change with dragging=false/undefined = drag-end or programmatic
+      } else if (posChange.dragging === false) {
+        dragLifecycleIds.add(posChange.id);
+        dragEndedIds.add(posChange.id);
+        // Explicit dragging=false indicates drag-end (not programmatic move).
         hasDragEnd = true;
       }
     } else if (change.type === 'dimensions') {
@@ -2518,16 +2557,42 @@ const handleNodesChange = (changes: NodeChange[]) => {
 
   const updatedNodes = applyNodeChanges(
     structuralChanges,
-    nodes.value as unknown as never[]
+    previousNodes as unknown as never[]
   ) as unknown as DependencyNode[];
   graphStore['setNodes'](updatedNodes);
   reconcileSelectedNodeAfterStructuralChange(updatedNodes);
+
+  // Persist direct user drag movement as manual offsets so relayout cannot
+  // snap the dragged node back to layout-computed positions.
+  if (dragLifecycleIds.size > 0) {
+    const updatedNodeById = new Map(updatedNodes.map((node) => [node.id, node]));
+    const dragOffsetUpdates = new Map<string, ManualOffset>();
+    for (const nodeId of dragLifecycleIds) {
+      const prev = previousNodeById.get(nodeId);
+      const next = updatedNodeById.get(nodeId);
+      if (!prev?.position || !next?.position) continue;
+      const dx = next.position.x - prev.position.x;
+      const dy = next.position.y - prev.position.y;
+      if (Math.abs(dx) <= DRAG_POSITION_EPSILON && Math.abs(dy) <= DRAG_POSITION_EPSILON) continue;
+      dragOffsetUpdates.set(nodeId, { dx, dy });
+    }
+    if (dragOffsetUpdates.size > 0) {
+      graphStore.mergeManualOffsets(dragOffsetUpdates);
+    }
+  }
+
+  if (dragEndedIds.size > 0) {
+    const nextPinned = new Set(userPinnedNodeIds.value);
+    dragEndedIds.forEach((id) => nextPinned.add(id));
+    userPinnedNodeIds.value = nextPinned;
+  }
 
   // Schedule collision resolution based on event source
   if (dragPositionIds.size > 0) {
     // Live dragging = at least one change has dragging=true and none ended
     const isDragging = hasLiveDrag && !hasDragEnd;
-    scheduleCollisionSettle(dragPositionIds, isDragging);
+    const settleAnchors = dragLifecycleIds.size > 0 ? dragLifecycleIds : dragPositionIds;
+    scheduleCollisionSettle(settleAnchors, isDragging);
   } else if (hasDimensionChange && !isLayoutPending.value && !isLayoutMeasuring.value) {
     scheduleDimensionSettle();
   }

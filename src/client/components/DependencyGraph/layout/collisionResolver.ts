@@ -16,6 +16,7 @@
  */
 
 import type { BoundsNode } from './geometryBounds';
+import { GROUP_EXCLUSION_ZONE_PX } from './edgeGeometryPolicy';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -39,7 +40,11 @@ export const DEFAULT_COLLISION_CONFIG: CollisionConfig = {
   maxCycles: 20,
   maxDisplacementPerCycle: 0, // unlimited — bounded by cycle count
   modulePadding: { horizontal: 20, top: 42, bottom: 20 },
-  groupPadding: { horizontal: 24, top: 40, bottom: 24 },
+  groupPadding: {
+    horizontal: GROUP_EXCLUSION_ZONE_PX,
+    top: GROUP_EXCLUSION_ZONE_PX,
+    bottom: GROUP_EXCLUSION_ZONE_PX,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -270,18 +275,31 @@ export function resolveCollisions(
     for (const [parentId, childIds] of childIdsByParent) {
       if (parentId === '__root__') continue;
       const parentNode = nodeById.get(parentId);
+      const parentBox = positionMap.get(parentId);
+      if (!parentBox) continue;
       const layoutInsets = (parentNode as { data?: { layoutInsets?: { top?: number } } })?.data?.layoutInsets;
       const nodeType = (parentNode as { type?: string })?.type;
       const resolvedPadding = getContainerPadding(nodeType, config);
 
-      const containerTopPadding =
-        typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : resolvedPadding.top;
+      const layoutTop = typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : 0;
+      const containerTopPadding = Math.max(layoutTop, resolvedPadding.top);
+      const minX = resolvedPadding.horizontal;
+      const minY = containerTopPadding;
 
       for (const childId of childIds) {
+        // Dragged nodes are hard anchors. Never clamp them, otherwise users
+        // experience rubber-banding while interacting.
+        if (anchored.has(childId)) continue;
+
         const box = positionMap.get(childId);
         if (!box) continue;
-        if (box.y < containerTopPadding) box.y = containerTopPadding;
-        if (box.x < resolvedPadding.horizontal) box.x = resolvedPadding.horizontal;
+        const maxX = Math.max(minX, parentBox.width - resolvedPadding.horizontal - box.width);
+        const maxY = Math.max(minY, parentBox.height - resolvedPadding.bottom - box.height);
+
+        if (box.x < minX) box.x = minX;
+        if (box.y < minY) box.y = minY;
+        if (box.x > maxX) box.x = maxX;
+        if (box.y > maxY) box.y = maxY;
       }
     }
   }

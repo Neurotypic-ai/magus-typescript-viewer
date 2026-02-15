@@ -160,4 +160,42 @@ describe('edgeVirtualizationCore', () => {
     expect(result).toBeTruthy();
     expect(result?.hiddenEdgeIds.has('edge-folder-inner')).toBe(false);
   });
+
+  it('keeps edges visible when perpendicular approach segments enter viewport', () => {
+    const nodes: EdgeVirtualizationNode[] = [
+      {
+        id: 'group-src',
+        type: 'group',
+        position: { x: 1210, y: 0 },
+        style: { width: 200, height: 200 },
+      },
+      {
+        id: 'target',
+        type: 'module',
+        position: { x: 1500, y: 0 },
+        style: { width: 200, height: 200 },
+      },
+    ];
+    const edges: EdgeVirtualizationEdge[] = [
+      {
+        id: 'edge-perp-visible',
+        source: 'group-src',
+        target: 'target',
+        sourceHandle: 'folder-left-out',
+        targetHandle: 'relational-in-left',
+        data: { type: 'import' },
+      },
+    ];
+
+    const result = computeEdgeVirtualizationResult({
+      nodes,
+      edges,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      containerSize: { width: 900, height: 700 },
+      edgePriorityOrder: buildEdgePriorityOrder(edges),
+    });
+
+    expect(result).toBeTruthy();
+    expect(result?.hiddenEdgeIds.has('edge-perp-visible')).toBe(false);
+  });
 });
