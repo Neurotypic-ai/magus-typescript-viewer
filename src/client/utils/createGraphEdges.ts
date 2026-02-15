@@ -1,8 +1,6 @@
-import { MarkerType } from '@vue-flow/core';
-
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
+import { createEdgeMarker } from './edgeMarkers';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
-import { mapTypeCollection } from '../lib/mapTypeCollection';
+import { mapTypeCollection, typeCollectionToArray } from '../lib/mapTypeCollection';
 import { getEdgeStyle } from '../theme/graphTheme';
 
 import type {
@@ -46,17 +44,6 @@ interface ResolvedOptions {
   importDirection: ImportDirection;
 }
 
-function toCollectionValues<T>(collection: Record<string, T> | T[] | undefined): T[] {
-  if (!collection) {
-    return [];
-  }
-
-  if (Array.isArray(collection)) {
-    return collection;
-  }
-
-  return Object.values(collection);
-}
 
 function isExternalImportRef(imp: { isExternal?: boolean; packageName?: string; path?: string | undefined }): boolean {
   if (imp.isExternal === true) {
@@ -278,11 +265,11 @@ function buildNodeIdSet(data: DependencyPackageGraph, options: ResolvedOptions):
         mapTypeCollection(module.classes, (cls: ClassStructure) => {
           nodeIds.add(cls.id);
           if (options.includeMemberContainmentEdges) {
-            toCollectionValues(cls.properties as Record<string, NodeProperty> | NodeProperty[]).forEach((property: NodeProperty) => {
+            typeCollectionToArray(cls.properties as Record<string, NodeProperty> | NodeProperty[]).forEach((property: NodeProperty) => {
               const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
               nodeIds.add(propertyId);
             });
-            toCollectionValues(cls.methods as Record<string, NodeMethod> | NodeMethod[]).forEach((method: NodeMethod) => {
+            typeCollectionToArray(cls.methods as Record<string, NodeMethod> | NodeMethod[]).forEach((method: NodeMethod) => {
               const methodId = method.id ?? `${cls.id}:method:${method.name}`;
               nodeIds.add(methodId);
             });
@@ -294,13 +281,13 @@ function buildNodeIdSet(data: DependencyPackageGraph, options: ResolvedOptions):
         mapTypeCollection(module.interfaces, (iface: InterfaceStructure) => {
           nodeIds.add(iface.id);
           if (options.includeMemberContainmentEdges) {
-            toCollectionValues(
+            typeCollectionToArray(
               iface.properties as Record<string, NodeProperty> | NodeProperty[]
             ).forEach((property: NodeProperty) => {
               const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
               nodeIds.add(propertyId);
             });
-            toCollectionValues(
+            typeCollectionToArray(
               iface.methods as Record<string, NodeMethod> | NodeMethod[]
             ).forEach((method: NodeMethod) => {
               const methodId = method.id ?? `${iface.id}:method:${method.name}`;
@@ -342,14 +329,14 @@ function buildNodeKindLookup(data: DependencyPackageGraph, options: ResolvedOpti
             return;
           }
 
-          toCollectionValues(
+          typeCollectionToArray(
             cls.properties as Record<string, NodeProperty> | NodeProperty[]
           ).forEach((property: NodeProperty) => {
             const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
             nodeKinds.set(propertyId, 'property');
           });
 
-          toCollectionValues(
+          typeCollectionToArray(
             cls.methods as Record<string, NodeMethod> | NodeMethod[]
           ).forEach((method: NodeMethod) => {
             const methodId = method.id ?? `${cls.id}:method:${method.name}`;
@@ -366,14 +353,14 @@ function buildNodeKindLookup(data: DependencyPackageGraph, options: ResolvedOpti
             return;
           }
 
-          toCollectionValues(
+          typeCollectionToArray(
             iface.properties as Record<string, NodeProperty> | NodeProperty[]
           ).forEach((property: NodeProperty) => {
             const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
             nodeKinds.set(propertyId, 'property');
           });
 
-          toCollectionValues(
+          typeCollectionToArray(
             iface.methods as Record<string, NodeMethod> | NodeMethod[]
           ).forEach((method: NodeMethod) => {
             const methodId = method.id ?? `${iface.id}:method:${method.name}`;
@@ -414,13 +401,6 @@ function buildSymbolToModuleMap(data: DependencyPackageGraph): Map<string, strin
   return symbolToModuleMap;
 }
 
-function createArrowMarker() {
-  return {
-    type: MarkerType.ArrowClosed,
-    width: EDGE_MARKER_WIDTH_PX,
-    height: EDGE_MARKER_HEIGHT_PX,
-  };
-}
 
 function createEdge(
   source: string,
@@ -442,7 +422,7 @@ function createEdge(
       ...(importName ? { importName } : {}),
     },
     style: getEdgeStyle(type),
-    markerEnd: createArrowMarker(),
+    markerEnd: createEdgeMarker(),
   } as GraphEdge;
 }
 
@@ -578,14 +558,14 @@ export function createGraphEdges(
         mapTypeCollection(module.classes, (cls: ClassStructure) => {
           const clsId = cls.id;
           if (resolvedOptions.includeMemberContainmentEdges) {
-            toCollectionValues(
+            typeCollectionToArray(
               cls.properties as Record<string, NodeProperty> | NodeProperty[]
             ).forEach((property: NodeProperty) => {
               const propertyId = property.id ?? `${clsId}:property:${property.name}`;
               addEdge(createEdge(clsId, propertyId, 'contains'), `${clsId}|${propertyId}|contains|member`);
             });
 
-            toCollectionValues(
+            typeCollectionToArray(
               cls.methods as Record<string, NodeMethod> | NodeMethod[]
             ).forEach((method: NodeMethod) => {
               const methodId = method.id ?? `${clsId}:method:${method.name}`;
@@ -618,14 +598,14 @@ export function createGraphEdges(
         mapTypeCollection(module.interfaces, (iface: InterfaceStructure) => {
           const ifaceId = iface.id;
           if (resolvedOptions.includeMemberContainmentEdges) {
-            toCollectionValues(
+            typeCollectionToArray(
               iface.properties as Record<string, NodeProperty> | NodeProperty[]
             ).forEach((property: NodeProperty) => {
               const propertyId = property.id ?? `${ifaceId}:property:${property.name}`;
               addEdge(createEdge(ifaceId, propertyId, 'contains'), `${ifaceId}|${propertyId}|contains|member`);
             });
 
-            toCollectionValues(
+            typeCollectionToArray(
               iface.methods as Record<string, NodeMethod> | NodeMethod[]
             ).forEach((method: NodeMethod) => {
               const methodId = method.id ?? `${ifaceId}:method:${method.name}`;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-import { useIsolateExpandState } from './useIsolateExpandState';
+import { useIsolateExpandState } from '../composables/useIsolateExpandState';
 
 interface CollapsibleSectionProps {
   title: string;

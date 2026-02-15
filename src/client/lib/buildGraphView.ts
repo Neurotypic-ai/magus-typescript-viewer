@@ -1,16 +1,15 @@
-import { MarkerType } from '@vue-flow/core';
-
 import { collapseFolders } from '../graph/cluster/collapseFolders';
 import { clusterByFolder } from '../graph/cluster/folders';
 import { collapseSccs } from '../graph/cluster/scc';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
+import { EDGE_KIND_PRIORITY } from '../graph/edgePriority';
 import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
+import { createEdgeMarker } from '../utils/edgeMarkers';
 import { getEdgeStyle, getNodeStyle } from '../theme/graphTheme';
 import { createGraphEdges } from '../utils/createGraphEdges';
 import { createGraphNodes } from '../utils/createGraphNodes';
 import { getHandlePositions } from './graphUtils';
-import { mapTypeCollection } from './mapTypeCollection';
+import { mapTypeCollection, typeCollectionToArray } from './mapTypeCollection';
 
 import type { NodeChange } from '@vue-flow/core';
 
@@ -69,19 +68,6 @@ function filterEdgesByNodeSet(nodes: DependencyNode[], edges: GraphEdge[]): Grap
   return edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
 }
 
-/** Priority for selecting the representative edge when bundling parallel edges. */
-const EDGE_BUNDLE_PRIORITY: Record<string, number> = {
-  contains: 5,
-  uses: 5,
-  inheritance: 4,
-  implements: 3,
-  extends: 3,
-  dependency: 2,
-  import: 1,
-  devDependency: 0,
-  peerDependency: 0,
-  export: 0,
-};
 
 /**
  * Bundle parallel edges (same source → same target) into a single representative edge.
@@ -121,8 +107,10 @@ function bundleParallelEdges(edges: GraphEdge[]): GraphEdge[] {
 
     // Pick the highest-priority edge as the visual representative
     group.sort((a, b) => {
-      const prioA = EDGE_BUNDLE_PRIORITY[a.data?.type ?? ''] ?? 0;
-      const prioB = EDGE_BUNDLE_PRIORITY[b.data?.type ?? ''] ?? 0;
+      const typeA = a.data?.type;
+      const typeB = b.data?.type;
+      const prioA = typeA ? (EDGE_KIND_PRIORITY[typeA] ?? 0) : 0;
+      const prioB = typeB ? (EDGE_KIND_PRIORITY[typeB] ?? 0) : 0;
       return prioB - prioA;
     });
 
@@ -419,13 +407,6 @@ function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod 
   };
 }
 
-function createMarker() {
-  return {
-    type: MarkerType.ArrowClosed,
-    width: EDGE_MARKER_WIDTH_PX,
-    height: EDGE_MARKER_HEIGHT_PX,
-  };
-}
 
 function findModuleById(data: DependencyPackageGraph, moduleId: string): ModuleStructure | undefined {
   for (const pkg of data.packages) {
@@ -446,19 +427,10 @@ function createSymbolEdge(source: string, target: string, type: DependencyEdgeKi
     hidden: false,
     data: { type },
     style: { ...getEdgeStyle(type), strokeWidth: 3 },
-    markerEnd: createMarker(),
+    markerEnd: createEdgeMarker(),
   } as GraphEdge;
 }
 
-function toRecordOrArray<T>(collection: Record<string, T> | T[] | undefined): T[] {
-  if (!collection) {
-    return [];
-  }
-  if (Array.isArray(collection)) {
-    return collection;
-  }
-  return Object.values(collection);
-}
 
 function createDetailedSymbolNode(
   id: string,
@@ -513,10 +485,10 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
 
   if (moduleData.classes) {
     mapTypeCollection(moduleData.classes, (cls: ClassStructure) => {
-      const properties = toRecordOrArray(
+      const properties = typeCollectionToArray(
         cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
       ).map((property) => toNodeProperty(property));
-      const methods = toRecordOrArray(cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
+      const methods = typeCollectionToArray(cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
         (method) => toNodeMethod(method)
       );
       const clsId = cls.id;
@@ -541,10 +513,10 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
     mapTypeCollection(moduleData.interfaces, (iface: InterfaceStructure) => {
       const ifaceId = iface.id;
       const ifaceName = iface.name;
-      const properties = toRecordOrArray(
+      const properties = typeCollectionToArray(
         iface.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
       ).map((property) => toNodeProperty(property));
-      const methods = toRecordOrArray(iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
+      const methods = typeCollectionToArray(iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
         (method) => toNodeMethod(method)
       );
 
@@ -689,7 +661,7 @@ function createUsageEdge(source: string, target: string, usageKind: 'method' | '
       strokeWidth: 2,
       strokeDasharray: '4 2',
     },
-    markerEnd: createMarker(),
+    markerEnd: createEdgeMarker(),
   } as GraphEdge;
 }
 
@@ -799,10 +771,10 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
         return;
       }
 
-      const properties = toRecordOrArray(
+      const properties = typeCollectionToArray(
         cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
       ).map((property) => toNodeProperty(property));
-      const methods = toRecordOrArray(cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
+      const methods = typeCollectionToArray(cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
         (method) => toNodeMethod(method)
       );
       addSymbol(clsId, 'class', clsName, properties, methods);
@@ -817,10 +789,10 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
         return;
       }
 
-      const properties = toRecordOrArray(
+      const properties = typeCollectionToArray(
         iface.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
       ).map((property) => toNodeProperty(property));
-      const methods = toRecordOrArray(iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
+      const methods = typeCollectionToArray(iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
         (method) => toNodeMethod(method)
       );
       addSymbol(ifaceId, 'interface', ifaceName, properties, methods);
@@ -851,7 +823,7 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
   };
 }
 
-export { toDependencyEdgeKind } from './edgeKindUtils';
+export { toDependencyEdgeKind } from '../graph/edgeKindUtils';
 
 export function filterNodeChangesForFolderMode(
   changes: NodeChange[],

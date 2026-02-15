@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { exportInsightsJson, exportInsightsMarkdown } from '../insights/export';
+import { exportInsightsJson, exportInsightsMarkdown } from '../utils/insightsExport';
 import { useInsightsStore } from '../stores/insightsStore';
 
 import type { InsightCategory, InsightKind, InsightResult } from '../../server/insights/types';

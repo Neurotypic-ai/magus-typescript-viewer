@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
-import { getApiBaseUrl } from '../config/api';
+import { getApiBaseUrl } from '../assemblers/api';
 
 import type { CodeIssueRef } from '../types';
 

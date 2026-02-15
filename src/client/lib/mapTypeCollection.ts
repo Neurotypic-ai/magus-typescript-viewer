@@ -12,3 +12,14 @@ export function mapTypeCollection<T, R>(collection: TypeCollection<T>, mapper: (
     return Object.values(collection).map(mapper);
   }
 }
+
+/**
+ * Convert any TypeCollection (Map, Array, or Record) to a flat array.
+ * Handles undefined gracefully by returning [].
+ */
+export function typeCollectionToArray<T>(collection: TypeCollection<T> | undefined): T[] {
+  if (!collection) return [];
+  if (Array.isArray(collection)) return collection;
+  if (collection instanceof Map) return Array.from(collection.values());
+  return Object.values(collection);
+}

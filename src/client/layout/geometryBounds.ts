@@ -55,6 +55,12 @@ export const parseDimension = (value: unknown): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+/** Return the center point of a rectangle. */
+export const getBoundsCenter = (bounds: Rect): { x: number; y: number } => ({
+  x: bounds.x + bounds.width / 2,
+  y: bounds.y + bounds.height / 2,
+});
+
 // ---------------------------------------------------------------------------
 // Absolute bounds resolution
 // ---------------------------------------------------------------------------

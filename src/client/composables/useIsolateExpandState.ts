@@ -1,6 +1,6 @@
 import { inject, ref, watch } from 'vue';
 
-import { ISOLATE_EXPAND_ALL_KEY } from './utils';
+import { ISOLATE_EXPAND_ALL_KEY } from '../nodes/utils';
 
 /**
  * Shared composable for the isolate-expand-all save/restore pattern.

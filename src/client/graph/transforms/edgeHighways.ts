@@ -1,10 +1,10 @@
-import { MarkerType } from '@vue-flow/core';
-
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX, GROUP_ENTRY_STUB_PX } from '../../layout/edgeGeometryPolicy';
-import { buildAbsoluteNodeBoundsMap } from '../../layout/geometryBounds';
-import { getHandleAnchor } from '../../lib/handleAnchors';
+import { type EdgeHandleSide, GROUP_ENTRY_STUB_PX, getHandleSide } from '../../layout/edgeGeometryPolicy';
+import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../../layout/geometryBounds';
 import { getEdgeStyle } from '../../theme/graphTheme';
+import { createEdgeMarker } from '../../utils/edgeMarkers';
+import { getHandleAnchor } from '../../layout/handleAnchors';
 import { buildNodeToFolderMap } from '../cluster/folderMembership';
+import { EDGE_KIND_PRIORITY } from '../edgePriority';
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
 
@@ -24,20 +24,6 @@ interface SegmentAccumulator {
   count: number;
   typeBreakdown: Partial<Record<DependencyEdgeKind, number>>;
 }
-type HandleSide = 'top' | 'right' | 'bottom' | 'left';
-
-const EDGE_KIND_PRIORITY: Record<DependencyEdgeKind, number> = {
-  contains: 5,
-  uses: 5,
-  inheritance: 4,
-  implements: 3,
-  extends: 3,
-  dependency: 2,
-  import: 1,
-  devDependency: 0,
-  peerDependency: 0,
-  export: 0,
-};
 
 const addToAccumulator = (
   accumulator: Map<string, SegmentAccumulator>,
@@ -70,11 +56,6 @@ const getPrimaryEdgeType = (breakdown: Partial<Record<DependencyEdgeKind, number
   return best;
 };
 
-const createMarker = () => ({
-  type: MarkerType.ArrowClosed,
-  width: EDGE_MARKER_WIDTH_PX,
-  height: EDGE_MARKER_HEIGHT_PX,
-});
 const HIGHWAY_DEFAULT_NODE_WIDTH = 260;
 const HIGHWAY_DEFAULT_NODE_HEIGHT = 100;
 
@@ -92,25 +73,25 @@ const INCOMING_HANDLE_IDS = [
   FOLDER_HANDLE_IDS.leftIn,
 ] as const;
 const CONNECTOR_SMOOTHSTEP_PATH_OPTIONS = { offset: GROUP_ENTRY_STUB_PX, borderRadius: 0 };
-const CHILD_OUT_HANDLE_BY_SIDE: Record<HandleSide, string> = {
+const CHILD_OUT_HANDLE_BY_SIDE: Record<EdgeHandleSide, string> = {
   top: 'relational-out-top',
   right: 'relational-out-right',
   bottom: 'relational-out-bottom',
   left: 'relational-out-left',
 };
-const CHILD_IN_HANDLE_BY_SIDE: Record<HandleSide, string> = {
+const CHILD_IN_HANDLE_BY_SIDE: Record<EdgeHandleSide, string> = {
   top: 'relational-in-top',
   right: 'relational-in-right',
   bottom: 'relational-in-bottom',
   left: 'relational-in-left',
 };
-const FOLDER_INNER_OUT_HANDLE_BY_SIDE: Record<HandleSide, string> = {
+const FOLDER_INNER_OUT_HANDLE_BY_SIDE: Record<EdgeHandleSide, string> = {
   top: FOLDER_INNER_HANDLE_IDS.topOut,
   right: FOLDER_INNER_HANDLE_IDS.rightOut,
   bottom: FOLDER_INNER_HANDLE_IDS.bottomOut,
   left: FOLDER_INNER_HANDLE_IDS.leftOut,
 };
-const FOLDER_INNER_IN_HANDLE_BY_SIDE: Record<HandleSide, string> = {
+const FOLDER_INNER_IN_HANDLE_BY_SIDE: Record<EdgeHandleSide, string> = {
   top: FOLDER_INNER_HANDLE_IDS.topIn,
   right: FOLDER_INNER_HANDLE_IDS.rightIn,
   bottom: FOLDER_INNER_HANDLE_IDS.bottomIn,
@@ -127,11 +108,6 @@ function buildHighwayAbsoluteNodeBoundsMap(nodes: DependencyNode[]): Map<string,
     defaultNodeHeight: HIGHWAY_DEFAULT_NODE_HEIGHT,
   });
 }
-
-const getBoundsCenter = (bounds: Rect): { x: number; y: number } => ({
-  x: bounds.x + bounds.width / 2,
-  y: bounds.y + bounds.height / 2,
-});
 
 const chooseClosestHandle = (
   folderBounds: { x: number; y: number; width: number; height: number } | undefined,
@@ -161,17 +137,6 @@ const chooseClosestHandle = (
   return bestHandle;
 };
 
-const FOLDER_HANDLE_SIDE_PATTERN = /^folder-(top|right|bottom|left)-(in|out)(-inner)?$/;
-function runRegex(re: RegExp, s: string): RegExpExecArray | null {
-  return re.exec(s);
-}
-const getFolderHandleSide = (handleId: string): HandleSide | undefined => {
-  const match = runRegex(FOLDER_HANDLE_SIDE_PATTERN, handleId);
-  if (!match) {
-    return undefined;
-  }
-  return match[1] as HandleSide;
-};
 
 export function applyEdgeHighways(
   nodes: DependencyNode[],
@@ -273,7 +238,7 @@ export function applyEdgeHighways(
         ...getEdgeStyle(primaryType),
         strokeWidth: Math.min(8, 1.5 + acc.count * 0.4),
       },
-      markerEnd: createMarker(),
+      markerEnd: createEdgeMarker(),
     } as GraphEdge);
   }
 
@@ -333,7 +298,7 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
         OUTGOING_HANDLE_IDS,
         edge.targetHandle ?? FOLDER_HANDLE_IDS.rightOut
       );
-      const side = getFolderHandleSide(targetHandle) ?? 'right';
+      const side = getHandleSide(targetHandle) ?? 'right';
       const sourceHandle = CHILD_OUT_HANDLE_BY_SIDE[side];
       const innerTargetHandle = FOLDER_INNER_OUT_HANDLE_BY_SIDE[side];
       const pathOptions = edge.pathOptions as { offset?: number; borderRadius?: number } | undefined;
@@ -364,7 +329,7 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
         INCOMING_HANDLE_IDS,
         edge.sourceHandle ?? FOLDER_HANDLE_IDS.leftIn
       );
-      const side = getFolderHandleSide(sourceHandle) ?? 'left';
+      const side = getHandleSide(sourceHandle) ?? 'left';
       const targetHandle = CHILD_IN_HANDLE_BY_SIDE[side];
       const innerSourceHandle = FOLDER_INNER_IN_HANDLE_BY_SIDE[side];
       const pathOptionsEntry = edge.pathOptions as { offset?: number; borderRadius?: number } | undefined;

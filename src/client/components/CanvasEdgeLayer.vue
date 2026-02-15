@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { buildEdgePolyline } from '../layout/edgeGeometryPolicy';
-import { getHandleAnchor } from '../lib/handleAnchors';
+import { getHandleAnchor } from '../layout/handleAnchors';
 import { measurePerformance } from '../utils/performanceMonitoring';
 
 import type { DependencyNode, GraphEdge } from '../types';

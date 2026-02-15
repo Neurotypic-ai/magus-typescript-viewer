@@ -6,7 +6,7 @@ import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import EntityListSection from './EntityListSection.vue';
 import SymbolCardSection from './SymbolCardSection.vue';
-import { useIsolateExpandState } from './useIsolateExpandState';
+import { useIsolateExpandState } from '../composables/useIsolateExpandState';
 import { ENTITY_TYPE_CONFIGS, buildBaseNodeProps, formatMethod, formatProperty, resolveSubnodesCount } from './utils';
 
 import type { DependencyProps, EmbeddedModuleEntity, EmbeddedSymbol, ExternalDependencyRef } from '../types';

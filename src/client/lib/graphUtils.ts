@@ -1,7 +1,7 @@
 import { Position } from '@vue-flow/core';
 
 import { getEdgeStyle, getNodeStyle } from '../theme/graphTheme';
-import { toDependencyEdgeKind } from './edgeKindUtils';
+import { toDependencyEdgeKind } from '../graph/edgeKindUtils';
 
 import type { DependencyKind, DependencyNode, GraphEdge } from '../types';
 
@@ -163,16 +163,8 @@ export const mergeNodeInteractionStyle = (
 
 // ── Dimension helpers ──
 
-export const toDimensionValue = (value: unknown): number | undefined => {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : undefined;
-  }
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-};
+import { parseDimension } from '../layout/geometryBounds';
+export { parseDimension };
 
 export const getNodeDims = (n: DependencyNode): { w: number; h: number } => {
   const measured = (n as { measured?: { width?: number; height?: number } }).measured;
@@ -236,12 +228,12 @@ export const collectNodesNeedingInternalsUpdate = (previous: DependencyNode[], n
     const prevStyle = typeof prev.style === 'object' ? (prev.style as Record<string, unknown>) : {};
     const nextStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
 
-    const prevWidth = prevMeasured?.width ?? toDimensionValue(prevStyle['width']) ?? toDimensionValue(prev.width) ?? 0;
+    const prevWidth = prevMeasured?.width ?? parseDimension(prevStyle['width']) ?? parseDimension(prev.width) ?? 0;
     const prevHeight =
-      prevMeasured?.height ?? toDimensionValue(prevStyle['height']) ?? toDimensionValue(prev.height) ?? 0;
-    const nextWidth = nextMeasured?.width ?? toDimensionValue(nextStyle['width']) ?? toDimensionValue(node.width) ?? 0;
+      prevMeasured?.height ?? parseDimension(prevStyle['height']) ?? parseDimension(prev.height) ?? 0;
+    const nextWidth = nextMeasured?.width ?? parseDimension(nextStyle['width']) ?? parseDimension(node.width) ?? 0;
     const nextHeight =
-      nextMeasured?.height ?? toDimensionValue(nextStyle['height']) ?? toDimensionValue(node.height) ?? 0;
+      nextMeasured?.height ?? parseDimension(nextStyle['height']) ?? parseDimension(node.height) ?? 0;
 
     if (Math.abs(prevWidth - nextWidth) > 1 || Math.abs(prevHeight - nextHeight) > 1) {
       changedIds.push(node.id);

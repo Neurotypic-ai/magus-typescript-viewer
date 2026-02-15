@@ -1,6 +1,6 @@
 import { buildAbsoluteNodeBoundsMap as sharedBuildAbsoluteNodeBoundsMap } from '../layout/geometryBounds';
 import { buildEdgePolyline, toLineSegments } from '../layout/edgeGeometryPolicy';
-import { getHandleAnchor } from '../lib/handleAnchors';
+import { getHandleAnchor } from '../layout/handleAnchors';
 
 import type { Rect } from '../layout/geometryBounds';
 

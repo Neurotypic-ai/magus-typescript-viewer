@@ -3,7 +3,7 @@ import { reactive } from 'vue';
 import { getEdgeStyle } from '../theme/graphTheme';
 import { measurePerformance } from '../utils/performanceMonitoring';
 import { applyEdgeVisibility, toDependencyEdgeKind } from '../lib/buildGraphView';
-import { addSetDiff, mergeNodeInteractionStyle, stripEdgeClass, stripNodeClass, toDimensionValue } from '../lib/graphUtils';
+import { addSetDiff, mergeNodeInteractionStyle, parseDimension, stripEdgeClass, stripNodeClass } from '../lib/graphUtils';
 
 import type { Ref } from 'vue';
 
@@ -111,7 +111,7 @@ export function useSearchHighlighting(options: UseSearchHighlightingOptions): Se
             ? theme.edges.sizes.width.default
             : undefined;
       const currentStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
-      const currentOpacity = toDimensionValue(currentStyle['opacity']) ?? 1;
+      const currentOpacity = parseDimension(currentStyle['opacity']) ?? 1;
       const currentBorderWidth = currentStyle['borderWidth'];
 
       const opacityChanged = Math.abs(currentOpacity - opacity) > 0.001;
@@ -152,7 +152,7 @@ export function useSearchHighlighting(options: UseSearchHighlightingOptions): Se
       const isMatch = matchingEdgeIds.has(edge.id);
       const opacity = !hasResults ? 1 : isMatch ? 1 : 0.2;
       const currentStyle = typeof edge.style === 'object' ? (edge.style as Record<string, unknown>) : {};
-      const currentOpacity = toDimensionValue(currentStyle['opacity']) ?? 1;
+      const currentOpacity = parseDimension(currentStyle['opacity']) ?? 1;
       const opacityChanged = Math.abs(currentOpacity - opacity) > 0.001;
       const classChanged = edge.class !== undefined;
 

@@ -1,6 +1,6 @@
 import { createLogger } from '../../shared/utils/logger';
 
-import { getApiBaseUrl } from '../config/api';
+import { getApiBaseUrl } from './api';
 
 import type { Class } from '../../shared/types/Class';
 import type { Enum } from '../../shared/types/Enum';
@@ -12,7 +12,7 @@ import type { Package } from '../../shared/types/Package';
 import type { Property as SharedProperty } from '../../shared/types/Property';
 import type { SymbolReference } from '../../shared/types/SymbolReference';
 import type { TypeAlias } from '../../shared/types/TypeAlias';
-import type { TypeCollection } from '../../shared/types/TypeCollection';
+import { typeCollectionToArray } from '../lib/mapTypeCollection';
 import type { Variable } from '../../shared/types/Variable';
 import type {
   ClassStructure,
@@ -247,7 +247,7 @@ export class GraphDataAssembler {
     // Use type assertion to convert array elements
     return modules.map((module) => {
       const relativePath = module.source.relativePath;
-      const transformedImports = this.transformImportCollection(this.typeCollectionToArray(module.imports));
+      const transformedImports = this.transformImportCollection(typeCollectionToArray(module.imports));
       // Simple module transformation that meets ModuleStructure requirements
       return {
         id: module.id,
@@ -258,29 +258,18 @@ export class GraphDataAssembler {
         },
         imports: transformedImports,
         externalDependencies: this.buildExternalDependencies(transformedImports),
-        symbol_references: this.transformSymbolReferenceCollection(this.typeCollectionToArray(module.symbol_references)),
-        classes: this.transformClassCollection(this.typeCollectionToArray(module.classes)),
-        interfaces: this.transformInterfaceCollection(this.typeCollectionToArray(module.interfaces)),
-        functions: this.transformFunctionCollection(this.typeCollectionToArray(module.functions)),
-        typeAliases: this.transformTypeAliasCollection(this.typeCollectionToArray(module.typeAliases)),
-        enums: this.transformEnumCollection(this.typeCollectionToArray(module.enums)),
-        variables: this.transformVariableCollection(this.typeCollectionToArray(module.variables)),
+        symbol_references: this.transformSymbolReferenceCollection(typeCollectionToArray(module.symbol_references)),
+        classes: this.transformClassCollection(typeCollectionToArray(module.classes)),
+        interfaces: this.transformInterfaceCollection(typeCollectionToArray(module.interfaces)),
+        functions: this.transformFunctionCollection(typeCollectionToArray(module.functions)),
+        typeAliases: this.transformTypeAliasCollection(typeCollectionToArray(module.typeAliases)),
+        enums: this.transformEnumCollection(typeCollectionToArray(module.enums)),
+        variables: this.transformVariableCollection(typeCollectionToArray(module.variables)),
         created_at: typeof module.created_at === 'string' ? module.created_at : module.created_at.toISOString(),
       } as ModuleStructure;
     });
   }
 
-  /**
-   * Converts a TypeCollection to an array
-   * @param collection The collection to convert
-   * @returns An array of items from the collection
-   */
-  private typeCollectionToArray<T>(collection: TypeCollection<T> | undefined): T[] {
-    if (!collection) return [];
-    if (Array.isArray(collection)) return collection;
-    if (collection instanceof Map) return Array.from(collection.values());
-    return Object.values(collection);
-  }
 
   /**
    * Transforms class collection to Record format
@@ -294,9 +283,9 @@ export class GraphDataAssembler {
       const classObj: ClassStructure = {
         id: cls.id,
         name: cls.name,
-        implemented_interfaces: this.transformInterfaceRefs(this.typeCollectionToArray(cls.implemented_interfaces)),
-        properties: this.transformPropertyCollection(this.typeCollectionToArray(cls.properties)),
-        methods: this.transformMethodCollection(this.typeCollectionToArray(cls.methods)),
+        implemented_interfaces: this.transformInterfaceRefs(typeCollectionToArray(cls.implemented_interfaces)),
+        properties: this.transformPropertyCollection(typeCollectionToArray(cls.properties)),
+        methods: this.transformMethodCollection(typeCollectionToArray(cls.methods)),
         created_at: typeof cls.created_at === 'string' ? cls.created_at : cls.created_at.toISOString(),
       } as unknown as ClassStructure;
 
@@ -322,9 +311,9 @@ export class GraphDataAssembler {
       result[intf.name] = {
         id: intf.id,
         name: intf.name,
-        extended_interfaces: this.transformInterfaceRefs(this.typeCollectionToArray(intf.extended_interfaces)),
-        properties: this.transformPropertyCollection(this.typeCollectionToArray(intf.properties)),
-        methods: this.transformMethodCollection(this.typeCollectionToArray(intf.methods)),
+        extended_interfaces: this.transformInterfaceRefs(typeCollectionToArray(intf.extended_interfaces)),
+        properties: this.transformPropertyCollection(typeCollectionToArray(intf.properties)),
+        methods: this.transformMethodCollection(typeCollectionToArray(intf.methods)),
         created_at: typeof intf.created_at === 'string' ? intf.created_at : intf.created_at.toISOString(),
       };
     });
@@ -355,7 +344,7 @@ export class GraphDataAssembler {
    */
   private transformMethodCollection(methods: Method[]): NodeMethod[] {
     return methods.map((method) => {
-      const parameters = this.typeCollectionToArray(method.parameters);
+      const parameters = typeCollectionToArray(method.parameters);
       return {
         id: method.id,
         name: method.name,
@@ -380,9 +369,9 @@ export class GraphDataAssembler {
       version: pkg.version,
       path: pkg.path,
       created_at: typeof pkg.created_at === 'string' ? pkg.created_at : pkg.created_at.toISOString(),
-      dependencies: this.transformDependencyCollection(this.typeCollectionToArray(pkg.dependencies)),
-      devDependencies: this.transformDependencyCollection(this.typeCollectionToArray(pkg.devDependencies)),
-      peerDependencies: this.transformDependencyCollection(this.typeCollectionToArray(pkg.peerDependencies)),
+      dependencies: this.transformDependencyCollection(typeCollectionToArray(pkg.dependencies)),
+      devDependencies: this.transformDependencyCollection(typeCollectionToArray(pkg.devDependencies)),
+      peerDependencies: this.transformDependencyCollection(typeCollectionToArray(pkg.peerDependencies)),
     };
   }
 
