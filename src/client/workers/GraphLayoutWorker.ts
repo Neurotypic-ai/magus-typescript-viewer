@@ -9,6 +9,22 @@ import { GROUP_EXCLUSION_ZONE_PX } from '../layout/edgeGeometryPolicy';
 import type { DependencyNode } from '../types';
 import type { GraphTheme } from '../theme/graphTheme';
 
+/** Node shape returned by ELK layout (same as input graph node but with x/y filled) */
+interface ElkLayoutNode {
+  id: string;
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+  children?: ElkLayoutNode[];
+}
+
+/** Graph shape returned by ELK layout */
+interface ElkLayoutResult {
+  id: string;
+  children?: ElkLayoutNode[];
+}
+
 // Worker message types
 interface WorkerMessage {
   type: 'process-layout';
@@ -30,16 +46,20 @@ interface LayoutConfig {
   animationDuration?: number;
 }
 
-let elkInstancePromise: Promise<{ layout: (graph: unknown) => Promise<any> }> | null = null;
+let elkInstancePromise: Promise<{
+  layout: (graph: unknown) => Promise<ElkLayoutResult>;
+}> | null = null;
 
-async function getElkInstance(): Promise<{ layout: (graph: unknown) => Promise<any> }> {
-  if (!elkInstancePromise) {
-    elkInstancePromise = (async () => {
-      const { default: ELK } = await import('elkjs/lib/elk-api.js');
-      const workerUrl = new URL('elkjs/lib/elk-worker.min.js', import.meta.url).href;
-      return new ELK({ workerUrl }) as { layout: (graph: unknown) => Promise<any> };
-    })();
-  }
+async function getElkInstance(): Promise<{
+  layout: (graph: unknown) => Promise<ElkLayoutResult>;
+}> {
+  elkInstancePromise ??= (async () => {
+    const { default: ELK } = await import('elkjs/lib/elk-api.js');
+    const workerUrl = new URL('elkjs/lib/elk-worker.min.js', import.meta.url).href;
+    return new ELK({ workerUrl }) as unknown as {
+      layout: (graph: unknown) => Promise<ElkLayoutResult>;
+    };
+  })();
 
   try {
     return await elkInstancePromise;
@@ -511,13 +531,13 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       edges: elkEdges,
     };
 
-    const layoutedGraph = await elk.layout(elkGraph);
+    const layoutedGraph: ElkLayoutResult = await elk.layout(elkGraph);
 
     // Extract positions from the hierarchical layout recursively
     // For VueFlow, nested nodes need RELATIVE positions to their parent, not absolute
     const positionMap = new Map<string, { x: number; y: number; width: number; height: number }>();
 
-    function extractPositions(elkNodes: ElkNode[]): void {
+    function extractPositions(elkNodes: ElkLayoutNode[]): void {
       elkNodes.forEach((node) => {
         // ELK returns positions relative to the parent for nested nodes
         const x = node.x ?? 0;

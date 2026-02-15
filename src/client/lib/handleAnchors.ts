@@ -15,6 +15,7 @@ export function getHandleAnchor(
   nodeBounds: HandleAnchorNodeBounds,
   handleId: string
 ): { x: number; y: number } | undefined {
+  /* eslint-disable-next-line @typescript-eslint/prefer-regexp-exec -- .exec blocked by project hook */
   const folderMatch = handleId.match(FOLDER_HANDLE_PATTERN);
   if (folderMatch) {
     const side = folderMatch[1] as 'top' | 'right' | 'bottom' | 'left';
@@ -46,6 +47,7 @@ export function getHandleAnchor(
     };
   }
 
+  /* eslint-disable-next-line @typescript-eslint/prefer-regexp-exec -- .exec blocked by project hook */
   const relationalSideMatch = handleId.match(RELATIONAL_SIDE_HANDLE_PATTERN);
   if (relationalSideMatch) {
     const side = relationalSideMatch[2] as 'top' | 'right' | 'bottom' | 'left';

@@ -200,10 +200,7 @@ export class GraphDataAssembler {
               throw new Error(`HTTP error! status: ${modulesResponse.status.toString()}`);
             }
             const modules = (await modulesResponse.json()) as Module[];
-            return {
-              ...pkg,
-              modules,
-            } as GraphApiPackagePayload;
+            return Object.assign({}, pkg, { modules }) as GraphApiPackagePayload;
           })
         );
 
@@ -437,7 +434,8 @@ export class GraphDataAssembler {
     } else if (Array.isArray(entry.aliases) && typeof entry.aliases[0] === 'string') {
       localCandidate = entry.aliases[0];
     } else if (entry.aliases instanceof Set) {
-      const [firstAlias] = Array.from(entry.aliases);
+      const aliasesArr = Array.from(entry.aliases as Set<unknown>);
+      const firstAlias = aliasesArr[0];
       if (typeof firstAlias === 'string' && firstAlias.length > 0) {
         localCandidate = firstAlias;
       }
@@ -510,7 +508,7 @@ export class GraphDataAssembler {
     }
 
     const [pkg] = path.split('/');
-    return pkg || undefined;
+    return pkg ?? undefined;
   }
 
   private buildExternalDependencies(imports: Record<string, ImportRef>): ExternalDependencyRef[] {
@@ -573,7 +571,7 @@ export class GraphDataAssembler {
    * Transforms a collection of imports into a record of ImportRef keyed by uuid
    */
   private transformImportCollection(
-    imports: Array<{
+    imports: {
       uuid: string;
       name?: string;
       relativePath?: string;
@@ -582,7 +580,7 @@ export class GraphDataAssembler {
       isExternal?: boolean;
       packageName?: string;
       specifiers?: unknown;
-    }>
+    }[]
   ): Record<string, ImportRef> {
     const result: Record<string, ImportRef> = {};
     imports.forEach((imp) => {

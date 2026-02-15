@@ -32,13 +32,15 @@ const makeEdge = (id: string, source: string, target: string, type: DependencyEd
     data: { type },
   }) as GraphEdge;
 
+const reFolderSide = /folder-(top|right|bottom|left)-(?:in|out)(?:-inner)?$/;
+const reRelationalSide = /relational-(?:in|out)-(top|right|bottom|left)$/;
 const getHandleSide = (handleId: string | null | undefined): string | undefined => {
   if (!handleId) return undefined;
-  const folderMatch = handleId.match(/folder-(top|right|bottom|left)-(?:in|out)(?:-inner)?$/);
+  const folderMatch = reFolderSide.exec(handleId);
   if (folderMatch) {
     return folderMatch[1];
   }
-  const relationalMatch = handleId.match(/relational-(?:in|out)-(top|right|bottom|left)$/);
+  const relationalMatch = reRelationalSide.exec(handleId);
   return relationalMatch?.[1];
 };
 
@@ -99,7 +101,9 @@ describe('applyEdgeHighways', () => {
     const trunks = result.edges.filter((edge) => edge.data?.highwaySegment === 'highway');
     expect(trunks).toHaveLength(1);
 
-    const trunk = trunks[0]!;
+    const trunk = trunks[0];
+    expect(trunk).toBeDefined();
+    if (!trunk) return;
     expect(trunk.data?.highwayCount).toBe(2);
     expect(trunk.data?.highwayTypeBreakdown?.import).toBe(2);
     expect(trunk.data?.highwayTypeBreakdown?.inheritance).toBeUndefined();

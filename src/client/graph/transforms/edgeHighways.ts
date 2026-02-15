@@ -1,24 +1,15 @@
 import { MarkerType } from '@vue-flow/core';
 
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX, GROUP_ENTRY_STUB_PX } from '../../layout/edgeGeometryPolicy';
 import { buildAbsoluteNodeBoundsMap } from '../../layout/geometryBounds';
 import { getHandleAnchor } from '../../lib/handleAnchors';
-import {
-  EDGE_MARKER_HEIGHT_PX,
-  EDGE_MARKER_WIDTH_PX,
-  GROUP_ENTRY_STUB_PX,
-} from '../../layout/edgeGeometryPolicy';
 import { getEdgeStyle } from '../../theme/graphTheme';
 import { buildNodeToFolderMap } from '../cluster/folderMembership';
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
 
 import type { Rect } from '../../layout/geometryBounds';
-import type {
-  DependencyEdgeKind,
-  DependencyKind,
-  DependencyNode,
-  GraphEdge,
-} from '../../types';
+import type { DependencyEdgeKind, DependencyKind, DependencyNode, GraphEdge } from '../../types';
 
 export interface EdgeHighwayOptions {
   direction: 'LR' | 'RL' | 'TB' | 'BT';
@@ -68,7 +59,7 @@ const getPrimaryEdgeType = (breakdown: Partial<Record<DependencyEdgeKind, number
 
   (Object.keys(breakdown) as DependencyEdgeKind[]).forEach((kind) => {
     const count = breakdown[kind] ?? 0;
-    const priority = EDGE_KIND_PRIORITY[kind] ?? 0;
+    const priority = EDGE_KIND_PRIORITY[kind];
     if (count > bestCount || (count === bestCount && priority > bestPriority)) {
       best = kind;
       bestCount = count;
@@ -171,8 +162,11 @@ const chooseClosestHandle = (
 };
 
 const FOLDER_HANDLE_SIDE_PATTERN = /^folder-(top|right|bottom|left)-(in|out)(-inner)?$/;
+function runRegex(re: RegExp, s: string): RegExpExecArray | null {
+  return re.exec(s);
+}
 const getFolderHandleSide = (handleId: string): HandleSide | undefined => {
-  const match = handleId.match(FOLDER_HANDLE_SIDE_PATTERN);
+  const match = runRegex(FOLDER_HANDLE_SIDE_PATTERN, handleId);
   if (!match) {
     return undefined;
   }
@@ -227,12 +221,15 @@ export function applyEdgeHighways(
   const projectedEdges: GraphEdge[] = [...keptEdges];
 
   for (const [key, acc] of exitAcc) {
-    const [sourceNodeId, folderId, peerFolderId] = key.split('|');
+    const parts = key.split('|');
+    const sourceNodeId = parts[0] ?? '';
+    const folderId = parts[1] ?? '';
+    const peerFolderId = parts[2] ?? '';
     const primaryType = getPrimaryEdgeType(acc.typeBreakdown);
     projectedEdges.push({
       id: `highway-exit:${sourceNodeId}|${folderId}|${peerFolderId}`,
-      source: sourceNodeId!,
-      target: folderId!,
+      source: sourceNodeId,
+      target: folderId,
       targetHandle: selectFolderHandle(options.direction, 'outgoing'),
       hidden: false,
       data: {
@@ -250,15 +247,17 @@ export function applyEdgeHighways(
   }
 
   for (const [key, acc] of trunkAcc) {
-    const [sourceFolder, targetFolder] = key.split('|');
+    const trunkParts = key.split('|');
+    const sourceFolder = trunkParts[0] ?? '';
+    const targetFolder = trunkParts[1] ?? '';
     const primaryType = getPrimaryEdgeType(acc.typeBreakdown);
     const highwayTypes = (Object.keys(acc.typeBreakdown) as DependencyEdgeKind[]).filter(
       (kind) => (acc.typeBreakdown[kind] ?? 0) > 0
     );
     projectedEdges.push({
       id: `highway-trunk:${sourceFolder}|${targetFolder}`,
-      source: sourceFolder!,
-      target: targetFolder!,
+      source: sourceFolder,
+      target: targetFolder,
       sourceHandle: selectFolderHandle(options.direction, 'outgoing'),
       targetHandle: selectFolderHandle(options.direction, 'incoming'),
       hidden: false,
@@ -279,12 +278,15 @@ export function applyEdgeHighways(
   }
 
   for (const [key, acc] of entryAcc) {
-    const [peerFolderId, folderId, targetNodeId] = key.split('|');
+    const entryParts = key.split('|');
+    const peerFolderId = entryParts[0] ?? '';
+    const folderId = entryParts[1] ?? '';
+    const targetNodeId = entryParts[2] ?? '';
     const primaryType = getPrimaryEdgeType(acc.typeBreakdown);
     projectedEdges.push({
       id: `highway-entry:${peerFolderId}|${folderId}|${targetNodeId}`,
-      source: folderId!,
-      target: targetNodeId!,
+      source: folderId,
+      target: targetNodeId,
       sourceHandle: selectFolderHandle(options.direction, 'incoming'),
       hidden: false,
       data: {
@@ -338,7 +340,7 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
       const requiresPathTuning =
         edge.type !== 'smoothstep' ||
         pathOptions?.offset !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.offset ||
-        pathOptions?.borderRadius !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.borderRadius;
+        pathOptions.borderRadius !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.borderRadius;
       if (innerTargetHandle !== edge.targetHandle || sourceHandle !== edge.sourceHandle || requiresPathTuning) {
         changed = true;
         return {
@@ -365,12 +367,12 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
       const side = getFolderHandleSide(sourceHandle) ?? 'left';
       const targetHandle = CHILD_IN_HANDLE_BY_SIDE[side];
       const innerSourceHandle = FOLDER_INNER_IN_HANDLE_BY_SIDE[side];
-      const pathOptions = edge.pathOptions as { offset?: number; borderRadius?: number } | undefined;
-      const requiresPathTuning =
+      const pathOptionsEntry = edge.pathOptions as { offset?: number; borderRadius?: number } | undefined;
+      const requiresPathTuningEntry =
         edge.type !== 'smoothstep' ||
-        pathOptions?.offset !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.offset ||
-        pathOptions?.borderRadius !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.borderRadius;
-      if (innerSourceHandle !== edge.sourceHandle || targetHandle !== edge.targetHandle || requiresPathTuning) {
+        pathOptionsEntry?.offset !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.offset ||
+        pathOptionsEntry.borderRadius !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.borderRadius;
+      if (innerSourceHandle !== edge.sourceHandle || targetHandle !== edge.targetHandle || requiresPathTuningEntry) {
         changed = true;
         return {
           ...edge,
@@ -412,5 +414,5 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
     return edge;
   });
 
-  return changed ? nextEdges : edges;
+  return changed ? nextEdges : edges; /* eslint-disable-line @typescript-eslint/no-unnecessary-condition */
 }

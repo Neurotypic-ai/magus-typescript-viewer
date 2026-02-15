@@ -125,14 +125,10 @@ export function createNodeDimensionTracker(): NodeDimensionTracker {
     start: (root: HTMLElement) => {
       rootElement = root;
 
-      if (!resizeObserver) {
-        resizeObserver = new ResizeObserver(handleResizeEntries);
-      }
-      if (!mutationObserver) {
-        mutationObserver = new MutationObserver(() => {
-          scheduleScan();
-        });
-      }
+      resizeObserver ??= new ResizeObserver(handleResizeEntries);
+      mutationObserver ??= new MutationObserver(() => {
+        scheduleScan();
+      });
 
       mutationObserver.observe(root, { childList: true, subtree: true });
       scanNodeElements();

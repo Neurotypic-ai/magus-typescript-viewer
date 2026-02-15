@@ -81,7 +81,7 @@ export class WebWorkerLayoutProcessor {
     const clone = (input: unknown): unknown => {
       if (input === null || typeof input !== 'object') return input;
 
-      const raw = isProxy(input as object) ? (toRaw(input as object) as object) : (input as object);
+      const raw = isProxy(input) ? toRaw(input) : input;
       const cached = seen.get(raw);
       if (cached !== undefined) return cached;
 
@@ -275,7 +275,7 @@ export class WebWorkerLayoutProcessor {
 
       try {
         this.worker.postMessage(message);
-      } catch (error) {
+      } catch (_error) {
         clearTimeout(timeoutId);
         this.worker.removeEventListener('message', onMessage);
         this.worker.removeEventListener('error', onError);

@@ -277,8 +277,8 @@ export function resolveCollisions(
       const parentNode = nodeById.get(parentId);
       const parentBox = positionMap.get(parentId);
       if (!parentBox) continue;
-      const layoutInsets = (parentNode as { data?: { layoutInsets?: { top?: number } } })?.data?.layoutInsets;
-      const nodeType = (parentNode as { type?: string })?.type;
+      const layoutInsets = (parentNode as { data?: { layoutInsets?: { top?: number } } }).data?.layoutInsets;
+      const nodeType = (parentNode as { type?: string }).type;
       const resolvedPadding = getContainerPadding(nodeType, config);
 
       const layoutTop = typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : 0;
@@ -317,7 +317,7 @@ export function resolveCollisions(
       if (childBoxes.length === 0) continue;
 
       const parentNode = nodeById.get(parentId);
-      const nodeType = (parentNode as { type?: string })?.type;
+      const nodeType = (parentNode as { type?: string }).type;
       const padding = getContainerPadding(nodeType, config);
 
       const maxRight = Math.max(...childBoxes.map((box) => box.x + box.width));
@@ -357,9 +357,11 @@ export function resolveCollisions(
 
       // Check all pairs
       for (let i = 0; i < siblings.length; i++) {
-        const a = siblings[i]!;
+        const a = siblings[i];
+        if (!a) continue;
         for (let j = i + 1; j < siblings.length; j++) {
-          const b = siblings[j]!;
+          const b = siblings[j];
+          if (!b) continue;
 
           if (!boxesOverlap(a.box, b.box, gap)) continue;
 

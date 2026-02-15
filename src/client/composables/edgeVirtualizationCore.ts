@@ -177,7 +177,7 @@ const getViewportBounds = (
   containerSize: EdgeVirtualizationContainerSize | null | undefined,
   config: EdgeVirtualizationConfig
 ): ViewportBounds | null => {
-  if (!viewport || viewport.zoom === 0) {
+  if (viewport.zoom === 0) {
     return null;
   }
 
@@ -278,7 +278,7 @@ export function computeEdgePrioritySignature(edgeList: EdgeVirtualizationEdge[])
       hash = ((hash << 5) - hash + token.charCodeAt(i)) | 0;
     }
   }
-  return `${edgeList.length}:${hash >>> 0}`;
+  return `${String(edgeList.length)}:${String(hash >>> 0)}`;
 }
 
 export function buildEdgePriorityOrder(
@@ -291,7 +291,7 @@ export function buildEdgePriorityOrder(
     nodeDegree.set(edge.target, (nodeDegree.get(edge.target) ?? 0) + 1);
   }
 
-  const scored: Array<{ id: string; score: number }> = [];
+  const scored: { id: string; score: number }[] = [];
   for (const edge of edgeList) {
     const typePriority = edgeTypePriority[edge.data?.type ?? ''] ?? 0;
     const sourceDegree = nodeDegree.get(edge.source) ?? 0;

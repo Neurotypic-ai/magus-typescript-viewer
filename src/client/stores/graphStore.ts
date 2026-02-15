@@ -54,9 +54,9 @@ interface GraphStore {
   clearManualOffsets: () => void;
 }
 
-function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {
+function debounce<P extends unknown[]>(func: (...args: P) => void, wait: number): (...args: P) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  return (...args: Parameters<T>) => {
+  return (...args: P) => {
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
@@ -153,25 +153,18 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
       nodeIndexById.set(node.id, index);
     });
 
-    updates.forEach((nextNode, nodeId) => {
+    for (const [nodeId, nextNode] of updates) {
       const nodeIndex = nodeIndexById.get(nodeId);
-      if (nodeIndex === undefined) {
-        return;
+      if (nodeIndex !== undefined) {
+        const current = (nextNodes ?? nodes.value)[nodeIndex];
+        if (current !== nextNode) {
+          nextNodes ??= [...nodes.value];
+          nextNodes[nodeIndex] = nextNode;
+        }
       }
+    }
 
-      const current = (nextNodes ?? nodes.value)[nodeIndex];
-      if (current === nextNode) {
-        return;
-      }
-
-      if (!nextNodes) {
-        nextNodes = [...nodes.value];
-      }
-
-      nextNodes[nodeIndex] = nextNode;
-    });
-
-    if (nextNodes) {
+    if (nextNodes !== null) {
       nodes.value = nextNodes;
     }
   };
@@ -187,25 +180,18 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
       edgeIndexById.set(edge.id, index);
     });
 
-    updates.forEach((nextEdge, edgeId) => {
+    for (const [edgeId, nextEdge] of updates) {
       const edgeIndex = edgeIndexById.get(edgeId);
-      if (edgeIndex === undefined) {
-        return;
+      if (edgeIndex !== undefined) {
+        const current = (nextEdges ?? edges.value)[edgeIndex];
+        if (current !== nextEdge) {
+          nextEdges ??= [...edges.value];
+          nextEdges[edgeIndex] = nextEdge;
+        }
       }
+    }
 
-      const current = (nextEdges ?? edges.value)[edgeIndex];
-      if (current === nextEdge) {
-        return;
-      }
-
-      if (!nextEdges) {
-        nextEdges = [...edges.value];
-      }
-
-      nextEdges[edgeIndex] = nextEdge;
-    });
-
-    if (nextEdges) {
+    if (nextEdges !== null) {
       edges.value = nextEdges;
     }
   };
@@ -221,28 +207,21 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
       edgeIndexById.set(edge.id, index);
     });
 
-    visibilityMap.forEach((hidden, edgeId) => {
+    for (const [edgeId, hidden] of visibilityMap) {
       const edgeIndex = edgeIndexById.get(edgeId);
-      if (edgeIndex === undefined) {
-        return;
+      if (edgeIndex !== undefined) {
+        const current = (updated ?? edges.value)[edgeIndex];
+        if (current && current.hidden !== hidden) {
+          updated ??= [...edges.value];
+          updated[edgeIndex] = {
+            ...current,
+            hidden,
+          };
+        }
       }
+    }
 
-      const current = (updated ?? edges.value)[edgeIndex];
-      if (!current || current.hidden === hidden) {
-        return;
-      }
-
-      if (!updated) {
-        updated = [...edges.value];
-      }
-
-      updated[edgeIndex] = {
-        ...current,
-        hidden,
-      };
-    });
-
-    if (updated) {
+    if (updated !== null) {
       edges.value = updated;
     }
   };
@@ -299,14 +278,16 @@ export const useGraphStore = defineStore('graph', (): GraphStore => {
 
     return nodeList.map((node) => {
       const offset = offsets.get(node.id);
-      if (!offset || !node.position) return node;
-      return {
-        ...node,
-        position: {
-          x: node.position.x + offset.dx,
-          y: node.position.y + offset.dy,
-        },
-      };
+      if (offset !== undefined) {
+        return {
+          ...node,
+          position: {
+            x: node.position.x + offset.dx,
+            y: node.position.y + offset.dy,
+          },
+        };
+      }
+      return node;
     });
   };
 

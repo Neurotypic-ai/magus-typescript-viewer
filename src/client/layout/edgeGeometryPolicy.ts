@@ -56,9 +56,11 @@ export const pointsEqual = (a: EdgeGeometryPoint, b: EdgeGeometryPoint): boolean
 export function getHandleSide(handleId: string | null | undefined): EdgeHandleSide | undefined {
   if (!handleId) return undefined;
 
+  /* eslint-disable-next-line @typescript-eslint/prefer-regexp-exec -- .exec blocked by project hook */
   const folderMatch = handleId.match(FOLDER_HANDLE_SIDE_PATTERN);
   if (folderMatch) return folderMatch[1] as EdgeHandleSide;
 
+  /* eslint-disable-next-line @typescript-eslint/prefer-regexp-exec -- .exec blocked by project hook */
   const relationalMatch = handleId.match(RELATIONAL_SIDE_HANDLE_PATTERN);
   if (relationalMatch) return relationalMatch[1] as EdgeHandleSide;
 
@@ -105,9 +107,9 @@ export function buildEdgePolyline(
 export function toLineSegments(polyline: EdgeGeometryPoint[]): EdgeLineSegment[] {
   const segments: EdgeLineSegment[] = [];
   for (let i = 0; i < polyline.length - 1; i += 1) {
-    const start = polyline[i]!;
-    const end = polyline[i + 1]!;
-    if (!pointsEqual(start, end)) {
+    const start = polyline[i];
+    const end = polyline[i + 1];
+    if (start !== undefined && end !== undefined && !pointsEqual(start, end)) {
       segments.push({ start, end });
     }
   }

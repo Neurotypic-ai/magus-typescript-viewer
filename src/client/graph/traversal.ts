@@ -101,7 +101,8 @@ export function traverseGraph(startNodeId: string, options: TraversalOptions): T
 
   const queue: string[] = [startNodeId];
   while (queue.length > 0) {
-    const currentId = queue.shift()!;
+    const currentId = queue.shift();
+    if (currentId === undefined) break;
     const currentDepth = depthMap.get(currentId) ?? 0;
     if (currentDepth >= options.maxDepth) {
       continue;

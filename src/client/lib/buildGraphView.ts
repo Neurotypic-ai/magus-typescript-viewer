@@ -7,21 +7,27 @@ import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
 import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
 import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
 import { getEdgeStyle, getNodeStyle } from '../theme/graphTheme';
+import { createGraphEdges } from '../utils/createGraphEdges';
+import { createGraphNodes } from '../utils/createGraphNodes';
+import { getHandlePositions } from './graphUtils';
+import { mapTypeCollection } from './mapTypeCollection';
+
+import type { NodeChange } from '@vue-flow/core';
+
 import type {
+  ClassStructure,
   DependencyEdgeKind,
   DependencyKind,
   DependencyNode,
   DependencyPackageGraph,
   GraphEdge,
+  InterfaceRef,
+  InterfaceStructure,
   ModuleStructure,
   NodeMethod,
   NodeProperty,
+  SymbolReferenceRef,
 } from '../types';
-import { createGraphEdges } from '../utils/createGraphEdges';
-import { createGraphNodes } from '../utils/createGraphNodes';
-import { getHandlePositions } from './graphUtils';
-import { mapTypeCollection } from './mapTypeCollection';
-import type { NodeChange } from '@vue-flow/core';
 
 export interface GraphViewData {
   nodes: DependencyNode[];
@@ -57,7 +63,6 @@ export interface BuildSymbolDrilldownGraphOptions {
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   enabledRelationshipTypes: string[];
 }
-
 
 function filterEdgesByNodeSet(nodes: DependencyNode[], edges: GraphEdge[]): GraphEdge[] {
   const nodeIds = new Set(nodes.map((node) => node.id));
@@ -507,48 +512,51 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
   });
 
   if (moduleData.classes) {
-    mapTypeCollection(moduleData.classes, (cls) => {
-      const properties = toRecordOrArray(cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined).map(
-        (property) => toNodeProperty(property)
+    mapTypeCollection(moduleData.classes, (cls: ClassStructure) => {
+      const properties = toRecordOrArray(
+        cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
+      ).map((property) => toNodeProperty(property));
+      const methods = toRecordOrArray(cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
+        (method) => toNodeMethod(method)
       );
-      const methods = toRecordOrArray(cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map((method) =>
-        toNodeMethod(method)
-      );
+      const clsId = cls.id;
+      const clsName = cls.name;
 
-      detailedNodes.push(
-        createDetailedSymbolNode(cls.id, 'class', cls.name, properties, methods, options.direction)
-      );
+      detailedNodes.push(createDetailedSymbolNode(clsId, 'class', clsName, properties, methods, options.direction));
 
       if (cls.extends_id) {
-        detailedEdges.push(createSymbolEdge(cls.id, cls.extends_id, 'inheritance'));
+        detailedEdges.push(createSymbolEdge(clsId, cls.extends_id, 'inheritance'));
       }
 
       if (cls.implemented_interfaces) {
-        mapTypeCollection(cls.implemented_interfaces, (iface) => {
+        mapTypeCollection(cls.implemented_interfaces, (iface: InterfaceRef) => {
           if (!iface.id) return;
-          detailedEdges.push(createSymbolEdge(cls.id, iface.id, 'implements'));
+          detailedEdges.push(createSymbolEdge(clsId, iface.id, 'implements'));
         });
       }
     });
   }
 
   if (moduleData.interfaces) {
-    mapTypeCollection(moduleData.interfaces, (iface) => {
+    mapTypeCollection(moduleData.interfaces, (iface: InterfaceStructure) => {
+      const ifaceId = iface.id;
+      const ifaceName = iface.name;
       const properties = toRecordOrArray(
         iface.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
       ).map((property) => toNodeProperty(property));
-      const methods = toRecordOrArray(iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map((method) =>
-        toNodeMethod(method)
+      const methods = toRecordOrArray(iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
+        (method) => toNodeMethod(method)
       );
 
       detailedNodes.push(
-        createDetailedSymbolNode(iface.id, 'interface', iface.name, properties, methods, options.direction)
+        createDetailedSymbolNode(ifaceId, 'interface', ifaceName, properties, methods, options.direction)
       );
 
       if (iface.extended_interfaces) {
-        mapTypeCollection(iface.extended_interfaces, (extended) => {
-          if (!extended.id) return;
-          detailedEdges.push(createSymbolEdge(iface.id, extended.id, 'inheritance'));
+        mapTypeCollection(iface.extended_interfaces, (extended: InterfaceRef) => {
+          const extendedId = extended.id;
+          if (!extendedId) return;
+          detailedEdges.push(createSymbolEdge(ifaceId, extendedId, 'inheritance'));
         });
       }
     });
@@ -626,7 +634,9 @@ function findSymbolContext(data: DependencyPackageGraph, node: DependencyNode): 
       }
 
       if (node.type === 'interface' && module.interfaces) {
-        const interfaceMatch = mapTypeCollection(module.interfaces, (iface) => iface).find((iface) => iface.id === node.id);
+        const interfaceMatch = mapTypeCollection(module.interfaces, (iface) => iface).find(
+          (iface) => iface.id === node.id
+        );
         if (interfaceMatch) {
           return { module, focusType: 'interface', focusId: node.id };
         }
@@ -694,15 +704,17 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
 
   const { sourcePosition, targetPosition } = getHandlePositions(options.direction);
 
+  const moduleId = context.module.id;
+  const moduleName = context.module.name;
   const graphNodes: DependencyNode[] = [
     {
-      id: context.module.id,
+      id: moduleId,
       type: 'module',
       position: { x: 0, y: 0 },
       sourcePosition,
       targetPosition,
       data: {
-        label: context.module.name,
+        label: moduleName,
         properties: [],
       },
       style: {
@@ -716,12 +728,18 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
   const graphEdges: GraphEdge[] = [];
   const firstNode = graphNodes[0];
   if (firstNode === undefined) throw new Error('buildFocusGraph: expected at least one graph node');
-  const nodeById = new Map<string, DependencyNode>([[context.module.id, firstNode]]);
+  const nodeById = new Map<string, DependencyNode>([[moduleId, firstNode]]);
 
   const includeAllSymbols = context.focusType === 'module';
   const includedSymbolIds = new Set<string>();
 
-  const addSymbol = (symbolId: string, type: 'class' | 'interface', label: string, properties: NodeProperty[], methods: NodeMethod[]) => {
+  const addSymbol = (
+    symbolId: string,
+    type: 'class' | 'interface',
+    label: string,
+    properties: NodeProperty[],
+    methods: NodeMethod[]
+  ) => {
     if (nodeById.has(symbolId)) return;
 
     const symbolNode: DependencyNode = {
@@ -744,11 +762,16 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
     nodeById.set(symbolId, symbolNode);
     includedSymbolIds.add(symbolId);
 
-    graphEdges.push(createSymbolEdge(context.module.id, symbolId, 'contains'));
+    graphEdges.push(createSymbolEdge(moduleId, symbolId, 'contains'));
 
     properties.forEach((property) => {
       const propertyId = property.id ?? `${symbolId}:property:${property.name}`;
-      const memberNode = createMemberNode(propertyId, 'property', `${property.name}: ${property.type}`, options.direction);
+      const memberNode = createMemberNode(
+        propertyId,
+        'property',
+        `${property.name}: ${property.type}`,
+        options.direction
+      );
       graphNodes.push(memberNode);
       nodeById.set(propertyId, memberNode);
       graphEdges.push(createSymbolEdge(symbolId, propertyId, 'contains'));
@@ -756,7 +779,12 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
 
     methods.forEach((method) => {
       const methodId = method.id ?? `${symbolId}:method:${method.name}`;
-      const memberNode = createMemberNode(methodId, 'method', `${method.name}(): ${method.returnType}`, options.direction);
+      const memberNode = createMemberNode(
+        methodId,
+        'method',
+        `${method.name}(): ${method.returnType}`,
+        options.direction
+      );
       graphNodes.push(memberNode);
       nodeById.set(methodId, memberNode);
       graphEdges.push(createSymbolEdge(symbolId, methodId, 'contains'));
@@ -764,42 +792,46 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
   };
 
   if (context.module.classes) {
-    mapTypeCollection(context.module.classes, (cls) => {
-      if (!includeAllSymbols && cls.id !== context.focusId) {
+    mapTypeCollection(context.module.classes, (cls: ClassStructure) => {
+      const clsId = cls.id;
+      const clsName = cls.name;
+      if (!includeAllSymbols && clsId !== context.focusId) {
         return;
       }
 
-      const properties = toRecordOrArray(cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined).map(
-        (property) => toNodeProperty(property)
+      const properties = toRecordOrArray(
+        cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
+      ).map((property) => toNodeProperty(property));
+      const methods = toRecordOrArray(cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
+        (method) => toNodeMethod(method)
       );
-      const methods = toRecordOrArray(cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map((method) =>
-        toNodeMethod(method)
-      );
-      addSymbol(cls.id, 'class', cls.name, properties, methods);
+      addSymbol(clsId, 'class', clsName, properties, methods);
     });
   }
 
   if (context.module.interfaces) {
-    mapTypeCollection(context.module.interfaces, (iface) => {
-      if (!includeAllSymbols && iface.id !== context.focusId) {
+    mapTypeCollection(context.module.interfaces, (iface: InterfaceStructure) => {
+      const ifaceId = iface.id;
+      const ifaceName = iface.name;
+      if (!includeAllSymbols && ifaceId !== context.focusId) {
         return;
       }
 
       const properties = toRecordOrArray(
         iface.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
       ).map((property) => toNodeProperty(property));
-      const methods = toRecordOrArray(iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map((method) =>
-        toNodeMethod(method)
+      const methods = toRecordOrArray(iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined).map(
+        (method) => toNodeMethod(method)
       );
-      addSymbol(iface.id, 'interface', iface.name, properties, methods);
+      addSymbol(ifaceId, 'interface', ifaceName, properties, methods);
     });
   }
 
   if (context.module.symbol_references) {
-    mapTypeCollection(context.module.symbol_references, (reference) => {
+    mapTypeCollection(context.module.symbol_references, (reference: SymbolReferenceRef) => {
       const targetId = reference.target_symbol_id;
       const accessKind = reference.access_kind;
-      const sourceId = reference.source_symbol_id ?? context.module.id;
+      const sourceId = reference.source_symbol_id ?? moduleId;
 
       if (!targetId || !nodeById.has(targetId)) return;
       if (!nodeById.has(sourceId)) return;
