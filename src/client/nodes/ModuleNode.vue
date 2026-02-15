@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, toRef } from 'vue';
 
-import { useGraphSettings } from '../../stores/graphSettings';
+import { useGraphSettings } from '../stores/graphSettings';
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import EntityListSection from './EntityListSection.vue';

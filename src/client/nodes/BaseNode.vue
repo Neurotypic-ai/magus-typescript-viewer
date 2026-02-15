@@ -3,8 +3,8 @@ import { Handle, Position } from '@vue-flow/core';
 import { NodeToolbar } from '@vue-flow/node-toolbar';
 import { computed, inject, toRef } from 'vue';
 
-import { useInsightsStore } from '../../stores/insightsStore';
-import { useIssuesStore } from '../../stores/issuesStore';
+import { useInsightsStore } from '../stores/insightsStore';
+import { useIssuesStore } from '../stores/issuesStore';
 import InsightBadgeStrip from './InsightBadgeStrip.vue';
 import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, NODE_ACTIONS_KEY, resolveSubnodesCount } from './utils';
 
