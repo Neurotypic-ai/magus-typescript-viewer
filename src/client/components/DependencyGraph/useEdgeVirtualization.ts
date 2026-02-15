@@ -208,19 +208,13 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions) {
     recalcDirty = false;
     lastRecalcTimestamp = timestamp;
     recalculate();
-
-    if (recalcDirty && recalcRafId === null) {
-      recalcRafId = requestAnimationFrame(runRecalcFrame);
-    }
   };
 
   /** Schedule a throttled recalculation aligned to animation frames */
   function scheduleRecalc(): void {
     if (suspended) return;
     recalcDirty = true;
-    if (recalcRafId === null) {
-      recalcRafId = requestAnimationFrame(runRecalcFrame);
-    }
+    recalcRafId ??= requestAnimationFrame(runRecalcFrame);
   }
 
   // Re-run when nodes/edges change (e.g., after layout, filter toggle).

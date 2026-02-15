@@ -126,7 +126,7 @@ export class CodeIssueRepository extends BaseRepository<CodeIssueEntity, ICodeIs
     return this.mapToEntity(row);
   }
 
-  async update(_id: string, _dto: ICodeIssueUpdateDTO): Promise<CodeIssueEntity> {
+  update(_id: string, _dto: ICodeIssueUpdateDTO): Promise<CodeIssueEntity> {
     throw new Error('Not supported for CodeIssueRepository');
   }
 

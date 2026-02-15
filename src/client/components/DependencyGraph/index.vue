@@ -13,6 +13,8 @@ import { traverseGraph } from '../../graph/traversal';
 import { WebWorkerLayoutProcessor } from '../../layout/WebWorkerLayoutProcessor';
 import { useGraphSettings } from '../../stores/graphSettings';
 import { useGraphStore } from '../../stores/graphStore';
+import { useInsightsStore } from '../../stores/insightsStore';
+import { useIssuesStore } from '../../stores/issuesStore';
 import { getEdgeStyle, getNodeStyle, graphTheme } from '../../theme/graphTheme';
 import { measurePerformance } from '../../utils/performanceMonitoring';
 import {
@@ -25,6 +27,9 @@ import {
 import CanvasEdgeLayer from './components/CanvasEdgeLayer.vue';
 import GraphControls from './components/GraphControls.vue';
 import GraphSearch from './components/GraphSearch.vue';
+import InsightsDashboard from './components/InsightsDashboard.vue';
+import IssuesPanel from './components/IssuesPanel.vue';
+import NodeContextMenu from './components/NodeContextMenu.vue';
 import NodeDetails from './components/NodeDetails.vue';
 import { nodeTypes } from './nodes/nodes';
 import {
@@ -69,7 +74,11 @@ const props = defineProps<DependencyGraphProps>();
 
 const graphStore = useGraphStore();
 const graphSettings = useGraphSettings();
+const issuesStore = useIssuesStore();
+const insightsStore = useInsightsStore();
 const interaction = useGraphInteractionController();
+
+const contextMenu = ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>(null);
 
 const parseEnvInt = (key: string, fallback: number): number => {
   const raw = import.meta.env[key] as string | undefined;
@@ -2200,6 +2209,17 @@ const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
 
 const onPaneClick = (): void => {
   setSelectedNode(null);
+  contextMenu.value = null;
+};
+
+const onNodeContextMenu = (event: { event: MouseEvent; node: { id: string; data?: { label?: string } } }): void => {
+  event.event.preventDefault();
+  contextMenu.value = {
+    nodeId: event.node.id,
+    nodeLabel: (event.node.data?.label as string) ?? event.node.id,
+    x: event.event.clientX,
+    y: event.event.clientY,
+  };
 };
 
 const handleWheel = (event: WheelEvent): void => {
@@ -2978,6 +2998,10 @@ onMounted(() => {
     flowResizeObserver.observe(flowContainer);
   }
   syncViewportState();
+
+  // Fetch code issues and insights after graph loads
+  void issuesStore.fetchIssues();
+  void insightsStore.fetchInsights();
 });
 
 onUnmounted(() => {
@@ -3062,6 +3086,7 @@ onUnmounted(() => {
       :elevate-edges-on-select="false"
       :default-edge-options="defaultEdgeOptions"
       @node-click="onNodeClick"
+      @node-context-menu="onNodeContextMenu"
       @pane-click="onPaneClick"
       @nodes-change="handleNodesChange"
       @node-mouse-enter="onNodeMouseEnter"
@@ -3220,6 +3245,10 @@ onUnmounted(() => {
           ← Back to Full Graph
         </button>
       </Panel>
+
+      <Panel position="bottom-left" class="insights-dashboard-panel">
+        <InsightsDashboard />
+      </Panel>
     </VueFlow>
     <CanvasEdgeLayer
       v-if="isHybridCanvasMode"
@@ -3238,6 +3267,17 @@ onUnmounted(() => {
       :nodes="nodes"
       :edges="edges"
       @open-symbol-usage="handleOpenSymbolUsageGraph"
+    />
+    <IssuesPanel v-if="issuesStore.panelOpen" />
+    <NodeContextMenu
+      v-if="contextMenu"
+      :node-id="contextMenu.nodeId"
+      :node-label="contextMenu.nodeLabel"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      @close="contextMenu = null"
+      @focus-node="handleFocusNode"
+      @isolate-neighborhood="isolateNeighborhood"
     />
   </div>
 </template>

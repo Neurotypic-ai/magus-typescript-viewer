@@ -4,8 +4,10 @@ import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
 import { RepositoryError } from './db/errors/RepositoryError';
 import { CodeIssueRepository } from './db/repositories/CodeIssueRepository';
+import { InsightEngine } from './insights/InsightEngine';
 
 import type { CodeIssueEntity } from './db/repositories/CodeIssueRepository';
+import type { InsightReport } from './insights/types';
 import { ClassRepository } from './db/repositories/ClassRepository';
 import { EnumRepository } from './db/repositories/EnumRepository';
 import { FunctionRepository } from './db/repositories/FunctionRepository';
@@ -43,11 +45,11 @@ interface GraphResponseItem extends Omit<PackagesResponseItem, 'modules'> {
   modules: Module[];
 }
 
-type PersistedImportSpecifier = {
+interface PersistedImportSpecifier {
   imported: string;
   local?: string;
   kind: 'value' | 'type' | 'default' | 'namespace' | 'sideEffect';
-};
+}
 
 function normalizeImportSpecifier(value: unknown): PersistedImportSpecifier | undefined {
   if (!value || typeof value !== 'object') {
@@ -110,7 +112,7 @@ function inferExternalPackageName(source: string): string | undefined {
   }
 
   const [packageName] = source.split('/');
-  return packageName || undefined;
+  return packageName ?? undefined;
 }
 
 export class ApiServerResponder {
@@ -520,5 +522,10 @@ export class ApiServerResponder {
     } catch {
       return undefined;
     }
+  }
+
+  async getInsights(packageId?: string): Promise<InsightReport> {
+    const engine = new InsightEngine(this.dbAdapter);
+    return engine.compute(packageId);
   }
 }

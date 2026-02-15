@@ -51,7 +51,7 @@ function readRequestBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    req.on('end', () => { resolve(Buffer.concat(chunks).toString('utf-8')); });
     req.on('error', reject);
   });
 }
@@ -166,6 +166,20 @@ const server = http.createServer((req, res) => {
         } catch (routeErr) {
           logger.error('Error in /issues route, returning empty array', routeErr);
           resource = [];
+        }
+      } else if (req.url?.startsWith('/insights') && req.method === 'GET') {
+        try {
+          let packageId: string | undefined;
+          const qIdx = req.url.indexOf('?');
+          if (qIdx !== -1) {
+            const params = new URLSearchParams(req.url.slice(qIdx + 1));
+            packageId = params.get('packageId') ?? undefined;
+          }
+          resource = await apiServerResponder.getInsights(packageId);
+        } catch (routeErr) {
+          logger.error('Error in /insights route', routeErr);
+          sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Insight computation failed');
+          return;
         }
       } else if (req.url === '/refactor' && req.method === 'POST') {
         try {

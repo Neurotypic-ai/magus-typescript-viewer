@@ -4,6 +4,7 @@ import { measurePerformance } from '../../utils/performanceMonitoring';
 import { DEFAULT_EDGE_TYPE_PRIORITY } from './edgeVirtualizationCore';
 
 import type { Ref, WatchStopHandle } from 'vue';
+
 import type {
   EdgeVirtualizationConfig,
   EdgeVirtualizationContainerSize,
@@ -130,9 +131,7 @@ const serializeNodesForWorker = (nodes: DependencyNode[]): EdgeVirtualizationNod
       id: node.id,
     };
 
-    if (node.position) {
-      serialized.position = { x: node.position.x, y: node.position.y };
-    }
+    serialized.position = { x: node.position.x, y: node.position.y };
     if (parentNode) {
       serialized.parentNode = parentNode;
     }
@@ -195,9 +194,7 @@ const serializeEdgesForWorker = (edges: GraphEdge[]): EdgeVirtualizationEdge[] =
 };
 
 const getDeviceProfile = (): EdgeVirtualizationDeviceProfile => {
-  const nav = typeof navigator !== 'undefined'
-    ? (navigator as Navigator & { deviceMemory?: number })
-    : undefined;
+  const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { deviceMemory?: number }) : undefined;
   const profile: EdgeVirtualizationDeviceProfile = {};
   if (nav?.hardwareConcurrency !== undefined) {
     profile.hardwareConcurrency = nav.hardwareConcurrency;
@@ -451,9 +448,7 @@ export function useEdgeVirtualizationWorker(options: UseEdgeVirtualizationWorker
     }
     recalcDirty = true;
     recalcVersion += 1;
-    if (recalcRafId === null) {
-      recalcRafId = requestAnimationFrame(runRecalcFrame);
-    }
+    recalcRafId ??= requestAnimationFrame(runRecalcFrame);
   };
 
   const recalculate = (): void => {
@@ -483,15 +478,19 @@ export function useEdgeVirtualizationWorker(options: UseEdgeVirtualizationWorker
     notifyWorkerUnavailable(error instanceof Error ? error.message : 'Failed to initialize edge visibility worker');
   }
 
-  stopWatch = watch([nodes, edges, enabled], () => {
-    if (isWriting || !enabled.value) {
-      return;
-    }
+  stopWatch = watch(
+    [nodes, edges, enabled],
+    () => {
+      if (isWriting || !enabled.value) {
+        return;
+      }
 
-    graphVersion += 1;
-    graphSyncPending = true;
-    scheduleRecalc();
-  }, { flush: 'sync' });
+      graphVersion += 1;
+      graphSyncPending = true;
+      scheduleRecalc();
+    },
+    { flush: 'sync' }
+  );
 
   stopEnabledWatch = watch(enabled, (isEnabled) => {
     if (isEnabled) {
@@ -524,8 +523,8 @@ export function useEdgeVirtualizationWorker(options: UseEdgeVirtualizationWorker
       recalcRafId = null;
     }
 
-    stopWatch?.();
-    stopEnabledWatch?.();
+    stopWatch();
+    stopEnabledWatch();
     if (worker) {
       worker.terminate();
       worker = null;

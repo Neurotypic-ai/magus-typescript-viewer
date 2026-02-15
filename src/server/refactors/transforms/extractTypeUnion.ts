@@ -9,6 +9,7 @@ import type {
 import type { Transform } from '../Transform';
 
 interface ExtractTypeUnionContext {
+  [key: string]: unknown;
   suggestedName: string;
   parentName: string;
   parentType: 'class' | 'interface';
@@ -24,6 +25,20 @@ function isExtractContext(context: Record<string, unknown>): context is ExtractT
     typeof context['propertyName'] === 'string' &&
     Array.isArray(context['unionMembers'])
   );
+}
+
+function isExportedDeclaration(path: ASTPath): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const parentPath = path.parentPath;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+  return parentPath?.value?.type === 'ExportNamedDeclaration';
+}
+
+function getInsertTarget(path: ASTPath, isExported: boolean): ASTPath {
+  if (isExported) {
+    return path.parentPath as ASTPath<ExportNamedDeclaration>;
+  }
+  return path;
 }
 
 export const extractTypeUnion: Transform = {
@@ -53,7 +68,7 @@ export const extractTypeUnion: Transform = {
       for (const member of body.body) {
         if (member.type !== 'TSPropertySignature') continue;
         if (member.key.type === 'Identifier' && member.key.name === propertyName) {
-          targetProp = member as TSPropertySignature;
+          targetProp = member;
           break;
         }
       }
@@ -63,12 +78,13 @@ export const extractTypeUnion: Transform = {
       }
 
       const typeAnnotation = targetProp.typeAnnotation;
-      if (!typeAnnotation || typeAnnotation.typeAnnotation.type !== 'TSUnionType') {
+      const innerType = typeAnnotation?.typeAnnotation;
+      if (!innerType || innerType.type !== 'TSUnionType') {
         throw new Error(`Property '${propertyName}' does not have a union type annotation`);
       }
 
-      // Capture the union type before replacing
-      const unionType = typeAnnotation.typeAnnotation;
+      // Capture the union type before replacing (innerType is narrowed to TSUnionType)
+      const unionType = innerType;
 
       // Replace property type with reference to new type alias
       targetProp.typeAnnotation = j.tsTypeAnnotation(
@@ -76,8 +92,7 @@ export const extractTypeUnion: Transform = {
       );
 
       // Determine if the parent is exported
-      const parentPath = ifacePath.parentPath;
-      const isExported = parentPath?.value?.type === 'ExportNamedDeclaration';
+      const isExported = isExportedDeclaration(ifacePath);
 
       // Build the type alias declaration
       const typeAlias = j.tsTypeAliasDeclaration(
@@ -86,7 +101,7 @@ export const extractTypeUnion: Transform = {
       );
 
       // Insert before the parent declaration (or its export wrapper)
-      const insertTarget = isExported ? (parentPath as ASTPath<ExportNamedDeclaration>) : ifacePath;
+      const insertTarget = getInsertTarget(ifacePath, isExported);
       if (isExported) {
         const exportDecl = j.exportNamedDeclaration(typeAlias);
         insertTarget.insertBefore(exportDecl);
@@ -108,7 +123,7 @@ export const extractTypeUnion: Transform = {
       for (const member of body.body) {
         if (member.type !== 'ClassProperty') continue;
         if (member.key.type === 'Identifier' && member.key.name === propertyName) {
-          targetProp = member as ClassProperty;
+          targetProp = member;
           break;
         }
       }
@@ -129,15 +144,14 @@ export const extractTypeUnion: Transform = {
         j.tsTypeReference(j.identifier(suggestedName))
       );
 
-      const parentPath = classPath.parentPath;
-      const isExported = parentPath?.value?.type === 'ExportNamedDeclaration';
+      const isExported = isExportedDeclaration(classPath);
 
       const typeAlias = j.tsTypeAliasDeclaration(
         j.identifier(suggestedName),
         unionType as Parameters<typeof j.tsTypeAliasDeclaration>[1]
       );
 
-      const insertTarget = isExported ? (parentPath as ASTPath<ExportNamedDeclaration>) : classPath;
+      const insertTarget = getInsertTarget(classPath, isExported);
       if (isExported) {
         const exportDecl = j.exportNamedDeclaration(typeAlias);
         insertTarget.insertBefore(exportDecl);

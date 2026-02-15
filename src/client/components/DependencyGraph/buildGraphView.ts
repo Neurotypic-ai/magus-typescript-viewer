@@ -120,7 +120,8 @@ function bundleParallelEdges(edges: GraphEdge[]): GraphEdge[] {
 
   for (const group of edgeGroups.values()) {
     if (group.length === 1) {
-      result.push(group[0]!);
+      const sole = group[0];
+      if (sole) result.push(sole);
       continue;
     }
 
@@ -138,7 +139,8 @@ function bundleParallelEdges(edges: GraphEdge[]): GraphEdge[] {
       return prioB - prioA;
     });
 
-    const representative = group[0]!;
+    const representative = group[0];
+    if (!representative) continue;
     const bundledTypes = [
       ...new Set(group.map((e) => e.data?.type).filter((t): t is DependencyEdgeKind => t !== undefined)),
     ];
@@ -204,14 +206,14 @@ function applyGraphTransforms(
   // Folder mode is deterministic and takes precedence when enabled.
   if (!folderClusteringEnabled && options.collapseScc) {
     const collapsed = collapseSccs(transformedNodes, transformedEdges);
-    transformedNodes = collapsed.nodes as DependencyNode[];
-    transformedEdges = collapsed.edges as GraphEdge[];
+    transformedNodes = collapsed.nodes;
+    transformedEdges = collapsed.edges;
   }
 
   if (folderClusteringEnabled) {
     const clustered = clusterByFolder(transformedNodes, transformedEdges);
-    transformedNodes = clustered.nodes as DependencyNode[];
-    transformedEdges = clustered.edges as GraphEdge[];
+    transformedNodes = clustered.nodes;
+    transformedEdges = clustered.edges;
 
     // All nodes remain draggable in folder mode — group nodes can be
     // dragged freely and children move with their parent via Vue Flow's
@@ -304,7 +306,7 @@ function annotateOrphanDiagnostics(
       ...node,
       data: {
         ...existingData,
-        label: existingData.label ?? node.id,
+        label: existingData.label,
         diagnostics: {
           isTestFile: existingDiagnostics?.isTestFile === true,
           orphanCurrent,
@@ -411,23 +413,29 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
 }
 
 function toNodeProperty(property: NodeProperty | Record<string, unknown>): NodeProperty {
+  const name = property.name;
+  const type = property.type;
+  const visibility = property.visibility;
   return {
     id: typeof property.id === 'string' ? property.id : undefined,
-    name: String(property.name ?? 'unknown'),
-    type: String(property.type ?? 'unknown'),
-    visibility: String(property.visibility ?? 'public'),
+    name: typeof name === 'string' ? name : 'unknown',
+    type: typeof type === 'string' ? type : 'unknown',
+    visibility: typeof visibility === 'string' ? visibility : 'public',
   };
 }
 
 function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod {
-  const methodName = String(method.name ?? 'unknown');
-  const returnType = String(method.returnType ?? 'void');
+  const name = method.name;
+  const returnTypeVal = method.returnType;
+  const visibility = method.visibility;
+  const methodName = typeof name === 'string' ? name : 'unknown';
+  const returnType = typeof returnTypeVal === 'string' ? returnTypeVal : 'void';
 
   return {
     id: typeof method.id === 'string' ? method.id : undefined,
     name: methodName,
     returnType,
-    visibility: String(method.visibility ?? 'public'),
+    visibility: typeof visibility === 'string' ? visibility : 'public',
     signature:
       typeof method.signature === 'string' && method.signature.length > 0
         ? method.signature
@@ -576,21 +584,25 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
   }
 
   const connectedModuleIds = new Set<string>();
+  const resolveStyle = (edge: GraphEdge): Record<string, unknown> => {
+    const s = edge.style;
+    return typeof s === 'function' ? (s as () => Record<string, unknown>)() : (s ?? {});
+  };
   options.currentEdges.forEach((edge) => {
     if (edge.source === options.selectedNode.id) {
       connectedModuleIds.add(edge.target);
       detailedEdges.push({
         ...edge,
-        style: { ...edge.style, stroke: '#61dafb', strokeWidth: 3 },
+        style: { ...resolveStyle(edge), stroke: '#61dafb', strokeWidth: 3 },
         animated: true,
-      } as GraphEdge);
+      });
     } else if (edge.target === options.selectedNode.id) {
       connectedModuleIds.add(edge.source);
       detailedEdges.push({
         ...edge,
-        style: { ...edge.style, stroke: '#ffd700', strokeWidth: 3 },
+        style: { ...resolveStyle(edge), stroke: '#ffd700', strokeWidth: 3 },
         animated: true,
-      } as GraphEdge);
+      });
     }
   });
 
@@ -731,7 +743,9 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
   ];
 
   const graphEdges: GraphEdge[] = [];
-  const nodeById = new Map<string, DependencyNode>([[context.module.id, graphNodes[0] as DependencyNode]]);
+  const firstNode = graphNodes[0];
+  if (firstNode === undefined) throw new Error('buildFocusGraph: expected at least one graph node');
+  const nodeById = new Map<string, DependencyNode>([[context.module.id, firstNode]]);
 
   const includeAllSymbols = context.focusType === 'module';
   const includedSymbolIds = new Set<string>();

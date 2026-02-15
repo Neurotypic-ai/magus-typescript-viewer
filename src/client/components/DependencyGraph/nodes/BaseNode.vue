@@ -3,6 +3,9 @@ import { Handle, Position } from '@vue-flow/core';
 import { NodeToolbar } from '@vue-flow/node-toolbar';
 import { computed, inject, toRef } from 'vue';
 
+import { useInsightsStore } from '../../../stores/insightsStore';
+import { useIssuesStore } from '../../../stores/issuesStore';
+import InsightBadgeStrip from './InsightBadgeStrip.vue';
 import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, NODE_ACTIONS_KEY } from './utils';
 
 import type { DependencyProps } from '../types';
@@ -26,8 +29,27 @@ const props = withDefaults(defineProps<BaseNodeProps>(), {
 const nodeActions = inject<NodeActions | undefined>(NODE_ACTIONS_KEY, undefined);
 const highlightOrphanGlobal = inject(HIGHLIGHT_ORPHAN_GLOBAL_KEY, undefined);
 
+const issuesStore = useIssuesStore();
+const insightsStore = useInsightsStore();
+
 const nodeData = toRef(props, 'data');
 const isSelected = computed(() => !!props.selected);
+
+const issueCount = computed(() => issuesStore.issueCountByNodeId.get(props.id) ?? 0);
+
+const maxIssueSeverity = computed(() => {
+  const nodeIssues = issuesStore.issues.filter(
+    (i) => i.module_id === props.id || i.entity_id === props.id || i.parent_entity_id === props.id
+  );
+  if (nodeIssues.some((i) => i.severity === 'error')) return 'error';
+  if (nodeIssues.some((i) => i.severity === 'warning')) return 'warning';
+  if (nodeIssues.length > 0) return 'info';
+  return null;
+});
+
+function handleIssueBadgeClick(): void {
+  issuesStore.setNodeFilter(props.id);
+}
 
 const isOrphanGlobal = computed(() => {
   if (!highlightOrphanGlobal?.value) {
@@ -35,6 +57,18 @@ const isOrphanGlobal = computed(() => {
   }
   const diag = nodeData.value?.diagnostics as { orphanGlobal?: boolean } | undefined;
   return diag?.orphanGlobal === true;
+});
+
+const insightCounts = computed(() => insightsStore.nodeSeverityCounts(props.id));
+const hasInsights = computed(() => insightCounts.value.critical > 0 || insightCounts.value.warning > 0 || insightCounts.value.info > 0);
+const insightGlowClass = computed(() => {
+  if (insightCounts.value.critical > 0) return 'base-node-insight-critical';
+  if (insightCounts.value.warning > 0) return 'base-node-insight-warning';
+  return null;
+});
+const isInsightDimmed = computed(() => {
+  if (!insightsStore.activeFilter) return false;
+  return !insightsStore.filteredNodeIds.has(props.id);
 });
 
 const sourcePosition = computed(() => props.sourcePosition ?? Position.Bottom);
@@ -92,6 +126,8 @@ const containerClasses = computed(() => ({
   'base-node-container--container': inferredContainer.value,
   'base-node-orphan-global': isOrphanGlobal.value,
   'base-node-no-hover': props.type === 'package',
+  [insightGlowClass.value ?? '']: !!insightGlowClass.value,
+  'base-node-insight-dimmed': isInsightDimmed.value,
 }));
 
 const containerStyle = computed(() => {
@@ -159,6 +195,17 @@ const containerStyle = computed(() => {
     />
     <Handle id="relational-in-left" type="target" :position="Position.Left" class="base-node-handle base-node-handle--aux" />
 
+    <button
+      v-if="issueCount > 0"
+      type="button"
+      :class="['issue-indicator', `issue-indicator--${maxIssueSeverity}`]"
+      :title="`${issueCount} issue${issueCount > 1 ? 's' : ''}`"
+      @click.stop="handleIssueBadgeClick"
+    >
+      {{ maxIssueSeverity === 'error' ? '!' : '\u26A0' }}
+      <span v-if="issueCount > 1" class="issue-indicator-count">{{ issueCount }}</span>
+    </button>
+
     <div class="base-node-header">
       <div class="base-node-title-container">
         <div class="base-node-title" :title="nodeData.label">
@@ -169,6 +216,13 @@ const containerStyle = computed(() => {
         {{ badgeText }}
       </div>
     </div>
+
+    <InsightBadgeStrip
+      v-if="hasInsights"
+      :critical="insightCounts.critical"
+      :warning="insightCounts.warning"
+      :info="insightCounts.info"
+    />
 
     <section class="base-node-body">
       <slot name="body" />
@@ -400,5 +454,63 @@ const containerStyle = computed(() => {
   font-size: 0.7rem;
   color: var(--text-secondary);
   opacity: 0.75;
+}
+
+.issue-indicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 9999px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid;
+  min-width: 18px;
+  min-height: 18px;
+  justify-content: center;
+  background-color: var(--background-node);
+}
+
+.issue-indicator--warning {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.issue-indicator--error {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.issue-indicator--info {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+.issue-indicator:hover {
+  transform: scale(1.15);
+}
+
+.issue-indicator-count {
+  font-size: 0.6rem;
+}
+
+/* Insight glow */
+.base-node-insight-critical {
+  box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.35);
+}
+
+.base-node-insight-warning {
+  box-shadow: 0 0 8px 1px rgba(251, 191, 36, 0.28);
+}
+
+/* Insight filter dimming */
+.base-node-insight-dimmed {
+  opacity: 0.25;
 }
 </style>
