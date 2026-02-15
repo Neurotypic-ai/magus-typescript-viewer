@@ -74,7 +74,7 @@ export const edgeClassTokensToString = (tokens: Set<string>): string => {
 // ── Style helpers ──
 
 export const toEdgeStyleRecord = (style: GraphEdge['style']): Record<string, string | number | undefined> | undefined => {
-  if (typeof style !== 'object' || style === null) {
+  if (typeof style !== 'object') {
     return undefined;
   }
   return style as Record<string, string | number | undefined>;
@@ -112,8 +112,7 @@ export const applyEdgeHoverStrokeVariable = (edge: GraphEdge, shouldHover: boole
     return edge.style;
   }
 
-  const nextStyle = { ...currentStyle };
-  delete nextStyle[EDGE_HOVER_BASE_STROKE_VAR];
+  const { [EDGE_HOVER_BASE_STROKE_VAR]: _, ...nextStyle } = currentStyle;
   return Object.keys(nextStyle).length > 0 ? nextStyle : undefined;
 };
 

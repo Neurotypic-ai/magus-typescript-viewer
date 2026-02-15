@@ -53,8 +53,10 @@ export function useEdgeVirtualizationOrchestrator(
   const edgeVirtualizationEnabled = ref(true);
   const edgeVirtualizationRuntimeMode = ref<'main' | 'worker'>(initialMode);
 
-  let edgeViewportRecalcTimer: ReturnType<typeof setTimeout> | null = null;
-  let lastEdgeViewportRecalcAt = 0;
+  const recalcState = {
+    timer: null as ReturnType<typeof setTimeout> | null,
+    lastRecalcAt: 0,
+  };
 
   const edgeVirtualizationMainEnabled = computed(() => {
     return edgeVirtualizationEnabled.value && edgeVirtualizationRuntimeMode.value === 'main';
@@ -122,30 +124,30 @@ export function useEdgeVirtualizationOrchestrator(
     };
 
     if (force) {
-      if (edgeViewportRecalcTimer) {
-        clearTimeout(edgeViewportRecalcTimer);
-        edgeViewportRecalcTimer = null;
+      if (recalcState.timer) {
+        clearTimeout(recalcState.timer);
+        recalcState.timer = null;
       }
-      lastEdgeViewportRecalcAt = performance.now();
+      recalcState.lastRecalcAt = performance.now();
       runRecalc();
       return;
     }
 
     const now = performance.now();
-    const elapsed = now - lastEdgeViewportRecalcAt;
+    const elapsed = now - recalcState.lastRecalcAt;
     if (elapsed >= throttleMs) {
-      lastEdgeViewportRecalcAt = now;
+      recalcState.lastRecalcAt = now;
       runRecalc();
       return;
     }
 
-    if (edgeViewportRecalcTimer) {
+    if (recalcState.timer) {
       return;
     }
 
-    edgeViewportRecalcTimer = setTimeout(() => {
-      edgeViewportRecalcTimer = null;
-      lastEdgeViewportRecalcAt = performance.now();
+    recalcState.timer = setTimeout(() => {
+      recalcState.timer = null;
+      recalcState.lastRecalcAt = performance.now();
       runRecalc();
     }, Math.max(0, throttleMs - elapsed));
   };
@@ -164,9 +166,9 @@ export function useEdgeVirtualizationOrchestrator(
   };
 
   const dispose = (): void => {
-    if (edgeViewportRecalcTimer) {
-      clearTimeout(edgeViewportRecalcTimer);
-      edgeViewportRecalcTimer = null;
+    if (recalcState.timer) {
+      clearTimeout(recalcState.timer);
+      recalcState.timer = null;
     }
     mainVirtualization.dispose();
     workerVirtualization.dispose();

@@ -88,7 +88,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
 
   const waitForNextPaint = async (): Promise<void> => {
     await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
+      requestAnimationFrame(() => { resolve(); });
     });
   };
 
@@ -108,8 +108,8 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     direction: 'LR' | 'RL' | 'TB' | 'BT'
   ): Map<string, { x: number; y: number }> => {
     const allNodes = [centerNode, ...inbound, ...outbound];
-    const cx = allNodes.reduce((sum, n) => sum + (n.position?.x ?? 0), 0) / allNodes.length;
-    const cy = allNodes.reduce((sum, n) => sum + (n.position?.y ?? 0), 0) / allNodes.length;
+    const cx = allNodes.reduce((sum, n) => sum + n.position.x, 0) / allNodes.length;
+    const cy = allNodes.reduce((sum, n) => sum + n.position.y, 0) / allNodes.length;
 
     const centerDims = getNodeDims(centerNode);
     const GAP = 150;
@@ -247,16 +247,22 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
 
     const inbound = [...inboundIds]
       .filter((id) => !outboundIds.has(id))
-      .map((id) => nodeById.get(id)!)
-      .filter(Boolean);
+      .flatMap((id) => {
+        const node = nodeById.get(id);
+        return node ? [node] : [];
+      });
     const outbound = [...outboundIds]
       .filter((id) => !inboundIds.has(id))
-      .map((id) => nodeById.get(id)!)
-      .filter(Boolean);
+      .flatMap((id) => {
+        const node = nodeById.get(id);
+        return node ? [node] : [];
+      });
     const bidirectional = [...inboundIds]
       .filter((id) => outboundIds.has(id))
-      .map((id) => nodeById.get(id)!)
-      .filter(Boolean);
+      .flatMap((id) => {
+        const node = nodeById.get(id);
+        return node ? [node] : [];
+      });
 
     for (const node of bidirectional) {
       if (inbound.length <= outbound.length) {
@@ -339,8 +345,8 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
           const prev = provisionalNodes.find((p) => p.id === node.id);
           if (!prev) return true;
           return (
-            prev.position?.x !== node.position?.x ||
-            prev.position?.y !== node.position?.y
+            prev.position.x !== node.position.x ||
+            prev.position.y !== node.position.y
           );
         })
         .map((node) => node.id);

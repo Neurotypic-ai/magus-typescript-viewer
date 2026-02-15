@@ -101,7 +101,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
       }
 
       const vfNodes = getVueFlowNodes();
-      const enrichedNodes = (Array.isArray(vfNodes) ? vfNodes : []) as Array<{
+      const enrichedNodes = (Array.isArray(vfNodes) ? vfNodes : []) as {
         id: string;
         position: { x: number; y: number };
         parentNode?: string;
@@ -110,7 +110,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
         measured?: { width?: number; height?: number };
         type?: string;
         data?: unknown;
-      }>;
+      }[];
 
       const boundsNodes: BoundsNode[] = enrichedNodes.map((n) => {
         const measured = n.dimensions
@@ -148,7 +148,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
 
       for (const [id, newPos] of result.updatedPositions) {
         const node = nodeById.get(id);
-        if (!node || !node.position) continue;
+        if (!node) continue;
 
         const dx = newPos.x - node.position.x;
         const dy = newPos.y - node.position.y;
@@ -190,8 +190,8 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
           ...existing,
           style: {
             ...currentStyle,
-            width: `${targetWidth}px`,
-            height: `${targetHeight}px`,
+            width: `${String(targetWidth)}px`,
+            height: `${String(targetHeight)}px`,
           },
         } as DependencyNode;
         nodeUpdates.set(id, updatedNode);
@@ -206,7 +206,6 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
           const vfNode = vfNodeById.get(dragId);
           if (!storeNode || !vfNode?.position) continue;
           if (
-            storeNode.position &&
             Math.abs(storeNode.position.x - vfNode.position.x) < 0.01 &&
             Math.abs(storeNode.position.y - vfNode.position.y) < 0.01
           ) {
@@ -315,6 +314,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const updatedNodes = applyNodeChanges(
       structuralChanges,
       previousNodes as unknown as never[]

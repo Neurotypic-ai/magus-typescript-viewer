@@ -262,14 +262,12 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
         return;
       }
 
-      if (!nextNodes) {
-        nextNodes = [...nodes.value];
-      }
-
+      nextNodes ??= [...nodes.value];
       nextNodes[index] = { ...node, class: nextClass || '' } as DependencyNode;
     });
 
     prevStyledNodeIds = nextStyledIds;
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- nextNodes is mutated inside forEach
     return nextNodes ?? nodes.value;
   });
 
@@ -321,10 +319,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
         return;
       }
 
-      if (!nextEdges) {
-        nextEdges = [...edges.value];
-      }
-
+      nextEdges ??= [...edges.value];
       nextEdges[index] = {
         ...edge,
         class: nextClass,
@@ -334,6 +329,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     });
 
     prevStyledEdgeIds = nextStyledIds;
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- nextEdges is mutated inside forEach
     return nextEdges ?? edges.value;
   });
 
@@ -361,7 +357,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
       let nodeClass: string | undefined;
 
       if (hasSelection) {
-        if (selected && node.id === selected.id) nodeClass = 'selection-target';
+        if (node.id === selected.id) nodeClass = 'selection-target';
         else if (connectedNodeIds.has(node.id)) nodeClass = 'selection-connected';
         else nodeClass = 'selection-dimmed';
       }
@@ -470,9 +466,8 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
           styleChanged = true;
         }
       } else if (currentStyle && EDGE_HOVER_BASE_STROKE_VAR in currentStyle) {
-        const styleWithoutHoverVar = { ...currentStyle };
-        delete styleWithoutHoverVar[EDGE_HOVER_BASE_STROKE_VAR];
-        nextStyle = Object.keys(styleWithoutHoverVar).length > 0 ? styleWithoutHoverVar : undefined;
+        const entries = Object.entries(currentStyle).filter(([key]) => key !== EDGE_HOVER_BASE_STROKE_VAR);
+        nextStyle = entries.length > 0 ? Object.fromEntries(entries) : undefined;
         styleChanged = true;
       }
 

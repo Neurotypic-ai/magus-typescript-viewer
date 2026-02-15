@@ -170,7 +170,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
   const getContainerRect = (): DOMRect | null => cachedContainerRect;
 
   const initContainerCache = (graphRootEl: HTMLElement): void => {
-    const flowContainer = graphRootEl.querySelector('.vue-flow') as HTMLElement | null;
+    const flowContainer = graphRootEl.querySelector<HTMLElement>('.vue-flow');
     if (flowContainer) {
       cachedFlowContainer = flowContainer;
       cachedContainerRect = flowContainer.getBoundingClientRect();

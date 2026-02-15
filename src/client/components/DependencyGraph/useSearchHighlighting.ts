@@ -115,7 +115,10 @@ export function useSearchHighlighting(options: UseSearchHighlightingOptions): Se
       const currentBorderWidth = currentStyle['borderWidth'];
 
       const opacityChanged = Math.abs(currentOpacity - opacity) > 0.001;
-      const borderWidthChanged = String(currentBorderWidth ?? '') !== String(borderWidth ?? '');
+      const currentBorderWidthStr = typeof currentBorderWidth === 'string' || typeof currentBorderWidth === 'number'
+        ? String(currentBorderWidth)
+        : '';
+      const borderWidthChanged = currentBorderWidthStr !== String(borderWidth ?? '');
       const classChanged = node.class !== undefined;
 
       if (!opacityChanged && !borderWidthChanged && !classChanged) {

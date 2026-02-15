@@ -180,7 +180,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       .sort()
       .join(',');
     const dwl = graphSettings.degreeWeightedLayers ? 1 : 0;
-    return `${layoutConfig.algorithm}:${layoutConfig.direction}:${layoutConfig.nodeSpacing}:${layoutConfig.rankSpacing}:${layoutConfig.edgeSpacing}:dwl${dwl}:${nodeIds.length}:${edgeIds.length}:${simpleHash(nodeIds)}:${simpleHash(edgeIds)}`;
+    return `${layoutConfig.algorithm}:${layoutConfig.direction}:${String(layoutConfig.nodeSpacing)}:${String(layoutConfig.rankSpacing)}:${String(layoutConfig.edgeSpacing)}:dwl${String(dwl)}:${String(nodeIds.length)}:${String(edgeIds.length)}:${String(simpleHash(nodeIds))}:${String(simpleHash(edgeIds))}`;
   };
 
   const estimateLayoutCacheWeight = (cacheNodes: DependencyNode[], edgeList: GraphEdge[]): number => {
@@ -231,7 +231,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   const waitForNextPaint = async (): Promise<void> => {
     await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
+      requestAnimationFrame(() => { resolve(); });
     });
   };
 
@@ -417,7 +417,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       performance.mark('layout-start');
 
       // Check layout cache
-      const cacheKey = computeLayoutCacheKey(graphData.nodes, graphData.edges as GraphEdge[]);
+      const cacheKey = computeLayoutCacheKey(graphData.nodes, graphData.edges);
       const cachedEntry = layoutCache.get(cacheKey);
       if (cachedEntry) {
         layoutCache.delete(cacheKey);
@@ -540,7 +540,6 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       return normalized;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error during layout processing');
-      // eslint-disable-next-line no-console
       console.error('Layout processing failed:', error);
       return null;
     } finally {
