@@ -16,7 +16,7 @@ import type {
   EdgeVirtualizationNode,
   EdgeVirtualizationPoint,
   EdgeVirtualizationViewport,
-} from './edgeVirtualizationCore';
+} from '../types';
 import type {
   RecalculateMessage,
   RecalculateResultMessage,

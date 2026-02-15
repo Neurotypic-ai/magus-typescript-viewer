@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { buildEdgePolyline } from '../layout/edgeGeometryPolicy';
+import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../layout/geometryBounds';
 import { getHandleAnchor } from '../layout/handleAnchors';
 import { measurePerformance } from '../utils/performanceMonitoring';
 
@@ -41,78 +42,17 @@ const DEFAULT_NODE_WIDTH = 240;
 const DEFAULT_NODE_HEIGHT = 100;
 const PERF_MARKS_ENABLED = (import.meta.env['VITE_PERF_MARKS'] as string | undefined) === 'true';
 
-const parseDimension = (value: unknown): number | undefined => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-  return undefined;
-};
-
 const buildAbsoluteNodeGeometry = (nodeList: DependencyNode[]): {
   centerById: Map<string, { x: number; y: number }>;
   boundsById: Map<string, { x: number; y: number; width: number; height: number }>;
 } => {
-  const nodeById = new Map(nodeList.map((node) => [node.id, node]));
   const centerById = new Map<string, { x: number; y: number }>();
-  const boundsById = new Map<string, { x: number; y: number; width: number; height: number }>();
-  const resolving = new Set<string>();
-
-  const resolveBounds = (nodeId: string): { x: number; y: number; width: number; height: number } | null => {
-    const cached = boundsById.get(nodeId);
-    if (cached) {
-      return cached;
-    }
-    if (resolving.has(nodeId)) {
-      return null;
-    }
-
-    const node = nodeById.get(nodeId);
-    if (!node?.position) {
-      return null;
-    }
-
-    resolving.add(nodeId);
-
-    const nodeStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
-    const measured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
-    const width = parseDimension(nodeStyle['width']) ?? measured?.width ?? DEFAULT_NODE_WIDTH;
-    const height = parseDimension(nodeStyle['height']) ?? measured?.height ?? DEFAULT_NODE_HEIGHT;
-
-    let absoluteX = node.position.x;
-    let absoluteY = node.position.y;
-
-    const parentId = (node as { parentNode?: string }).parentNode;
-    if (parentId) {
-      const parentBounds = resolveBounds(parentId);
-      if (parentBounds) {
-        absoluteX += parentBounds.x;
-        absoluteY += parentBounds.y;
-      }
-    }
-
-    const resolved = {
-      x: absoluteX,
-      y: absoluteY,
-      width,
-      height,
-    };
-    boundsById.set(nodeId, resolved);
-    centerById.set(nodeId, {
-      x: absoluteX + width / 2,
-      y: absoluteY + height / 2,
-    });
-    resolving.delete(nodeId);
-    return resolved;
-  };
-
-  nodeList.forEach((node) => {
-    resolveBounds(node.id);
+  const boundsById = buildAbsoluteNodeBoundsMap(nodeList, {
+    defaultNodeWidth: DEFAULT_NODE_WIDTH,
+    defaultNodeHeight: DEFAULT_NODE_HEIGHT,
+  });
+  boundsById.forEach((bounds, nodeId) => {
+    centerById.set(nodeId, getBoundsCenter(bounds));
   });
 
   return { centerById, boundsById };

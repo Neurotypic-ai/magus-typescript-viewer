@@ -64,7 +64,7 @@ import NodeContextMenu from './NodeContextMenu.vue';
 import NodeDetails from './NodeDetails.vue';
 
 import type { DefaultEdgeOptions } from '@vue-flow/core';
-import type { LayoutConfig } from '../composables/useGraphLayout';
+import type { LayoutConfig } from '../layout/config';
 import type { DependencyNode, DependencyPackageGraph, GraphEdge } from '../types';
 
 import '@vue-flow/controls/dist/style.css';

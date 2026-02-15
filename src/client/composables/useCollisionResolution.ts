@@ -8,8 +8,8 @@ import { resolveCollisions, buildPositionMap, DEFAULT_COLLISION_CONFIG } from '.
 import type { Ref } from 'vue';
 import type { NodeChange } from '@vue-flow/core';
 
-import type { ManualOffset } from '../stores/graphStore';
 import type { BoundsNode } from '../layout/geometryBounds';
+import type { ManualOffset } from '../types';
 import type { DependencyNode } from '../types';
 
 const LIVE_SETTLE_NODE_THRESHOLD = 350;

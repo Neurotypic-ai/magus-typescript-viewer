@@ -19,6 +19,7 @@ import { applyEdgeHoverStrokeVariable, getEdgeBaseStroke, toEdgeStyleRecord } fr
 
 import type { Ref } from 'vue';
 
+import type { CameraMode, ScopeMode } from './useGraphInteractionController';
 import type { SearchHighlightState } from './useSearchHighlighting';
 import type { DependencyNode, GraphEdge } from '../types';
 
@@ -33,7 +34,7 @@ export interface UseSelectionHighlightingOptions {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   selectedNode: Ref<DependencyNode | null>;
-  scopeMode: Readonly<Ref<string>>;
+  scopeMode: Readonly<Ref<ScopeMode>>;
   searchHighlightState: SearchHighlightState;
   activeDraggedNodeIds: Readonly<Ref<Set<string>>>;
   useCssSelectionHover: boolean;
@@ -45,7 +46,7 @@ export interface UseSelectionHighlightingOptions {
   };
   interaction: {
     setSelectionNodeId: (id: string | null) => void;
-    setCameraMode: (mode: string) => void;
+    setCameraMode: (mode: CameraMode) => void;
   };
   removeSelectedElements: () => void;
   restoreHoverZIndex: (nodeId: string) => void;

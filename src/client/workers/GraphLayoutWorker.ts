@@ -93,6 +93,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
     /**
      * Parse a CSS size value (number or string like '280px') to a numeric pixel value.
+     * Keep this in sync with layout/geometryBounds.parseDimension on the main thread.
      */
     function parseCssSize(val: unknown): number {
       if (typeof val === 'number') return val;

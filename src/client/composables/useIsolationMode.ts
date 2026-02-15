@@ -16,11 +16,13 @@ import type {
   FitView,
   FitViewOptions,
   GraphSnapshot,
-  LayoutConfig,
   MeasureAllNodeDimensions,
   ProcessGraphLayout,
   ShouldRunTwoPassMeasure,
 } from './useGraphLayout';
+import type { LayoutConfig } from '../layout/config';
+import type { ScopeMode } from './useGraphInteractionController';
+import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode, DependencyPackageGraph, GraphEdge } from '../types';
 
 // ── Isolate graph store (subset of full graph store) ──
@@ -32,7 +34,7 @@ export type RestoreOverviewSnapshot = () => boolean;
 export interface IsolateGraphStore {
   setNodes: (nodes: DependencyNode[]) => void;
   setEdges: (edges: GraphEdge[]) => void;
-  setViewMode: (mode: string) => void;
+  setViewMode: (mode: GraphViewMode) => void;
   overviewSnapshot: GraphSnapshot | null;
   semanticSnapshot: GraphSnapshot | null;
   restoreOverviewSnapshot: RestoreOverviewSnapshot;
@@ -46,8 +48,8 @@ export interface IsolateGraphSettings {
 
 /** Interaction API for scope mode (isolate, symbolDrilldown, overview). */
 export interface IsolateInteraction {
-  setScopeMode: (mode: string) => void;
-  scopeMode: Readonly<Ref<string>>;
+  setScopeMode: (mode: ScopeMode) => void;
+  scopeMode: Readonly<Ref<ScopeMode>>;
 }
 
 /** Requests edge virtualization to recalc viewport (optionally force). */

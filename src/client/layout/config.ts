@@ -1,33 +1,35 @@
 import { graphTheme } from '../theme/graphTheme';
+import type { GraphTheme } from '../theme/graphTheme';
+
+export type LayoutAlgorithm = 'layered' | 'radial' | 'force' | 'stress';
+export type LayoutDirection = 'TB' | 'LR' | 'BT' | 'RL';
+
+export interface LayoutMargins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
 
 export interface LayoutConfig {
-  // Core layout options
-  direction?: 'TB' | 'LR' | 'BT' | 'RL';
-  nodeSpacing?: number;
-  rankSpacing?: number;
-  edgeSpacing?: number;
-  degreeWeightedLayers?: boolean;
-
-  // Margins and padding
-  margins?: {
-    top: number;
-    right: number;
-    bottom: number;
-    left: number;
-  };
-
-  // Animation settings
-  animationDuration?: number;
-
-  // Theme integration
-  theme?: typeof graphTheme;
+  algorithm: LayoutAlgorithm;
+  direction: LayoutDirection;
+  nodeSpacing: number;
+  rankSpacing: number;
+  edgeSpacing: number;
+  degreeWeightedLayers: boolean;
+  margins: LayoutMargins;
+  animationDuration: number;
+  theme: GraphTheme;
 }
 
 export const defaultLayoutConfig: LayoutConfig = {
+  algorithm: 'layered',
   direction: 'LR', // Left-to-right works better for hierarchical dependency graphs
-  nodeSpacing: 100,
-  rankSpacing: 150,
-  edgeSpacing: 50,
+  nodeSpacing: 80,
+  rankSpacing: 200,
+  edgeSpacing: 30,
+  degreeWeightedLayers: false,
   margins: {
     top: 80,
     right: 80,

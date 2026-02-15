@@ -18,7 +18,7 @@ export interface NodeColors {
   border: string;
 }
 
-export interface NodeDimensions {
+export interface ThemeNodeDimensions {
   width: number;
   height: number;
 }
@@ -27,7 +27,7 @@ export interface NodeTheme {
   padding: NodePadding;
   colors: NodeColors;
   borderRadius: number;
-  minDimensions: NodeDimensions;
+  minDimensions: ThemeNodeDimensions;
 }
 
 // Edge-related type definitions

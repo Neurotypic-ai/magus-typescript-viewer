@@ -15,11 +15,23 @@ export type { ExternalDependencyRef } from './ExternalDependencyRef';
 export type { FunctionStructure } from './FunctionStructure';
 export type { GraphEdge } from './GraphEdge';
 export type { HandleCategory } from './HandleCategory';
+export type {
+  EdgeVirtualizationComputationInput,
+  EdgeVirtualizationComputationResult,
+  EdgeVirtualizationConfig,
+  EdgeVirtualizationContainerSize,
+  EdgeVirtualizationDeviceProfile,
+  EdgeVirtualizationEdge,
+  EdgeVirtualizationNode,
+  EdgeVirtualizationPoint,
+  EdgeVirtualizationViewport,
+} from './EdgeVirtualization';
 export type { ImportRef } from './ImportRef';
 export type { ImportSpecifierRef } from './ImportSpecifierRef';
 export type { InterfaceRef } from './InterfaceRef';
 export type { InterfaceStructure } from './InterfaceStructure';
 export type { LayoutInsets } from './LayoutInsets';
+export type { ManualOffset } from './ManualOffset';
 export type { MemberMetadata } from './MemberMetadata';
 export type { ModuleStructure } from './ModuleStructure';
 export type { NodeDiagnostics } from './NodeDiagnostics';

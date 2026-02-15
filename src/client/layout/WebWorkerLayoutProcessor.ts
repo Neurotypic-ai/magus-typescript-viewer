@@ -10,9 +10,10 @@ import type { Edge } from '@vue-flow/core';
 
 import type { DependencyNode } from '../types';
 import type { GraphTheme } from '../theme/graphTheme';
+import type { LayoutConfig as GraphLayoutConfig } from './config';
 
 // Internal layout configuration type used by the worker
-export interface LayoutConfig {
+export interface WorkerLayoutConfig {
   algorithm: 'layered' | 'radial' | 'force' | 'stress';
   direction: 'DOWN' | 'UP' | 'RIGHT' | 'LEFT';
   nodesep: number;
@@ -37,7 +38,7 @@ interface WorkerRequest {
   payload: {
     nodes: DependencyNode[];
     edges: Edge[];
-    config: LayoutConfig;
+    config: WorkerLayoutConfig;
   };
 }
 
@@ -47,25 +48,29 @@ interface WorkerResponse {
 }
 
 /**
+ * Keys of GraphLayoutConfig that can be passed to WebWorkerLayoutProcessor
+ */
+export type WebWorkerLayoutConfigKeys =
+  | 'algorithm'
+  | 'direction'
+  | 'nodeSpacing'
+  | 'rankSpacing'
+  | 'edgeSpacing'
+  | 'degreeWeightedLayers'
+  | 'theme'
+  | 'animationDuration';
+
+/**
  * Configuration for initializing the WebWorkerLayoutProcessor
  */
-export interface WebWorkerLayoutConfig {
-  algorithm?: 'layered' | 'radial' | 'force' | 'stress';
-  direction?: 'TB' | 'LR' | 'BT' | 'RL';
-  nodeSpacing?: number;
-  rankSpacing?: number;
-  edgeSpacing?: number;
-  degreeWeightedLayers?: boolean;
-  theme?: GraphTheme;
-  animationDuration?: number;
-}
+export type WebWorkerLayoutConfig = Partial<Pick<GraphLayoutConfig, WebWorkerLayoutConfigKeys>>;
 
 /**
  * A class that manages the web worker for processing graph layouts
  */
 export class WebWorkerLayoutProcessor {
   private worker: Worker | null = null;
-  private config!: LayoutConfig;
+  private config!: WorkerLayoutConfig;
   private workerSupported: boolean;
   private currentRequestId = 0;
   private static readonly LAYOUT_TIMEOUT_MS = 15_000;
@@ -145,21 +150,21 @@ export class WebWorkerLayoutProcessor {
   }
 
   private applyConfig(config?: WebWorkerLayoutConfig): void {
-    const mergedConfig = {
+    const mergedConfig: GraphLayoutConfig = {
       ...defaultLayoutConfig,
       ...config,
     };
 
     this.config = {
-      algorithm: mergedConfig.algorithm ?? 'layered',
-      direction: WebWorkerLayoutProcessor.mapDirection(mergedConfig.direction ?? 'LR'),
-      nodesep: mergedConfig.nodeSpacing ?? 100,
-      ranksep: mergedConfig.rankSpacing ?? 150,
-      edgesep: mergedConfig.edgeSpacing ?? 50,
-      degreeWeightedLayers: mergedConfig.degreeWeightedLayers ?? false,
-      theme: mergedConfig.theme ?? defaultLayoutConfig.theme,
+      algorithm: mergedConfig.algorithm,
+      direction: WebWorkerLayoutProcessor.mapDirection(mergedConfig.direction),
+      nodesep: mergedConfig.nodeSpacing,
+      ranksep: mergedConfig.rankSpacing,
+      edgesep: mergedConfig.edgeSpacing,
+      degreeWeightedLayers: mergedConfig.degreeWeightedLayers,
+      theme: mergedConfig.theme,
       animationDuration: mergedConfig.animationDuration,
-    } as LayoutConfig;
+    };
   }
 
   constructor(config?: WebWorkerLayoutConfig) {

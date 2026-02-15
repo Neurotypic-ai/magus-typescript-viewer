@@ -11,7 +11,7 @@ import type {
   EdgeVirtualizationConfig,
   EdgeVirtualizationEdge,
   EdgeVirtualizationNode,
-} from '../composables/edgeVirtualizationCore';
+} from '../types';
 import type {
   EdgeVisibilityErrorMessage,
   RecalculateResultMessage,

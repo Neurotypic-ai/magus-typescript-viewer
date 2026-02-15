@@ -1,11 +1,10 @@
 import { nextTick, ref } from 'vue';
 
 import { optimizeHighwayHandleRouting } from '../graph/transforms/edgeHighways';
+import { defaultLayoutConfig } from '../layout/config';
 import { WebWorkerLayoutProcessor } from '../layout/WebWorkerLayoutProcessor';
-import { graphTheme } from '../theme/graphTheme';
 import { measurePerformance } from '../utils/performanceMonitoring';
 
-import type { GraphTheme } from '../theme/graphTheme';
 import { buildOverviewGraph } from '../graph/buildGraphView';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { getHandlePositions } from '../graph/handleRouting';
@@ -15,19 +14,10 @@ import { isContainerNode } from './useNodeDimensions';
 
 import type { Ref } from 'vue';
 
-import type { DependencyNode, DependencyPackageGraph, GraphEdge } from '../types';
-
-// ── Layout configuration ──
-
-export const defaultLayoutConfig = {
-  algorithm: 'layered' as 'layered' | 'radial' | 'force' | 'stress',
-  direction: 'LR' as 'LR' | 'RL' | 'TB' | 'BT',
-  nodeSpacing: 80,
-  rankSpacing: 200,
-  edgeSpacing: 30,
-};
-
-export type LayoutConfig = typeof defaultLayoutConfig;
+import type { WebWorkerLayoutConfig } from '../layout/WebWorkerLayoutProcessor';
+import type { LayoutConfig } from '../layout/config';
+import type { GraphViewMode } from '../stores/graphStore';
+import type { DependencyNode, DependencyPackageGraph, GraphEdge, LayoutInsets, ManualOffset } from '../types';
 
 export interface LayoutProcessOptions {
   fitViewToResult?: boolean;
@@ -55,11 +45,6 @@ interface NodeMeasurementEntry {
   isContainer: boolean;
 }
 
-/** Layout insets on node.data (e.g. top inset for containers). */
-export interface LayoutInsets {
-  top?: number;
-}
-
 /** Measured width/height on a node (node.measured). */
 export interface NodeMeasuredData {
   width?: number;
@@ -85,12 +70,6 @@ export type SetOverviewSnapshot = (snapshot: GraphSnapshot) => void;
 /** Sets the semantic snapshot (null to clear). */
 export type SetSemanticSnapshot = (snapshot: GraphSnapshot | null) => void;
 
-/** Manual position offset for a node. */
-export interface ManualOffset {
-  dx: number;
-  dy: number;
-}
-
 /** Map of node id → manual offset. */
 export type ManualOffsetsMap = Map<string, ManualOffset>;
 
@@ -107,7 +86,7 @@ export type SetNodes = (nodes: DependencyNode[]) => void;
 export type SetEdges = (edges: GraphEdge[]) => void;
 
 /** Sets the current view mode (e.g. 'overview', 'isolate'). */
-export type SetViewMode = (mode: string) => void;
+export type SetViewMode = (mode: GraphViewMode) => void;
 
 /** Suspends cache writes (e.g. during layout). */
 export type SuspendCacheWrites = () => void;
@@ -115,7 +94,7 @@ export type SuspendCacheWrites = () => void;
 /** Resumes cache writes. */
 export type ResumeCacheWrites = () => void;
 
-export interface GraphStore {
+export interface GraphLayoutStore {
   nodes: DependencyNode[];
   setNodes: SetNodes;
   setEdges: SetEdges;
@@ -148,7 +127,7 @@ export interface FitViewOptions {
 }
 
 /** Fits the viewport to the graph or to given nodes. */
-export type FitView = (opts?: FitViewOptions) => Promise<void>;
+export type FitView = (opts?: FitViewOptions) => Promise<boolean>;
 
 // ── Callbacks & interaction ──
 
@@ -205,23 +184,9 @@ export interface MeasureNodesResult {
   hasChanges: boolean;
 }
 
-// ── Layout processor config (passed to WebWorkerLayoutProcessor) ──
-
-/** Config object passed to the layout processor. */
-export interface LayoutProcessorConfig {
-  algorithm: LayoutConfig['algorithm'];
-  direction: LayoutConfig['direction'];
-  nodeSpacing: number;
-  rankSpacing: number;
-  edgeSpacing: number;
-  degreeWeightedLayers: boolean;
-  theme: GraphTheme;
-  animationDuration: number;
-}
-
 export interface UseGraphLayoutOptions {
   propsData: Ref<DependencyPackageGraph>;
-  graphStore: GraphStore;
+  graphStore: GraphLayoutStore;
   graphSettings: GraphSettings;
   interaction: GraphLayoutInteraction;
   fitView: FitView;
@@ -292,15 +257,15 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   // ── Layout processor config ──
 
-  const getLayoutProcessorConfig = (): LayoutProcessorConfig => ({
+  const getLayoutProcessorConfig = (): WebWorkerLayoutConfig => ({
     algorithm: layoutConfig.algorithm,
     direction: layoutConfig.direction,
     nodeSpacing: layoutConfig.nodeSpacing,
     rankSpacing: layoutConfig.rankSpacing,
     edgeSpacing: layoutConfig.edgeSpacing,
     degreeWeightedLayers: graphSettings.degreeWeightedLayers,
-    theme: graphTheme,
-    animationDuration: 150,
+    theme: layoutConfig.theme,
+    animationDuration: layoutConfig.animationDuration,
   });
 
   const initializeLayoutProcessor = () => {

@@ -3,7 +3,7 @@ import { ref, shallowRef, watch } from 'vue';
 
 import type { Ref, ShallowRef } from 'vue';
 
-import type { DependencyNode, GraphEdge } from '../types';
+import type { DependencyNode, GraphEdge, ManualOffset } from '../types';
 
 export type GraphViewMode = 'overview' | 'isolate' | 'moduleDrilldown' | 'symbolDrilldown';
 
@@ -14,13 +14,6 @@ const EDGES_CACHE_KEY = `${CACHE_VERSION}:typescript-viewer-edges`;
 const CACHE_DEBOUNCE_MS = 500;
 const MAX_CACHEABLE_NODE_COUNT = 1200;
 const MAX_CACHEABLE_EDGE_COUNT = 5000;
-
-/** Per-node position offset produced by collision resolution.
- *  Stored in parent-relative coordinates and applied on top of layout results. */
-export interface ManualOffset {
-  dx: number;
-  dy: number;
-}
 
 interface GraphStore {
   nodes: Ref<DependencyNode[]>;

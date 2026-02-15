@@ -13,8 +13,8 @@ const MAX_ZOOM_DELTA_PER_EVENT = 140;
 
 export interface UseGraphViewportOptions {
   getViewport: () => { x: number; y: number; zoom: number };
-  setViewport: (vp: { x: number; y: number; zoom: number }, opts?: { duration: number }) => Promise<void>;
-  zoomTo: (zoom: number, opts?: { duration: number }) => Promise<void>;
+  setViewport: (vp: { x: number; y: number; zoom: number }, opts?: { duration: number }) => Promise<boolean>;
+  zoomTo: (zoom: number, opts?: { duration: number }) => Promise<boolean>;
   panBy: (delta: { x: number; y: number }) => void;
   onViewportChange: () => void;
 }

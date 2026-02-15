@@ -10,7 +10,7 @@ import type {
   EdgeVirtualizationEdge,
   EdgeVirtualizationNode,
   EdgeVirtualizationViewport,
-} from './edgeVirtualizationCore';
+} from '../types';
 
 // ── Request payloads ──
 

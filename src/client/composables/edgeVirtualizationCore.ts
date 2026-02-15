@@ -3,6 +3,29 @@ import { buildEdgePolyline, toLineSegments } from '../layout/edgeGeometryPolicy'
 import { getHandleAnchor } from '../layout/handleAnchors';
 
 import type { Rect } from '../layout/geometryBounds';
+import type {
+  EdgeVirtualizationComputationInput,
+  EdgeVirtualizationComputationResult,
+  EdgeVirtualizationConfig,
+  EdgeVirtualizationContainerSize,
+  EdgeVirtualizationDeviceProfile,
+  EdgeVirtualizationEdge,
+  EdgeVirtualizationNode,
+  EdgeVirtualizationPoint,
+  EdgeVirtualizationViewport,
+} from '../types';
+
+export type {
+  EdgeVirtualizationComputationInput,
+  EdgeVirtualizationComputationResult,
+  EdgeVirtualizationConfig,
+  EdgeVirtualizationContainerSize,
+  EdgeVirtualizationDeviceProfile,
+  EdgeVirtualizationEdge,
+  EdgeVirtualizationNode,
+  EdgeVirtualizationPoint,
+  EdgeVirtualizationViewport,
+} from '../types';
 
 interface ViewportBounds {
   minX: number;
@@ -12,67 +35,6 @@ interface ViewportBounds {
 }
 
 type NodeBounds = Rect;
-
-export interface EdgeVirtualizationPoint {
-  x: number;
-  y: number;
-}
-
-export interface EdgeVirtualizationViewport {
-  x: number;
-  y: number;
-  zoom: number;
-}
-
-export interface EdgeVirtualizationContainerSize {
-  width: number;
-  height: number;
-}
-
-export interface EdgeVirtualizationNode {
-  id: string;
-  type?: string;
-  position?: EdgeVirtualizationPoint;
-  parentNode?: string;
-  style?: unknown;
-  measured?: {
-    width?: number;
-    height?: number;
-  };
-}
-
-export interface EdgeVirtualizationEdge {
-  id: string;
-  source: string;
-  target: string;
-  hidden?: boolean;
-  sourceHandle?: string | null;
-  targetHandle?: string | null;
-  data?: {
-    type?: string;
-    sourceAnchor?: EdgeVirtualizationPoint;
-    targetAnchor?: EdgeVirtualizationPoint;
-    [key: string]: unknown;
-  };
-}
-
-export interface EdgeVirtualizationDeviceProfile {
-  hardwareConcurrency?: number;
-  deviceMemory?: number;
-}
-
-export interface EdgeVirtualizationConfig {
-  viewportPaddingPx: number;
-  lowZoomThreshold: number;
-  lowZoomBaseMaxEdges: number;
-  lowZoomMinBudget: number;
-  lowZoomMaxBudget: number;
-  defaultNodeWidth: number;
-  defaultNodeHeight: number;
-  defaultContainerWidth: number;
-  defaultContainerHeight: number;
-  edgeTypePriority: Record<string, number>;
-}
 
 export const DEFAULT_EDGE_TYPE_PRIORITY: Record<string, number> = {
   inheritance: 4,
@@ -126,27 +88,6 @@ export function getDefaultEdgeVirtualizationConfigOverrides(): Partial<EdgeVirtu
     edgeTypePriority: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.edgeTypePriority,
   };
 }
-
-export interface EdgeVirtualizationComputationInput {
-  nodes: EdgeVirtualizationNode[];
-  edges: EdgeVirtualizationEdge[];
-  viewport: EdgeVirtualizationViewport;
-  containerSize?: EdgeVirtualizationContainerSize | null;
-  userHiddenEdgeIds?: Set<string> | string[];
-  edgePriorityOrder: string[];
-  config?: Partial<EdgeVirtualizationConfig>;
-  deviceProfile?: EdgeVirtualizationDeviceProfile;
-}
-
-export interface EdgeVirtualizationComputationResult {
-  viewportVisibleEdgeIds: Set<string>;
-  finalVisibleEdgeIds: Set<string>;
-  hiddenEdgeIds: Set<string>;
-  lowZoomBudget?: number;
-  lowZoomApplied: boolean;
-}
-
-// parseDimension is re-exported from shared geometry module (imported above).
 
 const toUserHiddenSet = (hiddenIds: Set<string> | string[] | undefined): Set<string> => {
   if (!hiddenIds) {
