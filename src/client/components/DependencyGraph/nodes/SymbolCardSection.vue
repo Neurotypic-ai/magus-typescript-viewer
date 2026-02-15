@@ -31,21 +31,14 @@ const emit = defineEmits<{
 
 const isExpanded = (id: string) => props.expandedSymbols.has(id);
 
-const memberCount = (symbol: FormattedSymbol) =>
-  symbol.formattedProperties.length + symbol.formattedMethods.length;
+const memberCount = (symbol: FormattedSymbol) => symbol.formattedProperties.length + symbol.formattedMethods.length;
 </script>
 
 <template>
-  <CollapsibleSection
-    v-if="symbols.length > 0"
-    :title="title"
-    :count="symbols.length"
-    :default-open="defaultOpen"
-  >
+  <CollapsibleSection v-if="symbols.length > 0" :title="title" :count="symbols.length" :default-open="defaultOpen">
     <div v-for="symbol in symbols" :key="symbol.id" class="symbol-card">
       <button class="symbol-card-header nodrag" type="button" @click.stop="emit('toggle-symbol', symbol.id)">
         <span class="symbol-card-name">{{ symbol.name }}</span>
-        <span class="symbol-card-count">{{ memberCount(symbol) }}</span>
         <span class="symbol-card-spacer" />
         <span :class="['symbol-card-badge', badgeClass]">{{ badgeText }}</span>
         <span class="symbol-card-toggle">{{ isExpanded(symbol.id) ? '\u2212' : '+' }}</span>

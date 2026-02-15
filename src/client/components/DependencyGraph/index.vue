@@ -1011,6 +1011,54 @@ const visualEdges = computed<GraphEdge[]>(() => {
   return nextEdges ?? edges.value;
 });
 
+interface TypeCountEntry {
+  type: string;
+  count: number;
+}
+
+const toSortedTypeCounts = (counts: Map<string, number>): TypeCountEntry[] => {
+  return [...counts.entries()]
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+      return a.type.localeCompare(b.type);
+    });
+};
+
+const renderedNodeCount = computed(() => visualNodes.value.length);
+const renderedEdgeCount = computed(() => visualEdges.value.filter((edge) => !edge.hidden).length);
+
+const renderedNodeTypeCounts = computed<TypeCountEntry[]>(() => {
+  const counts = new Map<string, number>();
+  visualNodes.value.forEach((node) => {
+    const type = node.type ?? 'unknown';
+    counts.set(type, (counts.get(type) ?? 0) + 1);
+  });
+  return toSortedTypeCounts(counts);
+});
+
+const renderedEdgeTypeCounts = computed<TypeCountEntry[]>(() => {
+  const counts = new Map<string, number>();
+  visualEdges.value.forEach((edge) => {
+    if (edge.hidden) {
+      return;
+    }
+    const bundledTypes = edge.data?.bundledTypes ?? [];
+    if (bundledTypes.length > 0) {
+      [...new Set(bundledTypes)].forEach((type) => {
+        counts.set(type, (counts.get(type) ?? 0) + 1);
+      });
+      return;
+    }
+
+    const type = edge.data?.type ?? 'unknown';
+    counts.set(type, (counts.get(type) ?? 0) + 1);
+  });
+  return toSortedTypeCounts(counts);
+});
+
 const initializeLayoutProcessor = () => {
   layoutRequestVersion += 1;
 
@@ -2640,6 +2688,48 @@ onUnmounted(() => {
         <div class="renderer-mode-copy">Hybrid canvas edge renderer active</div>
       </Panel>
 
+      <Panel position="top-right" class="graph-stats-panel">
+        <details class="graph-stats-shell">
+          <summary class="graph-stats-summary">
+            <span>Graph Stats</span>
+            <span class="graph-stats-summary-metrics">{{ renderedNodeCount }} nodes · {{ renderedEdgeCount }} edges</span>
+          </summary>
+          <div class="graph-stats-content">
+            <dl class="graph-stats-overview">
+              <div class="graph-stats-overview-row">
+                <dt>Nodes</dt>
+                <dd>{{ renderedNodeCount }}</dd>
+              </div>
+              <div class="graph-stats-overview-row">
+                <dt>Edges</dt>
+                <dd>{{ renderedEdgeCount }}</dd>
+              </div>
+            </dl>
+
+            <section class="graph-stats-section">
+              <h4>Node Types</h4>
+              <ul class="graph-stats-list">
+                <li v-for="entry in renderedNodeTypeCounts" :key="`node-type-${entry.type}`" class="graph-stats-list-row">
+                  <span class="graph-stats-type">{{ entry.type }}</span>
+                  <span class="graph-stats-count">{{ entry.count }}</span>
+                </li>
+              </ul>
+            </section>
+
+            <section class="graph-stats-section">
+              <h4>Edge Types</h4>
+              <ul v-if="renderedEdgeTypeCounts.length > 0" class="graph-stats-list">
+                <li v-for="entry in renderedEdgeTypeCounts" :key="`edge-type-${entry.type}`" class="graph-stats-list-row">
+                  <span class="graph-stats-type">{{ entry.type }}</span>
+                  <span class="graph-stats-count">{{ entry.count }}</span>
+                </li>
+              </ul>
+              <div v-else class="graph-stats-empty">No visible edges</div>
+            </section>
+          </div>
+        </details>
+      </Panel>
+
       <Panel v-if="scopeMode !== 'overview'" position="bottom-left">
         <button
           @click="handleReturnToOverview"
@@ -2967,6 +3057,151 @@ onUnmounted(() => {
 
 .fps-low {
   color: #f87171;
+}
+
+.graph-stats-panel {
+  margin-top: 4.25rem;
+  margin-right: 0.5rem;
+}
+
+.graph-stats-shell {
+  width: min(19rem, calc(100vw - 1.5rem));
+  border-radius: 0.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.94);
+  color: rgba(226, 232, 240, 0.95);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+}
+
+.graph-stats-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.graph-stats-summary::-webkit-details-marker {
+  display: none;
+}
+
+.graph-stats-summary::marker {
+  display: none;
+}
+
+.graph-stats-summary::after {
+  content: '▸';
+  font-size: 0.65rem;
+  opacity: 0.9;
+  transition: transform 120ms ease-out;
+}
+
+.graph-stats-shell[open] .graph-stats-summary::after {
+  transform: rotate(90deg);
+}
+
+.graph-stats-summary:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.65);
+  outline-offset: 2px;
+}
+
+.graph-stats-summary-metrics {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  color: rgba(148, 163, 184, 0.95);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.graph-stats-content {
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 0.55rem 0.65rem 0.6rem;
+  max-height: min(23rem, calc(100vh - 9.5rem));
+  overflow: auto;
+}
+
+.graph-stats-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.graph-stats-overview-row {
+  margin: 0;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+  background: rgba(15, 23, 42, 0.72);
+  padding: 0.22rem 0.4rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.graph-stats-overview-row dt {
+  font-size: 0.62rem;
+  color: rgba(148, 163, 184, 0.92);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.graph-stats-overview-row dd {
+  margin: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 0.74rem;
+  color: rgba(226, 232, 240, 0.98);
+}
+
+.graph-stats-section {
+  margin-top: 0.6rem;
+}
+
+.graph-stats-section h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.64rem;
+  color: rgba(148, 163, 184, 0.95);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.graph-stats-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+}
+
+.graph-stats-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  font-size: 0.7rem;
+}
+
+.graph-stats-type {
+  color: rgba(203, 213, 225, 0.96);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-stats-count {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  color: rgba(148, 163, 184, 0.96);
+}
+
+.graph-stats-empty {
+  font-size: 0.67rem;
+  color: rgba(148, 163, 184, 0.9);
 }
 
 .minimap-warning-panel,
