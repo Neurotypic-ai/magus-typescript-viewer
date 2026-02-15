@@ -11,6 +11,7 @@ import type {
   EdgeVirtualizationDeviceProfile,
   EdgeVirtualizationEdge,
   EdgeVirtualizationNode,
+  EdgeVirtualizationPoint,
   EdgeVirtualizationViewport,
 } from './edgeVirtualizationCore';
 import type { DependencyNode, GraphEdge } from './types';
@@ -51,63 +52,168 @@ const DEFAULT_NODE_HEIGHT = 100;
 
 const EDGE_TYPE_PRIORITY = DEFAULT_EDGE_TYPE_PRIORITY;
 
-interface UseEdgeVirtualizationWorkerOptions {
+// ── Environment & config helpers ──
+
+/** Parses an integer from import.meta.env; returns fallback if missing or invalid. */
+export type ParseEnvInt = (key: string, fallback: number) => number;
+
+// ── Options & callbacks ──
+
+/** Returns current viewport (x, y, zoom). */
+export type GetViewport = () => EdgeVirtualizationViewport;
+
+/** Returns container rect or null. */
+export type GetContainerRect = () => DOMRect | null;
+
+/** Map of edge id → whether the edge is hidden. */
+export type EdgeVisibilityMap = Map<string, boolean>;
+
+/** Applies visibility map (edge id → hidden). */
+export type SetEdgeVisibility = (visibilityMap: EdgeVisibilityMap) => void;
+
+/** Called when the worker becomes unavailable. */
+export type OnWorkerUnavailable = (reason: string) => void;
+
+export interface UseEdgeVirtualizationWorkerOptions {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
-  getViewport: () => { x: number; y: number; zoom: number };
-  getContainerRect: () => DOMRect | null;
-  setEdgeVisibility: (visibilityMap: Map<string, boolean>) => void;
+  getViewport: GetViewport;
+  getContainerRect: GetContainerRect;
+  setEdgeVisibility: SetEdgeVisibility;
   enabled: Ref<boolean>;
-  onWorkerUnavailable?: (reason: string) => void;
+  onWorkerUnavailable?: OnWorkerUnavailable;
 }
 
-interface SyncGraphMessage {
-  type: 'sync-graph';
-  payload: {
-    nodes: EdgeVirtualizationNode[];
-    edges: EdgeVirtualizationEdge[];
-  };
+// ── Worker request payloads ──
+
+/** Payload for syncing graph nodes/edges to the worker. */
+export interface SyncGraphPayload {
+  nodes: EdgeVirtualizationNode[];
+  edges: EdgeVirtualizationEdge[];
 }
 
-interface RecalculateMessage {
-  type: 'recalculate';
+/** Payload for requesting a visibility recalc from the worker. */
+export interface RecalculatePayload {
+  recalcVersion: number;
+  graphVersion: number;
+  viewport: EdgeVirtualizationViewport;
+  containerSize?: EdgeVirtualizationContainerSize | null;
+  userHiddenEdgeIds: string[];
+  config?: Partial<EdgeVirtualizationConfig>;
+  deviceProfile?: EdgeVirtualizationDeviceProfile;
+}
+
+// ── Worker response payloads ──
+
+/** Payload returned by the worker after visibility recalc. */
+export interface RecalculateResultPayload {
+  recalcVersion: number;
+  graphVersion: number;
+  hiddenEdgeIds: string[];
+  viewportVisibleCount: number;
+  finalVisibleCount: number;
+  lowZoomApplied: boolean;
+  lowZoomBudget?: number;
+}
+
+/** Payload for worker error messages. */
+export interface EdgeVisibilityErrorPayload {
+  error: string;
+}
+
+// ── Worker messages ──
+
+export type SyncGraphMessageType = 'sync-graph';
+export type RecalculateMessageType = 'recalculate';
+export type EdgeVisibilityResultMessageType = 'edge-visibility-result';
+export type EdgeVisibilityErrorMessageType = 'edge-visibility-error';
+
+export interface SyncGraphMessage {
+  type: SyncGraphMessageType;
+  payload: SyncGraphPayload;
+}
+
+export interface RecalculateMessage {
+  type: RecalculateMessageType;
   requestId: number;
-  payload: {
-    recalcVersion: number;
-    graphVersion: number;
-    viewport: EdgeVirtualizationViewport;
-    containerSize?: EdgeVirtualizationContainerSize | null;
-    userHiddenEdgeIds: string[];
-    config?: Partial<EdgeVirtualizationConfig>;
-    deviceProfile?: EdgeVirtualizationDeviceProfile;
-  };
+  payload: RecalculatePayload;
 }
 
-type WorkerRequestMessage = SyncGraphMessage | RecalculateMessage;
+export type WorkerRequestMessage = SyncGraphMessage | RecalculateMessage;
 
-interface RecalculateResultMessage {
-  type: 'edge-visibility-result';
+export interface RecalculateResultMessage {
+  type: EdgeVisibilityResultMessageType;
   requestId: number;
-  payload: {
-    recalcVersion: number;
-    graphVersion: number;
-    hiddenEdgeIds: string[];
-    viewportVisibleCount: number;
-    finalVisibleCount: number;
-    lowZoomApplied: boolean;
-    lowZoomBudget?: number;
-  };
+  payload: RecalculateResultPayload;
 }
 
-interface ErrorMessage {
-  type: 'edge-visibility-error';
+export interface EdgeVisibilityErrorMessage {
+  type: EdgeVisibilityErrorMessageType;
   requestId?: number;
-  payload: {
-    error: string;
-  };
+  payload: EdgeVisibilityErrorPayload;
 }
 
-type WorkerResponseMessage = RecalculateResultMessage | ErrorMessage;
+export type WorkerResponseMessage = RecalculateResultMessage | EdgeVisibilityErrorMessage;
+
+// ── Stats & mode ──
+
+/** Whether virtualization runs in worker or main-thread fallback. */
+export type EdgeVirtualizationWorkerMode = 'worker' | 'main-fallback';
+
+/** Stats exposed by the edge virtualization worker composable. */
+export interface EdgeVirtualizationWorkerStats {
+  mode: EdgeVirtualizationWorkerMode;
+  requests: number;
+  responses: number;
+  staleResponses: number;
+  lastVisibleCount: number;
+  lastHiddenCount: number;
+}
+
+// ── Serialization (node/edge shapes read from DependencyNode / GraphEdge) ──
+
+/** Measured width/height on a node (optional). */
+export interface NodeMeasuredShape {
+  width?: number;
+  height?: number;
+}
+
+/** Node with optional measured dimensions (cast from DependencyNode). */
+export interface NodeWithMeasured {
+  measured?: NodeMeasuredShape;
+}
+
+/** Node with optional parent id (cast from DependencyNode). */
+export interface NodeWithParentNode {
+  parentNode?: string;
+}
+
+/** Style object shape used when serializing node for worker. */
+export interface NodeStyleForSerialization {
+  width?: unknown;
+  height?: unknown;
+}
+
+/** Arbitrary style object on a node (e.g. Vue Flow node.style). */
+export type NodeStyleRecord = Record<string, unknown>;
+
+/** Navigator with optional deviceMemory (not in all TS libs). */
+export interface NavigatorWithDeviceMemory extends Navigator {
+  deviceMemory?: number;
+}
+
+// ── Composable return ──
+
+/** Return type of useEdgeVirtualizationWorker. */
+export interface UseEdgeVirtualizationWorkerReturn {
+  onViewportChange: () => void;
+  recalculate: () => void;
+  virtualizedHiddenCount: Ref<Set<string>>;
+  suspend: () => void;
+  resume: () => void;
+  dispose: () => void;
+  stats: Ref<EdgeVirtualizationWorkerStats>;
+}
 
 const buildWorkerConfig = (): Partial<EdgeVirtualizationConfig> => {
   return {
@@ -124,9 +230,9 @@ const buildWorkerConfig = (): Partial<EdgeVirtualizationConfig> => {
 
 const serializeNodesForWorker = (nodes: DependencyNode[]): EdgeVirtualizationNode[] => {
   return nodes.map((node) => {
-    const nodeStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : undefined;
-    const measured = (node as unknown as { measured?: { width?: number; height?: number } }).measured;
-    const parentNode = (node as { parentNode?: string }).parentNode;
+    const nodeStyle = typeof node.style === 'object' ? (node.style as NodeStyleRecord) : undefined;
+    const measured = (node as unknown as NodeWithMeasured).measured;
+    const parentNode = (node as NodeWithParentNode).parentNode;
     const serialized: EdgeVirtualizationNode = {
       id: node.id,
     };
@@ -136,19 +242,17 @@ const serializeNodesForWorker = (nodes: DependencyNode[]): EdgeVirtualizationNod
       serialized.parentNode = parentNode;
     }
     if (nodeStyle) {
-      serialized.style = {
+      const style: NodeStyleForSerialization = {
         width: nodeStyle['width'],
         height: nodeStyle['height'],
       };
+      serialized.style = style;
     }
     if (measured && (measured.width !== undefined || measured.height !== undefined)) {
-      serialized.measured = {};
-      if (measured.width !== undefined) {
-        serialized.measured.width = measured.width;
-      }
-      if (measured.height !== undefined) {
-        serialized.measured.height = measured.height;
-      }
+      const m: NodeMeasuredShape = {};
+      if (measured.width !== undefined) m.width = measured.width;
+      if (measured.height !== undefined) m.height = measured.height;
+      serialized.measured = m;
     }
 
     return serialized;
@@ -157,8 +261,8 @@ const serializeNodesForWorker = (nodes: DependencyNode[]): EdgeVirtualizationNod
 
 const serializeEdgesForWorker = (edges: GraphEdge[]): EdgeVirtualizationEdge[] => {
   return edges.map((edge) => {
-    const sourceAnchor = edge.data?.sourceAnchor as { x: number; y: number } | undefined;
-    const targetAnchor = edge.data?.targetAnchor as { x: number; y: number } | undefined;
+    const sourceAnchor = edge.data?.sourceAnchor as EdgeVirtualizationPoint | undefined;
+    const targetAnchor = edge.data?.targetAnchor as EdgeVirtualizationPoint | undefined;
     const serialized: EdgeVirtualizationEdge = {
       id: edge.id,
       source: edge.source,
@@ -194,7 +298,7 @@ const serializeEdgesForWorker = (edges: GraphEdge[]): EdgeVirtualizationEdge[] =
 };
 
 const getDeviceProfile = (): EdgeVirtualizationDeviceProfile => {
-  const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { deviceMemory?: number }) : undefined;
+  const nav = typeof navigator !== 'undefined' ? (navigator as NavigatorWithDeviceMemory) : undefined;
   const profile: EdgeVirtualizationDeviceProfile = {};
   if (nav?.hardwareConcurrency !== undefined) {
     profile.hardwareConcurrency = nav.hardwareConcurrency;
@@ -205,13 +309,15 @@ const getDeviceProfile = (): EdgeVirtualizationDeviceProfile => {
   return profile;
 };
 
-export function useEdgeVirtualizationWorker(options: UseEdgeVirtualizationWorkerOptions) {
+export function useEdgeVirtualizationWorker(
+  options: UseEdgeVirtualizationWorkerOptions
+): UseEdgeVirtualizationWorkerReturn {
   const { nodes, edges, getViewport, getContainerRect, setEdgeVisibility, enabled, onWorkerUnavailable } = options;
 
   const virtualizedHiddenIds = ref(new Set<string>());
   const userHiddenIds = new Set<string>();
-  const stats = ref({
-    mode: 'worker' as 'worker' | 'main-fallback',
+  const stats = ref<EdgeVirtualizationWorkerStats>({
+    mode: 'worker',
     requests: 0,
     responses: 0,
     staleResponses: 0,
@@ -263,7 +369,7 @@ export function useEdgeVirtualizationWorker(options: UseEdgeVirtualizationWorker
       }
     }
 
-    const restoreVisibilityMap = new Map<string, boolean>();
+    const restoreVisibilityMap: EdgeVisibilityMap = new Map();
     virtualizedHiddenIds.value.forEach((edgeId) => {
       restoreVisibilityMap.set(edgeId, currentUserHiddenIds.has(edgeId));
     });
@@ -313,7 +419,7 @@ export function useEdgeVirtualizationWorker(options: UseEdgeVirtualizationWorker
       performance.mark('apply-visibility-delta-start');
     }
 
-    const visibilityMap = new Map<string, boolean>();
+    const visibilityMap: EdgeVisibilityMap = new Map();
     edges.value.forEach((edge) => {
       if (currentUserHiddenIds.has(edge.id)) {
         return;
