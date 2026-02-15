@@ -198,12 +198,9 @@ function toggleCollapse() {
   overflow: visible;
   padding: 8px 8px 8px 8px;
   transition:
-    min-width 220ms ease-out,
-    min-height 220ms ease-out,
-    border 180ms ease-out,
-    background 180ms ease-out,
-    box-shadow 180ms ease-out,
-    padding 180ms ease-out;
+    border-color 120ms linear,
+    background-color 120ms linear,
+    box-shadow 120ms linear;
 }
 
 .group-node-collapsed {

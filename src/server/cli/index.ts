@@ -545,6 +545,7 @@ program
       console.log(chalk.gray('- Parameters found:'), parseResult.parameters.length);
       console.log(chalk.gray('- Imports found:'), parseResult.importsWithModules?.length ?? 0);
       console.log(chalk.gray('- Exports found:'), parseResult.exports.length);
+      console.log(chalk.gray('- Code issues found:'), codeIssues.length);
       console.log(chalk.gray('- Relationships found:'), relationshipCount);
       console.log(
         chalk.gray('- class_extends resolution:'),

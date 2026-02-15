@@ -3,6 +3,9 @@ import { createLogger } from '../shared/utils/logger';
 import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
 import { RepositoryError } from './db/errors/RepositoryError';
+import { CodeIssueRepository } from './db/repositories/CodeIssueRepository';
+
+import type { CodeIssueEntity } from './db/repositories/CodeIssueRepository';
 import { ClassRepository } from './db/repositories/ClassRepository';
 import { EnumRepository } from './db/repositories/EnumRepository';
 import { FunctionRepository } from './db/repositories/FunctionRepository';
@@ -128,6 +131,7 @@ export class ApiServerResponder {
   private readonly symbolReferenceRepository: SymbolReferenceRepository;
   private readonly typeAliasRepository: TypeAliasRepository;
   private readonly variableRepository: VariableRepository;
+  private readonly codeIssueRepository: CodeIssueRepository;
 
   constructor(options: ApiServerResponderOptions = {}) {
     const dbPath = options.dbPath ?? 'typescript-viewer.duckdb';
@@ -149,6 +153,7 @@ export class ApiServerResponder {
     this.symbolReferenceRepository = new SymbolReferenceRepository(this.dbAdapter);
     this.typeAliasRepository = new TypeAliasRepository(this.dbAdapter);
     this.variableRepository = new VariableRepository(this.dbAdapter);
+    this.codeIssueRepository = new CodeIssueRepository(this.dbAdapter);
   }
 
   async initialize(): Promise<void> {
@@ -497,6 +502,23 @@ export class ApiServerResponder {
     } catch (error) {
       this.logger.error('Failed to get modules, returning empty list', error);
       return [];
+    }
+  }
+
+  async getCodeIssues(): Promise<CodeIssueEntity[]> {
+    try {
+      return await this.codeIssueRepository.retrieve();
+    } catch {
+      // Table may not exist if analysis hasn't been run
+      return [];
+    }
+  }
+
+  async getCodeIssueById(id: string): Promise<CodeIssueEntity | undefined> {
+    try {
+      return await this.codeIssueRepository.retrieveById(id);
+    } catch {
+      return undefined;
     }
   }
 }

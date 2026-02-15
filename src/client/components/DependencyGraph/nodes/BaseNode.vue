@@ -230,9 +230,8 @@ const containerStyle = computed(() => {
   background-color: var(--background-node);
   contain: layout style;
   transition:
-    transform 180ms ease-out,
-    border-color 180ms ease-out,
-    opacity 180ms ease-out;
+    border-color 120ms linear,
+    opacity 120ms linear;
   cursor: grab;
   font-size: 0.75rem;
   line-height: 1rem;
@@ -245,11 +244,8 @@ const containerStyle = computed(() => {
   border-radius: 0.625rem;
   overflow: visible;
   transition:
-    transform 180ms ease-out,
-    border-color 180ms ease-out,
-    opacity 180ms ease-out,
-    min-width 220ms ease-out,
-    min-height 220ms ease-out;
+    border-color 120ms linear,
+    opacity 120ms linear;
 }
 
 /* Accessibility: respect reduced-motion preferences (WCAG 2.1 SC 2.3.3) */

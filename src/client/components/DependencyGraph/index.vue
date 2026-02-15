@@ -128,6 +128,7 @@ const LIVE_SETTLE_MIN_INTERVAL_MS = 32;
 const DRAG_END_ONLY_THRESHOLD = 700;
 const DRAG_POSITION_EPSILON = 0.01;
 const isApplyingCollisionResolution = ref(false);
+const activeDraggedNodeIds = ref<Set<string>>(new Set());
 const userPinnedNodeIds = ref<Set<string>>(new Set());
 let collisionSettleRafId: number | null = null;
 let collisionDimensionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -962,7 +963,26 @@ const visualNodes = computed<DependencyNode[]>(() => {
   const nextStyledIds = new Set<string>();
   let nextNodes: DependencyNode[] | null = null;
 
+  // Cache the set of actively-dragged node IDs so we can avoid creating new
+  // object references for them. VueFlow tracks drag state internally on the
+  // node object; if we replace the object reference mid-drag, VueFlow
+  // re-syncs the node from the prop and snaps the position back to the
+  // (potentially stale) store position, causing rubber-banding.
+  const dragging = activeDraggedNodeIds.value;
+
   nodes.value.forEach((node, index) => {
+    // CRITICAL: Never create a new object reference for a node that is actively
+    // being dragged. Doing so resets VueFlow's internal drag tracking and
+    // causes the node to snap back to the store position.
+    if (dragging.size > 0 && dragging.has(node.id)) {
+      // Still track as styled so we re-apply when drag ends.
+      const selectionClass = resolveNodeSelectionClass(node);
+      if (selectionClass) {
+        nextStyledIds.add(node.id);
+      }
+      return;
+    }
+
     const classTokens = getClassTokens(node.class);
     NODE_SELECTION_CLASS_TOKENS.forEach((token) => classTokens.delete(token));
 
@@ -2337,6 +2357,16 @@ const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
   isApplyingCollisionResolution.value = true;
   try {
     const nodeById = new Map(currentNodes.map((n) => [n.id, n]));
+    const activeAnchors = new Set<string>();
+    for (const id of activeDraggedNodeIds.value) {
+      if (nodeById.has(id)) {
+        activeAnchors.add(id);
+      }
+    }
+    if (activeAnchors.size !== activeDraggedNodeIds.value.size) {
+      activeDraggedNodeIds.value = activeAnchors;
+    }
+
     const persistentAnchors = new Set<string>();
     for (const id of userPinnedNodeIds.value) {
       if (nodeById.has(id)) {
@@ -2348,6 +2378,9 @@ const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
     }
 
     const resolverAnchors = new Set<string>(persistentAnchors);
+    for (const id of activeAnchors) {
+      resolverAnchors.add(id);
+    }
     if (anchoredNodeIds) {
       for (const id of anchoredNodeIds) {
         if (nodeById.has(id)) {
@@ -2435,15 +2468,50 @@ const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
       if (!existing) continue;
 
       const currentStyle = typeof existing.style === 'object' ? (existing.style as Record<string, unknown>) : {};
+      const parseSize = (value: unknown): number | null => {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string') {
+          const parsed = Number.parseFloat(value);
+          return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+      };
+      const targetWidth = Math.ceil(newSize.width);
+      const targetHeight = Math.ceil(newSize.height);
+      const currentWidth = parseSize(currentStyle['width']);
+      const currentHeight = parseSize(currentStyle['height']);
+      if (
+        currentWidth !== null &&
+        currentHeight !== null &&
+        Math.abs(currentWidth - targetWidth) < 1 &&
+        Math.abs(currentHeight - targetHeight) < 1
+      ) {
+        continue;
+      }
       const updatedNode = {
         ...existing,
         style: {
           ...currentStyle,
-          width: `${newSize.width}px`,
-          height: `${newSize.height}px`,
+          width: `${targetWidth}px`,
+          height: `${targetHeight}px`,
         },
       } as DependencyNode;
       nodeUpdates.set(id, updatedNode);
+    }
+
+    // CRITICAL: Remove actively-dragged nodes from nodeUpdates entirely.
+    // VueFlow tracks drag state on its internal node object reference.
+    // If we replace that object (even with the "correct" position), VueFlow
+    // loses its drag state and the node snaps back. The `visualNodes`
+    // computed also guards against creating new objects for dragged nodes,
+    // but we must not circumvent that by writing the dragged node into the
+    // store update either. Size changes for dragged containers are deferred
+    // until drag ends — the container will expand then.
+    if (activeDraggedNodeIds.value.size > 0) {
+      for (const dragId of activeDraggedNodeIds.value) {
+        nodeUpdates.delete(dragId);
+        offsetUpdates.delete(dragId);
+      }
     }
 
     if (nodeUpdates.size > 0) {
@@ -2509,7 +2577,8 @@ const scheduleDimensionSettle = () => {
   }
   collisionDimensionTimer = setTimeout(() => {
     collisionDimensionTimer = null;
-    runCollisionSettle(null);
+    const activeAnchors = activeDraggedNodeIds.value;
+    runCollisionSettle(activeAnchors.size > 0 ? new Set(activeAnchors) : null);
   }, 60);
 };
 
@@ -2533,6 +2602,7 @@ const handleNodesChange = (changes: NodeChange[]) => {
   const dragPositionIds = new Set<string>();
   const dragLifecycleIds = new Set<string>();
   const dragEndedIds = new Set<string>();
+  const dragStateById = new Map<string, boolean>();
   let hasLiveDrag = false;
   let hasDragEnd = false;
   let hasDimensionChange = false;
@@ -2543,10 +2613,12 @@ const handleNodesChange = (changes: NodeChange[]) => {
       dragPositionIds.add(posChange.id);
       if (posChange.dragging === true) {
         dragLifecycleIds.add(posChange.id);
+        dragStateById.set(posChange.id, true);
         hasLiveDrag = true;
       } else if (posChange.dragging === false) {
         dragLifecycleIds.add(posChange.id);
         dragEndedIds.add(posChange.id);
+        dragStateById.set(posChange.id, false);
         // Explicit dragging=false indicates drag-end (not programmatic move).
         hasDragEnd = true;
       }
@@ -2585,6 +2657,18 @@ const handleNodesChange = (changes: NodeChange[]) => {
     const nextPinned = new Set(userPinnedNodeIds.value);
     dragEndedIds.forEach((id) => nextPinned.add(id));
     userPinnedNodeIds.value = nextPinned;
+  }
+
+  if (dragStateById.size > 0) {
+    const nextActiveDragged = new Set(activeDraggedNodeIds.value);
+    for (const [nodeId, dragging] of dragStateById) {
+      if (dragging) {
+        nextActiveDragged.add(nodeId);
+      } else {
+        nextActiveDragged.delete(nodeId);
+      }
+    }
+    activeDraggedNodeIds.value = nextActiveDragged;
   }
 
   // Schedule collision resolution based on event source
@@ -3187,15 +3271,11 @@ onUnmounted(() => {
 }
 
 .dependency-graph-root.graph-isolate-animating :deep(.vue-flow__node) {
-  transition:
-    transform 350ms ease-in-out,
-    opacity 180ms ease-out !important;
+  transition: opacity 140ms linear !important;
 }
 
 .dependency-graph-root :deep(.vue-flow__node) {
-  transition:
-    transform 180ms ease-out,
-    opacity 180ms ease-out;
+  transition: opacity 120ms linear;
 }
 
 .dependency-graph-root :deep(.vue-flow__edge-path) {

@@ -47,6 +47,15 @@ function sendError(res: http.ServerResponse, statusCode: number, message: string
   res.end(JSON.stringify({ error: message }));
 }
 
+function readRequestBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    req.on('error', reject);
+  });
+}
+
 // Initialize logger
 const logger = createLogger('Server');
 
@@ -150,6 +159,50 @@ const server = http.createServer((req, res) => {
         } catch (routeErr) {
           logger.error('Error in /modules route, returning empty array', routeErr);
           resource = [];
+        }
+      } else if (req.url === '/issues' && req.method === 'GET') {
+        try {
+          resource = await apiServerResponder.getCodeIssues();
+        } catch (routeErr) {
+          logger.error('Error in /issues route, returning empty array', routeErr);
+          resource = [];
+        }
+      } else if (req.url === '/refactor' && req.method === 'POST') {
+        try {
+          const body = await readRequestBody(req);
+          const parsed = JSON.parse(body) as { issueId?: string; preview?: boolean };
+
+          if (!parsed.issueId || typeof parsed.issueId !== 'string') {
+            sendError(res, 400, 'Missing required field: issueId');
+            return;
+          }
+
+          const issue = await apiServerResponder.getCodeIssueById(parsed.issueId);
+          if (!issue) {
+            sendError(res, 404, 'Issue not found');
+            return;
+          }
+
+          if (!issue.refactor_action || !issue.refactor_context) {
+            sendError(res, 400, 'Issue does not have a refactoring action');
+            return;
+          }
+
+          const { RefactorEngine } = await import('./server/refactors/RefactorEngine');
+          const engine = new RefactorEngine();
+          const request = {
+            filePath: issue.file_path,
+            action: issue.refactor_action,
+            context: issue.refactor_context,
+          };
+
+          resource = parsed.preview
+            ? await engine.preview(request)
+            : await engine.execute(request);
+        } catch (routeErr) {
+          logger.error('Error in /refactor route', routeErr);
+          sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Refactoring failed');
+          return;
         }
       } else {
         logger.debug('Not found:', req.method, req.url);
