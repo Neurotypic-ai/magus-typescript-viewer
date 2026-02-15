@@ -1,10 +1,10 @@
 import { nextTick, ref } from 'vue';
 
-import { buildParentMap } from '../../graph/cluster/folderMembership';
-import { clusterByFolder } from '../../graph/cluster/folders';
-import { applyEdgeHighways } from '../../graph/transforms/edgeHighways';
-import { traverseGraph } from '../../graph/traversal';
-import { getEdgeStyle } from '../../theme/graphTheme';
+import { buildParentMap } from '../graph/cluster/folderMembership';
+import { clusterByFolder } from '../graph/cluster/folders';
+import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
+import { traverseGraph } from '../graph/traversal';
+import { getEdgeStyle } from '../theme/graphTheme';
 import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../lib/buildGraphView';
 import { getNodeDims, mergeNodeInteractionStyle, stripNodeClass, waitForNextPaint } from '../lib/graphUtils';
 

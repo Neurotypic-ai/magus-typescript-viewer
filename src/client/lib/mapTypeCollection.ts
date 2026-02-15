@@ -1,4 +1,4 @@
-import type { TypeCollection } from '../../../shared/types/TypeCollection';
+import type { TypeCollection } from '../../shared/types/TypeCollection';
 
 /**
  * Generic function to map over a TypeCollection regardless of its underlying type

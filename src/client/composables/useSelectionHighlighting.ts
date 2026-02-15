@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 
-import { measurePerformance } from '../../utils/performanceMonitoring';
+import { measurePerformance } from '../utils/performanceMonitoring';
 import {
   EDGE_HOVER_BASE_STROKE_VAR,
   EDGE_HOVER_CLASS,

@@ -1,6 +1,6 @@
 import { ref, watch } from 'vue';
 
-import { measurePerformance } from '../../utils/performanceMonitoring';
+import { measurePerformance } from '../utils/performanceMonitoring';
 import {
   VIRTUALIZATION_THRESHOLD,
   getDefaultEdgeVirtualizationConfigOverrides,

@@ -1,13 +1,13 @@
 import { reactive } from 'vue';
 
-import { getEdgeStyle } from '../../theme/graphTheme';
-import { measurePerformance } from '../../utils/performanceMonitoring';
+import { getEdgeStyle } from '../theme/graphTheme';
+import { measurePerformance } from '../utils/performanceMonitoring';
 import { applyEdgeVisibility, toDependencyEdgeKind } from '../lib/buildGraphView';
 import { addSetDiff, mergeNodeInteractionStyle, stripEdgeClass, stripNodeClass, toDimensionValue } from '../lib/graphUtils';
 
 import type { Ref } from 'vue';
 
-import type { graphTheme as GraphThemeType } from '../../theme/graphTheme';
+import type { graphTheme as GraphThemeType } from '../theme/graphTheme';
 import type { DependencyNode, GraphEdge, SearchResult } from '../types';
 
 export interface SearchHighlightState {

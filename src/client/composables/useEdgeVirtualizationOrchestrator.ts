@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 
-import { createLogger } from '../../../shared/utils/logger';
-import { measurePerformance } from '../../utils/performanceMonitoring';
+import { createLogger } from '../../shared/utils/logger';
+import { measurePerformance } from '../utils/performanceMonitoring';
 import { useEdgeVirtualization } from './useEdgeVirtualization';
 import { useEdgeVirtualizationWorker } from './useEdgeVirtualizationWorker';
 
