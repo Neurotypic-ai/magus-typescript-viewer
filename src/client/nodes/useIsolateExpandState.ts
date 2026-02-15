@@ -12,16 +12,14 @@ import { ISOLATE_EXPAND_ALL_KEY } from './utils';
 export function useIsolateExpandState<T>(
   getCurrentState: () => T,
   restoreState: (saved: T) => void,
-  expandAll: () => void,
+  expandAll: () => void
 ): void {
   const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
   let savedState: T | null = null;
 
   watch(isolateExpandAll, (expand) => {
     if (expand) {
-      if (savedState === null) {
-        savedState = getCurrentState();
-      }
+      savedState ??= getCurrentState();
       expandAll();
       return;
     }
