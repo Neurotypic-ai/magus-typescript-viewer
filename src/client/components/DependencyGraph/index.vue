@@ -8,7 +8,7 @@ import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, wat
 import { createLogger } from '../../../shared/utils/logger';
 import { buildParentMap } from '../../graph/cluster/folderMembership';
 import { clusterByFolder } from '../../graph/cluster/folders';
-import { applyEdgeHighways } from '../../graph/transforms/edgeHighways';
+import { applyEdgeHighways, optimizeHighwayHandleRouting } from '../../graph/transforms/edgeHighways';
 import { traverseGraph } from '../../graph/traversal';
 import { WebWorkerLayoutProcessor } from '../../layout/WebWorkerLayoutProcessor';
 import { useGraphSettings } from '../../stores/graphSettings';
@@ -1501,7 +1501,7 @@ const normalizeLayoutResult = (
 
   return {
     nodes: nodesWithHandles,
-    edges: resultEdges,
+    edges: optimizeHighwayHandleRouting(nodesWithHandles, resultEdges),
   };
 };
 
