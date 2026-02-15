@@ -16,6 +16,33 @@ const childCount = computed(() => (props.data?.['childCount'] as number | undefi
 function toggleCollapse() {
   folderActions?.toggleFolderCollapsed(props.id);
 }
+
+type HandleType = 'source' | 'target';
+
+interface FolderHandleConfig {
+  id: string;
+  type: HandleType;
+  position: Position;
+  style: Record<string, string>;
+  class: string;
+}
+
+const SIDES: { position: Position; inPct: string; outPct: string; axis: 'left' | 'top'; innerClass: string }[] = [
+  { position: Position.Top, inPct: '33%', outPct: '66%', axis: 'left', innerClass: 'folder-handle-inner-top' },
+  { position: Position.Right, inPct: '33%', outPct: '66%', axis: 'top', innerClass: 'folder-handle-inner-right' },
+  { position: Position.Bottom, inPct: '33%', outPct: '66%', axis: 'left', innerClass: 'folder-handle-inner-bottom' },
+  { position: Position.Left, inPct: '33%', outPct: '66%', axis: 'top', innerClass: 'folder-handle-inner-left' },
+];
+
+const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
+  const sideName = side.position.toLowerCase();
+  return [
+    { id: `folder-${sideName}-in`, type: 'target' as HandleType, position: side.position, style: { [side.axis]: side.inPct }, class: 'folder-handle' },
+    { id: `folder-${sideName}-in-inner`, type: 'target' as HandleType, position: side.position, style: { [side.axis]: side.inPct }, class: `folder-handle folder-handle-inner ${side.innerClass}` },
+    { id: `folder-${sideName}-out`, type: 'source' as HandleType, position: side.position, style: { [side.axis]: side.outPct }, class: 'folder-handle' },
+    { id: `folder-${sideName}-out-inner`, type: 'source' as HandleType, position: side.position, style: { [side.axis]: side.outPct }, class: `folder-handle folder-handle-inner ${side.innerClass}` },
+  ];
+});
 </script>
 
 <template>
@@ -38,146 +65,13 @@ function toggleCollapse() {
       <span v-if="isCollapsed && childCount > 0" class="folder-badge">{{ childCount }}</span>
     </div>
     <Handle
-      id="folder-top-in"
-      type="target"
-      :position="Position.Top"
-      :style="{ left: '33%' }"
-      class="folder-handle"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-top-in-inner"
-      type="target"
-      :position="Position.Top"
-      :style="{ left: '33%' }"
-      class="folder-handle folder-handle-inner folder-handle-inner-top"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-top-out"
-      type="source"
-      :position="Position.Top"
-      :style="{ left: '66%' }"
-      class="folder-handle"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-top-out-inner"
-      type="source"
-      :position="Position.Top"
-      :style="{ left: '66%' }"
-      class="folder-handle folder-handle-inner folder-handle-inner-top"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-right-in"
-      type="target"
-      :position="Position.Right"
-      :style="{ top: '33%' }"
-      class="folder-handle"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-right-in-inner"
-      type="target"
-      :position="Position.Right"
-      :style="{ top: '33%' }"
-      class="folder-handle folder-handle-inner folder-handle-inner-right"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-right-out"
-      type="source"
-      :position="Position.Right"
-      :style="{ top: '66%' }"
-      class="folder-handle"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-right-out-inner"
-      type="source"
-      :position="Position.Right"
-      :style="{ top: '66%' }"
-      class="folder-handle folder-handle-inner folder-handle-inner-right"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-bottom-in"
-      type="target"
-      :position="Position.Bottom"
-      :style="{ left: '33%' }"
-      class="folder-handle"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-bottom-in-inner"
-      type="target"
-      :position="Position.Bottom"
-      :style="{ left: '33%' }"
-      class="folder-handle folder-handle-inner folder-handle-inner-bottom"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-bottom-out"
-      type="source"
-      :position="Position.Bottom"
-      :style="{ left: '66%' }"
-      class="folder-handle"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-bottom-out-inner"
-      type="source"
-      :position="Position.Bottom"
-      :style="{ left: '66%' }"
-      class="folder-handle folder-handle-inner folder-handle-inner-bottom"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-left-in"
-      type="target"
-      :position="Position.Left"
-      :style="{ top: '33%' }"
-      class="folder-handle"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-left-in-inner"
-      type="target"
-      :position="Position.Left"
-      :style="{ top: '33%' }"
-      class="folder-handle folder-handle-inner folder-handle-inner-left"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-left-out"
-      type="source"
-      :position="Position.Left"
-      :style="{ top: '66%' }"
-      class="folder-handle"
-      :tabindex="-1"
-      aria-hidden="true"
-    />
-    <Handle
-      id="folder-left-out-inner"
-      type="source"
-      :position="Position.Left"
-      :style="{ top: '66%' }"
-      class="folder-handle folder-handle-inner folder-handle-inner-left"
+      v-for="h in folderHandles"
+      :key="h.id"
+      :id="h.id"
+      :type="h.type"
+      :position="h.position"
+      :style="h.style"
+      :class="h.class"
       :tabindex="-1"
       aria-hidden="true"
     />

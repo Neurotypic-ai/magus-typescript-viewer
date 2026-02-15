@@ -6,7 +6,7 @@ import { computed, inject, toRef } from 'vue';
 import { useInsightsStore } from '../../../stores/insightsStore';
 import { useIssuesStore } from '../../../stores/issuesStore';
 import InsightBadgeStrip from './InsightBadgeStrip.vue';
-import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, NODE_ACTIONS_KEY } from './utils';
+import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, NODE_ACTIONS_KEY, resolveSubnodesCount } from './utils';
 
 import type { DependencyProps } from '../types';
 import type { NodeActions } from './utils';
@@ -80,6 +80,19 @@ const isInsightDimmed = computed(() => {
 const sourcePosition = computed(() => props.sourcePosition ?? Position.Bottom);
 const targetPosition = computed(() => props.targetPosition ?? Position.Top);
 
+const handles = computed(() => [
+  { id: 'relational-in', type: 'target' as const, position: targetPosition.value, class: 'base-node-handle' },
+  { id: 'relational-in-top', type: 'target' as const, position: Position.Top, class: 'base-node-handle base-node-handle--aux' },
+  { id: 'relational-in-right', type: 'target' as const, position: Position.Right, class: 'base-node-handle base-node-handle--aux' },
+  { id: 'relational-in-bottom', type: 'target' as const, position: Position.Bottom, class: 'base-node-handle base-node-handle--aux' },
+  { id: 'relational-in-left', type: 'target' as const, position: Position.Left, class: 'base-node-handle base-node-handle--aux' },
+  { id: 'relational-out', type: 'source' as const, position: sourcePosition.value, class: 'base-node-handle' },
+  { id: 'relational-out-top', type: 'source' as const, position: Position.Top, class: 'base-node-handle base-node-handle--aux' },
+  { id: 'relational-out-right', type: 'source' as const, position: Position.Right, class: 'base-node-handle base-node-handle--aux' },
+  { id: 'relational-out-bottom', type: 'source' as const, position: Position.Bottom, class: 'base-node-handle base-node-handle--aux' },
+  { id: 'relational-out-left', type: 'source' as const, position: Position.Left, class: 'base-node-handle base-node-handle--aux' },
+]);
+
 const inferredContainer = computed(() => {
   if (typeof props.isContainer === 'boolean') {
     return props.isContainer;
@@ -92,29 +105,11 @@ const inferredContainer = computed(() => {
   return Boolean(nodeData.value?.isContainer);
 });
 
-const resolvedSubnodesCount = computed(() => {
+const subnodesResolved = computed(() => {
   if (typeof props.subnodesCount === 'number') {
-    return props.subnodesCount;
+    return { count: props.subnodesCount, totalCount: props.subnodesCount, hiddenCount: 0 };
   }
-
-  const subnodes = nodeData.value?.subnodes as { count?: number } | undefined;
-  return typeof subnodes?.count === 'number' ? subnodes.count : 0;
-});
-
-const resolvedSubnodesTotalCount = computed(() => {
-  const subnodes = nodeData.value?.subnodes as { totalCount?: number; count?: number } | undefined;
-  if (typeof subnodes?.totalCount === 'number') {
-    return subnodes.totalCount;
-  }
-  return resolvedSubnodesCount.value;
-});
-
-const resolvedSubnodesHiddenCount = computed(() => {
-  const subnodes = nodeData.value?.subnodes as { hiddenCount?: number } | undefined;
-  if (typeof subnodes?.hiddenCount === 'number') {
-    return Math.max(0, subnodes.hiddenCount);
-  }
-  return Math.max(0, resolvedSubnodesTotalCount.value - resolvedSubnodesCount.value);
+  return resolveSubnodesCount(nodeData.value?.subnodes as { count?: number; totalCount?: number; hiddenCount?: number } | undefined);
 });
 
 const shouldShowSubnodes = computed(() => {
@@ -122,7 +117,7 @@ const shouldShowSubnodes = computed(() => {
     return props.showSubnodes;
   }
 
-  return inferredContainer.value && (resolvedSubnodesTotalCount.value > 0 || resolvedSubnodesHiddenCount.value > 0);
+  return inferredContainer.value && (subnodesResolved.value.totalCount > 0 || subnodesResolved.value.hiddenCount > 0);
 });
 
 const containerClasses = computed(() => ({
@@ -180,26 +175,13 @@ const containerStyle = computed(() => {
     </NodeToolbar>
 
     <Handle
-      id="relational-in"
-      type="target"
-      :position="targetPosition"
-      :key="`target-${targetPosition}`"
-      class="base-node-handle"
+      v-for="h in handles.slice(0, 5)"
+      :key="h.id"
+      :id="h.id"
+      :type="h.type"
+      :position="h.position"
+      :class="h.class"
     />
-    <Handle id="relational-in-top" type="target" :position="Position.Top" class="base-node-handle base-node-handle--aux" />
-    <Handle
-      id="relational-in-right"
-      type="target"
-      :position="Position.Right"
-      class="base-node-handle base-node-handle--aux"
-    />
-    <Handle
-      id="relational-in-bottom"
-      type="target"
-      :position="Position.Bottom"
-      class="base-node-handle base-node-handle--aux"
-    />
-    <Handle id="relational-in-left" type="target" :position="Position.Left" class="base-node-handle base-node-handle--aux" />
 
     <button
       v-if="issueCount > 0"
@@ -237,7 +219,7 @@ const containerStyle = computed(() => {
     <section v-if="shouldShowSubnodes" class="base-node-subnodes">
       <div class="base-node-subnodes-header">
         <span>Subnodes</span>
-        <span class="base-node-subnodes-count">{{ resolvedSubnodesTotalCount }}</span>
+        <span class="base-node-subnodes-count">{{ subnodesResolved.totalCount }}</span>
       </div>
       <div class="base-node-subnodes-content">
         <slot name="subnodes">
@@ -249,35 +231,12 @@ const containerStyle = computed(() => {
     <slot name="empty" />
 
     <Handle
-      id="relational-out"
-      type="source"
-      :position="sourcePosition"
-      :key="`source-${sourcePosition}`"
-      class="base-node-handle"
-    />
-    <Handle
-      id="relational-out-top"
-      type="source"
-      :position="Position.Top"
-      class="base-node-handle base-node-handle--aux"
-    />
-    <Handle
-      id="relational-out-right"
-      type="source"
-      :position="Position.Right"
-      class="base-node-handle base-node-handle--aux"
-    />
-    <Handle
-      id="relational-out-bottom"
-      type="source"
-      :position="Position.Bottom"
-      class="base-node-handle base-node-handle--aux"
-    />
-    <Handle
-      id="relational-out-left"
-      type="source"
-      :position="Position.Left"
-      class="base-node-handle base-node-handle--aux"
+      v-for="h in handles.slice(5)"
+      :key="h.id"
+      :id="h.id"
+      :type="h.type"
+      :position="h.position"
+      :class="h.class"
     />
   </div>
 </template>

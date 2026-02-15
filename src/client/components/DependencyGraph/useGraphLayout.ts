@@ -46,6 +46,68 @@ const TWO_PASS_MEASURE_NODE_THRESHOLD = 500;
 
 // ── Types ──
 
+/** Snapshot of graph nodes and edges (overview or semantic). */
+export interface GraphSnapshot {
+  nodes: DependencyNode[];
+  edges: GraphEdge[];
+}
+
+/** Sets the overview snapshot. */
+export type SetOverviewSnapshot = (snapshot: GraphSnapshot) => void;
+
+/** Sets the semantic snapshot (null to clear). */
+export type SetSemanticSnapshot = (snapshot: GraphSnapshot | null) => void;
+
+/** Manual position offset for a node. */
+export interface ManualOffset {
+  dx: number;
+  dy: number;
+}
+
+/** Map of node id → manual offset. */
+export type ManualOffsetsMap = Map<string, ManualOffset>;
+
+/** Applies manual offsets to a list of nodes; returns new array. */
+export type ApplyManualOffsets = (nodes: DependencyNode[]) => DependencyNode[];
+
+/** How member nodes are displayed inside container nodes. */
+export type MemberNodeMode = 'compact' | 'graph';
+
+export interface GraphStore {
+  nodes: DependencyNode[];
+  setNodes: (nodes: DependencyNode[]) => void;
+  setEdges: (edges: GraphEdge[]) => void;
+  setOverviewSnapshot: SetOverviewSnapshot;
+  setSemanticSnapshot: SetSemanticSnapshot;
+  setViewMode: (mode: string) => void;
+  suspendCacheWrites: () => void;
+  resumeCacheWrites: () => void;
+  manualOffsets: ManualOffsetsMap;
+  applyManualOffsets: ApplyManualOffsets;
+}
+
+export interface GraphSettings {
+  enabledNodeTypes: string[];
+  activeRelationshipTypes: string[];
+  clusterByFolder: boolean;
+  collapseScc: boolean;
+  collapsedFolderIds: Set<string>;
+  hideTestFiles: boolean;
+  memberNodeMode: MemberNodeMode;
+  highlightOrphanGlobal: boolean;
+  degreeWeightedLayers: boolean;
+}
+
+/** Options passed to fitView (duration, padding, node ids to fit). */
+export interface FitViewOptions {
+  duration?: number;
+  padding?: number;
+  nodes?: string[];
+}
+
+/** Fits the viewport to the graph or to given nodes. */
+export type FitView = (opts?: FitViewOptions) => Promise<void>;
+
 interface NodeDimensionTracker {
   refresh: () => void;
   get: (nodeId: string) => {
@@ -59,33 +121,12 @@ interface NodeDimensionTracker {
 
 export interface UseGraphLayoutOptions {
   propsData: Ref<DependencyPackageGraph>;
-  graphStore: {
-    nodes: DependencyNode[];
-    setNodes: (nodes: DependencyNode[]) => void;
-    setEdges: (edges: GraphEdge[]) => void;
-    setOverviewSnapshot: (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] }) => void;
-    setSemanticSnapshot: (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => void;
-    setViewMode: (mode: string) => void;
-    suspendCacheWrites: () => void;
-    resumeCacheWrites: () => void;
-    manualOffsets: Map<string, { dx: number; dy: number }>;
-    applyManualOffsets: (nodes: DependencyNode[]) => DependencyNode[];
-  };
-  graphSettings: {
-    enabledNodeTypes: string[];
-    activeRelationshipTypes: string[];
-    clusterByFolder: boolean;
-    collapseScc: boolean;
-    collapsedFolderIds: Set<string>;
-    hideTestFiles: boolean;
-    memberNodeMode: 'compact' | 'graph';
-    highlightOrphanGlobal: boolean;
-    degreeWeightedLayers: boolean;
-  };
+  graphStore: GraphStore;
+  graphSettings: GraphSettings;
   interaction: {
     resetInteraction: () => void;
   };
-  fitView: (opts?: { duration?: number; padding?: number; nodes?: string[] }) => Promise<void>;
+  fitView: FitView;
   updateNodeInternals: (ids: string[]) => void;
   suspendEdgeVirtualization: () => void;
   resumeEdgeVirtualization: () => void;
@@ -99,9 +140,9 @@ export interface GraphLayout {
   isLayoutMeasuring: Readonly<Ref<boolean>>;
   layoutConfig: LayoutConfig;
   processGraphLayout: (
-    graphData: { nodes: DependencyNode[]; edges: GraphEdge[] },
+    graphData: GraphSnapshot,
     options?: LayoutProcessOptions
-  ) => Promise<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
+  ) => Promise<GraphSnapshot | null>;
   initializeGraph: () => Promise<void>;
   requestGraphInitialization: () => Promise<void>;
   measureAllNodeDimensions: (

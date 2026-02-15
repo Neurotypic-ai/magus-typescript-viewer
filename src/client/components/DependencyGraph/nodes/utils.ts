@@ -146,3 +146,26 @@ export const ENTITY_TYPE_CONFIGS: EntityTypeConfig[] = [
   { type: 'const', title: 'Constants', badgeText: 'CONST', badgeClass: 'entity-const' },
   { type: 'var', title: 'Variables', badgeText: 'VAR', badgeClass: 'entity-var' },
 ];
+
+// ── Subnodes count resolution ─────────────────────────────────────
+
+export interface SubnodesCount {
+  count: number;
+  totalCount: number;
+  hiddenCount: number;
+}
+
+/**
+ * Resolve subnodes count/totalCount/hiddenCount from node data.
+ * Normalizes the loosely-typed `subnodes` bag into concrete numbers.
+ */
+export function resolveSubnodesCount(
+  subnodes: { count?: number; totalCount?: number; hiddenCount?: number } | undefined,
+): SubnodesCount {
+  const count = typeof subnodes?.count === 'number' ? subnodes.count : 0;
+  const totalCount = typeof subnodes?.totalCount === 'number' ? subnodes.totalCount : count;
+  const hiddenCount = typeof subnodes?.hiddenCount === 'number'
+    ? Math.max(0, subnodes.hiddenCount)
+    : Math.max(0, totalCount - count);
+  return { count, totalCount, hiddenCount };
+}

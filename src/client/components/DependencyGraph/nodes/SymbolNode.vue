@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, inject, ref, toRef, watch } from 'vue';
+import { computed, ref, toRef } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
-import { ISOLATE_EXPAND_ALL_KEY, buildBaseNodeProps, formatMethod, formatProperty } from './utils';
+import { useIsolateExpandState } from './useIsolateExpandState';
+import { buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 
 import type { DependencyProps } from '../types';
 
@@ -27,28 +28,17 @@ const isCollapsible = computed(() => {
   return nodeData.value.collapsible === true;
 });
 const isCollapsed = ref(false);
-const preIsolateCollapsedState = ref<boolean | null>(null);
 const toggleCollapsed = () => {
   if (isCollapsible.value) {
     isCollapsed.value = !isCollapsed.value;
   }
 };
 
-const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
-watch(isolateExpandAll, (expand) => {
-  if (expand) {
-    if (preIsolateCollapsedState.value === null) {
-      preIsolateCollapsedState.value = isCollapsed.value;
-    }
-    isCollapsed.value = false;
-    return;
-  }
-
-  if (preIsolateCollapsedState.value !== null) {
-    isCollapsed.value = preIsolateCollapsedState.value;
-    preIsolateCollapsedState.value = null;
-  }
-});
+useIsolateExpandState(
+  () => isCollapsed.value,
+  (saved) => { isCollapsed.value = saved; },
+  () => { isCollapsed.value = false; },
+);
 
 const baseNodeProps = computed(() => buildBaseNodeProps(props, {
   zIndex: isMemberNode.value ? 4 : 3,

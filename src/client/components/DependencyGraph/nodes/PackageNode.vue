@@ -2,7 +2,7 @@
 import { computed, toRef } from 'vue';
 
 import BaseNode from './BaseNode.vue';
-import { buildBaseNodeProps } from './utils';
+import { buildBaseNodeProps, resolveSubnodesCount } from './utils';
 
 import type { DependencyProps } from '../types';
 
@@ -10,20 +10,14 @@ const props = defineProps<DependencyProps>();
 
 const nodeData = toRef(props, 'data');
 const metadataItems = computed(() => nodeData.value.properties ?? []);
-const subnodeCount = computed(() => {
-  const count = (nodeData.value.subnodes as { count?: number } | undefined)?.count;
-  return typeof count === 'number' ? count : 0;
-});
-
-const totalSubnodeCount = computed(() => {
-  const total = (nodeData.value.subnodes as { totalCount?: number } | undefined)?.totalCount;
-  return typeof total === 'number' ? total : subnodeCount.value;
-});
+const subnodesResolved = computed(() =>
+  resolveSubnodesCount(nodeData.value.subnodes as { count?: number; totalCount?: number } | undefined),
+);
 
 const baseNodeProps = computed(() => buildBaseNodeProps(props, {
   isContainer: true,
-  showSubnodes: totalSubnodeCount.value > 0,
-  subnodesCount: subnodeCount.value,
+  showSubnodes: subnodesResolved.value.totalCount > 0,
+  subnodesCount: subnodesResolved.value.count,
 }));
 </script>
 
@@ -40,7 +34,7 @@ const baseNodeProps = computed(() => buildBaseNodeProps(props, {
     </template>
 
     <template #subnodes>
-      <div class="package-subnodes-hint">Contains {{ subnodeCount }} module nodes</div>
+      <div class="package-subnodes-hint">Contains {{ subnodesResolved.count }} module nodes</div>
     </template>
   </BaseNode>
 </template>

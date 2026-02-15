@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, inject, ref, shallowRef, toRef, watch } from 'vue';
+import { computed, ref, shallowRef, toRef } from 'vue';
 
 import { useGraphSettings } from '../../../stores/graphSettings';
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import EntityListSection from './EntityListSection.vue';
 import SymbolCardSection from './SymbolCardSection.vue';
-import { ENTITY_TYPE_CONFIGS, ISOLATE_EXPAND_ALL_KEY, buildBaseNodeProps, formatMethod, formatProperty } from './utils';
+import { useIsolateExpandState } from './useIsolateExpandState';
+import { ENTITY_TYPE_CONFIGS, buildBaseNodeProps, formatMethod, formatProperty, resolveSubnodesCount } from './utils';
 
 import type { DependencyProps, EmbeddedModuleEntity, EmbeddedSymbol, ExternalDependencyRef } from '../types';
 
@@ -87,15 +88,11 @@ const diagnostics = computed(
 );
 
 // Subnodes
-const subnodeCount = computed(() => {
-  const count = (nodeData.value.subnodes as { count?: number } | undefined)?.count;
-  return typeof count === 'number' ? count : 0;
-});
-
 const subnodeMeta = computed(
   () =>
     nodeData.value.subnodes as
       | {
+          count?: number;
           totalCount?: number;
           visibleCount?: number;
           hiddenCount?: number;
@@ -105,24 +102,10 @@ const subnodeMeta = computed(
       | undefined,
 );
 
-const totalSubnodeCount = computed(() => {
-  const total = subnodeMeta.value?.totalCount;
-  if (typeof total === 'number') {
-    return total;
-  }
-  return subnodeCount.value;
-});
-
-const hiddenSubnodeCount = computed(() => {
-  const hidden = subnodeMeta.value?.hiddenCount;
-  if (typeof hidden === 'number') {
-    return Math.max(0, hidden);
-  }
-  return Math.max(0, totalSubnodeCount.value - subnodeCount.value);
-});
+const subnodesResolved = computed(() => resolveSubnodesCount(subnodeMeta.value));
 
 const hiddenSubnodeSummary = computed(() => {
-  if (hiddenSubnodeCount.value === 0) {
+  if (subnodesResolved.value.hiddenCount === 0) {
     return '';
   }
 
@@ -140,19 +123,19 @@ const hiddenSubnodeSummary = computed(() => {
   }
 
   if (segments.length === 0) {
-    return `${hiddenSubnodeCount.value} hidden`;
+    return `${subnodesResolved.value.hiddenCount} hidden`;
   }
 
   return `Hidden: ${segments.join(', ')}`;
 });
 
-const hasVueFlowChildren = computed(() => nodeData.value.isContainer === true && subnodeCount.value > 0);
+const hasVueFlowChildren = computed(() => nodeData.value.isContainer === true && subnodesResolved.value.count > 0);
 
 const baseNodeProps = computed(() =>
   buildBaseNodeProps(props, {
     isContainer: hasVueFlowChildren.value,
-    showSubnodes: hasVueFlowChildren.value || hiddenSubnodeCount.value > 0,
-    subnodesCount: subnodeCount.value,
+    showSubnodes: hasVueFlowChildren.value || subnodesResolved.value.hiddenCount > 0,
+    subnodesCount: subnodesResolved.value.count,
   }),
 );
 
@@ -164,31 +147,20 @@ const visibleExternalDependencies = computed(() =>
 const hiddenExternalDependencyCount = computed(() => Math.max(0, externalDependencies.value.length - 8));
 
 // Pre-isolate state (CollapsibleSection handles its own open/close state)
-const preIsolateExpandState = shallowRef<{
-  showAllExternalDeps: boolean;
-  expandedSymbols: Set<string>;
-} | null>(null);
-
-const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
-watch(isolateExpandAll, (expand) => {
-  if (expand) {
-    if (!preIsolateExpandState.value) {
-      preIsolateExpandState.value = {
-        showAllExternalDeps: showAllExternalDeps.value,
-        expandedSymbols: new Set(expandedSymbols.value),
-      };
-    }
+useIsolateExpandState(
+  () => ({
+    showAllExternalDeps: showAllExternalDeps.value,
+    expandedSymbols: new Set(expandedSymbols.value),
+  }),
+  (saved) => {
+    showAllExternalDeps.value = saved.showAllExternalDeps;
+    expandedSymbols.value = new Set(saved.expandedSymbols);
+  },
+  () => {
     showAllExternalDeps.value = true;
     expandedSymbols.value = new Set(embeddedSymbols.value.map((s) => s.id));
-    return;
-  }
-
-  if (preIsolateExpandState.value) {
-    showAllExternalDeps.value = preIsolateExpandState.value.showAllExternalDeps;
-    expandedSymbols.value = new Set(preIsolateExpandState.value.expandedSymbols);
-    preIsolateExpandState.value = null;
-  }
-});
+  },
+);
 </script>
 
 <template>
@@ -295,7 +267,7 @@ watch(isolateExpandAll, (expand) => {
     </template>
 
     <template #subnodes>
-      <div v-if="subnodeCount > 0" class="subnode-hint">
+      <div v-if="subnodesResolved.count > 0" class="subnode-hint">
         Child class/interface nodes are laid out in this module container.
       </div>
       <div v-if="hiddenSubnodeSummary" class="subnode-hint">{{ hiddenSubnodeSummary }}</div>

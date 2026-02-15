@@ -1,4 +1,4 @@
-import { MarkerType, Position } from '@vue-flow/core';
+import { MarkerType } from '@vue-flow/core';
 
 import { collapseFolders } from '../../graph/cluster/collapseFolders';
 import { clusterByFolder } from '../../graph/cluster/folders';
@@ -9,6 +9,7 @@ import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
 import { createGraphEdges } from '../../utils/createGraphEdges';
 import { createGraphNodes } from '../../utils/createGraphNodes';
 import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from './layout/edgeGeometryPolicy';
+import { getHandlePositions } from './graphUtils';
 import { mapTypeCollection } from './mapTypeCollection';
 
 import type {
@@ -58,21 +59,6 @@ export interface BuildSymbolDrilldownGraphOptions {
   enabledRelationshipTypes: string[];
 }
 
-function getHandlePositions(direction: 'LR' | 'RL' | 'TB' | 'BT'): {
-  sourcePosition: Position;
-  targetPosition: Position;
-} {
-  switch (direction) {
-    case 'LR':
-      return { sourcePosition: Position.Right, targetPosition: Position.Left };
-    case 'RL':
-      return { sourcePosition: Position.Left, targetPosition: Position.Right };
-    case 'TB':
-      return { sourcePosition: Position.Bottom, targetPosition: Position.Top };
-    case 'BT':
-      return { sourcePosition: Position.Top, targetPosition: Position.Bottom };
-  }
-}
 
 function filterEdgesByNodeSet(nodes: DependencyNode[], edges: GraphEdge[]): GraphEdge[] {
   const nodeIds = new Set(nodes.map((node) => node.id));
