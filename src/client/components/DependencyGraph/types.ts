@@ -173,7 +173,12 @@ export type GraphEdge = Edge<{
   highwayTypes?: DependencyEdgeKind[];
   highwayGroupId?: string;
   highwayTypeBreakdown?: Partial<Record<DependencyEdgeKind, number>>;
-}>;
+}> & {
+  pathOptions?: {
+    offset?: number;
+    borderRadius?: number;
+  };
+};
 
 /**
  * Unified graph structure

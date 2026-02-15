@@ -31,6 +31,16 @@ const makeEdge = (id: string, source: string, target: string, type: DependencyEd
     data: { type },
   }) as GraphEdge;
 
+const getHandleSide = (handleId: string | null | undefined): string | undefined => {
+  if (!handleId) return undefined;
+  const folderMatch = handleId.match(/folder-(top|right|bottom|left)-(?:in|out)(?:-inner)?$/);
+  if (folderMatch) {
+    return folderMatch[1];
+  }
+  const relationalMatch = handleId.match(/relational-(?:in|out)-(top|right|bottom|left)$/);
+  return relationalMatch?.[1];
+};
+
 describe('applyEdgeHighways', () => {
   it('projects cross-folder edges into exit, trunk, and entry segments', () => {
     const nodes: DependencyNode[] = [
@@ -45,20 +55,29 @@ describe('applyEdgeHighways', () => {
     ];
 
     const result = applyEdgeHighways(nodes, edges, { direction: 'LR' });
-    const segmentKinds = result.edges.map((edge) => edge.data?.highwaySegment);
+    const optimizedEdges = optimizeHighwayHandleRouting(nodes, result.edges);
+    const segmentKinds = optimizedEdges.map((edge) => edge.data?.highwaySegment);
 
     expect(segmentKinds).toEqual(expect.arrayContaining(['exit', 'highway', 'entry']));
-    expect(result.edges.some((edge) => edge.id === 'e-intra')).toBe(true);
+    expect(optimizedEdges.some((edge) => edge.id === 'e-intra')).toBe(true);
 
-    const trunk = result.edges.find((edge) => edge.data?.highwaySegment === 'highway');
-    const exit = result.edges.find((edge) => edge.data?.highwaySegment === 'exit');
-    const entry = result.edges.find((edge) => edge.data?.highwaySegment === 'entry');
+    const trunk = optimizedEdges.find((edge) => edge.data?.highwaySegment === 'highway');
+    const exit = optimizedEdges.find((edge) => edge.data?.highwaySegment === 'exit');
+    const entry = optimizedEdges.find((edge) => edge.data?.highwaySegment === 'entry');
     expect(trunk?.source).toBe('folder:A');
     expect(trunk?.target).toBe('folder:B');
-    expect(trunk?.sourceHandle).toBe('folder-right-out');
-    expect(trunk?.targetHandle).toBe('folder-left-in');
-    expect(exit?.type).toBe('straight');
-    expect(entry?.type).toBe('straight');
+    expect(trunk?.sourceHandle).toMatch(/^folder-(top|right|bottom|left)-out$/);
+    expect(trunk?.targetHandle).toMatch(/^folder-(top|right|bottom|left)-in$/);
+    expect(exit?.sourceHandle).toMatch(/^relational-out-(top|right|bottom|left)$/);
+    expect(exit?.targetHandle).toMatch(/^folder-(top|right|bottom|left)-out-inner$/);
+    expect(exit?.type).toBe('smoothstep');
+    expect(exit?.pathOptions).toMatchObject({ offset: 0, borderRadius: 0 });
+    expect(getHandleSide(exit?.sourceHandle)).toBe(getHandleSide(exit?.targetHandle));
+    expect(entry?.sourceHandle).toMatch(/^folder-(top|right|bottom|left)-in-inner$/);
+    expect(entry?.targetHandle).toMatch(/^relational-in-(top|right|bottom|left)$/);
+    expect(getHandleSide(entry?.sourceHandle)).toBe(getHandleSide(entry?.targetHandle));
+    expect(entry?.type).toBe('smoothstep');
+    expect(entry?.pathOptions).toMatchObject({ offset: 0, borderRadius: 0 });
   });
 
   it('aggregates trunk counts and type breakdown per folder pair', () => {
@@ -176,11 +195,15 @@ describe('applyEdgeHighways', () => {
 
     expect(exits).toHaveLength(2);
     expect(new Set(exits.map((edge) => edge.targetHandle))).toEqual(
-      new Set(['folder-right-out', 'folder-bottom-out'])
+      new Set(['folder-right-out-inner', 'folder-bottom-out-inner'])
     );
+    expect(new Set(exits.map((edge) => edge.sourceHandle))).toEqual(
+      new Set(['relational-out-right', 'relational-out-bottom'])
+    );
+    expect(exits.every((edge) => edge.type === 'smoothstep')).toBe(true);
   });
 
-  it('forces straight rendering for folder-to-descendant edges', () => {
+  it('does not force straight rendering for folder-to-descendant edges', () => {
     const nodes: DependencyNode[] = [
       {
         ...makeGroup('folder:A'),
@@ -204,7 +227,7 @@ describe('applyEdgeHighways', () => {
     ];
 
     const optimized = optimizeHighwayHandleRouting(nodes, edges);
-    expect(optimized[0]?.type).toBe('straight');
+    expect(optimized[0]?.type).not.toBe('straight');
   });
 });
 

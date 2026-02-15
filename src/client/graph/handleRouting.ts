@@ -9,6 +9,17 @@ export const FOLDER_HANDLE_IDS = {
   leftOut: 'folder-left-out',
 } as const;
 
+export const FOLDER_INNER_HANDLE_IDS = {
+  topIn: 'folder-top-in-inner',
+  topOut: 'folder-top-out-inner',
+  rightIn: 'folder-right-in-inner',
+  rightOut: 'folder-right-out-inner',
+  bottomIn: 'folder-bottom-in-inner',
+  bottomOut: 'folder-bottom-out-inner',
+  leftIn: 'folder-left-in-inner',
+  leftOut: 'folder-left-out-inner',
+} as const;
+
 export function selectFolderHandle(
   direction: 'LR' | 'RL' | 'TB' | 'BT',
   role: 'incoming' | 'outgoing'

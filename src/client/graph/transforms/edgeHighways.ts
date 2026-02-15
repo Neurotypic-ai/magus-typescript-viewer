@@ -1,7 +1,7 @@
 import { MarkerType } from '@vue-flow/core';
 
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
-import { FOLDER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
+import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
 import { buildNodeToFolderMap } from '../cluster/folderMembership';
 import { getHandleAnchor } from '../../components/DependencyGraph/handleAnchors';
 import { getEdgeStyle } from '../../theme/graphTheme';
@@ -26,6 +26,7 @@ interface SegmentAccumulator {
   count: number;
   typeBreakdown: Partial<Record<DependencyEdgeKind, number>>;
 }
+type HandleSide = 'top' | 'right' | 'bottom' | 'left';
 
 const EDGE_KIND_PRIORITY: Record<DependencyEdgeKind, number> = {
   contains: 5,
@@ -90,6 +91,31 @@ const INCOMING_HANDLE_IDS = [
   FOLDER_HANDLE_IDS.bottomIn,
   FOLDER_HANDLE_IDS.leftIn,
 ] as const;
+const CONNECTOR_SMOOTHSTEP_PATH_OPTIONS = { offset: 0, borderRadius: 0 };
+const CHILD_OUT_HANDLE_BY_SIDE: Record<HandleSide, string> = {
+  top: 'relational-out-top',
+  right: 'relational-out-right',
+  bottom: 'relational-out-bottom',
+  left: 'relational-out-left',
+};
+const CHILD_IN_HANDLE_BY_SIDE: Record<HandleSide, string> = {
+  top: 'relational-in-top',
+  right: 'relational-in-right',
+  bottom: 'relational-in-bottom',
+  left: 'relational-in-left',
+};
+const FOLDER_INNER_OUT_HANDLE_BY_SIDE: Record<HandleSide, string> = {
+  top: FOLDER_INNER_HANDLE_IDS.topOut,
+  right: FOLDER_INNER_HANDLE_IDS.rightOut,
+  bottom: FOLDER_INNER_HANDLE_IDS.bottomOut,
+  left: FOLDER_INNER_HANDLE_IDS.leftOut,
+};
+const FOLDER_INNER_IN_HANDLE_BY_SIDE: Record<HandleSide, string> = {
+  top: FOLDER_INNER_HANDLE_IDS.topIn,
+  right: FOLDER_INNER_HANDLE_IDS.rightIn,
+  bottom: FOLDER_INNER_HANDLE_IDS.bottomIn,
+  left: FOLDER_INNER_HANDLE_IDS.leftIn,
+};
 
 const parseDimension = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -147,29 +173,6 @@ function buildAbsoluteNodeBoundsMap(
   return boundsById;
 }
 
-function buildParentMap(nodes: DependencyNode[]): Map<string, string> {
-  const parentMap = new Map<string, string>();
-  nodes.forEach((node) => {
-    if (node.parentNode) {
-      parentMap.set(node.id, node.parentNode);
-    }
-  });
-  return parentMap;
-}
-
-function isDescendantOf(nodeId: string, ancestorId: string, parentMap: Map<string, string>): boolean {
-  let current = nodeId;
-  let parent = parentMap.get(current);
-  while (parent) {
-    if (parent === ancestorId) {
-      return true;
-    }
-    current = parent;
-    parent = parentMap.get(current);
-  }
-  return false;
-}
-
 const getBoundsCenter = (bounds: { x: number; y: number; width: number; height: number }): { x: number; y: number } => ({
   x: bounds.x + bounds.width / 2,
   y: bounds.y + bounds.height / 2,
@@ -201,6 +204,15 @@ const chooseClosestHandle = (
   });
 
   return bestHandle;
+};
+
+const FOLDER_HANDLE_SIDE_PATTERN = /^folder-(top|right|bottom|left)-(in|out)(-inner)?$/;
+const getFolderHandleSide = (handleId: string): HandleSide | undefined => {
+  const match = handleId.match(FOLDER_HANDLE_SIDE_PATTERN);
+  if (!match) {
+    return undefined;
+  }
+  return match[1] as HandleSide;
 };
 
 export function applyEdgeHighways(
@@ -335,20 +347,9 @@ export function applyEdgeHighways(
 
 export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: GraphEdge[]): GraphEdge[] {
   const boundsById = buildAbsoluteNodeBoundsMap(nodes);
-  const parentMap = buildParentMap(nodes);
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
   let changed = false;
 
   const nextEdges = edges.map((edge) => {
-    const sourceNode = nodeById.get(edge.source);
-    const targetNode = nodeById.get(edge.target);
-    // Evaluate descendant relation for potential future path heuristics.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const folderToChildConnection = (
-      (sourceNode?.type === 'group' && isDescendantOf(edge.target, edge.source, parentMap)) ||
-      (targetNode?.type === 'group' && isDescendantOf(edge.source, edge.target, parentMap))
-    );
-
     const segment = edge.data?.highwaySegment;
     if (segment !== 'exit' && segment !== 'entry' && segment !== 'highway') {
       return edge;
@@ -370,11 +371,22 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
         OUTGOING_HANDLE_IDS,
         edge.targetHandle ?? FOLDER_HANDLE_IDS.rightOut
       );
-      if (targetHandle !== edge.targetHandle) {
+      const side = getFolderHandleSide(targetHandle) ?? 'right';
+      const sourceHandle = CHILD_OUT_HANDLE_BY_SIDE[side];
+      const innerTargetHandle = FOLDER_INNER_OUT_HANDLE_BY_SIDE[side];
+      const pathOptions = edge.pathOptions as { offset?: number; borderRadius?: number } | undefined;
+      const requiresPathTuning =
+        edge.type !== 'smoothstep' ||
+        pathOptions?.offset !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.offset ||
+        pathOptions?.borderRadius !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.borderRadius;
+      if (innerTargetHandle !== edge.targetHandle || sourceHandle !== edge.sourceHandle || requiresPathTuning) {
         changed = true;
         return {
           ...edge,
-          targetHandle,
+          type: 'smoothstep',
+          sourceHandle,
+          targetHandle: innerTargetHandle,
+          pathOptions: CONNECTOR_SMOOTHSTEP_PATH_OPTIONS,
         };
       }
       return edge;
@@ -390,11 +402,22 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
         INCOMING_HANDLE_IDS,
         edge.sourceHandle ?? FOLDER_HANDLE_IDS.leftIn
       );
-      if (sourceHandle !== edge.sourceHandle) {
+      const side = getFolderHandleSide(sourceHandle) ?? 'left';
+      const targetHandle = CHILD_IN_HANDLE_BY_SIDE[side];
+      const innerSourceHandle = FOLDER_INNER_IN_HANDLE_BY_SIDE[side];
+      const pathOptions = edge.pathOptions as { offset?: number; borderRadius?: number } | undefined;
+      const requiresPathTuning =
+        edge.type !== 'smoothstep' ||
+        pathOptions?.offset !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.offset ||
+        pathOptions?.borderRadius !== CONNECTOR_SMOOTHSTEP_PATH_OPTIONS.borderRadius;
+      if (innerSourceHandle !== edge.sourceHandle || targetHandle !== edge.targetHandle || requiresPathTuning) {
         changed = true;
         return {
           ...edge,
-          sourceHandle,
+          type: 'smoothstep',
+          sourceHandle: innerSourceHandle,
+          targetHandle,
+          pathOptions: CONNECTOR_SMOOTHSTEP_PATH_OPTIONS,
         };
       }
       return edge;

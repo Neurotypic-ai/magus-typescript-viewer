@@ -47,11 +47,29 @@ function toggleCollapse() {
       aria-hidden="true"
     />
     <Handle
+      id="folder-top-in-inner"
+      type="target"
+      :position="Position.Top"
+      :style="{ left: '33%', top: '8px' }"
+      class="folder-handle folder-handle-inner"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
       id="folder-top-out"
       type="source"
       :position="Position.Top"
       :style="{ left: '66%' }"
       class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-top-out-inner"
+      type="source"
+      :position="Position.Top"
+      :style="{ left: '66%', top: '8px' }"
+      class="folder-handle folder-handle-inner"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -65,11 +83,29 @@ function toggleCollapse() {
       aria-hidden="true"
     />
     <Handle
+      id="folder-right-in-inner"
+      type="target"
+      :position="Position.Right"
+      :style="{ top: '33%', right: '8px' }"
+      class="folder-handle folder-handle-inner"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
       id="folder-right-out"
       type="source"
       :position="Position.Right"
       :style="{ top: '66%' }"
       class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-right-out-inner"
+      type="source"
+      :position="Position.Right"
+      :style="{ top: '66%', right: '8px' }"
+      class="folder-handle folder-handle-inner"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -83,11 +119,29 @@ function toggleCollapse() {
       aria-hidden="true"
     />
     <Handle
+      id="folder-bottom-in-inner"
+      type="target"
+      :position="Position.Bottom"
+      :style="{ left: '33%', bottom: '8px' }"
+      class="folder-handle folder-handle-inner"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
       id="folder-bottom-out"
       type="source"
       :position="Position.Bottom"
       :style="{ left: '66%' }"
       class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-bottom-out-inner"
+      type="source"
+      :position="Position.Bottom"
+      :style="{ left: '66%', bottom: '8px' }"
+      class="folder-handle folder-handle-inner"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -101,11 +155,29 @@ function toggleCollapse() {
       aria-hidden="true"
     />
     <Handle
+      id="folder-left-in-inner"
+      type="target"
+      :position="Position.Left"
+      :style="{ top: '33%', left: '8px' }"
+      class="folder-handle folder-handle-inner"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
       id="folder-left-out"
       type="source"
       :position="Position.Left"
       :style="{ top: '66%' }"
       class="folder-handle"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      id="folder-left-out-inner"
+      type="source"
+      :position="Position.Left"
+      :style="{ top: '66%', left: '8px' }"
+      class="folder-handle folder-handle-inner"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -225,5 +297,11 @@ function toggleCollapse() {
 .group-node-container:hover .folder-handle {
   opacity: 0.42;
   box-shadow: 0 0 4px rgba(96, 165, 250, 0.65);
+}
+
+.folder-handle-inner {
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: none !important;
 }
 </style>

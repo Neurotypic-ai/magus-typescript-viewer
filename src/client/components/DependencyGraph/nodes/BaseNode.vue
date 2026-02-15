@@ -144,6 +144,20 @@ const containerStyle = computed(() => {
       :key="`target-${targetPosition}`"
       class="base-node-handle"
     />
+    <Handle id="relational-in-top" type="target" :position="Position.Top" class="base-node-handle base-node-handle--aux" />
+    <Handle
+      id="relational-in-right"
+      type="target"
+      :position="Position.Right"
+      class="base-node-handle base-node-handle--aux"
+    />
+    <Handle
+      id="relational-in-bottom"
+      type="target"
+      :position="Position.Bottom"
+      class="base-node-handle base-node-handle--aux"
+    />
+    <Handle id="relational-in-left" type="target" :position="Position.Left" class="base-node-handle base-node-handle--aux" />
 
     <div class="base-node-header">
       <div class="base-node-title-container">
@@ -180,6 +194,30 @@ const containerStyle = computed(() => {
       :position="sourcePosition"
       :key="`source-${sourcePosition}`"
       class="base-node-handle"
+    />
+    <Handle
+      id="relational-out-top"
+      type="source"
+      :position="Position.Top"
+      class="base-node-handle base-node-handle--aux"
+    />
+    <Handle
+      id="relational-out-right"
+      type="source"
+      :position="Position.Right"
+      class="base-node-handle base-node-handle--aux"
+    />
+    <Handle
+      id="relational-out-bottom"
+      type="source"
+      :position="Position.Bottom"
+      class="base-node-handle base-node-handle--aux"
+    />
+    <Handle
+      id="relational-out-left"
+      type="source"
+      :position="Position.Left"
+      class="base-node-handle base-node-handle--aux"
     />
   </div>
 </template>
@@ -237,6 +275,13 @@ const containerStyle = computed(() => {
 .base-node-handle {
   width: 0.75rem !important;
   height: 0.75rem !important;
+}
+
+.base-node-handle--aux {
+  width: 4px !important;
+  height: 4px !important;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .base-node-header {

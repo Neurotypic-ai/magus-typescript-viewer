@@ -87,4 +87,77 @@ describe('edgeVirtualizationCore', () => {
     expect(result?.hiddenEdgeIds.has('edge-mid')).toBe(true);
     expect(result?.hiddenEdgeIds.has('edge-low')).toBe(true);
   });
+
+  it('uses side-specific relational handles when computing edge anchors', () => {
+    const nodes: EdgeVirtualizationNode[] = [
+      {
+        id: 'a',
+        position: { x: -700, y: 0 },
+        style: { width: 600, height: 100 },
+      },
+      {
+        id: 'b',
+        position: { x: -650, y: 0 },
+        style: { width: 600, height: 100 },
+      },
+    ];
+    const edges: EdgeVirtualizationEdge[] = [
+      {
+        id: 'edge-handle-anchors',
+        source: 'a',
+        target: 'b',
+        sourceHandle: 'relational-out-right',
+        targetHandle: 'relational-in-right',
+        data: { type: 'import' },
+      },
+    ];
+
+    const result = computeEdgeVirtualizationResult({
+      nodes,
+      edges,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      containerSize: { width: 900, height: 700 },
+      edgePriorityOrder: buildEdgePriorityOrder(edges),
+    });
+
+    expect(result).toBeTruthy();
+    expect(result?.hiddenEdgeIds.has('edge-handle-anchors')).toBe(false);
+  });
+
+  it('supports inner folder handle anchors for padded internal routing', () => {
+    const nodes: EdgeVirtualizationNode[] = [
+      {
+        id: 'folder',
+        position: { x: -700, y: 0 },
+        style: { width: 600, height: 300 },
+      },
+      {
+        id: 'child',
+        position: { x: 40, y: 80 },
+        parentNode: 'folder',
+        style: { width: 200, height: 100 },
+      },
+    ];
+    const edges: EdgeVirtualizationEdge[] = [
+      {
+        id: 'edge-folder-inner',
+        source: 'folder',
+        target: 'child',
+        sourceHandle: 'folder-right-in-inner',
+        targetHandle: 'relational-in-right',
+        data: { type: 'import' },
+      },
+    ];
+
+    const result = computeEdgeVirtualizationResult({
+      nodes,
+      edges,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      containerSize: { width: 900, height: 700 },
+      edgePriorityOrder: buildEdgePriorityOrder(edges),
+    });
+
+    expect(result).toBeTruthy();
+    expect(result?.hiddenEdgeIds.has('edge-folder-inner')).toBe(false);
+  });
 });
