@@ -27,6 +27,10 @@ export class RulesEngine {
 
     for (const mod of parseResult.modules) {
       const filePath = mod.source.filename;
+
+      // Skip Vue SFCs — jscodeshift's TSX parser cannot handle <template>/<style> blocks
+      if (filePath.endsWith('.vue')) continue;
+
       let sourceContent: string;
 
       try {

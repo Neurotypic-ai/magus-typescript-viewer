@@ -59,5 +59,6 @@
       "driver": "DuckDB",
       "databaseFilePath": "/Users/khallmark/Desktop/Code/taskifier/packages/lbh-typescript-viewer/typescript-viewer.duckdb"
     }
-  ]
+  ],
+  "prettier.configPath": "prettier.config.js"
 }
