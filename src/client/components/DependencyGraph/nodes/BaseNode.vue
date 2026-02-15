@@ -51,6 +51,12 @@ function handleIssueBadgeClick(): void {
   issuesStore.setNodeFilter(props.id);
 }
 
+function handleContextMenu(event: MouseEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
+  nodeActions?.showContextMenu(props.id, nodeData.value?.label ?? props.id, event);
+}
+
 const isOrphanGlobal = computed(() => {
   if (!highlightOrphanGlobal?.value) {
     return false;
@@ -149,7 +155,7 @@ const containerStyle = computed(() => {
 </script>
 
 <template>
-  <div :class="containerClasses" :style="containerStyle">
+  <div :class="containerClasses" :style="containerStyle" @contextmenu="handleContextMenu">
     <NodeToolbar v-if="isSelected" :is-visible="true" :position="Position.Right" align="start" :offset="8">
       <div :class="['node-toolbar-actions', { 'node-toolbar-visible': isSelected }]">
         <button

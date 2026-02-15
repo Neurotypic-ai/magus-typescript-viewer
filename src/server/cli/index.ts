@@ -24,6 +24,7 @@ import { TypeAliasRepository } from '../db/repositories/TypeAliasRepository';
 import { VariableRepository } from '../db/repositories/VariableRepository';
 import { PackageParser } from '../parsers/PackageParser';
 import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
+import { InsightEngine } from '../insights/InsightEngine';
 import { RulesEngine } from '../rules/RulesEngine';
 import { generateRelationshipUUID } from '../utils/uuid';
 
@@ -574,6 +575,51 @@ program
         'unresolved=',
         relationStats.interfaceExtends.unresolved
       );
+
+      // Compute codebase insights
+      console.log();
+      const insightSpinner = ora('Computing codebase insights...').start();
+      try {
+        const engine = new InsightEngine(adapter);
+        const report = await engine.compute();
+
+        insightSpinner.succeed(chalk.green('Insights computed!'));
+        console.log();
+
+        const scoreColor = report.healthScore >= 80 ? chalk.green : report.healthScore >= 50 ? chalk.yellow : chalk.red;
+        console.log(chalk.blue('Health Score:'), scoreColor(`${report.healthScore.toString()}/100`));
+        console.log();
+
+        if (report.summary.critical > 0) {
+          console.log(chalk.red(`  Critical: ${report.summary.critical.toString()}`));
+        }
+        if (report.summary.warning > 0) {
+          console.log(chalk.yellow(`  Warning:  ${report.summary.warning.toString()}`));
+        }
+        if (report.summary.info > 0) {
+          console.log(chalk.cyan(`  Info:     ${report.summary.info.toString()}`));
+        }
+
+        if (report.insights.length > 0) {
+          console.log();
+          console.log(chalk.blue('Top Insights:'));
+          const criticals = report.insights.filter((i) => i.severity === 'critical');
+          const warnings = report.insights.filter((i) => i.severity === 'warning');
+          const topInsights = [...criticals, ...warnings].slice(0, 10);
+          for (const insight of topInsights) {
+            const icon = insight.severity === 'critical' ? chalk.red('!') : chalk.yellow('~');
+            const entityCount = insight.entities.length.toString();
+            console.log(`  ${icon} ${insight.title} (${entityCount} entities)`);
+          }
+          if (report.insights.length > topInsights.length) {
+            const remaining = report.insights.length - topInsights.length;
+            console.log(chalk.gray(`  ... and ${remaining.toString()} more info-level insights`));
+          }
+        }
+      } catch (insightError) {
+        insightSpinner.warn(chalk.yellow('Insight computation skipped'));
+        console.log(chalk.gray('  ' + (insightError instanceof Error ? insightError.message : 'Unknown error')));
+      }
 
       await db.close();
     } catch (error) {

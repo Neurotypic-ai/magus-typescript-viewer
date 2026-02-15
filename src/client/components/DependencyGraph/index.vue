@@ -2072,6 +2072,14 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
 const nodeActions = {
   focusNode: (nodeId: string) => void handleFocusNode(nodeId),
   isolateNeighborhood: (nodeId: string) => void isolateNeighborhood(nodeId),
+  showContextMenu: (nodeId: string, label: string, event: MouseEvent) => {
+    contextMenu.value = {
+      nodeId,
+      nodeLabel: label,
+      x: event.clientX,
+      y: event.clientY,
+    };
+  },
 };
 const highlightOrphanGlobal = computed(() => graphSettings.highlightOrphanGlobal);
 
@@ -2135,15 +2143,7 @@ const onPaneClick = (): void => {
   contextMenu.value = null;
 };
 
-const onNodeContextMenu = (event: { event: MouseEvent; node: { id: string; data?: { label?: string } } }): void => {
-  event.event.preventDefault();
-  contextMenu.value = {
-    nodeId: event.node.id,
-    nodeLabel: (event.node.data?.label as string) ?? event.node.id,
-    x: event.event.clientX,
-    y: event.event.clientY,
-  };
-};
+// Context menu is handled directly on BaseNode via @contextmenu + injected showContextMenu action
 
 const handleWheel = (event: WheelEvent): void => {
   if (!isMac.value) return;
@@ -3009,7 +3009,6 @@ onUnmounted(() => {
       :elevate-edges-on-select="false"
       :default-edge-options="defaultEdgeOptions"
       @node-click="onNodeClick"
-      @node-context-menu="onNodeContextMenu"
       @pane-click="onPaneClick"
       @nodes-change="handleNodesChange"
       @node-mouse-enter="onNodeMouseEnter"

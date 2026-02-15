@@ -101,13 +101,15 @@ export async function buildImportGraph(adapter: IDatabaseAdapter, packageId?: st
     if (!sourceModule) continue;
 
     // Resolve import path to a normalized lookup key
+    // Use directory derived from relativePath (not the absolute `directory` column)
+    const relDir = path.posix.dirname(sourceModule.relativePath);
     let resolvedPath: string;
     if (importSource.startsWith('@/')) {
       resolvedPath = normalizePath(importSource.replace('@/', 'src/'));
     } else if (importSource.startsWith('src/')) {
       resolvedPath = normalizePath(importSource);
     } else {
-      resolvedPath = normalizePath(path.posix.join(sourceModule.directory, importSource));
+      resolvedPath = normalizePath(path.posix.join(relDir, importSource));
     }
 
     const targetModuleId = pathToModuleId.get(resolvedPath);

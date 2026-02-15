@@ -10,6 +10,7 @@ import type { DependencyData, DependencyKind, EmbeddedModuleEntity, NodeMethod, 
 export interface NodeActions {
   focusNode: (nodeId: string) => void;
   isolateNeighborhood: (nodeId: string) => void;
+  showContextMenu: (nodeId: string, label: string, event: MouseEvent) => void;
 }
 
 export const NODE_ACTIONS_KEY: InjectionKey<NodeActions> = Symbol('node-actions');

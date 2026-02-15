@@ -860,13 +860,15 @@ export class InsightEngine {
 
   private async interfaceSegregationViolations(packageId?: string): Promise<InsightResult[]> {
     const rows = await this.adapter.query<InterfaceRow>(
-      `SELECT i.id as id, i.name as name, i.module_id as module_id,
-         (SELECT COUNT(*) FROM methods WHERE parent_id = i.id AND parent_type = 'interface') +
-         (SELECT COUNT(*) FROM properties WHERE parent_id = i.id AND parent_type = 'interface') as member_count,
-         (SELECT COUNT(*) FROM class_implements ci WHERE ci.interface_id = i.id) as implementor_count
-       FROM interfaces i
-       WHERE 1=1 ${wherePackage('i', packageId)}
-       HAVING member_count >= ${s(T.INTERFACE_SEGREGATION_MIN)} AND implementor_count > 0`,
+      `SELECT id, name, module_id, member_count, implementor_count FROM (
+         SELECT i.id as id, i.name as name, i.module_id as module_id,
+           (SELECT COUNT(*) FROM methods WHERE parent_id = i.id AND parent_type = 'interface') +
+           (SELECT COUNT(*) FROM properties WHERE parent_id = i.id AND parent_type = 'interface') as member_count,
+           (SELECT COUNT(*) FROM class_implements ci WHERE ci.interface_id = i.id) as implementor_count
+         FROM interfaces i
+         WHERE 1=1 ${wherePackage('i', packageId)}
+       ) sub
+       WHERE member_count >= ${s(T.INTERFACE_SEGREGATION_MIN)} AND implementor_count > 0`,
       pkgParams(packageId),
     );
 
