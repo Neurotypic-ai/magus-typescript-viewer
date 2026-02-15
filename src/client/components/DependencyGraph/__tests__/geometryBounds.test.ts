@@ -4,12 +4,9 @@ import {
   parseDimension,
   resolveNodeDimensions,
   buildAbsoluteNodeBoundsMap,
-  rectsOverlap,
-  overlapDepth,
-  groupNodesByParent,
 } from '../layout/geometryBounds';
 
-import type { BoundsNode, BoundsDefaults, Rect } from '../layout/geometryBounds';
+import type { BoundsNode, BoundsDefaults } from '../layout/geometryBounds';
 
 const DEFAULTS: BoundsDefaults = { defaultNodeWidth: 260, defaultNodeHeight: 100 };
 
@@ -124,57 +121,3 @@ describe('buildAbsoluteNodeBoundsMap', () => {
   });
 });
 
-describe('rectsOverlap', () => {
-  it('detects obvious overlap', () => {
-    const a: Rect = { x: 0, y: 0, width: 100, height: 100 };
-    const b: Rect = { x: 50, y: 50, width: 100, height: 100 };
-    expect(rectsOverlap(a, b, 0)).toBe(true);
-  });
-
-  it('detects overlap within gap', () => {
-    const a: Rect = { x: 0, y: 0, width: 100, height: 100 };
-    const b: Rect = { x: 110, y: 0, width: 100, height: 100 }; // 10px apart
-    expect(rectsOverlap(a, b, 20)).toBe(true); // gap of 20 means they're too close
-    expect(rectsOverlap(a, b, 5)).toBe(false); // gap of 5 means they're clear
-  });
-
-  it('returns false for clearly separated rects', () => {
-    const a: Rect = { x: 0, y: 0, width: 100, height: 100 };
-    const b: Rect = { x: 500, y: 500, width: 100, height: 100 };
-    expect(rectsOverlap(a, b, 40)).toBe(false);
-  });
-});
-
-describe('overlapDepth', () => {
-  it('returns positive depth for overlapping rects on X axis', () => {
-    const a: Rect = { x: 0, y: 0, width: 100, height: 100 };
-    const b: Rect = { x: 80, y: 0, width: 100, height: 100 };
-    // aRight = 100, bRight = 180
-    // min(100 - 80, 180 - 0) = min(20, 180) = 20
-    expect(overlapDepth(a, b, 'x', 0)).toBe(20);
-  });
-
-  it('accounts for gap in depth calculation', () => {
-    const a: Rect = { x: 0, y: 0, width: 100, height: 100 };
-    const b: Rect = { x: 80, y: 0, width: 100, height: 100 };
-    // With gap 10: aRight = 110, bRight = 190
-    // min(110 - 80, 190 - 0) = min(30, 190) = 30
-    expect(overlapDepth(a, b, 'x', 10)).toBe(30);
-  });
-});
-
-describe('groupNodesByParent', () => {
-  it('groups nodes by parentNode with root default', () => {
-    const nodes: BoundsNode[] = [
-      { id: 'a', position: { x: 0, y: 0 }, parentNode: 'p1' },
-      { id: 'b', position: { x: 0, y: 0 }, parentNode: 'p1' },
-      { id: 'c', position: { x: 0, y: 0 }, parentNode: 'p2' },
-      { id: 'd', position: { x: 0, y: 0 } }, // root level
-    ];
-    const groups = groupNodesByParent(nodes);
-
-    expect(groups.get('p1')).toEqual(['a', 'b']);
-    expect(groups.get('p2')).toEqual(['c']);
-    expect(groups.get('__root__')).toEqual(['d']);
-  });
-});

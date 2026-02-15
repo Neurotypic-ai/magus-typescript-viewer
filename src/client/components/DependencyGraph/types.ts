@@ -355,16 +355,6 @@ export interface DependencyPackageGraph {
 }
 
 /**
- * Layout configuration
- */
-export interface LayoutConfig {
-  direction: 'TB' | 'LR' | 'RL' | 'BT';
-  nodeSpacing: number;
-  rankSpacing: number;
-  hierarchical: boolean;
-}
-
-/**
  * Search results for the graph search component
  */
 export interface SearchResult {

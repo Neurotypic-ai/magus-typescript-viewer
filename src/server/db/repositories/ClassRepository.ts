@@ -11,7 +11,7 @@ import type { Method } from '../../../shared/types/Method';
 import type { Property } from '../../../shared/types/Property';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../types/DatabaseResults';
-import type { IMethodCreateDTO } from './MethodRepository';
+
 
 /**
  * Data transfer object for creating a new class.
@@ -313,14 +313,6 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
     return this.retrieve(undefined, module_id);
   }
 
-  async retrieveMethods(classId: string): Promise<Map<string, Method>> {
-    return this.methodRepository.retrieveByParent(classId, 'class');
-  }
-
-  async retrieveProperties(classId: string): Promise<Map<string, Property>> {
-    return this.propertyRepository.retrieveByParent(classId, 'class');
-  }
-
   /**
    * Batch-retrieve all classes whose module_id is in the given list.
    * Returns raw rows (without hydrated methods/properties/interfaces) for
@@ -357,35 +349,4 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
     }
   }
 
-  async createWithMethods(dto: IClassCreateDTO, methods: IMethodCreateDTO[]): Promise<Class> {
-    try {
-      // First create the class
-      const cls = await this.create(dto);
-
-      // Then create all methods
-      if (methods.length > 0) {
-        await Promise.all(
-          methods.map((method: IMethodCreateDTO) =>
-            this.methodRepository.create({
-              ...method,
-              parent_id: cls.id,
-              parent_type: 'class',
-            } as IMethodCreateDTO)
-          )
-        );
-      }
-
-      // Retrieve the complete class with methods
-      const result = await this.retrieveById(cls.id);
-      if (!result) {
-        throw new RepositoryError('Class not found after creation', 'create', this.errorTag);
-      }
-      return result;
-    } catch (error) {
-      if (error instanceof RepositoryError) {
-        throw error;
-      }
-      throw new RepositoryError('Failed to create class with methods', 'create', this.errorTag, error as Error);
-    }
-  }
 }

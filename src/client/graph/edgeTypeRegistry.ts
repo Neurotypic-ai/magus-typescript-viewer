@@ -92,22 +92,6 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
   },
 };
 
-export function getEdgeTypeDefinition(kind: DependencyEdgeKind): EdgeTypeDefinition {
-  return EDGE_TYPE_REGISTRY[kind];
-}
-
-export function getValidEdgeKindsForSource(nodeType: DependencyKind): DependencyEdgeKind[] {
-  return (Object.keys(EDGE_TYPE_REGISTRY) as DependencyEdgeKind[]).filter((kind) =>
-    EDGE_TYPE_REGISTRY[kind].validSources.includes(nodeType)
-  );
-}
-
-export function getValidEdgeKindsForTarget(nodeType: DependencyKind): DependencyEdgeKind[] {
-  return (Object.keys(EDGE_TYPE_REGISTRY) as DependencyEdgeKind[]).filter((kind) =>
-    EDGE_TYPE_REGISTRY[kind].validTargets.includes(nodeType)
-  );
-}
-
 export function isValidEdgeConnection(
   kind: DependencyEdgeKind,
   sourceType: DependencyKind,

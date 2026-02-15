@@ -38,26 +38,3 @@ export const defaultLayoutConfig: LayoutConfig = {
   theme: graphTheme,
 };
 
-// Layout-specific configurations
-export interface HierarchicalLayoutConfig extends LayoutConfig {
-  alignSiblings?: boolean;
-  depthSeparation?: number;
-}
-
-export interface ForceLayoutConfig extends LayoutConfig {
-  iterations?: number;
-  strength?: number;
-  distance?: number;
-}
-
-// Utility to merge configs with defaults
-export function mergeConfig<T extends LayoutConfig>(config: Partial<T>, defaults: T): T {
-  return {
-    ...defaults,
-    ...config,
-    margins: {
-      ...defaults.margins,
-      ...(config.margins ?? {}),
-    },
-  };
-}

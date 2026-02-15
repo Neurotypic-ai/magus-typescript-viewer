@@ -10,7 +10,7 @@ import type { Method } from '../../../shared/types/Method';
 import type { Property } from '../../../shared/types/Property';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../types/DatabaseResults';
-import type { IMethodCreateDTO } from './MethodRepository';
+
 
 /**
  * Data transfer object for creating a new interface.
@@ -291,14 +291,6 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
     return this.retrieve(undefined, module_id);
   }
 
-  async retrieveMethods(interfaceId: string): Promise<Map<string, Method>> {
-    return this.methodRepository.retrieveByParent(interfaceId, 'interface');
-  }
-
-  async retrieveProperties(interfaceId: string): Promise<Map<string, Property>> {
-    return this.propertyRepository.retrieveByParent(interfaceId, 'interface');
-  }
-
   /**
    * Batch-retrieve all interfaces whose module_id is in the given list.
    * Returns lightweight rows (without hydrated methods/properties/extended interfaces)
@@ -334,35 +326,4 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
     }
   }
 
-  async createWithMethods(dto: IInterfaceCreateDTO, methods: IMethodCreateDTO[]): Promise<Interface> {
-    try {
-      // First create the interface
-      const iface = await this.create(dto);
-
-      // Then create all methods
-      if (methods.length > 0) {
-        await Promise.all(
-          methods.map((method: IMethodCreateDTO) =>
-            this.methodRepository.create({
-              ...method,
-              parent_id: iface.id,
-              parent_type: 'interface',
-            } as IMethodCreateDTO)
-          )
-        );
-      }
-
-      // Retrieve the complete interface with methods
-      const result = await this.retrieveById(iface.id);
-      if (!result) {
-        throw new RepositoryError('Interface not found after creation', 'create', this.errorTag);
-      }
-      return result;
-    } catch (error) {
-      if (error instanceof RepositoryError) {
-        throw error;
-      }
-      throw new RepositoryError('Failed to create interface with methods', 'create', this.errorTag, error as Error);
-    }
-  }
 }
