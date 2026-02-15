@@ -4,7 +4,7 @@ import { computed, inject, ref } from 'vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import { ISOLATE_EXPAND_ALL_KEY } from './utils';
 
-import type { EmbeddedModuleEntity } from '../types';
+import type { EmbeddedModuleEntity } from '../../types';
 
 interface EntityListSectionProps {
   title: string;

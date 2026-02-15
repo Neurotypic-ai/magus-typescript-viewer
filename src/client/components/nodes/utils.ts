@@ -1,7 +1,7 @@
 import type { Position } from '@vue-flow/core';
 import type { InjectionKey, Ref } from 'vue';
 
-import type { DependencyData, DependencyKind, EmbeddedModuleEntity, NodeMethod, NodeProperty } from '../types';
+import type { DependencyData, DependencyKind, EmbeddedModuleEntity, NodeMethod, NodeProperty } from '../../types';
 
 /**
  * Injection key for node actions provided by the graph root.

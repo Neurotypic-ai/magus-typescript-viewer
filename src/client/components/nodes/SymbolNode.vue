@@ -3,10 +3,10 @@ import { computed, ref, toRef } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
-import { useIsolateExpandState } from '../composables/useIsolateExpandState';
+import { useIsolateExpandState } from '../../composables/useIsolateExpandState';
 import { buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 
-import type { DependencyProps } from '../types';
+import type { DependencyProps } from '../../types';
 
 const props = defineProps<DependencyProps>();
 

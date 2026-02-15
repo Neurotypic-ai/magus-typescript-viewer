@@ -2,7 +2,7 @@
 import { Handle, Position } from '@vue-flow/core';
 import { computed, inject } from 'vue';
 
-import type { DependencyProps } from '../types';
+import type { DependencyProps } from '../../types';
 
 import { FOLDER_COLLAPSE_ACTIONS_KEY } from './utils';
 

@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, toRef } from 'vue';
 
-import { useGraphSettings } from '../stores/graphSettings';
+import { useGraphSettings } from '../../stores/graphSettings';
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import EntityListSection from './EntityListSection.vue';
 import SymbolCardSection from './SymbolCardSection.vue';
-import { useIsolateExpandState } from '../composables/useIsolateExpandState';
+import { useIsolateExpandState } from '../../composables/useIsolateExpandState';
 import { ENTITY_TYPE_CONFIGS, buildBaseNodeProps, formatMethod, formatProperty, resolveSubnodesCount } from './utils';
 
-import type { DependencyProps, EmbeddedModuleEntity, EmbeddedSymbol, ExternalDependencyRef } from '../types';
+import type { DependencyProps, EmbeddedModuleEntity, EmbeddedSymbol, ExternalDependencyRef } from '../../types';
 
 const props = defineProps<DependencyProps>();
 

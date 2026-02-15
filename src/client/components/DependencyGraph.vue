@@ -9,13 +9,35 @@ import { buildParentMap } from '../graph/cluster/folderMembership';
 import { traverseGraph } from '../graph/traversal';
 import { parseEnvBoolean, parseEnvInt } from '../utils/env';
 import { buildOverviewGraph } from '../graph/buildGraphView';
-import { nodeTypes } from '../nodes/nodes';
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
   HIGHLIGHT_ORPHAN_GLOBAL_KEY,
   ISOLATE_EXPAND_ALL_KEY,
   NODE_ACTIONS_KEY,
-} from '../nodes/utils';
+} from './nodes/utils';
+import GroupNode from './nodes/GroupNode.vue';
+import ModuleNode from './nodes/ModuleNode.vue';
+import PackageNode from './nodes/PackageNode.vue';
+import SymbolNode from './nodes/SymbolNode.vue';
+
+import type { Component } from 'vue';
+
+/**
+ * Custom node types for the VueFlow dependency graph.
+ * Static component mapping — frozen to prevent Vue from making it reactive.
+ */
+const nodeTypes: Record<string, Component> = Object.freeze({
+  package: PackageNode,
+  module: ModuleNode,
+  class: SymbolNode,
+  interface: SymbolNode,
+  enum: SymbolNode,
+  type: SymbolNode,
+  function: SymbolNode,
+  group: GroupNode,
+  property: SymbolNode,
+  method: SymbolNode,
+});
 import { useGraphSettings } from '../stores/graphSettings';
 import { useGraphStore } from '../stores/graphStore';
 import { useInsightsStore } from '../stores/insightsStore';
