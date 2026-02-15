@@ -79,7 +79,7 @@ export const extractTypeUnion: Transform = {
 
       const typeAnnotation = targetProp.typeAnnotation;
       const innerType = typeAnnotation?.typeAnnotation;
-      if (!innerType || innerType.type !== 'TSUnionType') {
+      if (innerType?.type !== 'TSUnionType') {
         throw new Error(`Property '${propertyName}' does not have a union type annotation`);
       }
 

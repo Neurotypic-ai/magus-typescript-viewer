@@ -96,8 +96,6 @@ describe('buildOverviewGraph', () => {
       hideTestFiles: true,
       memberNodeMode: 'compact',
       highlightOrphanGlobal: true,
-      hubAggregationEnabled: false,
-      hubAggregationThreshold: 8,
     });
 
     expect(result.nodes.some((node) => node.id === 'module-test')).toBe(false);
@@ -152,8 +150,6 @@ describe('buildOverviewGraph', () => {
       hideTestFiles: false,
       memberNodeMode: 'compact',
       highlightOrphanGlobal: false,
-      hubAggregationEnabled: false,
-      hubAggregationThreshold: 8,
     });
 
     expect(result.semanticSnapshot).toBeDefined();

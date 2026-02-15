@@ -37,6 +37,7 @@ export interface UseSelectionHighlightingOptions {
   selectedNode: Ref<DependencyNode | null>;
   scopeMode: Readonly<Ref<string>>;
   searchHighlightState: SearchHighlightState;
+  activeDraggedNodeIds: Readonly<Ref<Set<string>>>;
   useCssSelectionHover: boolean;
   perfMarksEnabled: boolean;
   graphStore: {
@@ -49,6 +50,7 @@ export interface UseSelectionHighlightingOptions {
     setCameraMode: (mode: string) => void;
   };
   removeSelectedElements: () => void;
+  restoreHoverZIndex: (nodeId: string) => void;
 }
 
 export interface SelectionHighlighting {
@@ -74,11 +76,13 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     selectedNode,
     scopeMode,
     searchHighlightState,
+    activeDraggedNodeIds,
     useCssSelectionHover,
     perfMarksEnabled,
     graphStore,
     interaction,
     removeSelectedElements,
+    restoreHoverZIndex,
   } = options;
 
   const hoveredNodeId = ref<string | null>(null);
@@ -117,55 +121,6 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
       const targetEntry = ensureEntry(edge.target);
       targetEntry.connectedNodeIds.add(edge.source);
       targetEntry.connectedEdgeIds.add(edge.id);
-    }
-
-    // Resolve through hub nodes
-    const hubNodeIds = new Set(nodes.value.filter((n) => n.type === 'hub').map((n) => n.id));
-    for (const hubId of hubNodeIds) {
-      const hubEntry = adjacency.get(hubId);
-      if (!hubEntry) continue;
-
-      const realNeighbors = [...hubEntry.connectedNodeIds].filter((id) => !hubNodeIds.has(id));
-      const hubEdgeIds = hubEntry.connectedEdgeIds;
-
-      for (const neighborId of realNeighbors) {
-        const neighborEntry = ensureEntry(neighborId);
-        for (const otherId of realNeighbors) {
-          if (otherId !== neighborId) {
-            neighborEntry.connectedNodeIds.add(otherId);
-          }
-        }
-        hubEdgeIds.forEach((edgeId) => neighborEntry.connectedEdgeIds.add(edgeId));
-      }
-    }
-
-    // Resolve through hub chains with a depth cap
-    for (let depth = 0; depth < 3; depth += 1) {
-      let changed = false;
-      for (const [nodeId, entry] of adjacency.entries()) {
-        if (hubNodeIds.has(nodeId)) {
-          continue;
-        }
-        const hubNeighbors = [...entry.connectedNodeIds].filter((id) => hubNodeIds.has(id));
-        for (const hubId of hubNeighbors) {
-          const hubEntry = adjacency.get(hubId);
-          if (!hubEntry) continue;
-          const beforeNodeCount = entry.connectedNodeIds.size;
-          const beforeEdgeCount = entry.connectedEdgeIds.size;
-          for (const neighborId of hubEntry.connectedNodeIds) {
-            if (neighborId !== nodeId) {
-              entry.connectedNodeIds.add(neighborId);
-            }
-          }
-          hubEntry.connectedEdgeIds.forEach((edgeId) => entry.connectedEdgeIds.add(edgeId));
-          if (entry.connectedNodeIds.size !== beforeNodeCount || entry.connectedEdgeIds.size !== beforeEdgeCount) {
-            changed = true;
-          }
-        }
-      }
-      if (!changed) {
-        break;
-      }
     }
 
     // Resolve group (folder) nodes
@@ -270,7 +225,26 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     const nextStyledIds = new Set<string>();
     let nextNodes: DependencyNode[] | null = null;
 
+    // Cache the set of actively-dragged node IDs so we can avoid creating new
+    // object references for them. VueFlow tracks drag state internally on the
+    // node object; if we replace the object reference mid-drag, VueFlow
+    // re-syncs the node from the prop and snaps the position back to the
+    // (potentially stale) store position, causing rubber-banding.
+    const dragging = activeDraggedNodeIds.value;
+
     nodes.value.forEach((node, index) => {
+      // CRITICAL: Never create a new object reference for a node that is actively
+      // being dragged. Doing so resets VueFlow's internal drag tracking and
+      // causes the node to snap back to the store position.
+      if (dragging.size > 0 && dragging.has(node.id)) {
+        // Still track as styled so we re-apply when drag ends.
+        const selectionClass = resolveNodeSelectionClass(node);
+        if (selectionClass) {
+          nextStyledIds.add(node.id);
+        }
+        return;
+      }
+
       const classTokens = getClassTokens(node.class);
       NODE_SELECTION_CLASS_TOKENS.forEach((token) => classTokens.delete(token));
 
@@ -282,6 +256,8 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
 
       const nextClass = edgeClassTokensToString(classTokens);
 
+      // Skip only if this node wasn't styled last time AND the class already matches.
+      // Previously-styled nodes MUST get a fresh object so VueFlow drops the old class.
       if (!prevStyledNodeIds.has(node.id) && normalizeClassValue(node.class) === nextClass) {
         return;
       }
@@ -521,7 +497,10 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
   // ── Selection management ──
 
   const clearHoverState = (): void => {
-    hoveredNodeId.value = null;
+    if (hoveredNodeId.value) {
+      restoreHoverZIndex(hoveredNodeId.value);
+      hoveredNodeId.value = null;
+    }
     applyHoverEdgeHighlight(null);
   };
 

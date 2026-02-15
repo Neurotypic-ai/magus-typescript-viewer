@@ -212,7 +212,6 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     }
 
     const nodeById = new Map(sourceNodes.map((n) => [n.id, n]));
-    const hubNodeIds = new Set(sourceNodes.filter((n) => n.type === 'hub').map((n) => n.id));
 
     const connectedNodeIds = new Set<string>([nodeId]);
     const inboundIds = new Set<string>();
@@ -246,31 +245,16 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
       }
     });
 
-    // Resolve through hub nodes
-    const hubNeighbors = [...connectedNodeIds].filter((id) => id !== nodeId && hubNodeIds.has(id));
-    for (const hubId of hubNeighbors) {
-      sourceEdges.forEach((edge) => {
-        if (edge.source === hubId && !connectedNodeIds.has(edge.target)) {
-          connectedNodeIds.add(edge.target);
-          outboundIds.add(edge.target);
-        } else if (edge.target === hubId && !connectedNodeIds.has(edge.source)) {
-          connectedNodeIds.add(edge.source);
-          inboundIds.add(edge.source);
-        }
-      });
-    }
-
-    // Exclude hub nodes from inbound/outbound layout groups
     const inbound = [...inboundIds]
-      .filter((id) => !outboundIds.has(id) && !hubNodeIds.has(id))
+      .filter((id) => !outboundIds.has(id))
       .map((id) => nodeById.get(id)!)
       .filter(Boolean);
     const outbound = [...outboundIds]
-      .filter((id) => !inboundIds.has(id) && !hubNodeIds.has(id))
+      .filter((id) => !inboundIds.has(id))
       .map((id) => nodeById.get(id)!)
       .filter(Boolean);
     const bidirectional = [...inboundIds]
-      .filter((id) => outboundIds.has(id) && !hubNodeIds.has(id))
+      .filter((id) => outboundIds.has(id))
       .map((id) => nodeById.get(id)!)
       .filter(Boolean);
 

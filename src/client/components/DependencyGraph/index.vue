@@ -518,58 +518,6 @@ const selectionAdjacencyByNodeId = computed(() => {
     targetEntry.connectedEdgeIds.add(edge.id);
   }
 
-  // Resolve through hub nodes: connect each hub's real neighbors to each other
-  // so selecting a real node highlights through the hub to the nodes on the other side.
-  const hubNodeIds = new Set(nodes.value.filter((n) => n.type === 'hub').map((n) => n.id));
-  for (const hubId of hubNodeIds) {
-    const hubEntry = adjacency.get(hubId);
-    if (!hubEntry) continue;
-
-    const realNeighbors = [...hubEntry.connectedNodeIds].filter((id) => !hubNodeIds.has(id));
-    const hubEdgeIds = hubEntry.connectedEdgeIds;
-
-    for (const neighborId of realNeighbors) {
-      const neighborEntry = ensureEntry(neighborId);
-      // Add all other real neighbors and all hub edges to this neighbor
-      for (const otherId of realNeighbors) {
-        if (otherId !== neighborId) {
-          neighborEntry.connectedNodeIds.add(otherId);
-        }
-      }
-      hubEdgeIds.forEach((edgeId) => neighborEntry.connectedEdgeIds.add(edgeId));
-    }
-  }
-
-  // Resolve through hub chains (e.g. hub -> hub -> real node) with a small
-  // depth cap to avoid runaway propagation in dense graphs.
-  for (let depth = 0; depth < 3; depth += 1) {
-    let changed = false;
-    for (const [nodeId, entry] of adjacency.entries()) {
-      if (hubNodeIds.has(nodeId)) {
-        continue;
-      }
-      const hubNeighbors = [...entry.connectedNodeIds].filter((id) => hubNodeIds.has(id));
-      for (const hubId of hubNeighbors) {
-        const hubEntry = adjacency.get(hubId);
-        if (!hubEntry) continue;
-        const beforeNodeCount = entry.connectedNodeIds.size;
-        const beforeEdgeCount = entry.connectedEdgeIds.size;
-        for (const neighborId of hubEntry.connectedNodeIds) {
-          if (neighborId !== nodeId) {
-            entry.connectedNodeIds.add(neighborId);
-          }
-        }
-        hubEntry.connectedEdgeIds.forEach((edgeId) => entry.connectedEdgeIds.add(edgeId));
-        if (entry.connectedNodeIds.size !== beforeNodeCount || entry.connectedEdgeIds.size !== beforeEdgeCount) {
-          changed = true;
-        }
-      }
-    }
-    if (!changed) {
-      break;
-    }
-  }
-
   // Resolve group (folder) nodes: selecting a folder highlights its children,
   // all edges touching children, and the external nodes on those edges.
   const childrenByParent = new Map<string, string[]>();
@@ -723,7 +671,6 @@ let cachedContainerRect: DOMRect | null = null;
 let flowResizeObserver: ResizeObserver | null = null;
 
 const minimapNodeColor = (node: { type?: string }): string => {
-  if (node.type === 'hub') return 'transparent';
   if (node.type === 'package') return 'rgba(20, 184, 166, 0.8)';
   if (node.type === 'module') return 'rgba(59, 130, 246, 0.75)';
   if (node.type === 'class' || node.type === 'interface') return 'rgba(217, 119, 6, 0.7)';
@@ -1748,8 +1695,6 @@ const initializeGraph = async () => {
     hideTestFiles: graphSettings.hideTestFiles,
     memberNodeMode: graphSettings.memberNodeMode,
     highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-    hubAggregationEnabled: graphSettings.clusterByFolder,
-    hubAggregationThreshold: graphSettings.hubAggregationThreshold,
   });
   graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 
@@ -1809,7 +1754,6 @@ watch(
 
 const onNodeClick = ({ node }: { node: unknown }): void => {
   const clickedNode = node as DependencyNode;
-  if (clickedNode.type === 'hub') return; // Hub nodes are non-interactive
   if (selectedNode.value?.id === clickedNode.id) {
     setSelectedNode(null);
   } else {
@@ -1981,10 +1925,8 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
   }
 
   const nodeById = new Map(sourceNodes.map((n) => [n.id, n]));
-  const hubNodeIds = new Set(sourceNodes.filter((n) => n.type === 'hub').map((n) => n.id));
 
-  // Collect direct neighbors, then resolve through hub nodes so they don't
-  // appear as endpoints in the isolated view.
+  // Collect direct neighbors.
   const connectedNodeIds = new Set<string>([nodeId]);
   const inboundIds = new Set<string>();
   const outboundIds = new Set<string>();
@@ -2017,33 +1959,16 @@ const isolateNeighborhood = async (nodeId: string): Promise<void> => {
     }
   });
 
-  // Resolve through hub nodes: for each hub neighbor, include the hub's
-  // other connections as if the hub didn't exist, while keeping the hub
-  // itself in connectedNodeIds so its edges remain visible.
-  const hubNeighbors = [...connectedNodeIds].filter((id) => id !== nodeId && hubNodeIds.has(id));
-  for (const hubId of hubNeighbors) {
-    sourceEdges.forEach((edge) => {
-      if (edge.source === hubId && !connectedNodeIds.has(edge.target)) {
-        connectedNodeIds.add(edge.target);
-        outboundIds.add(edge.target);
-      } else if (edge.target === hubId && !connectedNodeIds.has(edge.source)) {
-        connectedNodeIds.add(edge.source);
-        inboundIds.add(edge.source);
-      }
-    });
-  }
-
-  // Exclude hub nodes from inbound/outbound layout groups — they are invisible
   const inbound = [...inboundIds]
-    .filter((id) => !outboundIds.has(id) && !hubNodeIds.has(id))
+    .filter((id) => !outboundIds.has(id))
     .map((id) => nodeById.get(id)!)
     .filter(Boolean);
   const outbound = [...outboundIds]
-    .filter((id) => !inboundIds.has(id) && !hubNodeIds.has(id))
+    .filter((id) => !inboundIds.has(id))
     .map((id) => nodeById.get(id)!)
     .filter(Boolean);
   const bidirectional = [...inboundIds]
-    .filter((id) => outboundIds.has(id) && !hubNodeIds.has(id))
+    .filter((id) => outboundIds.has(id))
     .map((id) => nodeById.get(id)!)
     .filter(Boolean);
 
@@ -2171,8 +2096,6 @@ provide(FOLDER_COLLAPSE_ACTIONS_KEY, {
       hideTestFiles: graphSettings.hideTestFiles,
       memberNodeMode: graphSettings.memberNodeMode,
       highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-      hubAggregationEnabled: graphSettings.clusterByFolder,
-      hubAggregationThreshold: graphSettings.hubAggregationThreshold,
     });
     graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 

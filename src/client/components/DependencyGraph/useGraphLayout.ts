@@ -80,7 +80,6 @@ export interface UseGraphLayoutOptions {
     hideTestFiles: boolean;
     memberNodeMode: 'compact' | 'graph';
     highlightOrphanGlobal: boolean;
-    hubAggregationThreshold: number;
     degreeWeightedLayers: boolean;
   };
   interaction: {
@@ -574,8 +573,6 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       hideTestFiles: graphSettings.hideTestFiles,
       memberNodeMode: graphSettings.memberNodeMode,
       highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-      hubAggregationEnabled: graphSettings.clusterByFolder,
-      hubAggregationThreshold: graphSettings.hubAggregationThreshold,
     });
     graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 

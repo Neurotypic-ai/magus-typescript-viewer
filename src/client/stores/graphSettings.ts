@@ -46,8 +46,6 @@ interface PersistedGraphSettings {
   showFpsAdvanced?: boolean;
   enabledModuleMemberTypes?: string[];
   collapsedFolderIds?: string[];
-  hubAggregationEnabled?: boolean;
-  hubAggregationThreshold?: number;
 }
 
 export const useGraphSettings = defineStore('graphSettings', () => {
@@ -63,8 +61,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   const showFpsAdvanced = ref<boolean>(false);
   const enabledModuleMemberTypes = ref<string[]>([...DEFAULT_MODULE_MEMBER_TYPES]);
   const collapsedFolderIds = ref<Set<string>>(new Set());
-  const hubAggregationEnabled = ref<boolean>(false);
-  const hubAggregationThreshold = ref<number>(8);
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     const enabledNodeTypeSet = new Set(enabledNodeTypes.value);
@@ -138,12 +134,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
       if (Array.isArray(parsed.collapsedFolderIds)) {
         collapsedFolderIds.value = new Set(parsed.collapsedFolderIds);
       }
-      if (typeof parsed.hubAggregationEnabled === 'boolean') {
-        hubAggregationEnabled.value = parsed.hubAggregationEnabled;
-      }
-      if (typeof parsed.hubAggregationThreshold === 'number') {
-        hubAggregationThreshold.value = parsed.hubAggregationThreshold;
-      }
     } catch {
       // Ignore persisted settings parse failures.
     }
@@ -168,8 +158,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
         showFpsAdvanced: showFpsAdvanced.value,
         enabledModuleMemberTypes: enabledModuleMemberTypes.value,
         collapsedFolderIds: Array.from(collapsedFolderIds.value),
-        hubAggregationEnabled: hubAggregationEnabled.value,
-        hubAggregationThreshold: hubAggregationThreshold.value,
       };
       localStorage.setItem(GRAPH_SETTINGS_CACHE_KEY, JSON.stringify(payload));
     } catch {
@@ -258,11 +246,6 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
-  function setHubAggregationThreshold(value: number): void {
-    hubAggregationThreshold.value = value;
-    persistSettings();
-  }
-
   function toggleModuleMemberType(type: ModuleMemberType, enabled: boolean): void {
     if (enabled) {
       enabledModuleMemberTypes.value = uniqueStrings([...enabledModuleMemberTypes.value, type]);
@@ -304,7 +287,5 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     toggleModuleMemberType,
     collapsedFolderIds,
     toggleFolderCollapsed,
-    hubAggregationThreshold,
-    setHubAggregationThreshold,
   };
 });

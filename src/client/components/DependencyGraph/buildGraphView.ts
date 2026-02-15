@@ -5,7 +5,6 @@ import { clusterByFolder } from '../../graph/cluster/folders';
 import { collapseSccs } from '../../graph/cluster/scc';
 import { isValidEdgeConnection } from '../../graph/edgeTypeRegistry';
 import { applyEdgeHighways } from '../../graph/transforms/edgeHighways';
-import { aggregateHighFanInEdges } from '../../graph/transforms/hubAggregation';
 import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
 import { createGraphEdges } from '../../utils/createGraphEdges';
 import { createGraphNodes } from '../../utils/createGraphNodes';
@@ -41,8 +40,6 @@ export interface BuildOverviewGraphOptions {
   hideTestFiles: boolean;
   memberNodeMode: 'compact' | 'graph';
   highlightOrphanGlobal: boolean;
-  hubAggregationEnabled: boolean;
-  hubAggregationThreshold: number;
 }
 
 export interface BuildModuleDrilldownGraphOptions {
@@ -389,21 +386,10 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
 
   const visibleEdges = applyEdgeVisibility(projectedGraph.edges, options.enabledRelationshipTypes);
 
-  // Hub aggregation: funnel high-fan-in edges through invisible proxy nodes
-  let finalNodes = projectedGraph.nodes;
-  let finalEdges = visibleEdges;
-  if (options.hubAggregationEnabled) {
-    const hubResult = aggregateHighFanInEdges(finalNodes, finalEdges, {
-      fanInThreshold: options.hubAggregationThreshold,
-    });
-    finalNodes = hubResult.nodes;
-    finalEdges = hubResult.edges;
-  }
-
-  const bundledEdges = bundleParallelEdges(finalEdges);
-  const currentDegreeMap = buildDegreeMap(finalNodes, bundledEdges, false);
+  const bundledEdges = bundleParallelEdges(visibleEdges);
+  const currentDegreeMap = buildDegreeMap(projectedGraph.nodes, bundledEdges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
-  const nodesWithDiagnostics = annotateOrphanDiagnostics(finalNodes, currentDegreeMap, globalDegreeMap);
+  const nodesWithDiagnostics = annotateOrphanDiagnostics(projectedGraph.nodes, currentDegreeMap, globalDegreeMap);
 
   return {
     nodes: nodesWithDiagnostics,

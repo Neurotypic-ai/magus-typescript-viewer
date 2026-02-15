@@ -13,8 +13,7 @@ export type DependencyKind =
   | 'function'
   | 'group'
   | 'property'
-  | 'method'
-  | 'hub';
+  | 'method';
 
 /**
  * Edge types for dependency relationships
@@ -166,7 +165,6 @@ export type GraphEdge = Edge<{
   bundledTypes?: DependencyEdgeKind[];
   sourceAnchor?: { x: number; y: number };
   targetAnchor?: { x: number; y: number };
-  hubAggregated?: boolean;
   aggregatedCount?: number;
   highwaySegment?: 'exit' | 'highway' | 'entry';
   highwayCount?: number;

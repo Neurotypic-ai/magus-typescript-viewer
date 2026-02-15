@@ -244,11 +244,6 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
           hintHeight = Math.max(hintHeight, 80);
         }
 
-      } else if (node.type === 'hub') {
-        // Invisible proxy node for edge aggregation — minimal footprint
-        hintWidth = 8;
-        hintHeight = 8;
-
       } else if (node.type === 'property' || node.type === 'method') {
         hintWidth = Math.max(hintWidth, 200);
         hintHeight = Math.max(hintHeight, 40);
@@ -361,16 +356,11 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
     // Create ELK edges with correct format (only non-containment edges for layout)
     const elkEdges: ElkEdge[] = validEdges.map((edge) => {
-      const elkEdge: ElkEdge = {
+      return {
         id: edge.id,
         sources: [edge.source],
         targets: [edge.target],
       };
-      // Hub→target edges: keep hubs close to their targets via high shortness priority
-      if (edge.data?.hubAggregated) {
-        elkEdge.layoutOptions = { 'elk.layered.priority.shortness': '100' };
-      }
-      return elkEdge;
     });
 
     // Define ELK graph type
