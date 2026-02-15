@@ -1,61 +1,33 @@
 import { ref, watch } from 'vue';
 
 import { measurePerformance } from '../../utils/performanceMonitoring';
-import { DEFAULT_EDGE_TYPE_PRIORITY } from './edgeVirtualizationCore';
+import {
+  VIRTUALIZATION_THRESHOLD,
+  getDefaultEdgeVirtualizationConfigOverrides,
+  getRecalcMinFrameGapMs,
+} from './edgeVirtualizationCore';
+import { buildRestoreVisibilityMap, buildVisibilityMap, collectUserHiddenEdgeIds } from './edgeVisibilityApply';
 
 import type { Ref, WatchStopHandle } from 'vue';
 
 import type {
-  EdgeVirtualizationConfig,
-  EdgeVirtualizationContainerSize,
   EdgeVirtualizationDeviceProfile,
   EdgeVirtualizationEdge,
   EdgeVirtualizationNode,
   EdgeVirtualizationPoint,
   EdgeVirtualizationViewport,
 } from './edgeVirtualizationCore';
+import type {
+  RecalculateMessage,
+  RecalculateResultMessage,
+  SyncGraphMessage,
+  WorkerRequestMessage,
+  WorkerResponseMessage,
+} from './edgeVisibilityMessages';
 import type { DependencyNode, GraphEdge } from './types';
 
-/** Minimum edge count before virtualization kicks in */
-const VIRTUALIZATION_THRESHOLD = 200;
-
-/** Padding in screen pixels around the viewport before edges are culled */
-const VIEWPORT_PADDING_PX = 300;
-
-const parseEnvInt = (key: string, fallback: number): number => {
-  const raw = import.meta.env[key] as string | undefined;
-  if (!raw) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-};
-
-/** Minimum frame spacing for recalculations */
-const RECALC_MIN_FRAME_GAP_MS = parseEnvInt('VITE_EDGE_VIRTUALIZATION_MIN_FRAME_GAP_MS', 48);
+const RECALC_MIN_FRAME_GAP_MS = getRecalcMinFrameGapMs();
 const PERF_MARKS_ENABLED = (import.meta.env['VITE_PERF_MARKS'] as string | undefined) === 'true';
-
-/** At zoom levels below this, apply edge count thresholding */
-const LOW_ZOOM_THRESHOLD = 0.3;
-
-/** Base visible-edge budget at low zoom (adapted per device + zoom) */
-const LOW_ZOOM_BASE_MAX_EDGES = 500;
-const LOW_ZOOM_MIN_BUDGET = 140;
-const LOW_ZOOM_MAX_BUDGET = 900;
-
-const DEFAULT_NODE_WIDTH = 260;
-const DEFAULT_NODE_HEIGHT = 100;
-
-const EDGE_TYPE_PRIORITY = DEFAULT_EDGE_TYPE_PRIORITY;
-
-// ── Environment & config helpers ──
-
-/** Parses an integer from import.meta.env; returns fallback if missing or invalid. */
-export type ParseEnvInt = (key: string, fallback: number) => number;
 
 // ── Options & callbacks ──
 
@@ -84,76 +56,23 @@ export interface UseEdgeVirtualizationWorkerOptions {
   onWorkerUnavailable?: OnWorkerUnavailable;
 }
 
-// ── Worker request payloads ──
-
-/** Payload for syncing graph nodes/edges to the worker. */
-export interface SyncGraphPayload {
-  nodes: EdgeVirtualizationNode[];
-  edges: EdgeVirtualizationEdge[];
-}
-
-/** Payload for requesting a visibility recalc from the worker. */
-export interface RecalculatePayload {
-  recalcVersion: number;
-  graphVersion: number;
-  viewport: EdgeVirtualizationViewport;
-  containerSize?: EdgeVirtualizationContainerSize | null;
-  userHiddenEdgeIds: string[];
-  config?: Partial<EdgeVirtualizationConfig>;
-  deviceProfile?: EdgeVirtualizationDeviceProfile;
-}
-
-// ── Worker response payloads ──
-
-/** Payload returned by the worker after visibility recalc. */
-export interface RecalculateResultPayload {
-  recalcVersion: number;
-  graphVersion: number;
-  hiddenEdgeIds: string[];
-  viewportVisibleCount: number;
-  finalVisibleCount: number;
-  lowZoomApplied: boolean;
-  lowZoomBudget?: number;
-}
-
-/** Payload for worker error messages. */
-export interface EdgeVisibilityErrorPayload {
-  error: string;
-}
-
-// ── Worker messages ──
-
-export type SyncGraphMessageType = 'sync-graph';
-export type RecalculateMessageType = 'recalculate';
-export type EdgeVisibilityResultMessageType = 'edge-visibility-result';
-export type EdgeVisibilityErrorMessageType = 'edge-visibility-error';
-
-export interface SyncGraphMessage {
-  type: SyncGraphMessageType;
-  payload: SyncGraphPayload;
-}
-
-export interface RecalculateMessage {
-  type: RecalculateMessageType;
-  requestId: number;
-  payload: RecalculatePayload;
-}
-
-export type WorkerRequestMessage = SyncGraphMessage | RecalculateMessage;
-
-export interface RecalculateResultMessage {
-  type: EdgeVisibilityResultMessageType;
-  requestId: number;
-  payload: RecalculateResultPayload;
-}
-
-export interface EdgeVisibilityErrorMessage {
-  type: EdgeVisibilityErrorMessageType;
-  requestId?: number;
-  payload: EdgeVisibilityErrorPayload;
-}
-
-export type WorkerResponseMessage = RecalculateResultMessage | EdgeVisibilityErrorMessage;
+// Re-export worker message types for public API
+export type {
+  EdgeVisibilityErrorPayload,
+  EdgeVisibilityErrorMessage,
+  EdgeVisibilityErrorMessageType,
+  EdgeVisibilityResultMessageType,
+  RecalculateMessage,
+  RecalculatePayload,
+  RecalculateResultMessage,
+  RecalculateResultPayload,
+  RecalculateMessageType,
+  SyncGraphMessage,
+  SyncGraphPayload,
+  SyncGraphMessageType,
+  WorkerRequestMessage,
+  WorkerResponseMessage,
+} from './edgeVisibilityMessages';
 
 // ── Stats & mode ──
 
@@ -214,19 +133,6 @@ export interface UseEdgeVirtualizationWorkerReturn {
   dispose: () => void;
   stats: Ref<EdgeVirtualizationWorkerStats>;
 }
-
-const buildWorkerConfig = (): Partial<EdgeVirtualizationConfig> => {
-  return {
-    viewportPaddingPx: VIEWPORT_PADDING_PX,
-    lowZoomThreshold: LOW_ZOOM_THRESHOLD,
-    lowZoomBaseMaxEdges: LOW_ZOOM_BASE_MAX_EDGES,
-    lowZoomMinBudget: LOW_ZOOM_MIN_BUDGET,
-    lowZoomMaxBudget: LOW_ZOOM_MAX_BUDGET,
-    defaultNodeWidth: DEFAULT_NODE_WIDTH,
-    defaultNodeHeight: DEFAULT_NODE_HEIGHT,
-    edgeTypePriority: EDGE_TYPE_PRIORITY,
-  };
-};
 
 const serializeNodesForWorker = (nodes: DependencyNode[]): EdgeVirtualizationNode[] => {
   return nodes.map((node) => {
@@ -362,17 +268,7 @@ export function useEdgeVirtualizationWorker(
       return;
     }
 
-    const currentUserHiddenIds = new Set<string>();
-    for (const edge of edges.value) {
-      if (edge.hidden && !virtualizedHiddenIds.value.has(edge.id)) {
-        currentUserHiddenIds.add(edge.id);
-      }
-    }
-
-    const restoreVisibilityMap: EdgeVisibilityMap = new Map();
-    virtualizedHiddenIds.value.forEach((edgeId) => {
-      restoreVisibilityMap.set(edgeId, currentUserHiddenIds.has(edgeId));
-    });
+    const restoreVisibilityMap = buildRestoreVisibilityMap(virtualizedHiddenIds.value, edges.value);
 
     if (restoreVisibilityMap.size === 0) {
       virtualizedHiddenIds.value = new Set<string>();
@@ -408,27 +304,13 @@ export function useEdgeVirtualizationWorker(
     }
 
     const newHiddenIds = new Set(payload.hiddenEdgeIds);
-    const currentUserHiddenIds = new Set<string>();
-    for (const edge of edges.value) {
-      if (edge.hidden && !virtualizedHiddenIds.value.has(edge.id)) {
-        currentUserHiddenIds.add(edge.id);
-      }
-    }
+    const currentUserHiddenIds = collectUserHiddenEdgeIds(edges.value, virtualizedHiddenIds.value);
 
     if (PERF_MARKS_ENABLED) {
       performance.mark('apply-visibility-delta-start');
     }
 
-    const visibilityMap: EdgeVisibilityMap = new Map();
-    edges.value.forEach((edge) => {
-      if (currentUserHiddenIds.has(edge.id)) {
-        return;
-      }
-      const shouldBeHidden = newHiddenIds.has(edge.id);
-      if (edge.hidden !== shouldBeHidden) {
-        visibilityMap.set(edge.id, shouldBeHidden);
-      }
-    });
+    const visibilityMap = buildVisibilityMap(edges.value, newHiddenIds, currentUserHiddenIds);
 
     virtualizedHiddenIds.value = newHiddenIds;
     if (visibilityMap.size > 0) {
@@ -490,12 +372,9 @@ export function useEdgeVirtualizationWorker(
       return;
     }
 
+    const collectedUserHidden = collectUserHiddenEdgeIds(edgeList, virtualizedHiddenIds.value);
     userHiddenIds.clear();
-    for (const edge of edgeList) {
-      if (edge.hidden && !virtualizedHiddenIds.value.has(edge.id)) {
-        userHiddenIds.add(edge.id);
-      }
-    }
+    collectedUserHidden.forEach((id) => userHiddenIds.add(id));
 
     if (graphSyncPending) {
       sendGraphSnapshot();
@@ -514,7 +393,7 @@ export function useEdgeVirtualizationWorker(
         viewport: getViewport(),
         containerSize: rect ? { width: rect.width, height: rect.height } : null,
         userHiddenEdgeIds: [...userHiddenIds],
-        config: buildWorkerConfig(),
+        config: getDefaultEdgeVirtualizationConfigOverrides(),
         deviceProfile: getDeviceProfile(),
       },
     };

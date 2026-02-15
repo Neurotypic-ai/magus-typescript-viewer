@@ -100,6 +100,33 @@ export const DEFAULT_EDGE_VIRTUALIZATION_CONFIG: EdgeVirtualizationConfig = {
   edgeTypePriority: DEFAULT_EDGE_TYPE_PRIORITY,
 };
 
+/** Minimum edge count before virtualization kicks in. */
+export const VIRTUALIZATION_THRESHOLD = 200;
+
+/** Minimum frame spacing for recalculations (ms). Reads VITE_EDGE_VIRTUALIZATION_MIN_FRAME_GAP_MS with fallback 48. */
+export function getRecalcMinFrameGapMs(): number {
+  const raw = (import.meta as unknown as { env?: Record<string, string> }).env?.[
+    'VITE_EDGE_VIRTUALIZATION_MIN_FRAME_GAP_MS'
+  ];
+  if (!raw) return 48;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 48;
+}
+
+/** Default config overrides for edge virtualization (shared by main-thread and worker composables). */
+export function getDefaultEdgeVirtualizationConfigOverrides(): Partial<EdgeVirtualizationConfig> {
+  return {
+    viewportPaddingPx: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.viewportPaddingPx,
+    lowZoomThreshold: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.lowZoomThreshold,
+    lowZoomBaseMaxEdges: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.lowZoomBaseMaxEdges,
+    lowZoomMinBudget: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.lowZoomMinBudget,
+    lowZoomMaxBudget: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.lowZoomMaxBudget,
+    defaultNodeWidth: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.defaultNodeWidth,
+    defaultNodeHeight: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.defaultNodeHeight,
+    edgeTypePriority: DEFAULT_EDGE_VIRTUALIZATION_CONFIG.edgeTypePriority,
+  };
+}
+
 export interface EdgeVirtualizationComputationInput {
   nodes: EdgeVirtualizationNode[];
   edges: EdgeVirtualizationEdge[];

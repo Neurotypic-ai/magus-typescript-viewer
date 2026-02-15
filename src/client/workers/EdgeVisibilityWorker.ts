@@ -1,66 +1,23 @@
 import {
+  DEFAULT_EDGE_VIRTUALIZATION_CONFIG,
   buildEdgePriorityOrder,
   computeEdgePrioritySignature,
   computeEdgeVirtualizationResult,
-  DEFAULT_EDGE_VIRTUALIZATION_CONFIG,
 } from '../components/DependencyGraph/edgeVirtualizationCore';
 
 import type {
   EdgeVirtualizationComputationInput,
   EdgeVirtualizationComputationResult,
   EdgeVirtualizationConfig,
-  EdgeVirtualizationContainerSize,
-  EdgeVirtualizationDeviceProfile,
   EdgeVirtualizationEdge,
   EdgeVirtualizationNode,
-  EdgeVirtualizationViewport,
 } from '../components/DependencyGraph/edgeVirtualizationCore';
-
-interface SyncGraphMessage {
-  type: 'sync-graph';
-  payload: {
-    nodes: EdgeVirtualizationNode[];
-    edges: EdgeVirtualizationEdge[];
-  };
-}
-
-interface RecalculateMessage {
-  type: 'recalculate';
-  requestId: number;
-  payload: {
-    recalcVersion: number;
-    graphVersion: number;
-    viewport: EdgeVirtualizationViewport;
-    containerSize?: EdgeVirtualizationContainerSize | null;
-    userHiddenEdgeIds: string[];
-    config?: Partial<EdgeVirtualizationConfig>;
-    deviceProfile?: EdgeVirtualizationDeviceProfile;
-  };
-}
-
-type WorkerMessage = SyncGraphMessage | RecalculateMessage;
-
-interface RecalculateResultMessage {
-  type: 'edge-visibility-result';
-  requestId: number;
-  payload: {
-    recalcVersion: number;
-    graphVersion: number;
-    hiddenEdgeIds: string[];
-    viewportVisibleCount: number;
-    finalVisibleCount: number;
-    lowZoomApplied: boolean;
-    lowZoomBudget?: number;
-  };
-}
-
-interface ErrorMessage {
-  type: 'edge-visibility-error';
-  requestId?: number;
-  payload: {
-    error: string;
-  };
-}
+import type {
+  EdgeVisibilityErrorMessage,
+  RecalculateResultMessage,
+  RecalculateResultPayload,
+  WorkerRequestMessage,
+} from '../components/DependencyGraph/edgeVisibilityMessages';
 
 let cachedNodes: EdgeVirtualizationNode[] = [];
 let cachedEdges: EdgeVirtualizationEdge[] = [];
@@ -98,7 +55,7 @@ const ensureEdgePriorityOrder = (config: EdgeVirtualizationConfig): void => {
 
 const toResultPayload = (
   result: EdgeVirtualizationComputationResult | null
-): Pick<RecalculateResultMessage['payload'], 'hiddenEdgeIds' | 'viewportVisibleCount' | 'finalVisibleCount' | 'lowZoomApplied'> & {
+): Pick<RecalculateResultPayload, 'hiddenEdgeIds' | 'viewportVisibleCount' | 'finalVisibleCount' | 'lowZoomApplied'> & {
   lowZoomBudget?: number;
 } => {
   if (!result) {
@@ -110,9 +67,10 @@ const toResultPayload = (
     };
   }
 
-  const payload: Pick<RecalculateResultMessage['payload'], 'hiddenEdgeIds' | 'viewportVisibleCount' | 'finalVisibleCount' | 'lowZoomApplied'> & {
-    lowZoomBudget?: number;
-  } = {
+  const payload: Pick<
+    RecalculateResultPayload,
+    'hiddenEdgeIds' | 'viewportVisibleCount' | 'finalVisibleCount' | 'lowZoomApplied'
+  > & { lowZoomBudget?: number } = {
     hiddenEdgeIds: [...result.hiddenEdgeIds],
     viewportVisibleCount: result.viewportVisibleEdgeIds.size,
     finalVisibleCount: result.finalVisibleEdgeIds.size,
@@ -125,7 +83,7 @@ const toResultPayload = (
   return payload;
 };
 
-self.onmessage = (event: MessageEvent<WorkerMessage>) => {
+self.onmessage = (event: MessageEvent<WorkerRequestMessage>) => {
   const message = event.data;
 
   try {
@@ -166,7 +124,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
     };
     self.postMessage(response);
   } catch (error) {
-    const response: ErrorMessage = {
+    const response: EdgeVisibilityErrorMessage = {
       type: 'edge-visibility-error',
       payload: {
         error: error instanceof Error ? error.message : 'Unknown worker error',

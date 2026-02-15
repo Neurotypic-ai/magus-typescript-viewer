@@ -2,20 +2,20 @@ import { ref, watch } from 'vue';
 
 import { measurePerformance } from '../../utils/performanceMonitoring';
 import {
+  DEFAULT_EDGE_TYPE_PRIORITY,
+  VIRTUALIZATION_THRESHOLD,
   buildEdgePriorityOrder,
   computeEdgePrioritySignature,
   computeEdgeVirtualizationResult,
-  DEFAULT_EDGE_TYPE_PRIORITY,
+  getDefaultEdgeVirtualizationConfigOverrides,
+  getRecalcMinFrameGapMs,
 } from './edgeVirtualizationCore';
+import { buildRestoreVisibilityMap, buildVisibilityMap, collectUserHiddenEdgeIds } from './edgeVisibilityApply';
 
 import type { Ref, WatchStopHandle } from 'vue';
 
-import type {
-  GetContainerRect,
-  GetViewport,
-  SetEdgeVisibility,
-} from './useEdgeVirtualizationWorker';
 import type { DependencyNode, GraphEdge } from './types';
+import type { GetContainerRect, GetViewport, SetEdgeVisibility } from './useEdgeVirtualizationWorker';
 
 // ── Types (reused from worker where applicable) ──
 
@@ -39,42 +39,8 @@ export interface UseEdgeVirtualizationReturn {
   dispose: () => void;
 }
 
-/** Minimum edge count before virtualization kicks in */
-const VIRTUALIZATION_THRESHOLD = 200;
-
-/** Padding in screen pixels around the viewport before edges are culled */
-const VIEWPORT_PADDING_PX = 300;
-
-const parseEnvInt = (key: string, fallback: number): number => {
-  const raw = import.meta.env[key] as string | undefined;
-  if (!raw) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-};
-
-/** Minimum frame spacing for recalculations */
-const RECALC_MIN_FRAME_GAP_MS = parseEnvInt('VITE_EDGE_VIRTUALIZATION_MIN_FRAME_GAP_MS', 48);
+const RECALC_MIN_FRAME_GAP_MS = getRecalcMinFrameGapMs();
 const PERF_MARKS_ENABLED = (import.meta.env['VITE_PERF_MARKS'] as string | undefined) === 'true';
-
-/** At zoom levels below this, apply edge count thresholding */
-const LOW_ZOOM_THRESHOLD = 0.3;
-
-/** Base visible-edge budget at low zoom (adapted per device + zoom) */
-const LOW_ZOOM_BASE_MAX_EDGES = 500;
-const LOW_ZOOM_MIN_BUDGET = 140;
-const LOW_ZOOM_MAX_BUDGET = 900;
-
-const DEFAULT_NODE_WIDTH = 260;
-const DEFAULT_NODE_HEIGHT = 100;
-
-/** Edge type priority for thresholding (higher = kept longer) */
-const EDGE_TYPE_PRIORITY = DEFAULT_EDGE_TYPE_PRIORITY;
 
 /**
  * Composable that hides off-screen edges to reduce DOM element count.
@@ -85,9 +51,7 @@ const EDGE_TYPE_PRIORITY = DEFAULT_EDGE_TYPE_PRIORITY;
  * At low zoom levels (< 0.3), it also applies priority-based thresholding
  * to keep only the most important edges visible.
  */
-export function useEdgeVirtualization(
-  options: UseEdgeVirtualizationOptions
-): UseEdgeVirtualizationReturn {
+export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions): UseEdgeVirtualizationReturn {
   const { nodes, edges, getViewport, getContainerRect, setEdgeVisibility, enabled } = options;
 
   // Track which edges are hidden by virtualization vs. by user filtering.
@@ -117,7 +81,8 @@ export function useEdgeVirtualization(
     }
 
     edgePrioritySignature = nextSignature;
-    edgePriorityOrder = buildEdgePriorityOrder(edgeList, EDGE_TYPE_PRIORITY);
+    const overrides = getDefaultEdgeVirtualizationConfigOverrides();
+    edgePriorityOrder = buildEdgePriorityOrder(edgeList, overrides.edgeTypePriority ?? DEFAULT_EDGE_TYPE_PRIORITY);
   }
 
   /** Core recalculation: determine which edges should be visible */
@@ -134,12 +99,8 @@ export function useEdgeVirtualization(
 
       // Skip virtualization for small graphs
       if (!enabled.value || edgeList.length < VIRTUALIZATION_THRESHOLD) {
-        // Restore any edges we previously hid
         if (virtualizedHiddenIds.value.size > 0) {
-          const restoreVisibilityMap = new Map<string, boolean>();
-          virtualizedHiddenIds.value.forEach((edgeId) => {
-            restoreVisibilityMap.set(edgeId, userHiddenIds.has(edgeId));
-          });
+          const restoreVisibilityMap = buildRestoreVisibilityMap(virtualizedHiddenIds.value, edgeList);
           isWriting = true;
           setEdgeVisibility(restoreVisibilityMap);
           isWriting = false;
@@ -148,14 +109,9 @@ export function useEdgeVirtualization(
         return;
       }
 
-      // Snapshot which edges are currently user-hidden (by relationship filters)
-      // so we don't accidentally un-hide them when they scroll into viewport.
+      const collectedUserHidden = collectUserHiddenEdgeIds(edgeList, virtualizedHiddenIds.value);
       userHiddenIds.clear();
-      for (const edge of edgeList) {
-        if (edge.hidden && !virtualizedHiddenIds.value.has(edge.id)) {
-          userHiddenIds.add(edge.id);
-        }
-      }
+      collectedUserHidden.forEach((id) => userHiddenIds.add(id));
 
       rebuildEdgePriorityOrder(edgeList);
       const rect = getContainerRect();
@@ -167,34 +123,13 @@ export function useEdgeVirtualization(
         containerSize: rect ? { width: rect.width, height: rect.height } : null,
         userHiddenEdgeIds: userHiddenIds,
         edgePriorityOrder,
-        config: {
-          viewportPaddingPx: VIEWPORT_PADDING_PX,
-          lowZoomThreshold: LOW_ZOOM_THRESHOLD,
-          lowZoomBaseMaxEdges: LOW_ZOOM_BASE_MAX_EDGES,
-          lowZoomMinBudget: LOW_ZOOM_MIN_BUDGET,
-          lowZoomMaxBudget: LOW_ZOOM_MAX_BUDGET,
-          defaultNodeWidth: DEFAULT_NODE_WIDTH,
-          defaultNodeHeight: DEFAULT_NODE_HEIGHT,
-          edgeTypePriority: EDGE_TYPE_PRIORITY,
-        },
+        config: getDefaultEdgeVirtualizationConfigOverrides(),
       });
       if (!result) {
         return;
       }
 
-      const visibilityMap = new Map<string, boolean>();
-      edgeList.forEach((edge) => {
-        if (userHiddenIds.has(edge.id)) {
-          // Respect user filtering — don't touch these edges
-          return;
-        }
-
-        const shouldBeHidden = result.hiddenEdgeIds.has(edge.id);
-
-        if (edge.hidden !== shouldBeHidden) {
-          visibilityMap.set(edge.id, shouldBeHidden);
-        }
-      });
+      const visibilityMap = buildVisibilityMap(edgeList, result.hiddenEdgeIds, userHiddenIds);
 
       virtualizedHiddenIds.value = result.hiddenEdgeIds;
       if (visibilityMap.size > 0) {
@@ -243,12 +178,16 @@ export function useEdgeVirtualization(
   // setEdges() while isWriting is still true — preventing an infinite
   // watch → recalc → setEdges → watch cascade. With the default async
   // flush, isWriting is already false by the time the callback runs.
-  const stopWatch: WatchStopHandle = watch([nodes, edges, enabled], () => {
-    if (enabled.value && !isWriting) {
-      rebuildEdgePriorityOrder(edges.value);
-      scheduleRecalc();
-    }
-  }, { flush: 'sync' });
+  const stopWatch: WatchStopHandle = watch(
+    [nodes, edges, enabled],
+    () => {
+      if (enabled.value && !isWriting) {
+        rebuildEdgePriorityOrder(edges.value);
+        scheduleRecalc();
+      }
+    },
+    { flush: 'sync' }
+  );
 
   rebuildEdgePriorityOrder(edges.value);
 
