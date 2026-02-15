@@ -2,24 +2,26 @@ import { createEdgeMarker } from './edgeMarkers';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
 import { mapTypeCollection, typeCollectionToArray } from './collections';
 import { getEdgeStyle } from '../theme/graphTheme';
+import { buildModulePathLookup, isExternalImportRef, resolveModuleId } from './graphEdgeLookups';
 
-import type {
-  ClassStructure,
-  DependencyEdgeKind,
-  DependencyKind,
-  DependencyPackageGraph,
-  DependencyRef,
-  GraphEdge,
-  ImportRef,
-  InterfaceRef,
-  InterfaceStructure,
-  ModuleStructure,
-  NodeMethod,
-  NodeProperty,
-  PackageStructure,
-} from '../types';
+import type { ClassStructure } from '../types/ClassStructure';
+import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
+import type { DependencyKind } from '../types/DependencyKind';
+import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyRef } from '../types/DependencyRef';
+import type { GraphEdge } from '../types/GraphEdge';
+import type { ImportRef } from '../types/ImportRef';
+import type { InterfaceRef } from '../types/InterfaceRef';
+import type { InterfaceStructure } from '../types/InterfaceStructure';
+import type { ModuleStructure } from '../types/ModuleStructure';
+import type { NodeMethod } from '../types/NodeMethod';
+import type { NodeProperty } from '../types/NodeProperty';
+import type { PackageStructure } from '../types/PackageStructure';
 
 type ImportDirection = 'importer-to-imported' | 'imported-to-importer';
+const EDGE_REGISTRY_DEBUG =
+  import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
+const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
 
 export interface CreateGraphEdgesOptions {
   includePackageEdges?: boolean;
@@ -31,11 +33,6 @@ export interface CreateGraphEdgesOptions {
   importDirection?: ImportDirection;
 }
 
-interface ModulePathLookup {
-  packagePathMap: Map<string, Map<string, string>>;
-  globalPathMap: Map<string, Set<string>>;
-}
-
 interface ResolvedOptions {
   includePackageEdges: boolean;
   includeClassEdges: boolean;
@@ -44,203 +41,6 @@ interface ResolvedOptions {
   importDirection: ImportDirection;
 }
 
-
-function isExternalImportRef(imp: { isExternal?: boolean; packageName?: string; path?: string | undefined }): boolean {
-  if (imp.isExternal === true) {
-    return true;
-  }
-
-  if (typeof imp.packageName === 'string' && imp.packageName.length > 0) {
-    return true;
-  }
-
-  const path = imp.path;
-  if (!path) {
-    return false;
-  }
-
-  // Treat bare package imports as metadata-only, not graph topology edges.
-  if (!path.startsWith('.') && !path.startsWith('/') && !path.startsWith('@/') && !path.startsWith('src/')) {
-    return true;
-  }
-
-  return false;
-}
-
-const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'] as const;
-const FILE_EXTENSION_PATTERN = /\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
-const INDEX_FILE_PATTERN = /^(.*)\/index\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
-
-function normalizePath(path: string): string {
-  const normalized = path.replace(/\\/g, '/');
-  const parts = normalized.split('/');
-  const result: string[] = [];
-
-  for (const part of parts) {
-    if (part === '..') {
-      result.pop();
-    } else if (part !== '.' && part !== '') {
-      result.push(part);
-    }
-  }
-
-  return result.join('/');
-}
-
-function getDirname(path: string): string {
-  const normalized = normalizePath(path);
-  const lastSlash = normalized.lastIndexOf('/');
-  return lastSlash > 0 ? normalized.substring(0, lastSlash) : '';
-}
-
-function joinPaths(...segments: string[]): string {
-  return normalizePath(segments.join('/'));
-}
-
-function generatePathVariants(normalizedPath: string): string[] {
-  const variants = [normalizedPath];
-  const withoutExt = normalizedPath.replace(FILE_EXTENSION_PATTERN, '');
-
-  if (withoutExt !== normalizedPath) {
-    variants.push(withoutExt);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/prefer-regexp-exec
-  const indexMatch = normalizedPath.match(INDEX_FILE_PATTERN);
-  if (indexMatch?.[1]) {
-    variants.push(indexMatch[1]);
-  }
-
-  return Array.from(new Set(variants));
-}
-
-function addModulePathEntry(pathMap: Map<string, string>, relativePath: string, moduleId: string): void {
-  const normalizedPath = normalizePath(relativePath);
-  for (const variant of generatePathVariants(normalizedPath)) {
-    pathMap.set(variant, moduleId);
-  }
-}
-
-function buildModulePathLookup(data: DependencyPackageGraph): ModulePathLookup {
-  const packagePathMap = new Map<string, Map<string, string>>();
-  const globalPathMap = new Map<string, Set<string>>();
-
-  data.packages.forEach((pkg: PackageStructure) => {
-    const pathMap = new Map<string, string>();
-    packagePathMap.set(pkg.id, pathMap);
-
-    if (!pkg.modules) {
-      return;
-    }
-
-    mapTypeCollection(pkg.modules, (module: ModuleStructure) => {
-      const relativePath: string = module.source.relativePath;
-      const moduleId: string = module.id;
-      addModulePathEntry(pathMap, relativePath, moduleId);
-      for (const variant of generatePathVariants(normalizePath(relativePath))) {
-        const existing = globalPathMap.get(variant);
-        if (existing) {
-          existing.add(moduleId);
-        } else {
-          globalPathMap.set(variant, new Set<string>([moduleId]));
-        }
-      }
-    });
-  });
-
-  return { packagePathMap, globalPathMap };
-}
-
-function getPackagePrefixFromImporter(importerPath: string): string | undefined {
-  const normalized = normalizePath(importerPath);
-  const marker = '/src/';
-  const markerIndex = normalized.indexOf(marker);
-  if (markerIndex <= 0) {
-    return undefined;
-  }
-  return normalized.slice(0, markerIndex);
-}
-
-function expandCandidatePath(path: string): string[] {
-  const normalized = normalizePath(path);
-  const candidates = new Set<string>([normalized]);
-  const hasExplicitExtension = FILE_EXTENSION_PATTERN.test(normalized);
-
-  if (!hasExplicitExtension) {
-    for (const extension of EXTENSIONS) {
-      candidates.add(`${normalized}${extension}`);
-      candidates.add(joinPaths(normalized, `index${extension}`));
-    }
-  }
-
-  return Array.from(candidates);
-}
-
-function resolveRelativeCandidates(importerPath: string, importPath: string): string[] {
-  const importerDir = getDirname(importerPath);
-  const resolvedBasePath = joinPaths(importerDir, importPath);
-  return expandCandidatePath(resolvedBasePath);
-}
-
-function resolveNonRelativeCandidates(importerPath: string, importPath: string): string[] {
-  const normalizedImportPath = normalizePath(importPath);
-  const baseCandidates = new Set<string>();
-  const packagePrefix = getPackagePrefixFromImporter(importerPath);
-
-  if (normalizedImportPath.startsWith('@/')) {
-    const suffix = normalizedImportPath.slice(2);
-    baseCandidates.add(`src/${suffix}`);
-    if (packagePrefix) {
-      baseCandidates.add(`${packagePrefix}/src/${suffix}`);
-    }
-  } else if (normalizedImportPath.startsWith('src/')) {
-    baseCandidates.add(normalizedImportPath);
-    if (packagePrefix) {
-      baseCandidates.add(`${packagePrefix}/${normalizedImportPath}`);
-    }
-  } else {
-    return [];
-  }
-
-  const expandedCandidates = new Set<string>();
-  for (const candidate of baseCandidates) {
-    for (const expanded of expandCandidatePath(candidate)) {
-      expandedCandidates.add(expanded);
-    }
-  }
-
-  return Array.from(expandedCandidates);
-}
-
-function resolveModuleId(
-  lookup: ModulePathLookup,
-  packageId: string,
-  importerPath: string,
-  importPath: string
-): string | undefined {
-  const isRelative = importPath.startsWith('.') || importPath.startsWith('/');
-  const candidates = isRelative
-    ? resolveRelativeCandidates(importerPath, importPath)
-    : resolveNonRelativeCandidates(importerPath, importPath);
-
-  const packageLookup = lookup.packagePathMap.get(packageId);
-
-  for (const candidate of candidates) {
-    const normalized = normalizePath(candidate);
-    const packageMatch = packageLookup?.get(normalized);
-    if (packageMatch) {
-      return packageMatch;
-    }
-
-    const globalMatches = lookup.globalPathMap.get(normalized);
-    if (globalMatches?.size === 1) {
-      const [globalMatch] = Array.from(globalMatches);
-      return globalMatch;
-    }
-  }
-
-  return undefined;
-}
 
 function buildNodeIdSet(data: DependencyPackageGraph, options: ResolvedOptions): Set<string> {
   const nodeIds = new Set<string>();
@@ -468,27 +268,36 @@ export function createGraphEdges(
   const symbolToModuleMap = buildSymbolToModuleMap(data);
   const edgeMap = new Map<string, GraphEdge>();
   const classRelationshipEdges: GraphEdge[] = [];
+  let invalidEdgeRegistryCount = 0;
+  const invalidEdgeRegistrySamples: {
+    edgeId: string;
+    type: DependencyEdgeKind;
+    source: string;
+    sourceKind: DependencyKind;
+    target: string;
+    targetKind: DependencyKind;
+  }[] = [];
 
   const addEdge = (edge: GraphEdge, keyOverride?: string): void => {
     if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {
       return;
     }
 
-    if (import.meta.env.DEV && edge.data?.type) {
+    if (EDGE_REGISTRY_DEBUG && edge.data?.type) {
       const sourceKind = nodeKindsById.get(edge.source);
       const targetKind = nodeKindsById.get(edge.target);
       if (sourceKind && targetKind && !isValidEdgeConnection(edge.data.type, sourceKind, targetKind)) {
-        console.warn(
-          '[createGraphEdges] Edge kind and endpoint kinds do not match registry',
-          {
+        invalidEdgeRegistryCount += 1;
+        if (invalidEdgeRegistrySamples.length < EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT) {
+          invalidEdgeRegistrySamples.push({
             edgeId: edge.id,
             type: edge.data.type,
             source: edge.source,
             sourceKind,
             target: edge.target,
             targetKind,
-          }
-        );
+          });
+        }
       }
     }
 
@@ -630,6 +439,16 @@ export function createGraphEdges(
 
   if (resolvedOptions.liftClassEdgesToModuleLevel) {
     addLiftedModuleEdges(classRelationshipEdges, symbolToModuleMap, addEdge);
+  }
+
+  if (EDGE_REGISTRY_DEBUG && invalidEdgeRegistryCount > 0) {
+    console.warn(
+      '[createGraphEdges] ' +
+        String(invalidEdgeRegistryCount) +
+        ' edge(s) failed edge-type registry validation. ' +
+        'Set VITE_DEBUG_EDGE_REGISTRY=false (or unset) to silence this check.',
+      { sample: invalidEdgeRegistrySamples }
+    );
   }
 
   return Array.from(edgeMap.values());

@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted } from 'vue';
 
 import { useIssuesStore } from '../stores/issuesStore';
 
-import type { CodeIssueRef } from '../types';
+import type { CodeIssueRef } from '../types/CodeIssueRef';
 
 interface NodeContextMenuProps {
   nodeId: string;

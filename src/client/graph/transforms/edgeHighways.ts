@@ -1,5 +1,5 @@
 import { type EdgeHandleSide, GROUP_ENTRY_STUB_PX, getHandleSide } from '../../layout/edgeGeometryPolicy';
-import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../../layout/geometryBounds';
+import { buildAbsoluteNodeBoundsMap } from '../../layout/geometryBounds';
 import { getEdgeStyle } from '../../theme/graphTheme';
 import { createEdgeMarker } from '../../utils/edgeMarkers';
 import { getHandleAnchor } from '../../layout/handleAnchors';
@@ -9,7 +9,14 @@ import { isValidEdgeConnection } from '../edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
 
 import type { Rect } from '../../layout/geometryBounds';
-import type { DependencyEdgeKind, DependencyKind, DependencyNode, GraphEdge } from '../../types';
+import type { DependencyEdgeKind } from '../../types/DependencyEdgeKind';
+import type { DependencyKind } from '../../types/DependencyKind';
+import type { DependencyNode } from '../../types/DependencyNode';
+import type { GraphEdge } from '../../types/GraphEdge';
+
+const EDGE_REGISTRY_DEBUG =
+  import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
+const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
 
 export interface EdgeHighwayOptions {
   direction: 'LR' | 'RL' | 'TB' | 'BT';
@@ -109,6 +116,11 @@ function buildHighwayAbsoluteNodeBoundsMap(nodes: DependencyNode[]): Map<string,
   });
 }
 
+const getRectCenter = (bounds: Rect): { x: number; y: number } => ({
+  x: bounds.x + bounds.width / 2,
+  y: bounds.y + bounds.height / 2,
+});
+
 const chooseClosestHandle = (
   folderBounds: { x: number; y: number; width: number; height: number } | undefined,
   targetPoint: { x: number; y: number } | undefined,
@@ -150,6 +162,15 @@ export function applyEdgeHighways(
   const exitAcc = new Map<string, SegmentAccumulator>();
   const entryAcc = new Map<string, SegmentAccumulator>();
   const trunkAcc = new Map<string, SegmentAccumulator>();
+  let invalidEdgeRegistryCount = 0;
+  const invalidEdgeRegistrySamples: {
+    edgeId: string;
+    type: string;
+    source: string;
+    sourceKind: DependencyKind;
+    target: string;
+    targetKind: DependencyKind;
+  }[] = [];
 
   for (const edge of edges) {
     const sourceFolder = nodeToFolder.get(edge.source);
@@ -164,15 +185,18 @@ export function applyEdgeHighways(
     const sourceKind = nodeById.get(edge.source)?.type as DependencyKind | undefined;
     const targetKind = nodeById.get(edge.target)?.type as DependencyKind | undefined;
     if (type && sourceKind && targetKind && !isValidEdgeConnection(type, sourceKind, targetKind)) {
-      if (import.meta.env.DEV) {
-        console.warn('[edgeHighways] Skipping highway projection for invalid typed edge', {
-          edgeId: edge.id,
-          type,
-          source: edge.source,
-          sourceKind,
-          target: edge.target,
-          targetKind,
-        });
+      if (EDGE_REGISTRY_DEBUG) {
+        invalidEdgeRegistryCount += 1;
+        if (invalidEdgeRegistrySamples.length < EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT) {
+          invalidEdgeRegistrySamples.push({
+            edgeId: edge.id,
+            type,
+            source: edge.source,
+            sourceKind,
+            target: edge.target,
+            targetKind,
+          });
+        }
       }
       keptEdges.push(edge);
       continue;
@@ -181,6 +205,15 @@ export function applyEdgeHighways(
     addToAccumulator(exitAcc, `${edge.source}|${sourceFolder}|${targetFolder}`, type);
     addToAccumulator(entryAcc, `${sourceFolder}|${targetFolder}|${edge.target}`, type);
     addToAccumulator(trunkAcc, `${sourceFolder}|${targetFolder}`, type);
+  }
+
+  if (EDGE_REGISTRY_DEBUG && invalidEdgeRegistryCount > 0) {
+    console.warn(
+      '[edgeHighways] skipped ' +
+        String(invalidEdgeRegistryCount) +
+        ' edge(s) with invalid type/source/target kind combinations.',
+      { sample: invalidEdgeRegistrySamples }
+    );
   }
 
   const projectedEdges: GraphEdge[] = [...keptEdges];
@@ -286,12 +319,12 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
 
     if (segment === 'exit') {
       const sourceBounds = boundsById.get(edge.source);
-      const sourceCenter = sourceBounds ? getBoundsCenter(sourceBounds) : undefined;
+      const sourceCenter = sourceBounds ? getRectCenter(sourceBounds) : undefined;
       const targetBounds = boundsById.get(edge.target);
       const groupId = edge.data?.highwayGroupId;
       const peerFolderId = typeof groupId === 'string' && groupId.includes('|') ? groupId.split('|')[1] : undefined;
       const peerFolderBounds = peerFolderId ? boundsById.get(peerFolderId) : undefined;
-      const routingTarget = peerFolderBounds ? getBoundsCenter(peerFolderBounds) : sourceCenter;
+      const routingTarget = peerFolderBounds ? getRectCenter(peerFolderBounds) : sourceCenter;
       const targetHandle = chooseClosestHandle(
         targetBounds,
         routingTarget,
@@ -321,7 +354,7 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
 
     if (segment === 'entry') {
       const targetBounds = boundsById.get(edge.target);
-      const targetCenter = targetBounds ? getBoundsCenter(targetBounds) : undefined;
+      const targetCenter = targetBounds ? getRectCenter(targetBounds) : undefined;
       const sourceBounds = boundsById.get(edge.source);
       const sourceHandle = chooseClosestHandle(
         sourceBounds,
@@ -352,8 +385,8 @@ export function optimizeHighwayHandleRouting(nodes: DependencyNode[], edges: Gra
 
     const sourceFolderBounds = boundsById.get(edge.source);
     const targetFolderBounds = boundsById.get(edge.target);
-    const sourceFolderCenter = sourceFolderBounds ? getBoundsCenter(sourceFolderBounds) : undefined;
-    const targetFolderCenter = targetFolderBounds ? getBoundsCenter(targetFolderBounds) : undefined;
+    const sourceFolderCenter = sourceFolderBounds ? getRectCenter(sourceFolderBounds) : undefined;
+    const targetFolderCenter = targetFolderBounds ? getRectCenter(targetFolderBounds) : undefined;
 
     const sourceHandle = chooseClosestHandle(
       sourceFolderBounds,

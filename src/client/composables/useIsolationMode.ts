@@ -6,7 +6,6 @@ import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
 import { traverseGraph } from '../graph/traversal';
 import { getEdgeStyle } from '../theme/graphTheme';
 import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../graph/buildGraphView';
-import { getNodeDims } from '../layout/geometryBounds';
 import { mergeNodeInteractionStyle, stripNodeClass } from '../theme/graphClasses';
 import { waitForNextPaint } from '../utils/dom';
 
@@ -23,7 +22,9 @@ import type {
 import type { LayoutConfig } from '../layout/config';
 import type { ScopeMode } from './useGraphInteractionController';
 import type { GraphViewMode } from '../stores/graphStore';
-import type { DependencyNode, DependencyPackageGraph, GraphEdge } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { GraphEdge } from '../types/GraphEdge';
 
 // ── Isolate graph store (subset of full graph store) ──
 
@@ -140,6 +141,36 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     }, 400);
   };
 
+  const parseFiniteDimension = (value: unknown): number | undefined => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+  };
+
+  const resolveNodeDims = (node: DependencyNode): { w: number; h: number } => {
+    const sizedNode = node as unknown as {
+      measured?: { width?: number; height?: number };
+      width?: unknown;
+      height?: unknown;
+    };
+    const measuredWidth = sizedNode.measured?.width;
+    const measuredHeight = sizedNode.measured?.height;
+    const width =
+      (typeof measuredWidth === 'number' && Number.isFinite(measuredWidth) ? measuredWidth : undefined) ??
+      parseFiniteDimension(sizedNode.width) ??
+      280;
+    const height =
+      (typeof measuredHeight === 'number' && Number.isFinite(measuredHeight) ? measuredHeight : undefined) ??
+      parseFiniteDimension(sizedNode.height) ??
+      200;
+    return { w: width, h: height };
+  };
+
   const computeIsolateLayout = (
     centerNode: DependencyNode,
     inbound: DependencyNode[],
@@ -150,7 +181,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     const cx = allNodes.reduce((sum, n) => sum + n.position.x, 0) / allNodes.length;
     const cy = allNodes.reduce((sum, n) => sum + n.position.y, 0) / allNodes.length;
 
-    const centerDims = getNodeDims(centerNode);
+    const centerDims = resolveNodeDims(centerNode);
     const GAP = 150;
     const STACK_GAP = 40;
     const isHorizontal = direction === 'LR' || direction === 'RL';
@@ -164,10 +195,10 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
 
     if (isHorizontal) {
       const stackColumnY = (column: DependencyNode[], alignX: number, alignRight: boolean): void => {
-        const totalH = column.reduce((sum, n) => sum + getNodeDims(n).h + STACK_GAP, -STACK_GAP);
+        const totalH = column.reduce((sum, n) => sum + resolveNodeDims(n).h + STACK_GAP, -STACK_GAP);
         let y = cy + centerDims.h / 2 - totalH / 2;
         for (const node of column) {
-          const dims = getNodeDims(node);
+          const dims = resolveNodeDims(node);
           const x = alignRight ? alignX - dims.w : alignX;
           positions.set(node.id, { x, y });
           y += dims.h + STACK_GAP;
@@ -184,10 +215,10 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
       }
     } else {
       const stackRowX = (column: DependencyNode[], alignY: number, alignBottom: boolean): void => {
-        const totalW = column.reduce((sum, n) => sum + getNodeDims(n).w + STACK_GAP, -STACK_GAP);
+        const totalW = column.reduce((sum, n) => sum + resolveNodeDims(n).w + STACK_GAP, -STACK_GAP);
         let x = cx + centerDims.w / 2 - totalW / 2;
         for (const node of column) {
-          const dims = getNodeDims(node);
+          const dims = resolveNodeDims(node);
           const y = alignBottom ? alignY - dims.h : alignY;
           positions.set(node.id, { x, y });
           x += dims.w + STACK_GAP;

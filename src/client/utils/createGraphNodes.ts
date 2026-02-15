@@ -4,27 +4,25 @@ import { mapTypeCollection } from './collections';
 import { getNodeStyle } from '../theme/graphTheme';
 import { isTestFilePath } from './testFileMatcher';
 
-import type {
-  ClassStructure,
-  DependencyKind,
-  DependencyNode,
-  DependencyPackageGraph,
-  EmbeddedModuleEntity,
-  EmbeddedSymbol,
-  EnumStructure,
-  ExternalDependencyRef,
-  FunctionStructure,
-  ImportRef,
-  ImportSpecifierRef,
-  InterfaceStructure,
-  ModuleStructure,
-  NodeDiagnostics,
-  NodeMethod,
-  NodeProperty,
-  PackageStructure,
-  TypeAliasStructure,
-  VariableStructure,
-} from '../types';
+import type { ClassStructure } from '../types/ClassStructure';
+import type { DependencyKind } from '../types/DependencyKind';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { EmbeddedModuleEntity } from '../types/EmbeddedModuleEntity';
+import type { EmbeddedSymbol } from '../types/EmbeddedSymbol';
+import type { EnumStructure } from '../types/EnumStructure';
+import type { ExternalDependencyRef } from '../types/ExternalDependencyRef';
+import type { FunctionStructure } from '../types/FunctionStructure';
+import type { ImportRef } from '../types/ImportRef';
+import type { ImportSpecifierRef } from '../types/ImportSpecifierRef';
+import type { InterfaceStructure } from '../types/InterfaceStructure';
+import type { ModuleStructure } from '../types/ModuleStructure';
+import type { NodeDiagnostics } from '../types/NodeDiagnostics';
+import type { NodeMethod } from '../types/NodeMethod';
+import type { NodeProperty } from '../types/NodeProperty';
+import type { PackageStructure } from '../types/PackageStructure';
+import type { TypeAliasStructure } from '../types/TypeAliasStructure';
+import type { VariableStructure } from '../types/VariableStructure';
 
 interface CreateGraphNodeOptions {
   includePackages?: boolean;

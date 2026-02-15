@@ -1,4 +1,4 @@
-import type { DependencyNode } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
 
 export interface NodeDimensionMeasurement {
   width: number;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createGraphNodes } from '../createGraphNodes';
 
-import type { DependencyPackageGraph } from '../../types';
+import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
 
 function createFixtureGraph(): DependencyPackageGraph {
   return {

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 
 import { getApiBaseUrl } from '../assemblers/api';
 
-import type { CodeIssueRef } from '../types';
+import type { CodeIssueRef } from '../types/CodeIssueRef';
 
 export const useIssuesStore = defineStore('issues', () => {
   const issues = ref<CodeIssueRef[]>([]);

@@ -10,11 +10,16 @@ import {
   getDefaultEdgeVirtualizationConfigOverrides,
   getRecalcMinFrameGapMs,
 } from './edgeVirtualizationCore';
-import { buildRestoreVisibilityMap, buildVisibilityMap, collectUserHiddenEdgeIds } from './edgeVisibilityApply';
+import {
+  applyRestoreVisibility,
+  applyVirtualizationResult,
+  collectUserHiddenEdgeIds,
+} from './edgeVisibilityApply';
 
 import type { Ref, WatchStopHandle } from 'vue';
 
-import type { DependencyNode, GraphEdge } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
 import type { GetContainerRect, GetViewport, SetEdgeVisibility } from './useEdgeVirtualizationWorker';
 
 // ── Types (reused from worker where applicable) ──
@@ -100,9 +105,8 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions): Us
       // Skip virtualization for small graphs
       if (!enabled.value || edgeList.length < VIRTUALIZATION_THRESHOLD) {
         if (virtualizedHiddenIds.value.size > 0) {
-          const restoreVisibilityMap = buildRestoreVisibilityMap(virtualizedHiddenIds.value, edgeList);
           isWriting = true;
-          setEdgeVisibility(restoreVisibilityMap);
+          applyRestoreVisibility(virtualizedHiddenIds.value, edgeList, setEdgeVisibility);
           isWriting = false;
           virtualizedHiddenIds.value = new Set();
         }
@@ -125,18 +129,12 @@ export function useEdgeVirtualization(options: UseEdgeVirtualizationOptions): Us
         edgePriorityOrder,
         config: getDefaultEdgeVirtualizationConfigOverrides(),
       });
-      if (!result) {
-        return;
-      }
-
-      const visibilityMap = buildVisibilityMap(edgeList, result.hiddenEdgeIds, userHiddenIds);
+      if (!result) return;
 
       virtualizedHiddenIds.value = result.hiddenEdgeIds;
-      if (visibilityMap.size > 0) {
-        isWriting = true;
-        setEdgeVisibility(visibilityMap);
-        isWriting = false;
-      }
+      isWriting = true;
+      applyVirtualizationResult(edgeList, result.hiddenEdgeIds, userHiddenIds, setEdgeVisibility);
+      isWriting = false;
     } finally {
       if (PERF_MARKS_ENABLED) {
         performance.mark('edge-virtualization-recalc-end');

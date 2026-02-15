@@ -17,7 +17,10 @@ import type { Ref } from 'vue';
 import type { WebWorkerLayoutConfig } from '../layout/WebWorkerLayoutProcessor';
 import type { LayoutConfig } from '../layout/config';
 import type { GraphViewMode } from '../stores/graphStore';
-import type { DependencyNode, DependencyPackageGraph, GraphEdge, LayoutInsets, ManualOffset } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { GraphEdge } from '../types/GraphEdge';
+import type { ManualOffset } from '../types/ManualOffset';
 
 export interface LayoutProcessOptions {
   fitViewToResult?: boolean;
@@ -54,7 +57,6 @@ export interface NodeMeasuredData {
 const MAX_LAYOUT_CACHE_ENTRIES = 8;
 const MAX_LAYOUT_CACHE_WEIGHT = 220_000;
 const MAX_NODE_MEASUREMENT_CACHE_ENTRIES = 4_000;
-const TWO_PASS_MEASURE_NODE_THRESHOLD = 500;
 
 // ── Types ──
 
@@ -341,7 +343,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   // ── Measurement ──
 
-  const shouldRunTwoPassMeasure = (nodeCount: number): boolean => nodeCount <= TWO_PASS_MEASURE_NODE_THRESHOLD;
+  const shouldRunTwoPassMeasure = (_nodeCount: number): boolean => true;
 
   const measureAllNodeDimensions = (layoutedNodes: DependencyNode[]): MeasureNodesResult => {
     if (layoutedNodes.length === 0) {
@@ -421,7 +423,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
       if (m.isContainer) {
         measuredTopInset = Math.max(96, Math.round(m.headerH + m.bodyH + m.subnodesH + 12));
-        const currentTopInset = (node.data?.layoutInsets as LayoutInsets | undefined)?.top ?? 0;
+        const currentTopInset = node.data?.layoutInsets?.top ?? 0;
         const insetDelta = Math.abs(currentTopInset - measuredTopInset);
         const cacheDeltaInset = Math.abs((cached?.topInset ?? 0) - measuredTopInset);
         insetChanged = insetDelta > 1 || cacheDeltaInset > 1;

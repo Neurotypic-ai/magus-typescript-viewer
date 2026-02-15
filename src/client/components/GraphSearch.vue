@@ -3,8 +3,9 @@ import { ref, watch } from 'vue';
 
 import { Panel } from '@vue-flow/core';
 
-import type { DependencyNode, SearchResult } from '../types';
-import type { GraphEdge } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { SearchResult } from '../types/SearchResult';
+import type { GraphEdge } from '../types/GraphEdge';
 
 interface GraphSearchProps {
   nodes: DependencyNode[];

@@ -115,6 +115,19 @@ function inferExternalPackageName(source: string): string | undefined {
   return packageName ?? undefined;
 }
 
+const typeCollectionToArray = <T>(collection: TypeCollection<T> | undefined): T[] => {
+  if (!collection) {
+    return [];
+  }
+  if (collection instanceof Map) {
+    return Array.from(collection.values());
+  }
+  if (Array.isArray(collection)) {
+    return collection;
+  }
+  return Object.values(collection);
+};
+
 export class ApiServerResponder {
   private readonly database: Database;
   private readonly dbAdapter: DuckDBAdapter;
@@ -253,6 +266,187 @@ export class ApiServerResponder {
     } catch (error) {
       this.logger.error('Failed to build graph payload, returning empty graph', error);
       return { packages: [] };
+    }
+  }
+
+  private toGraphSummaryModule(module: Module): Module {
+    const summarizedClasses = typeCollectionToArray(
+      module.classes as TypeCollection<{
+        id: string;
+        package_id: string;
+        module_id: string;
+        name: string;
+        created_at: Date;
+        extends_id?: string;
+        implemented_interfaces?: TypeCollection<{
+          id: string;
+          package_id: string;
+          module_id: string;
+          name: string;
+          created_at: Date;
+        }>;
+      }>
+    ).map((cls) => ({
+      id: cls.id,
+      package_id: cls.package_id,
+      module_id: cls.module_id,
+      name: cls.name,
+      created_at: cls.created_at,
+      ...(cls.extends_id ? { extends_id: cls.extends_id } : {}),
+      implemented_interfaces: typeCollectionToArray(cls.implemented_interfaces).map((iface) => ({
+        id: iface.id,
+        package_id: iface.package_id,
+        module_id: iface.module_id,
+        name: iface.name,
+        created_at: iface.created_at,
+      })),
+      methods: [],
+      properties: [],
+    }));
+
+    const summarizedInterfaces = typeCollectionToArray(
+      module.interfaces as TypeCollection<{
+        id: string;
+        package_id: string;
+        module_id: string;
+        name: string;
+        created_at: Date;
+        extended_interfaces?: TypeCollection<{
+          id: string;
+          package_id: string;
+          module_id: string;
+          name: string;
+          created_at: Date;
+        }>;
+      }>
+    ).map((iface) => ({
+      id: iface.id,
+      package_id: iface.package_id,
+      module_id: iface.module_id,
+      name: iface.name,
+      created_at: iface.created_at,
+      extended_interfaces: typeCollectionToArray(iface.extended_interfaces).map((extended) => ({
+        id: extended.id,
+        package_id: extended.package_id,
+        module_id: extended.module_id,
+        name: extended.name,
+        created_at: extended.created_at,
+      })),
+      methods: [],
+      properties: [],
+    }));
+
+    const summarizedImports = typeCollectionToArray(
+      module.imports as TypeCollection<{
+        uuid: string;
+        name?: string;
+        relativePath?: string;
+        fullPath?: string;
+        path?: string;
+        specifiers?: unknown;
+        isExternal?: boolean;
+        packageName?: string;
+      }>
+    ).map((imp) => ({
+      uuid: imp.uuid,
+      ...(imp.name ? { name: imp.name } : {}),
+      ...(imp.relativePath ? { relativePath: imp.relativePath } : {}),
+      ...(imp.fullPath ? { fullPath: imp.fullPath } : {}),
+      ...(imp.path ? { path: imp.path } : {}),
+      ...(Array.isArray(imp.specifiers) ? { specifiers: imp.specifiers } : {}),
+      ...(typeof imp.isExternal === 'boolean' ? { isExternal: imp.isExternal } : {}),
+      ...(imp.packageName ? { packageName: imp.packageName } : {}),
+    }));
+
+    return {
+      id: module.id,
+      package_id: module.package_id,
+      name: module.name,
+      source: module.source,
+      created_at: module.created_at,
+      referencePaths: [],
+      classes: summarizedClasses,
+      interfaces: summarizedInterfaces,
+      imports: summarizedImports,
+      exports: [],
+      packages: [],
+      typeAliases: [],
+      enums: [],
+      functions: [],
+      variables: [],
+      symbol_references: [],
+    } as unknown as Module;
+  }
+
+  async getGraphSummary(): Promise<{ packages: GraphResponseItem[] }> {
+    try {
+      const packages = await this.packageRepository.retrieve();
+      const PACKAGE_CONCURRENCY = 4;
+      const queue = packages.map((pkg, index) => ({ pkg, index }));
+      const responses = new Map<number, GraphResponseItem>();
+
+      const worker = async (): Promise<void> => {
+        while (queue.length > 0) {
+          const next = queue.shift();
+          if (!next) {
+            return;
+          }
+          const { pkg, index } = next;
+
+          try {
+            const modules = (await this.getModules(pkg.id)).map((module) => this.toGraphSummaryModule(module));
+            responses.set(index, {
+              id: pkg.id,
+              name: pkg.name,
+              version: pkg.version,
+              path: pkg.path,
+              created_at: pkg.created_at,
+              dependencies: pkg.dependencies,
+              devDependencies: pkg.devDependencies,
+              peerDependencies: pkg.peerDependencies,
+              modules,
+            });
+          } catch (error) {
+            this.logger.error(`Failed to build graph summary package payload for ${pkg.id}`, error);
+            responses.set(index, {
+              id: pkg.id,
+              name: pkg.name,
+              version: pkg.version,
+              path: pkg.path,
+              created_at: pkg.created_at,
+              dependencies: pkg.dependencies,
+              devDependencies: pkg.devDependencies,
+              peerDependencies: pkg.peerDependencies,
+              modules: [],
+            });
+          }
+        }
+      };
+
+      const workerCount = Math.min(PACKAGE_CONCURRENCY, Math.max(1, queue.length));
+      await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+      return {
+        packages: packages.map((_, index) => responses.get(index)).filter((item): item is GraphResponseItem => Boolean(item)),
+      };
+    } catch (error) {
+      this.logger.error('Failed to build graph summary payload, returning empty graph', error);
+      return { packages: [] };
+    }
+  }
+
+  async getModuleDetails(moduleId: string): Promise<Module | null> {
+    try {
+      const module = await this.moduleRepository.retrieveById(moduleId);
+      if (!module) {
+        return null;
+      }
+
+      const packageModules = await this.getModules(module.package_id);
+      return packageModules.find((candidate) => candidate.id === moduleId) ?? null;
+    } catch (error) {
+      this.logger.error(`Failed to retrieve module details for ${moduleId}`, error);
+      return null;
     }
   }
 

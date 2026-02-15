@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
+import { GraphDataAssembler } from '../assemblers/GraphDataAssembler';
 import { mapTypeCollection } from '../utils/collections';
 
-import type { DependencyNode, DependencyPackageGraph, GraphEdge, ModuleStructure } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { GraphEdge } from '../types/GraphEdge';
+import type { ModuleStructure } from '../types/ModuleStructure';
 
 interface NodeDetailsProps {
   node: DependencyNode;
@@ -37,13 +41,16 @@ interface SymbolSummary {
 
 interface GraphDetailsIndex {
   moduleById: Map<string, ModuleStructure>;
+  symbolToModuleId: Map<string, string>;
   usageByTargetSymbolId: Map<string, string[]>;
 }
 
 const graphDetailsIndexCache = new WeakMap<DependencyPackageGraph, GraphDetailsIndex>();
+const moduleDetailsAssembler = new GraphDataAssembler();
 
 function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex {
   const moduleById = new Map<string, ModuleStructure>();
+  const symbolToModuleId = new Map<string, string>();
   const symbolLabelById = new Map<string, string>();
   const usageByTargetSymbolIdSets = new Map<string, Set<string>>();
 
@@ -54,16 +61,19 @@ function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex
 
     mapTypeCollection(pkg.modules, (module) => {
       moduleById.set(module.id, module);
+      symbolToModuleId.set(module.id, module.id);
       symbolLabelById.set(module.id, module.name ?? module.id);
 
       if (module.classes) {
         mapTypeCollection(module.classes, (cls) => {
           const classLabel = cls.name ?? 'Unnamed class';
+          symbolToModuleId.set(cls.id, module.id);
           symbolLabelById.set(cls.id, classLabel);
 
           if (cls.properties) {
             mapTypeCollection(cls.properties, (prop) => {
               if (!prop.id) return;
+              symbolToModuleId.set(prop.id, module.id);
               symbolLabelById.set(prop.id, `${classLabel}.${prop.name ?? 'unnamed'}`);
             });
           }
@@ -71,6 +81,7 @@ function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex
           if (cls.methods) {
             mapTypeCollection(cls.methods, (method) => {
               if (!method.id) return;
+              symbolToModuleId.set(method.id, module.id);
               symbolLabelById.set(method.id, `${classLabel}.${method.name ?? 'unnamed'}()`);
             });
           }
@@ -80,11 +91,13 @@ function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex
       if (module.interfaces) {
         mapTypeCollection(module.interfaces, (iface) => {
           const interfaceLabel = iface.name ?? 'Unnamed interface';
+          symbolToModuleId.set(iface.id, module.id);
           symbolLabelById.set(iface.id, interfaceLabel);
 
           if (iface.properties) {
             mapTypeCollection(iface.properties, (prop) => {
               if (!prop.id) return;
+              symbolToModuleId.set(prop.id, module.id);
               symbolLabelById.set(prop.id, `${interfaceLabel}.${prop.name ?? 'unnamed'}`);
             });
           }
@@ -92,6 +105,7 @@ function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex
           if (iface.methods) {
             mapTypeCollection(iface.methods, (method) => {
               if (!method.id) return;
+              symbolToModuleId.set(method.id, module.id);
               symbolLabelById.set(method.id, `${interfaceLabel}.${method.name ?? 'unnamed'}()`);
             });
           }
@@ -137,6 +151,7 @@ function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex
 
   return {
     moduleById,
+    symbolToModuleId,
     usageByTargetSymbolId,
   };
 }
@@ -160,6 +175,67 @@ const graphDetailsIndex = computed<GraphDetailsIndex>(() => {
   graphDetailsIndexCache.set(props.data, index);
   return index;
 });
+
+const hydratedModule = ref<ModuleStructure | null>(null);
+const hydratedModuleId = ref<string | null>(null);
+const isHydratingDetails = ref(false);
+const detailsLoadError = ref<string | null>(null);
+
+const activeModuleId = computed<string | null>(() => {
+  if (props.node.type === 'module') {
+    return props.node.id;
+  }
+
+  const parentId = props.node.data?.parentId;
+  if (typeof parentId === 'string' && parentId.length > 0) {
+    return parentId;
+  }
+
+  return graphDetailsIndex.value.symbolToModuleId.get(props.node.id) ?? null;
+});
+
+watch(
+  activeModuleId,
+  (moduleId, _prev, onCleanup) => {
+    if (!moduleId) {
+      hydratedModule.value = null;
+      hydratedModuleId.value = null;
+      detailsLoadError.value = null;
+      isHydratingDetails.value = false;
+      return;
+    }
+
+    if (hydratedModuleId.value === moduleId && !detailsLoadError.value) {
+      isHydratingDetails.value = false;
+      return;
+    }
+
+    let cancelled = false;
+    onCleanup(() => {
+      cancelled = true;
+    });
+
+    isHydratingDetails.value = true;
+    detailsLoadError.value = null;
+
+    void moduleDetailsAssembler
+      .fetchModuleDetails(moduleId)
+      .then((moduleDetails) => {
+        if (cancelled) return;
+        hydratedModuleId.value = moduleId;
+        hydratedModule.value = moduleDetails;
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        detailsLoadError.value = error instanceof Error ? error.message : 'Failed to load module details.';
+      })
+      .finally(() => {
+        if (cancelled) return;
+        isHydratingDetails.value = false;
+      });
+  },
+  { immediate: true }
+);
 
 const nodeLabelById = computed(() => {
   const map = new Map<string, string>();
@@ -196,7 +272,16 @@ function getUsedBy(symbolId: string | undefined): string[] {
 }
 
 const selectedModule = computed<ModuleStructure | undefined>(() => {
-  return graphDetailsIndex.value.moduleById.get(props.node.id);
+  const moduleId = activeModuleId.value;
+  if (!moduleId) {
+    return undefined;
+  }
+
+  if (hydratedModuleId.value === moduleId && hydratedModule.value) {
+    return hydratedModule.value;
+  }
+
+  return graphDetailsIndex.value.moduleById.get(moduleId);
 });
 
 const moduleClasses = computed<SymbolSummary[]>(() => {
@@ -247,8 +332,37 @@ const moduleInterfaces = computed<SymbolSummary[]>(() => {
   }));
 });
 
+const hydratedSymbolDetails = computed(() => {
+  if (!selectedModule.value) {
+    return null;
+  }
+
+  if (selectedModule.value.classes) {
+    const cls = mapTypeCollection(selectedModule.value.classes, (entry) => entry).find((entry) => entry.id === props.node.id);
+    if (cls) {
+      return {
+        properties: Array.isArray(cls.properties) ? cls.properties : [],
+        methods: Array.isArray(cls.methods) ? cls.methods : [],
+      };
+    }
+  }
+
+  if (selectedModule.value.interfaces) {
+    const iface = mapTypeCollection(selectedModule.value.interfaces, (entry) => entry).find((entry) => entry.id === props.node.id);
+    if (iface) {
+      return {
+        properties: Array.isArray(iface.properties) ? iface.properties : [],
+        methods: Array.isArray(iface.methods) ? iface.methods : [],
+      };
+    }
+  }
+
+  return null;
+});
+
 const nodeProperties = computed<DisplayMember[]>(() => {
-  const properties = props.node.data?.properties ?? [];
+  const nodeProperties = Array.isArray(props.node.data?.properties) ? props.node.data.properties : [];
+  const properties = nodeProperties.length > 0 ? nodeProperties : (hydratedSymbolDetails.value?.properties ?? []);
   return properties.map((prop) => ({
     id: prop.id,
     name: prop.name ?? 'unnamed',
@@ -259,7 +373,8 @@ const nodeProperties = computed<DisplayMember[]>(() => {
 });
 
 const nodeMethods = computed<DisplayMethod[]>(() => {
-  const methods = props.node.data?.methods ?? [];
+  const nodeMethods = Array.isArray(props.node.data?.methods) ? props.node.data.methods : [];
+  const methods = nodeMethods.length > 0 ? nodeMethods : (hydratedSymbolDetails.value?.methods ?? []);
   return methods.map((method) => ({
     id: method.id,
     name: method.name ?? 'unnamed',
@@ -418,6 +533,23 @@ const openSymbolUsageGraph = () => {
     </h2>
     <p class="text-sm text-text-secondary mb-4 pb-4 border-b border-border-default">
       Type: <span class="font-semibold text-primary-main">{{ props.node.type }}</span>
+    </p>
+
+    <p
+      v-if="isHydratingDetails"
+      role="status"
+      aria-live="polite"
+      class="text-xs text-text-secondary mb-3"
+    >
+      Loading module details...
+    </p>
+    <p
+      v-else-if="detailsLoadError"
+      role="alert"
+      aria-live="assertive"
+      class="text-xs text-red-300 mb-3"
+    >
+      {{ detailsLoadError }}
     </p>
 
     <button

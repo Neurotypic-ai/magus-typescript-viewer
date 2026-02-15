@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-import { useIsolateExpandState } from '../../composables/useIsolateExpandState';
+import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -19,7 +19,7 @@ const toggle = () => {
   isOpen.value = !isOpen.value;
 };
 
-useIsolateExpandState(
+useExpandCollapseState(
   () => isOpen.value,
   (saved) => { isOpen.value = saved; },
   () => { isOpen.value = true; },

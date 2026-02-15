@@ -1,16 +1,15 @@
 import { ref } from 'vue';
 
-import { applyNodeChanges } from '@vue-flow/core';
-
 import { filterNodeChangesForFolderMode } from '../graph/buildGraphView';
+import { applyNodeChanges } from '../utils/applyNodeChanges';
 import { resolveCollisions, buildPositionMap, DEFAULT_COLLISION_CONFIG } from '../layout/collisionResolver';
 
 import type { Ref } from 'vue';
 import type { NodeChange } from '@vue-flow/core';
 
 import type { BoundsNode } from '../layout/geometryBounds';
-import type { ManualOffset } from '../types';
-import type { DependencyNode } from '../types';
+import type { ManualOffset } from '../types/ManualOffset';
+import type { DependencyNode } from '../types/DependencyNode';
 
 const LIVE_SETTLE_NODE_THRESHOLD = 350;
 const LIVE_SETTLE_MIN_INTERVAL_MS = 32;
@@ -314,11 +313,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    const updatedNodes = applyNodeChanges(
-      structuralChanges,
-      previousNodes as unknown as never[]
-    ) as unknown as DependencyNode[];
+    const updatedNodes = applyNodeChanges(structuralChanges, previousNodes);
     setNodes(updatedNodes);
     reconcileSelectedNodeAfterStructuralChange(updatedNodes);
 

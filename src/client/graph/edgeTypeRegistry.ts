@@ -1,4 +1,6 @@
-import type { DependencyEdgeKind, DependencyKind, HandleCategory } from '../types';
+import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
+import type { DependencyKind } from '../types/DependencyKind';
+import type { HandleCategory } from '../types/HandleCategory';
 
 export interface EdgeTypeDefinition {
   kind: DependencyEdgeKind;
@@ -29,16 +31,16 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
   implements: {
     kind: 'implements',
     label: 'Implements',
-    validSources: ['class'],
-    validTargets: ['interface'],
+    validSources: ['class', 'module'],
+    validTargets: ['interface', 'module'],
     directed: true,
     handleCategory: 'relational',
   },
   inheritance: {
     kind: 'inheritance',
     label: 'Inheritance',
-    validSources: ['class', 'interface'],
-    validTargets: ['class', 'interface'],
+    validSources: ['class', 'interface', 'module'],
+    validTargets: ['class', 'interface', 'module'],
     directed: true,
     handleCategory: 'relational',
   },

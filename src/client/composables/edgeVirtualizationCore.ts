@@ -13,7 +13,7 @@ import type {
   EdgeVirtualizationNode,
   EdgeVirtualizationPoint,
   EdgeVirtualizationViewport,
-} from '../types';
+} from '../types/EdgeVirtualization';
 
 export type {
   EdgeVirtualizationComputationInput,
@@ -25,7 +25,7 @@ export type {
   EdgeVirtualizationNode,
   EdgeVirtualizationPoint,
   EdgeVirtualizationViewport,
-} from '../types';
+} from '../types/EdgeVirtualization';
 
 interface ViewportBounds {
   minX: number;
@@ -63,7 +63,7 @@ export const DEFAULT_EDGE_VIRTUALIZATION_CONFIG: EdgeVirtualizationConfig = {
 };
 
 /** Minimum edge count before virtualization kicks in. */
-export const VIRTUALIZATION_THRESHOLD = 200;
+export const VIRTUALIZATION_THRESHOLD = 0;
 
 /** Minimum frame spacing for recalculations (ms). Reads VITE_EDGE_VIRTUALIZATION_MIN_FRAME_GAP_MS with fallback 48. */
 export function getRecalcMinFrameGapMs(): number {

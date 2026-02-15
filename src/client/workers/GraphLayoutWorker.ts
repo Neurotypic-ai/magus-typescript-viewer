@@ -6,7 +6,7 @@
 import type { Edge } from '@vue-flow/core';
 
 import { GROUP_EXCLUSION_ZONE_PX } from '../layout/edgeGeometryPolicy';
-import type { DependencyNode } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphTheme } from '../theme/graphTheme';
 
 /** Node shape returned by ELK layout (same as input graph node but with x/y filled) */

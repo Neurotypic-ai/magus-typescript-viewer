@@ -1,6 +1,6 @@
 import { parseDimension } from '../layout/geometryBounds';
 
-import type { DependencyNode } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
 
 export const collectNodesNeedingInternalsUpdate = (previous: DependencyNode[], next: DependencyNode[]): string[] => {
   const previousById = new Map(previous.map((node) => [node.id, node]));

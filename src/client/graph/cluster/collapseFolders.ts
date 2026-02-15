@@ -4,7 +4,8 @@ import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../layout/edgeGe
 import { getNodeStyle } from '../../theme/graphTheme';
 import { buildParentMap, findCollapsedAncestor } from './folderMembership';
 
-import type { DependencyNode, GraphEdge } from '../../types';
+import type { DependencyNode } from '../../types/DependencyNode';
+import type { GraphEdge } from '../../types/GraphEdge';
 
 export interface CollapseFolderMeta {
   childIds: string[];

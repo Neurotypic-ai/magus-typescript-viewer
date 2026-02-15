@@ -7,7 +7,8 @@ import { useEdgeVirtualizationWorker } from './useEdgeVirtualizationWorker';
 
 import type { Ref } from 'vue';
 
-import type { DependencyNode, GraphEdge } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
 
 const orchestratorLogger = createLogger('EdgeVirtualizationOrchestrator');
 

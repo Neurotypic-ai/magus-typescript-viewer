@@ -2,7 +2,7 @@ import { toDependencyEdgeKind } from '../graph/edgeKindUtils';
 import { getEdgeStyle } from './graphTheme';
 import { EDGE_HOVER_BASE_STROKE_VAR, EDGE_HOVER_FALLBACK_STROKE } from './graphClasses';
 
-import type { GraphEdge } from '../types';
+import type { GraphEdge } from '../types/GraphEdge';
 
 export const toEdgeStyleRecord = (style: GraphEdge['style']): Record<string, string | number | undefined> | undefined => {
   if (typeof style !== 'object') {

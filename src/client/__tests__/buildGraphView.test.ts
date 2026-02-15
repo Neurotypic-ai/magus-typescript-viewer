@@ -4,7 +4,9 @@ import { applyEdgeVisibility, buildOverviewGraph, buildSymbolDrilldownGraph, fil
 
 import type { NodeChange } from '@vue-flow/core';
 
-import type { DependencyNode, DependencyPackageGraph, GraphEdge } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { GraphEdge } from '../types/GraphEdge';
 
 describe('applyEdgeVisibility', () => {
   it('keeps uses edges visible while honoring enabled relationship filters for others', () => {

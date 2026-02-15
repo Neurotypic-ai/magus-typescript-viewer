@@ -61,3 +61,41 @@ export function buildRestoreVisibilityMap(
   });
   return map;
 }
+
+/** Applies a visibility map (edge id → hidden) to the store. No-op if map is empty. */
+export type SetEdgeVisibilityFn = (visibilityMap: Map<string, boolean>) => void;
+
+/**
+ * Shared "apply virtualization result" flow: build visibility map from result,
+ * then call setEdgeVisibility. Used by main-thread composable and by worker
+ * composable when applying worker result. Caller may wrap setEdgeVisibility
+ * in a guard (e.g. isWriting).
+ */
+export function applyVirtualizationResult(
+  edges: EdgeWithHidden[],
+  hiddenEdgeIds: Set<string>,
+  userHiddenIds: Set<string>,
+  setEdgeVisibility: SetEdgeVisibilityFn
+): void {
+  const visibilityMap = buildVisibilityMap(edges, hiddenEdgeIds, userHiddenIds);
+  if (visibilityMap.size > 0) {
+    setEdgeVisibility(visibilityMap);
+  }
+}
+
+/**
+ * Shared "restore visibility when disabling virtualization" flow: build restore
+ * map and call setEdgeVisibility. Used when below threshold or virtualization
+ * disabled. Caller then clears virtualizedHiddenIds.
+ */
+export function applyRestoreVisibility(
+  virtualizedHiddenIds: Set<string>,
+  edges: EdgeWithHidden[],
+  setEdgeVisibility: SetEdgeVisibilityFn
+): void {
+  if (virtualizedHiddenIds.size === 0) return;
+  const restoreVisibilityMap = buildRestoreVisibilityMap(virtualizedHiddenIds, edges);
+  if (restoreVisibilityMap.size > 0) {
+    setEdgeVisibility(restoreVisibilityMap);
+  }
+}

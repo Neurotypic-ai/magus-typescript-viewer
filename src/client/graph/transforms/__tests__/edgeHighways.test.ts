@@ -4,7 +4,9 @@ import { collapseFolders } from '../../cluster/collapseFolders';
 import { GROUP_ENTRY_STUB_PX } from '../../../layout/edgeGeometryPolicy';
 import { applyEdgeHighways, optimizeHighwayHandleRouting } from '../edgeHighways';
 
-import type { DependencyEdgeKind, DependencyNode, GraphEdge } from '../../../types';
+import type { DependencyEdgeKind } from '../../../types/DependencyEdgeKind';
+import type { DependencyNode } from '../../../types/DependencyNode';
+import type { GraphEdge } from '../../../types/GraphEdge';
 
 const makeGroup = (id: string): DependencyNode =>
   ({
@@ -104,9 +106,9 @@ describe('applyEdgeHighways', () => {
     const trunk = trunks[0];
     expect(trunk).toBeDefined();
     if (!trunk) return;
-    expect(trunk.data?.highwayCount).toBe(2);
+    expect(trunk.data?.highwayCount).toBe(3);
     expect(trunk.data?.highwayTypeBreakdown?.import).toBe(2);
-    expect(trunk.data?.highwayTypeBreakdown?.inheritance).toBeUndefined();
+    expect(trunk.data?.highwayTypeBreakdown?.inheritance).toBe(1);
     expect(trunk.sourceHandle).toBe('folder-bottom-out');
     expect(trunk.targetHandle).toBe('folder-top-in');
   });

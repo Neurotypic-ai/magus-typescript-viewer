@@ -8,7 +8,7 @@ import { useIssuesStore } from '../../stores/issuesStore';
 import InsightBadgeStrip from './InsightBadgeStrip.vue';
 import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, NODE_ACTIONS_KEY, resolveSubnodesCount } from './utils';
 
-import type { DependencyProps } from '../../types';
+import type { DependencyProps } from '../../types/DependencyProps';
 import type { NodeActions } from './utils';
 
 interface BaseNodeProps extends DependencyProps {

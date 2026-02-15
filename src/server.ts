@@ -128,6 +128,13 @@ const server = http.createServer((req, res) => {
           logger.error('Error in /packages route, returning empty array', routeErr);
           resource = [];
         }
+      } else if (req.url?.startsWith('/graph/summary') && req.method === 'GET') {
+        try {
+          resource = await apiServerResponder.getGraphSummary();
+        } catch (routeErr) {
+          logger.error('Error in /graph/summary route, returning empty graph payload', routeErr);
+          resource = { packages: [] };
+        }
       } else if (req.url === '/graph' && req.method === 'GET') {
         try {
           resource = await apiServerResponder.getGraph();
@@ -159,6 +166,36 @@ const server = http.createServer((req, res) => {
         } catch (routeErr) {
           logger.error('Error in /modules route, returning empty array', routeErr);
           resource = [];
+        }
+      } else if (req.url?.startsWith('/module-details') && req.method === 'GET') {
+        let moduleId: string | undefined;
+        try {
+          const urlString = req.url.includes('?') ? req.url.split('?')[1] : '';
+          const params = new URLSearchParams(urlString);
+          moduleId = params.get('moduleId') ?? undefined;
+        } catch (error) {
+          logger.error('Failed to parse URL parameters:', error instanceof Error ? error.message : String(error));
+          sendError(res, 400, 'Invalid URL parameters');
+          return;
+        }
+
+        if (!moduleId) {
+          logger.error('Missing required moduleId parameter');
+          sendError(res, 400, 'Missing moduleId');
+          return;
+        }
+
+        try {
+          const module = await apiServerResponder.getModuleDetails(moduleId);
+          if (!module) {
+            sendError(res, 404, 'Module not found');
+            return;
+          }
+          resource = { module };
+        } catch (routeErr) {
+          logger.error('Error in /module-details route', routeErr);
+          sendError(res, 500, 'Failed to load module details');
+          return;
         }
       } else if (req.url === '/issues' && req.method === 'GET') {
         try {

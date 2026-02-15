@@ -6,7 +6,11 @@ import {
   getDefaultEdgeVirtualizationConfigOverrides,
   getRecalcMinFrameGapMs,
 } from './edgeVirtualizationCore';
-import { buildRestoreVisibilityMap, buildVisibilityMap, collectUserHiddenEdgeIds } from './edgeVisibilityApply';
+import {
+  applyRestoreVisibility,
+  applyVirtualizationResult,
+  collectUserHiddenEdgeIds,
+} from './edgeVisibilityApply';
 
 import type { Ref, WatchStopHandle } from 'vue';
 
@@ -16,7 +20,7 @@ import type {
   EdgeVirtualizationNode,
   EdgeVirtualizationPoint,
   EdgeVirtualizationViewport,
-} from '../types';
+} from '../types/EdgeVirtualization';
 import type {
   RecalculateMessage,
   RecalculateResultMessage,
@@ -24,7 +28,8 @@ import type {
   WorkerRequestMessage,
   WorkerResponseMessage,
 } from './edgeVisibilityMessages';
-import type { DependencyNode, GraphEdge } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
 
 const RECALC_MIN_FRAME_GAP_MS = getRecalcMinFrameGapMs();
 const PERF_MARKS_ENABLED = (import.meta.env['VITE_PERF_MARKS'] as string | undefined) === 'true';
@@ -264,19 +269,9 @@ export function useEdgeVirtualizationWorker(
   };
 
   const restoreVirtualizedEdges = (): void => {
-    if (virtualizedHiddenIds.value.size === 0) {
-      return;
-    }
-
-    const restoreVisibilityMap = buildRestoreVisibilityMap(virtualizedHiddenIds.value, edges.value);
-
-    if (restoreVisibilityMap.size === 0) {
-      virtualizedHiddenIds.value = new Set<string>();
-      return;
-    }
-
+    if (virtualizedHiddenIds.value.size === 0) return;
     isWriting = true;
-    setEdgeVisibility(restoreVisibilityMap);
+    applyRestoreVisibility(virtualizedHiddenIds.value, edges.value, setEdgeVisibility);
     isWriting = false;
     virtualizedHiddenIds.value = new Set<string>();
   };
@@ -306,18 +301,12 @@ export function useEdgeVirtualizationWorker(
     const newHiddenIds = new Set(payload.hiddenEdgeIds);
     const currentUserHiddenIds = collectUserHiddenEdgeIds(edges.value, virtualizedHiddenIds.value);
 
-    if (PERF_MARKS_ENABLED) {
-      performance.mark('apply-visibility-delta-start');
-    }
-
-    const visibilityMap = buildVisibilityMap(edges.value, newHiddenIds, currentUserHiddenIds);
+    if (PERF_MARKS_ENABLED) performance.mark('apply-visibility-delta-start');
 
     virtualizedHiddenIds.value = newHiddenIds;
-    if (visibilityMap.size > 0) {
-      isWriting = true;
-      setEdgeVisibility(visibilityMap);
-      isWriting = false;
-    }
+    isWriting = true;
+    applyVirtualizationResult(edges.value, newHiddenIds, currentUserHiddenIds, setEdgeVisibility);
+    isWriting = false;
 
     stats.value.responses += 1;
     stats.value.lastVisibleCount = payload.finalVisibleCount;
@@ -452,7 +441,7 @@ export function useEdgeVirtualizationWorker(
     if (typeof Worker === 'undefined') {
       notifyWorkerUnavailable('Web workers are not supported in this environment');
     } else {
-      worker = new Worker(new URL('../../workers/EdgeVisibilityWorker.ts', import.meta.url), { type: 'module' });
+      worker = new Worker(new URL('../workers/EdgeVisibilityWorker.ts', import.meta.url), { type: 'module' });
       worker.addEventListener('message', onWorkerMessage);
       worker.addEventListener('error', (error) => {
         const reason = error.message || 'Edge visibility worker crashed';

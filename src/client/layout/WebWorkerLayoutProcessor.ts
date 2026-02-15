@@ -8,7 +8,7 @@ import { isProxy, toRaw } from 'vue';
 
 import type { Edge } from '@vue-flow/core';
 
-import type { DependencyNode } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphTheme } from '../theme/graphTheme';
 import type { LayoutConfig as GraphLayoutConfig } from './config';
 

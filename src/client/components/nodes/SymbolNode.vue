@@ -3,10 +3,10 @@ import { computed, ref, toRef } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
-import { useIsolateExpandState } from '../../composables/useIsolateExpandState';
+import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import { buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 
-import type { DependencyProps } from '../../types';
+import type { DependencyProps } from '../../types/DependencyProps';
 
 const props = defineProps<DependencyProps>();
 
@@ -34,7 +34,7 @@ const toggleCollapsed = () => {
   }
 };
 
-useIsolateExpandState(
+useExpandCollapseState(
   () => isCollapsed.value,
   (saved) => { isCollapsed.value = saved; },
   () => { isCollapsed.value = false; },

@@ -1,4 +1,4 @@
-import type { DependencyEdgeKind } from '../types';
+import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
 
 const VALID_EDGE_KINDS: DependencyEdgeKind[] = [
   'dependency',

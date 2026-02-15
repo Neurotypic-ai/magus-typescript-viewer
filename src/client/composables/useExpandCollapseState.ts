@@ -9,7 +9,7 @@ import { ISOLATE_EXPAND_ALL_KEY } from '../components/nodes/utils';
  * state via `getCurrentState`, then calls `expandAll`. When isolation ends,
  * restores the saved state via `restoreState`.
  */
-export function useIsolateExpandState<T>(
+export function useExpandCollapseState<T>(
   getCurrentState: () => T,
   restoreState: (saved: T) => void,
   expandAll: () => void

@@ -10,7 +10,9 @@ import { addSetDiff } from '../utils/sets';
 import type { Ref } from 'vue';
 
 import type { graphTheme as GraphThemeType } from '../theme/graphTheme';
-import type { DependencyNode, GraphEdge, SearchResult } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
+import type { SearchResult } from '../types/SearchResult';
 
 export interface SearchHighlightState {
   hasResults: boolean;

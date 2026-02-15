@@ -1,6 +1,6 @@
 import type { Ref } from 'vue';
 
-import type { DependencyNode } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
 
 const HOVER_Z = '9999';
 

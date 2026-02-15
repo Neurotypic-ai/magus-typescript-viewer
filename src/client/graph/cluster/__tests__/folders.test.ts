@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { clusterByFolder } from '../folders';
 
-import type { DependencyNode, GraphEdge } from '../../../types';
+import type { DependencyNode } from '../../../types/DependencyNode';
+import type { GraphEdge } from '../../../types/GraphEdge';
 
 function createModuleNode(id: string, relativePath: string, pkg = 'app'): DependencyNode {
   return {

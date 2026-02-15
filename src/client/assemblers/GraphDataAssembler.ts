@@ -14,45 +14,23 @@ import type { SymbolReference } from '../../shared/types/SymbolReference';
 import type { TypeAlias } from '../../shared/types/TypeAlias';
 import { typeCollectionToArray } from '../utils/collections';
 import type { Variable } from '../../shared/types/Variable';
-import type {
-  ClassStructure,
-  DependencyPackageGraph,
-  DependencyRef,
-  EnumStructure,
-  ExternalDependencyRef,
-  FunctionStructure,
-  ImportRef,
-  InterfaceStructure,
-  ImportSpecifierRef,
-  ModuleStructure,
-  NodeMethod,
-  NodeProperty,
-  SymbolReferenceRef,
-  TypeAliasStructure,
-  VariableStructure,
-} from '../types';
+import type { ClassStructure } from '../types/ClassStructure';
+import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyRef } from '../types/DependencyRef';
+import type { EnumStructure } from '../types/EnumStructure';
+import type { ExternalDependencyRef } from '../types/ExternalDependencyRef';
+import type { FunctionStructure } from '../types/FunctionStructure';
+import type { ImportRef } from '../types/ImportRef';
+import type { InterfaceStructure } from '../types/InterfaceStructure';
+import type { ImportSpecifierRef } from '../types/ImportSpecifierRef';
+import type { ModuleStructure } from '../types/ModuleStructure';
+import type { NodeMethod } from '../types/NodeMethod';
+import type { NodeProperty } from '../types/NodeProperty';
+import type { SymbolReferenceRef } from '../types/SymbolReferenceRef';
+import type { TypeAliasStructure } from '../types/TypeAliasStructure';
+import type { VariableStructure } from '../types/VariableStructure';
 
-// Define the missing structures that are used in the class but not externally defined
-// These were previously used but now NodeProperty/NodeMethod are used more directly
-// interface PropertyStructure {
-//   id: string;
-//   name: string;
-//   type: string;
-//   default_value: string;
-//   visibility: string;
-//   is_static: boolean;
-//   created_at: string;
-// }
-
-// interface MethodStructure {
-//   id: string;
-//   name: string;
-//   parameters: Parameter[];
-//   return_type: string;
-//   visibility: string;
-//   is_static: boolean;
-//   created_at: string;
-// }
+import { GraphDataCache } from './graphDataCache';
 
 const assemblerLogger = createLogger('GraphDataAssembler');
 
@@ -66,51 +44,32 @@ interface GraphApiPayload {
   packages?: GraphApiPackagePayload[];
 }
 
-// Cache for memoizing the graph data
-class GraphDataCache {
-  private static instance: GraphDataCache | null = null;
-  private cache = new Map<string, { data: DependencyPackageGraph; timestamp: number }>();
-  private readonly MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+interface ModuleDetailsApiPayload {
+  module?: Module;
+}
 
-  private constructor() {
-    // Private constructor for singleton pattern
-  }
-
-  public static getInstance(): GraphDataCache {
-    return (GraphDataCache.instance ??= new GraphDataCache());
-  }
-
-  public get(key: string): DependencyPackageGraph | null {
-    const entry = this.cache.get(key);
-    if (!entry) return null;
-
-    // Check if cache is still valid
-    const now = Date.now();
-    if (now - entry.timestamp > this.MAX_AGE_MS) {
-      this.cache.delete(key);
-      return null;
-    }
-
-    return entry.data;
-  }
-
-  public set(key: string, data: DependencyPackageGraph): void {
-    this.cache.set(key, { data, timestamp: Date.now() });
-  }
-
-  public clear(): void {
-    this.cache.clear();
-  }
+/** Generic: array → Record keyed by keyFn(item), values from mapFn(item). */
+function transformCollection<T, R>(
+  items: T[],
+  keyFn: (t: T) => string,
+  mapFn: (t: T) => R
+): Record<string, R> {
+  const result: Record<string, R> = {};
+  items.forEach((item) => {
+    result[keyFn(item)] = mapFn(item);
+  });
+  return result;
 }
 
 export class GraphDataAssembler {
-  private static readonly CACHE_VERSION = 'v2-import-specifiers';
+  private static readonly CACHE_VERSION = 'v3-graph-summary';
   private readonly baseUrl: string;
   private readonly cache: GraphDataCache;
+  private readonly moduleDetailsCache = new Map<string, ModuleStructure | null>();
 
-  constructor(baseUrl?: string) {
+  constructor(baseUrl?: string, cache?: GraphDataCache) {
     this.baseUrl = baseUrl ?? getApiBaseUrl();
-    this.cache = GraphDataCache.getInstance();
+    this.cache = cache ?? GraphDataCache.getInstance();
   }
 
   /**
@@ -171,16 +130,32 @@ export class GraphDataAssembler {
 
       let graphData: DependencyPackageGraph | null = null;
 
-      assemblerLogger.debug('Fetching graph payload from /graph...');
-      const graphResponse = await fetch(this.buildUrl('/graph'), { signal: fetchSignal });
-      if (graphResponse.ok) {
-        const graphPayload = (await graphResponse.json()) as GraphApiPayload;
-        if (Array.isArray(graphPayload.packages)) {
-          assemblerLogger.debug('Fetched graph payload packages:', graphPayload.packages.length);
-          graphData = this.buildGraphDataFromPackages(graphPayload.packages);
+      assemblerLogger.debug('Fetching graph summary payload from /graph/summary...');
+      const summaryResponse = await fetch(this.buildUrl('/graph/summary'), { signal: fetchSignal });
+      if (summaryResponse.ok) {
+        const summaryPayload = (await summaryResponse.json()) as GraphApiPayload;
+        if (Array.isArray(summaryPayload.packages)) {
+          assemblerLogger.debug('Fetched graph summary packages:', summaryPayload.packages.length);
+          graphData = this.buildGraphDataFromPackages(summaryPayload.packages);
         }
       } else {
-        assemblerLogger.warn(`Graph endpoint unavailable (${graphResponse.status.toString()}), falling back to legacy fetch.`);
+        assemblerLogger.warn(
+          `Graph summary endpoint unavailable (${summaryResponse.status.toString()}), falling back to /graph.`
+        );
+      }
+
+      if (!graphData) {
+        assemblerLogger.debug('Fetching full graph payload from /graph...');
+        const graphResponse = await fetch(this.buildUrl('/graph'), { signal: fetchSignal });
+        if (graphResponse.ok) {
+          const graphPayload = (await graphResponse.json()) as GraphApiPayload;
+          if (Array.isArray(graphPayload.packages)) {
+            assemblerLogger.debug('Fetched full graph payload packages:', graphPayload.packages.length);
+            graphData = this.buildGraphDataFromPackages(graphPayload.packages);
+          }
+        } else {
+          assemblerLogger.warn(`Graph endpoint unavailable (${graphResponse.status.toString()}), falling back to legacy fetch.`);
+        }
       }
 
       if (!graphData) {
@@ -271,54 +246,36 @@ export class GraphDataAssembler {
   }
 
 
-  /**
-   * Transforms class collection to Record format
-   * @param classes Array of classes
-   * @returns Record of classes
-   */
   private transformClassCollection(classes: Class[]): Record<string, ClassStructure> {
-    const result: Record<string, ClassStructure> = {};
-
-    classes.forEach((cls) => {
-      const classObj: ClassStructure = {
-        id: cls.id,
-        name: cls.name,
-        implemented_interfaces: this.transformInterfaceRefs(typeCollectionToArray(cls.implemented_interfaces)),
-        properties: this.transformPropertyCollection(typeCollectionToArray(cls.properties)),
-        methods: this.transformMethodCollection(typeCollectionToArray(cls.methods)),
-        created_at: typeof cls.created_at === 'string' ? cls.created_at : cls.created_at.toISOString(),
-      } as unknown as ClassStructure;
-
-      if (cls.extends_id) {
-        (classObj as { extends_id?: string }).extends_id = cls.extends_id;
+    return transformCollection(
+      classes,
+      (cls) => cls.name,
+      (cls) => {
+        const classObj: ClassStructure = {
+          id: cls.id,
+          name: cls.name,
+          implemented_interfaces: this.transformInterfaceRefs(typeCollectionToArray(cls.implemented_interfaces)),
+          properties: this.transformPropertyCollection(typeCollectionToArray(cls.properties)),
+          methods: this.transformMethodCollection(typeCollectionToArray(cls.methods)),
+          created_at: typeof cls.created_at === 'string' ? cls.created_at : cls.created_at.toISOString(),
+        } as unknown as ClassStructure;
+        if (cls.extends_id) {
+          (classObj as { extends_id?: string }).extends_id = cls.extends_id;
+        }
+        return classObj;
       }
-
-      result[cls.name] = classObj;
-    });
-
-    return result;
+    );
   }
 
-  /**
-   * Transforms interface collection to Record format
-   * @param interfaces Array of interfaces
-   * @returns Record of interfaces
-   */
   private transformInterfaceCollection(interfaces: SharedInterface[]): Record<string, InterfaceStructure> {
-    const result: Record<string, InterfaceStructure> = {};
-
-    interfaces.forEach((intf) => {
-      result[intf.name] = {
-        id: intf.id,
-        name: intf.name,
-        extended_interfaces: this.transformInterfaceRefs(typeCollectionToArray(intf.extended_interfaces)),
-        properties: this.transformPropertyCollection(typeCollectionToArray(intf.properties)),
-        methods: this.transformMethodCollection(typeCollectionToArray(intf.methods)),
-        created_at: typeof intf.created_at === 'string' ? intf.created_at : intf.created_at.toISOString(),
-      };
-    });
-
-    return result;
+    return transformCollection(interfaces, (intf) => intf.name, (intf) => ({
+      id: intf.id,
+      name: intf.name,
+      extended_interfaces: this.transformInterfaceRefs(typeCollectionToArray(intf.extended_interfaces)),
+      properties: this.transformPropertyCollection(typeCollectionToArray(intf.properties)),
+      methods: this.transformMethodCollection(typeCollectionToArray(intf.methods)),
+      created_at: typeof intf.created_at === 'string' ? intf.created_at : intf.created_at.toISOString(),
+    }));
   }
 
   /**
@@ -375,15 +332,8 @@ export class GraphDataAssembler {
     };
   }
 
-  /**
-   * Transforms a collection of interfaces into a record of InterfaceRefs keyed by id
-   */
   private transformInterfaceRefs(interfaces: SharedInterface[]): Record<string, { id: string; name?: string }> {
-    const result: Record<string, { id: string; name?: string }> = {};
-    interfaces.forEach((intf) => {
-      result[intf.id] = { id: intf.id, name: intf.name };
-    });
-    return result;
+    return transformCollection(interfaces, (intf) => intf.id, (intf) => ({ id: intf.id, name: intf.name }));
   }
 
   private normalizeImportKind(kind: unknown): ImportSpecifierRef['kind'] {
@@ -556,9 +506,6 @@ export class GraphDataAssembler {
       });
   }
 
-  /**
-   * Transforms a collection of imports into a record of ImportRef keyed by uuid
-   */
   private transformImportCollection(
     imports: {
       uuid: string;
@@ -571,120 +518,113 @@ export class GraphDataAssembler {
       specifiers?: unknown;
     }[]
   ): Record<string, ImportRef> {
-    const result: Record<string, ImportRef> = {};
-    imports.forEach((imp) => {
+    return transformCollection(imports, (imp) => imp.uuid, (imp) => {
       const ref: ImportRef = { uuid: imp.uuid } as ImportRef;
-      if (imp.name !== undefined) {
-        (ref as { name?: string }).name = imp.name;
-      }
-      if (imp.relativePath !== undefined) {
-        (ref as { path?: string }).path = imp.relativePath;
-      } else if (imp.path !== undefined) {
-        (ref as { path?: string }).path = imp.path;
-      } else if (imp.fullPath !== undefined) {
-        (ref as { path?: string }).path = imp.fullPath;
-      }
-
+      if (imp.name !== undefined) (ref as { name?: string }).name = imp.name;
+      if (imp.relativePath !== undefined) (ref as { path?: string }).path = imp.relativePath;
+      else if (imp.path !== undefined) (ref as { path?: string }).path = imp.path;
+      else if (imp.fullPath !== undefined) (ref as { path?: string }).path = imp.fullPath;
       const path = ref.path ?? ref.name;
       const packageName = imp.packageName ?? (path ? this.packageNameFromImportPath(path) : undefined);
-      if (typeof imp.isExternal === 'boolean') {
-        ref.isExternal = imp.isExternal;
-      } else {
-        ref.isExternal = Boolean(packageName);
-      }
-      if (packageName) {
-        ref.packageName = packageName;
-      }
-
+      ref.isExternal =
+        typeof imp.isExternal === 'boolean' ? imp.isExternal : Boolean(packageName);
+      if (packageName) ref.packageName = packageName;
       ref.specifiers = this.parseImportSpecifiers(imp.specifiers);
-      result[imp.uuid] = ref;
+      return ref;
     });
-    return result;
   }
 
   private transformSymbolReferenceCollection(
     references: SymbolReference[]
   ): Record<string, SymbolReferenceRef> {
-    const result: Record<string, SymbolReferenceRef> = {};
-    references.forEach((reference) => {
-      result[reference.id] = {
-        id: reference.id,
-        package_id: reference.package_id,
-        module_id: reference.module_id,
-        source_symbol_id: reference.source_symbol_id ?? undefined,
-        source_symbol_type: reference.source_symbol_type,
-        source_symbol_name: reference.source_symbol_name ?? undefined,
-        target_symbol_id: reference.target_symbol_id,
-        target_symbol_type: reference.target_symbol_type,
-        target_symbol_name: reference.target_symbol_name,
-        access_kind: reference.access_kind,
-        qualifier_name: reference.qualifier_name ?? undefined,
-      };
-    });
-    return result;
+    return transformCollection(references, (r) => r.id, (reference) => ({
+      id: reference.id,
+      package_id: reference.package_id,
+      module_id: reference.module_id,
+      source_symbol_id: reference.source_symbol_id ?? undefined,
+      source_symbol_type: reference.source_symbol_type,
+      source_symbol_name: reference.source_symbol_name ?? undefined,
+      target_symbol_id: reference.target_symbol_id,
+      target_symbol_type: reference.target_symbol_type,
+      target_symbol_name: reference.target_symbol_name,
+      access_kind: reference.access_kind,
+      qualifier_name: reference.qualifier_name ?? undefined,
+    }));
   }
 
   private transformFunctionCollection(functions: ModuleFunction[]): Record<string, FunctionStructure> {
-    const result: Record<string, FunctionStructure> = {};
-    functions.forEach((fn) => {
-      result[fn.id] = {
-        id: fn.id,
-        name: fn.name,
-        returnType: fn.return_type,
-        isAsync: fn.is_async,
-      };
-    });
-    return result;
+    return transformCollection(functions, (fn) => fn.id, (fn) => ({
+      id: fn.id,
+      name: fn.name,
+      returnType: fn.return_type,
+      isAsync: fn.is_async,
+    }));
   }
 
   private transformTypeAliasCollection(typeAliases: TypeAlias[]): Record<string, TypeAliasStructure> {
-    const result: Record<string, TypeAliasStructure> = {};
-    typeAliases.forEach((ta) => {
-      result[ta.id] = {
-        id: ta.id,
-        name: ta.name,
-        type: ta.type,
-        typeParameters: ta.typeParameters.length > 0 ? ta.typeParameters : undefined,
-      };
-    });
-    return result;
+    return transformCollection(typeAliases, (ta) => ta.id, (ta) => ({
+      id: ta.id,
+      name: ta.name,
+      type: ta.type,
+      typeParameters: ta.typeParameters.length > 0 ? ta.typeParameters : undefined,
+    }));
   }
 
   private transformEnumCollection(enums: Enum[]): Record<string, EnumStructure> {
-    const result: Record<string, EnumStructure> = {};
-    enums.forEach((en) => {
-      result[en.id] = {
-        id: en.id,
-        name: en.name,
-        members: en.members,
-      };
-    });
-    return result;
+    return transformCollection(enums, (en) => en.id, (en) => ({
+      id: en.id,
+      name: en.name,
+      members: en.members,
+    }));
   }
 
   private transformVariableCollection(variables: Variable[]): Record<string, VariableStructure> {
-    const result: Record<string, VariableStructure> = {};
-    variables.forEach((v) => {
-      result[v.id] = {
-        id: v.id,
-        name: v.name,
-        type: v.type,
-        kind: v.kind,
-        initializer: v.initializer,
-      };
-    });
-    return result;
+    return transformCollection(variables, (v) => v.id, (v) => ({
+      id: v.id,
+      name: v.name,
+      type: v.type,
+      kind: v.kind,
+      initializer: v.initializer,
+    }));
   }
 
-  /**
-   * Transforms a collection of packages into a record of DependencyRef keyed by id
-   */
   private transformDependencyCollection(packages: Package[]): Record<string, DependencyRef> {
-    const result: Record<string, DependencyRef> = {};
-    packages.forEach((p) => {
-      result[p.id] = { id: p.id, name: p.name, version: p.version } as DependencyRef;
+    return transformCollection(
+      packages,
+      (p) => p.id,
+      (p) => ({ id: p.id, name: p.name, version: p.version } as DependencyRef)
+    );
+  }
+
+  async fetchModuleDetails(moduleId: string, signal?: AbortSignal): Promise<ModuleStructure | null> {
+    if (this.moduleDetailsCache.has(moduleId)) {
+      return this.moduleDetailsCache.get(moduleId) ?? null;
+    }
+
+    const fetchSignal = signal ?? AbortSignal.timeout(15_000);
+    const response = await fetch(this.buildUrl(`/module-details?moduleId=${encodeURIComponent(moduleId)}`), {
+      signal: fetchSignal,
     });
-    return result;
+
+    if (response.status === 404) {
+      this.moduleDetailsCache.set(moduleId, null);
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch module details (${response.status.toString()})`);
+    }
+
+    const payload = (await response.json()) as ModuleDetailsApiPayload;
+    if (!payload.module) {
+      this.moduleDetailsCache.set(moduleId, null);
+      return null;
+    }
+
+    const transformed = this.transformModules([payload.module]);
+    const moduleDetails = transformed[0] ?? null;
+    this.moduleDetailsCache.set(moduleId, moduleDetails);
+    return moduleDetails;
   }
 
   /**
@@ -692,6 +632,7 @@ export class GraphDataAssembler {
    */
   public clearCache(): void {
     this.cache.clear();
+    this.moduleDetailsCache.clear();
     assemblerLogger.debug('Cleared graph data cache');
   }
 

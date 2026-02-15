@@ -6,10 +6,13 @@ import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import EntityListSection from './EntityListSection.vue';
 import SymbolCardSection from './SymbolCardSection.vue';
-import { useIsolateExpandState } from '../../composables/useIsolateExpandState';
+import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import { ENTITY_TYPE_CONFIGS, buildBaseNodeProps, formatMethod, formatProperty, resolveSubnodesCount } from './utils';
 
-import type { DependencyProps, EmbeddedModuleEntity, EmbeddedSymbol, ExternalDependencyRef } from '../../types';
+import type { DependencyProps } from '../../types/DependencyProps';
+import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
+import type { EmbeddedSymbol } from '../../types/EmbeddedSymbol';
+import type { ExternalDependencyRef } from '../../types/ExternalDependencyRef';
 
 const props = defineProps<DependencyProps>();
 
@@ -147,7 +150,7 @@ const visibleExternalDependencies = computed(() =>
 const hiddenExternalDependencyCount = computed(() => Math.max(0, externalDependencies.value.length - 8));
 
 // Pre-isolate state (CollapsibleSection handles its own open/close state)
-useIsolateExpandState(
+useExpandCollapseState(
   () => ({
     showAllExternalDeps: showAllExternalDeps.value,
     expandedSymbols: new Set(expandedSymbols.value),

@@ -4,7 +4,7 @@ import { computed, toRef } from 'vue';
 import BaseNode from './BaseNode.vue';
 import { buildBaseNodeProps, resolveSubnodesCount } from './utils';
 
-import type { DependencyProps } from '../../types';
+import type { DependencyProps } from '../../types/DependencyProps';
 
 const props = defineProps<DependencyProps>();
 

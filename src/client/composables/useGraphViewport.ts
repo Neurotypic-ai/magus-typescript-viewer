@@ -23,6 +23,7 @@ export interface GraphViewport {
   viewportState: Ref<{ x: number; y: number; zoom: number }>;
   isPanning: Ref<boolean>;
   isMac: Ref<boolean>;
+  isFirefox: Ref<boolean>;
   handleWheel: (event: WheelEvent) => void;
   onMoveStart: () => void;
   onMove: () => void;
@@ -38,6 +39,9 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
   const { getViewport, setViewport, zoomTo, panBy, onViewportChange } = options;
 
   const isMac = ref(isMacPlatform());
+  const isFirefox = ref(
+    typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent)
+  );
   const viewportState = ref({ ...DEFAULT_VIEWPORT });
   const isPanning = ref(false);
 
@@ -200,6 +204,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
     viewportState,
     isPanning,
     isMac,
+    isFirefox,
     handleWheel,
     onMoveStart,
     onMove,

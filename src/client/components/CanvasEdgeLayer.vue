@@ -6,7 +6,8 @@ import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../layout/geometryB
 import { getHandleAnchor } from '../layout/handleAnchors';
 import { measurePerformance } from '../utils/performanceMonitoring';
 
-import type { DependencyNode, GraphEdge } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
 
 interface ViewportState {
   x: number;

@@ -70,8 +70,14 @@ export const useGraphSettings = defineStore('graphSettings', () => {
 
     return {
       import: hasModules ? { available: true } : createUnavailable('Requires module nodes'),
-      inheritance: hasSymbols ? { available: true } : createUnavailable('Requires class or interface nodes'),
-      implements: hasSymbols ? { available: true } : createUnavailable('Requires class or interface nodes'),
+      inheritance:
+        hasSymbols || hasModules
+          ? { available: true }
+          : createUnavailable('Requires module, class, or interface nodes'),
+      implements:
+        hasSymbols || hasModules
+          ? { available: true }
+          : createUnavailable('Requires module, class, or interface nodes'),
       dependency: hasPackages ? { available: true } : createUnavailable('Requires package nodes'),
       devDependency: hasPackages ? { available: true } : createUnavailable('Requires package nodes'),
       peerDependency: hasPackages ? { available: true } : createUnavailable('Requires package nodes'),
@@ -82,7 +88,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     const selected = enabledRelationshipTypes.value;
     return selected.filter((type) => {
       const availability = relationshipAvailability.value[type as RelationshipType];
-      return availability?.available ?? true;
+      return availability.available;
     });
   });
 

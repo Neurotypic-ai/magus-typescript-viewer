@@ -21,7 +21,8 @@ import type { Ref } from 'vue';
 
 import type { CameraMode, ScopeMode } from './useGraphInteractionController';
 import type { SearchHighlightState } from './useSearchHighlighting';
-import type { DependencyNode, GraphEdge } from '../types';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
 
 const EMPTY_EDGE_SET = new Set<string>();
 

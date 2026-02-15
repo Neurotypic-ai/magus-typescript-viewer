@@ -9,6 +9,8 @@ describe('edgeTypeRegistry', () => {
   it('validates documented and invalid edge connections', () => {
     expect(isValidEdgeConnection('import', 'module', 'module')).toBe(true);
     expect(isValidEdgeConnection('implements', 'class', 'interface')).toBe(true);
+    expect(isValidEdgeConnection('implements', 'module', 'module')).toBe(true);
+    expect(isValidEdgeConnection('inheritance', 'module', 'module')).toBe(true);
     expect(isValidEdgeConnection('uses', 'class', 'property')).toBe(true);
 
     expect(isValidEdgeConnection('import', 'class', 'module')).toBe(false);
