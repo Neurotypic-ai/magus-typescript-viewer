@@ -820,23 +820,7 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
   };
 }
 
-export function toDependencyEdgeKind(type: string | undefined): DependencyEdgeKind {
-  if (
-    type === 'dependency' ||
-    type === 'devDependency' ||
-    type === 'peerDependency' ||
-    type === 'import' ||
-    type === 'export' ||
-    type === 'inheritance' ||
-    type === 'implements' ||
-    type === 'extends' ||
-    type === 'contains' ||
-    type === 'uses'
-  ) {
-    return type;
-  }
-  return 'dependency';
-}
+export { toDependencyEdgeKind } from './edgeKindUtils';
 
 export function filterNodeChangesForFolderMode(
   changes: NodeChange[],

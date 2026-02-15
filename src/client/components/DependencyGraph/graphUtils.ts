@@ -1,7 +1,7 @@
 import { Position } from '@vue-flow/core';
 
 import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
-import { toDependencyEdgeKind } from './buildGraphView';
+import { toDependencyEdgeKind } from './edgeKindUtils';
 
 import type { DependencyKind, DependencyNode, GraphEdge } from './types';
 
