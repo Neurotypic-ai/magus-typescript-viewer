@@ -9,7 +9,6 @@ import { computed, ref } from 'vue';
 
 import { buildParentMap } from '../graph/cluster/folderMembership';
 import { traverseGraph } from '../graph/traversal';
-import { buildOverviewGraph } from '../graph/buildGraphView';
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
   HIGHLIGHT_ORPHAN_GLOBAL_KEY,
@@ -28,7 +27,7 @@ import { useCollisionResolution } from './useCollisionResolution';
 import { useEdgeVirtualizationOrchestrator } from './useEdgeVirtualizationOrchestrator';
 import { useFpsCounter } from './useFpsCounter';
 import { useGraphInteractionController } from './useGraphInteractionController';
-import { useGraphLayout } from './useGraphLayout';
+import { useGraphLayout, type LayoutProcessOptions } from './useGraphLayout';
 import { useGraphViewport, DEFAULT_VIEWPORT } from './useGraphViewport';
 import { useIsolationMode } from './useIsolationMode';
 import { createNodeDimensionTracker } from './useNodeDimensions';
@@ -36,11 +35,12 @@ import { useNodeHoverZIndex } from './useNodeHoverZIndex';
 import { useSearchHighlighting } from './useSearchHighlighting';
 import { useSelectionHighlighting } from './useSelectionHighlighting';
 import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
+import { getRenderingStrategy } from '../rendering/strategyRegistry';
+import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
 
 import type { ComputedRef, Ref } from 'vue';
 import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
 import type { LayoutConfig } from '../layout/config';
-import type { EdgeRendererMode } from '../stores/graphSettings';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
@@ -100,7 +100,7 @@ export interface DependencyGraphCoreReturn {
   edgeVirtualizationEnabled: Ref<boolean>;
   edgeVirtualizationRuntimeMode: Ref<string>;
   edgeVirtualizationWorkerStats: Ref<{ lastVisibleCount: number; lastHiddenCount: number; staleResponses: number }>;
-  graphLayout: { requestGraphInitialization: () => void | Promise<void> };
+  graphLayout: { requestGraphInitialization: (options?: LayoutProcessOptions) => void | Promise<void> };
   isLayoutPending: Ref<boolean>;
   isLayoutMeasuring: Ref<boolean>;
   layoutConfig: { direction: string };
@@ -161,7 +161,12 @@ export interface DependencyGraphCoreReturn {
   handleDegreeWeightedLayersToggle: (value: boolean) => Promise<void>;
   handleShowFpsToggle: (value: boolean) => void;
   handleFpsAdvancedToggle: (value: boolean) => void;
-  handleEdgeRendererModeChange: (value: EdgeRendererMode) => void;
+  handleRenderingStrategyChange: (id: RenderingStrategyId) => Promise<void>;
+  handleRenderingStrategyOptionChange: (payload: {
+    strategyId: RenderingStrategyId;
+    optionId: string;
+    value: unknown;
+  }) => Promise<void>;
   nodeActions: NodeActions;
   highlightOrphanGlobal: ComputedRef<boolean>;
   folderCollapseActions: FolderCollapseActions;
@@ -186,9 +191,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const graphStore = useGraphStore();
   const graphSettings = useGraphSettings();
-  const envDefaultRendererMode: EdgeRendererMode =
-    env.EDGE_RENDERER_MODE === 'vue-flow' ? 'vue-flow' : 'hybrid-canvas';
-  graphSettings.initializeEdgeRendererMode(envDefaultRendererMode);
+  const envDefaultRendererMode: RenderingStrategyId = env.EDGE_RENDERER_MODE === 'vue-flow' ? 'vueflow' : 'canvas';
+  graphSettings.initializeRenderingStrategyId(envDefaultRendererMode);
   const issuesStore = useIssuesStore();
   const insightsStore = useInsightsStore();
   const interaction = useGraphInteractionController();
@@ -370,6 +374,12 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
       get degreeWeightedLayers() {
         return graphSettings.degreeWeightedLayers;
       },
+      get renderingStrategyId() {
+        return graphSettings.renderingStrategyId;
+      },
+      get strategyOptionsById() {
+        return graphSettings.strategyOptionsById;
+      },
     },
     interaction: {
       resetInteraction: () => {
@@ -518,7 +528,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   const { isIsolateAnimating, isolateExpandAll, isolateNeighborhood, handleOpenSymbolUsageGraph, handleReturnToOverview } =
     isolationMode;
 
-  const isCanvasModeRequested = computed(() => graphSettings.edgeRendererMode === 'hybrid-canvas');
+  const activeRenderingStrategy = computed(() => getRenderingStrategy(graphSettings.renderingStrategyId));
+  const isCanvasModeRequested = computed(() => activeRenderingStrategy.value.runtime.edgeMode === 'canvas');
 
   const isHybridCanvasMode = computed(
     () =>
@@ -611,6 +622,12 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   const handleCanvasUnavailable = (): void => {
     if (!canvasRendererAvailable.value) return;
     canvasRendererAvailable.value = false;
+    if (graphSettings.renderingStrategyId === 'canvas') {
+      graphSettings.setRenderingStrategyId('vueflow');
+      void graphLayout.requestGraphInitialization();
+    }
+    syncViewportState();
+    edgeVirtualization.requestViewportRecalc(true);
   };
 
   const onMoveEnd = (): void => {
@@ -802,8 +819,25 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     graphSettings.setShowFpsAdvanced(value);
   };
 
-  const handleEdgeRendererModeChange = (value: EdgeRendererMode): void => {
-    graphSettings.setEdgeRendererMode(value);
+  const handleRenderingStrategyChange = async (id: RenderingStrategyId): Promise<void> => {
+    if (graphSettings.renderingStrategyId !== id) {
+      graphSettings.setRenderingStrategyId(id);
+      await graphLayout.requestGraphInitialization();
+    }
+    syncViewportState();
+    edgeVirtualization.requestViewportRecalc(true);
+  };
+
+  const handleRenderingStrategyOptionChange = async (payload: {
+    strategyId: RenderingStrategyId;
+    optionId: string;
+    value: unknown;
+  }): Promise<void> => {
+    const optionTargetsActiveStrategy = payload.strategyId === graphSettings.renderingStrategyId;
+    graphSettings.setRenderingStrategyOption(payload.strategyId, payload.optionId, payload.value);
+    if (optionTargetsActiveStrategy) {
+      await graphLayout.requestGraphInitialization();
+    }
     syncViewportState();
     edgeVirtualization.requestViewportRecalc(true);
   };
@@ -821,22 +855,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   const folderCollapseActions = {
     toggleFolderCollapsed: (folderId: string) => {
       graphSettings.toggleFolderCollapsed(folderId);
-
-      const overviewGraph = buildOverviewGraph({
-        data: props.data.value,
-        enabledNodeTypes: new Set(graphSettings.enabledNodeTypes),
-        enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
-        direction: layoutConfig.direction,
-        clusterByFolder: graphSettings.clusterByFolder,
-        collapseScc: graphSettings.collapseScc,
-        collapsedFolderIds: graphSettings.collapsedFolderIds,
-        hideTestFiles: graphSettings.hideTestFiles,
-        memberNodeMode: graphSettings.memberNodeMode,
-        highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-      });
-      graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
-
-      void graphLayout.processGraphLayout(overviewGraph, {
+      void graphLayout.requestGraphInitialization({
         fitViewToResult: false,
         twoPassMeasure: true,
       });
@@ -959,7 +978,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     handleDegreeWeightedLayersToggle,
     handleShowFpsToggle,
     handleFpsAdvancedToggle,
-    handleEdgeRendererModeChange,
+    handleRenderingStrategyChange,
+    handleRenderingStrategyOptionChange,
 
     // Provide values
     nodeActions,

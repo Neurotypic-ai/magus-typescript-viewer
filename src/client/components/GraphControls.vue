@@ -1,19 +1,28 @@
 <script setup lang="ts">
 import { Panel } from '@vue-flow/core';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
+import { getRenderingStrategies } from '../rendering/strategyRegistry';
 import { DEFAULT_MODULE_MEMBER_TYPES, DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../stores/graphSettings';
 
-import type { EdgeRendererMode, ModuleMemberType } from '../stores/graphSettings';
+import type {
+  RenderingNumberOptionDefinition,
+  RenderingOptionDefinition,
+  RenderingOptionValue,
+  RenderingSelectOptionDefinition,
+  RenderingStrategy,
+  RenderingStrategyId,
+} from '../rendering/RenderingStrategy';
+import type { ModuleMemberType } from '../stores/graphSettings';
 
 interface GraphControlsProps {
   relationshipAvailability?: Record<string, { available: boolean; reason?: string }>;
-  hybridCanvasAvailable?: boolean;
+  canvasRendererAvailable?: boolean;
 }
 
 const props = withDefaults(defineProps<GraphControlsProps>(), {
   relationshipAvailability: () => ({}),
-  hybridCanvasAvailable: true,
+  canvasRendererAvailable: true,
 });
 
 const emit = defineEmits<{
@@ -30,7 +39,10 @@ const emit = defineEmits<{
   'toggle-degree-weighted-layers': [value: boolean];
   'toggle-show-fps': [value: boolean];
   'toggle-fps-advanced': [value: boolean];
-  'edge-renderer-mode-change': [value: EdgeRendererMode];
+  'rendering-strategy-change': [id: RenderingStrategyId];
+  'rendering-strategy-option-change': [
+    payload: { strategyId: RenderingStrategyId; optionId: string; value: RenderingOptionValue },
+  ];
 }>();
 
 const graphSettings = useGraphSettings();
@@ -40,6 +52,13 @@ const layoutAlgorithm = ref<'layered' | 'radial' | 'force' | 'stress'>('layered'
 const layoutDirection = ref<'LR' | 'RL' | 'TB' | 'BT'>('LR');
 const nodeSpacing = ref(100);
 const rankSpacing = ref(150);
+
+const renderingStrategies = getRenderingStrategies();
+const fallbackRenderingStrategy = renderingStrategies[0];
+if (!fallbackRenderingStrategy) {
+  throw new Error('Rendering strategy registry is empty.');
+}
+const canvasUnavailableMessageId = 'rendering-strategy-canvas-unavailable-copy';
 
 const handleResetView = () => {
   emit('reset-view');
@@ -65,13 +84,215 @@ const moduleMemberLabels: Record<ModuleMemberType, string> = {
   var: 'Variables',
 };
 
-const handleModuleMemberTypeToggle = (type: ModuleMemberType, checked: boolean) => {
-  graphSettings.toggleModuleMemberType(type, checked);
-};
-
 const getRelationshipAvailability = (type: string) => props.relationshipAvailability[type] ?? { available: true };
 const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
 const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
+
+const activeRenderingStrategy = computed<RenderingStrategy>(() => {
+  return renderingStrategies.find((strategy) => strategy.id === graphSettings.renderingStrategyId) ?? fallbackRenderingStrategy;
+});
+
+const shouldShowDegreeWeightedLayersControl = computed(() => {
+  return layoutAlgorithm.value === 'layered' && activeRenderingStrategy.value.runtime.supportsDegreeWeightedLayers;
+});
+
+const isRenderingStrategyDisabled = (strategyId: RenderingStrategyId): boolean => {
+  return strategyId === 'canvas' && !props.canvasRendererAvailable;
+};
+
+const getEnabledRenderingStrategyIds = (): RenderingStrategyId[] => {
+  return renderingStrategies.filter((strategy) => !isRenderingStrategyDisabled(strategy.id)).map((strategy) => strategy.id);
+};
+
+const firstEnabledRenderingStrategyId = computed<RenderingStrategyId | null>(() => {
+  return getEnabledRenderingStrategyIds()[0] ?? null;
+});
+
+const getRenderingStrategyTabIndex = (strategyId: RenderingStrategyId): number => {
+  if (isRenderingStrategyDisabled(strategyId)) {
+    return -1;
+  }
+
+  const activeStrategyId = graphSettings.renderingStrategyId;
+  if (!isRenderingStrategyDisabled(activeStrategyId)) {
+    return activeStrategyId === strategyId ? 0 : -1;
+  }
+
+  return firstEnabledRenderingStrategyId.value === strategyId ? 0 : -1;
+};
+
+const findAdjacentEnabledStrategyId = (currentStrategyId: RenderingStrategyId, direction: 1 | -1): RenderingStrategyId | null => {
+  const enabledStrategyIds = getEnabledRenderingStrategyIds();
+  if (enabledStrategyIds.length === 0) {
+    return null;
+  }
+
+  const currentIndex = enabledStrategyIds.indexOf(currentStrategyId);
+  const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+  const nextIndex = (baseIndex + direction + enabledStrategyIds.length) % enabledStrategyIds.length;
+  return enabledStrategyIds[nextIndex] ?? null;
+};
+
+const focusRenderingStrategyRadio = (sourceTarget: EventTarget | null, strategyId: RenderingStrategyId): void => {
+  if (!(sourceTarget instanceof HTMLElement)) {
+    return;
+  }
+
+  const radioGroup = sourceTarget.closest('[role="radiogroup"]');
+  if (!radioGroup) {
+    return;
+  }
+
+  const nextRadio = radioGroup.querySelector<HTMLElement>(
+    `[role="radio"][data-rendering-strategy-id="${strategyId}"]`
+  );
+  nextRadio?.focus();
+};
+
+const handleRenderingStrategyChange = (strategyId: RenderingStrategyId): void => {
+  if (isRenderingStrategyDisabled(strategyId)) {
+    return;
+  }
+  emit('rendering-strategy-change', strategyId);
+};
+
+const handleRenderingStrategyRadioKeydown = (event: KeyboardEvent, strategyId: RenderingStrategyId): void => {
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const previousStrategyId = findAdjacentEnabledStrategyId(strategyId, -1);
+    if (previousStrategyId) {
+      handleRenderingStrategyChange(previousStrategyId);
+      focusRenderingStrategyRadio(event.currentTarget, previousStrategyId);
+    }
+    return;
+  }
+
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    const nextStrategyId = findAdjacentEnabledStrategyId(strategyId, 1);
+    if (nextStrategyId) {
+      handleRenderingStrategyChange(nextStrategyId);
+      focusRenderingStrategyRadio(event.currentTarget, nextStrategyId);
+    }
+    return;
+  }
+
+  if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+    event.preventDefault();
+    handleRenderingStrategyChange(strategyId);
+  }
+};
+
+const isRenderingOptionVisible = (strategyId: RenderingStrategyId, option: RenderingOptionDefinition): boolean => {
+  if (!option.isVisible) {
+    return true;
+  }
+  return option.isVisible({
+    strategyId,
+    strategyOptionsById: graphSettings.strategyOptionsById,
+  });
+};
+
+const isRenderingOptionEnabled = (strategyId: RenderingStrategyId, option: RenderingOptionDefinition): boolean => {
+  if (isRenderingStrategyDisabled(strategyId)) {
+    return false;
+  }
+  if (!option.isEnabled) {
+    return true;
+  }
+  return option.isEnabled({
+    strategyId,
+    strategyOptionsById: graphSettings.strategyOptionsById,
+  });
+};
+
+const activeRenderingOptions = computed(() => {
+  const strategyId = activeRenderingStrategy.value.id;
+  return activeRenderingStrategy.value.options.filter((option) => isRenderingOptionVisible(strategyId, option));
+});
+
+const getStoredRenderingOptionValue = (
+  strategyId: RenderingStrategyId,
+  option: RenderingOptionDefinition
+): unknown => {
+  const strategyOptions = graphSettings.strategyOptionsById[strategyId] ?? {};
+  const storedValue = strategyOptions[option.id];
+  return typeof storedValue === 'undefined' ? option.defaultValue : storedValue;
+};
+
+const getBooleanRenderingOptionValue = (strategyId: RenderingStrategyId, option: RenderingOptionDefinition): boolean => {
+  const value = getStoredRenderingOptionValue(strategyId, option);
+  return typeof value === 'boolean' ? value : Boolean(option.defaultValue);
+};
+
+const getSelectRenderingOptionValue = (
+  strategyId: RenderingStrategyId,
+  option: RenderingSelectOptionDefinition
+): string => {
+  const value = getStoredRenderingOptionValue(strategyId, option);
+  return typeof value === 'string' ? value : option.defaultValue;
+};
+
+const getNumberRenderingOptionValue = (
+  strategyId: RenderingStrategyId,
+  option: RenderingNumberOptionDefinition
+): number => {
+  const value = getStoredRenderingOptionValue(strategyId, option);
+  return typeof value === 'number' && Number.isFinite(value) ? value : option.defaultValue;
+};
+
+const handleRenderingStrategyOptionChange = (
+  strategyId: RenderingStrategyId,
+  optionId: string,
+  value: RenderingOptionValue
+): void => {
+  emit('rendering-strategy-option-change', { strategyId, optionId, value });
+};
+
+const handleBooleanRenderingOptionChange = (
+  strategyId: RenderingStrategyId,
+  option: RenderingOptionDefinition,
+  checked: boolean
+): void => {
+  handleRenderingStrategyOptionChange(strategyId, option.id, checked);
+};
+
+const handleSelectRenderingOptionChange = (
+  strategyId: RenderingStrategyId,
+  option: RenderingSelectOptionDefinition,
+  value: string
+): void => {
+  handleRenderingStrategyOptionChange(strategyId, option.id, value);
+};
+
+const normalizeNumberOptionValue = (option: RenderingNumberOptionDefinition, rawValue: string): number => {
+  const parsedValue = Number.parseFloat(rawValue);
+  if (!Number.isFinite(parsedValue)) {
+    return option.defaultValue;
+  }
+
+  let normalizedValue = parsedValue;
+  if (typeof option.min === 'number') {
+    normalizedValue = Math.max(option.min, normalizedValue);
+  }
+  if (typeof option.max === 'number') {
+    normalizedValue = Math.min(option.max, normalizedValue);
+  }
+  return normalizedValue;
+};
+
+const handleNumberRenderingOptionChange = (
+  strategyId: RenderingStrategyId,
+  option: RenderingNumberOptionDefinition,
+  rawValue: string
+): void => {
+  const normalizedValue = normalizeNumberOptionValue(option, rawValue);
+  handleRenderingStrategyOptionChange(strategyId, option.id, normalizedValue);
+};
+
+const handleModuleMemberTypeToggle = (type: ModuleMemberType, checked: boolean) => {
+  graphSettings.toggleModuleMemberType(type, checked);
+};
 
 const toggleListItem = (values: string[], value: string, enabled: boolean): string[] => {
   if (enabled) {
@@ -141,11 +362,6 @@ const handleShowFpsToggle = (checked: boolean) => {
 const handleFpsAdvancedToggle = (checked: boolean) => {
   emit('toggle-fps-advanced', checked);
 };
-
-const handleEdgeRendererModeChange = (mode: EdgeRendererMode) => {
-  emit('edge-renderer-mode-change', mode);
-};
-
 </script>
 
 <template>
@@ -211,8 +427,8 @@ const handleEdgeRendererModeChange = (mode: EdgeRendererMode) => {
         </div>
       </div>
 
-      <!-- Degree-Weighted Layers (layered algorithm only) -->
-      <div v-if="layoutAlgorithm === 'layered'" class="mt-3">
+      <!-- Degree-Weighted Layers (runtime + layered algorithm only) -->
+      <div v-if="shouldShowDegreeWeightedLayersControl" class="mt-3">
         <label
           class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
         >
@@ -389,42 +605,121 @@ const handleEdgeRendererModeChange = (mode: EdgeRendererMode) => {
         </div>
       </div>
 
-      <!-- Edge Renderer -->
-      <div class="mt-4 pt-4 border-t border-border-default">
-        <h4 class="text-sm font-semibold text-text-primary mb-1">Edge Renderer</h4>
-        <p class="text-[10px] text-text-secondary mb-2 leading-tight">Switch between hybrid canvas and Vue Flow SVG edges</p>
-        <div class="grid grid-cols-2 gap-2">
+      <!-- Rendering Strategy -->
+      <fieldset class="mt-4 pt-4 border-t border-border-default">
+        <legend class="text-sm font-semibold text-text-primary mb-1">Rendering Strategy</legend>
+        <p class="text-[10px] text-text-secondary mb-2 leading-tight">
+          Choose a strategy for edge rendering and graph runtime behavior.
+        </p>
+        <div role="radiogroup" aria-label="Rendering strategy" class="flex flex-col gap-2">
           <button
-            @click="handleEdgeRendererModeChange('hybrid-canvas')"
-            :disabled="!props.hybridCanvasAvailable"
+            v-for="strategy in renderingStrategies"
+            :key="strategy.id"
+            type="button"
+            role="radio"
+            :aria-checked="graphSettings.renderingStrategyId === strategy.id"
+            :aria-disabled="isRenderingStrategyDisabled(strategy.id)"
+            :aria-describedby="
+              isRenderingStrategyDisabled(strategy.id) && strategy.id === 'canvas' ? canvasUnavailableMessageId : undefined
+            "
+            :disabled="isRenderingStrategyDisabled(strategy.id)"
+            :tabindex="getRenderingStrategyTabIndex(strategy.id)"
+            :data-rendering-strategy-id="strategy.id"
             :class="[
-              'px-2 py-1.5 text-xs rounded border transition-fast',
-              graphSettings.edgeRendererMode === 'hybrid-canvas'
-                ? 'bg-primary-main text-white border-primary-main'
+              'w-full rounded border px-2 py-2 text-left transition-fast',
+              graphSettings.renderingStrategyId === strategy.id
+                ? 'bg-primary-main/20 border-primary-main text-text-primary'
                 : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
-              !props.hybridCanvasAvailable ? 'opacity-50 cursor-not-allowed hover:bg-white/10' : '',
+              isRenderingStrategyDisabled(strategy.id) ? 'cursor-not-allowed opacity-50 hover:bg-white/10' : '',
             ]"
-            aria-label="Set edge renderer mode to hybrid canvas"
+            @click="handleRenderingStrategyChange(strategy.id)"
+            @keydown="(event) => handleRenderingStrategyRadioKeydown(event, strategy.id)"
           >
-            Hybrid
-          </button>
-          <button
-            @click="handleEdgeRendererModeChange('vue-flow')"
-            :class="[
-              'px-2 py-1.5 text-xs rounded border transition-fast',
-              graphSettings.edgeRendererMode === 'vue-flow'
-                ? 'bg-primary-main text-white border-primary-main'
-                : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
-            ]"
-            aria-label="Set edge renderer mode to Vue Flow"
-          >
-            Vue Flow
+            <div class="text-xs font-semibold">{{ strategy.label }}</div>
+            <div class="text-[10px] leading-tight text-text-secondary">{{ strategy.description }}</div>
           </button>
         </div>
-        <p v-if="!props.hybridCanvasAvailable" class="text-[10px] text-text-muted mt-2 leading-tight">
-          Hybrid canvas is unavailable in this browser session.
+        <p
+          v-if="!props.canvasRendererAvailable"
+          :id="canvasUnavailableMessageId"
+          class="text-[10px] text-text-muted mt-2 leading-tight"
+        >
+          Canvas strategy is unavailable in this browser session.
         </p>
-      </div>
+        <div v-if="activeRenderingOptions.length > 0" class="mt-3 space-y-2">
+          <h5 class="text-[11px] font-semibold text-text-primary">{{ activeRenderingStrategy.label }} options</h5>
+          <div
+            v-for="option in activeRenderingOptions"
+            :key="`${activeRenderingStrategy.id}-${option.id}`"
+            class="rounded border border-border-default bg-white/5 px-2 py-2"
+          >
+            <label
+              :for="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
+              class="text-xs font-medium text-text-primary"
+            >
+              {{ option.label }}
+            </label>
+            <p class="mb-2 text-[10px] leading-tight text-text-secondary">{{ option.description }}</p>
+
+            <input
+              v-if="option.type === 'boolean'"
+              :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
+              type="checkbox"
+              class="cursor-pointer accent-primary-main"
+              :checked="getBooleanRenderingOptionValue(activeRenderingStrategy.id, option)"
+              :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
+              @change="
+                (event) =>
+                  handleBooleanRenderingOptionChange(
+                    activeRenderingStrategy.id,
+                    option,
+                    (event.target as HTMLInputElement).checked
+                  )
+              "
+            />
+
+            <select
+              v-else-if="option.type === 'select'"
+              :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
+              class="w-full rounded border border-border-default bg-background-paper px-2 py-1 text-xs text-text-primary"
+              :value="getSelectRenderingOptionValue(activeRenderingStrategy.id, option)"
+              :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
+              @change="
+                (event) =>
+                  handleSelectRenderingOptionChange(
+                    activeRenderingStrategy.id,
+                    option,
+                    (event.target as HTMLSelectElement).value
+                  )
+              "
+            >
+              <option v-for="selectOption in option.options" :key="selectOption.value" :value="selectOption.value">
+                {{ selectOption.label }}
+              </option>
+            </select>
+
+            <input
+              v-else
+              :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
+              type="number"
+              class="w-full rounded border border-border-default bg-background-paper px-2 py-1 text-xs text-text-primary"
+              :min="option.min"
+              :max="option.max"
+              :step="option.step ?? 1"
+              :value="getNumberRenderingOptionValue(activeRenderingStrategy.id, option)"
+              :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
+              @change="
+                (event) =>
+                  handleNumberRenderingOptionChange(
+                    activeRenderingStrategy.id,
+                    option,
+                    (event.target as HTMLInputElement).value
+                  )
+              "
+            />
+          </div>
+        </div>
+      </fieldset>
 
       <!-- Performance -->
       <div class="mt-4 pt-4 border-t border-border-default">

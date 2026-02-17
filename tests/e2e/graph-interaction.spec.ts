@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 /**
  * Baseline E2E tests for the TypeScript Dependency Graph Viewer.
@@ -50,7 +50,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     const zoomBefore = await getViewportZoom(page);
 
     // Click the "Zoom in" button in the GraphControls panel.
-    await page.click('button[aria-label="Zoom in"]');
+    await (await getZoomInControl(page)).click();
 
     // Allow the animated zoom to complete.
     await page.waitForTimeout(300);
@@ -64,14 +64,14 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // ---------------------------------------------------------------------------
   test('fit view button adjusts viewport to show all nodes', async ({ page }) => {
     // First zoom in so the viewport is definitely NOT fit-to-content.
-    await page.click('button[aria-label="Zoom in"]');
-    await page.click('button[aria-label="Zoom in"]');
+    await (await getZoomInControl(page)).click();
+    await (await getZoomInControl(page)).click();
     await page.waitForTimeout(300);
 
     const zoomBeforeFit = await getViewportZoom(page);
 
     // Click fit view.
-    await page.click('button[aria-label="Fit view to content"]');
+    await (await getFitViewControl(page)).click();
     await page.waitForTimeout(400);
 
     const zoomAfterFit = await getViewportZoom(page);
@@ -84,7 +84,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // 4. Node click selects
   // ---------------------------------------------------------------------------
   test('clicking a node gives it the selected class', async ({ page }) => {
-    const firstNode = page.locator('.vue-flow__node').first();
+    const firstNode = await getInteractableNode(page);
     await firstNode.click();
 
     // Selection can be represented by VueFlow's default `.selected` class or
@@ -96,7 +96,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // 5. Node click toggle deselects
   // ---------------------------------------------------------------------------
   test('clicking the same node twice clears selection and closes details', async ({ page }) => {
-    const firstNode = page.locator('.vue-flow__node').first();
+    const firstNode = await getInteractableNode(page);
     const detailsPanel = page.locator('[role="dialog"][aria-labelledby="node-details-title"]');
 
     await firstNode.click();
@@ -114,7 +114,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // ---------------------------------------------------------------------------
   test('clicking the pane deselects all nodes', async ({ page }) => {
     // Select a node first.
-    const firstNode = page.locator('.vue-flow__node').first();
+    const firstNode = await getInteractableNode(page);
     const detailsPanel = page.locator('[role="dialog"][aria-labelledby="node-details-title"]');
     await firstNode.click();
     await expect(firstNode).toHaveClass(/(selected|selection-target)/);
@@ -133,11 +133,14 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // 6. Minimap renders
   // ---------------------------------------------------------------------------
   test('minimap renders with SVG content', async ({ page }) => {
-    const minimap = page.locator('.graph-mini-map');
-    await expect(minimap).toBeVisible();
+    const minimap = page.locator('.vue-flow__minimap');
+    if (!(await minimap.isVisible())) {
+      await expect(page.locator('.minimap-warning-panel')).toBeVisible();
+      return;
+    }
 
     // The minimap contains an SVG element.
-    const svg = minimap.locator('svg.graph-mini-map-svg');
+    const svg = minimap.locator('svg');
     await expect(svg).toBeVisible();
 
     // SVG should contain at least one rect (node representation).
@@ -153,7 +156,10 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     const viewportBefore = await getViewportTransform(page);
 
     // Click near the top-left corner of the minimap SVG.
-    const minimapSvg = page.locator('svg.graph-mini-map-svg');
+    const minimapSvg = page.locator('.vue-flow__minimap svg');
+    if (!(await minimapSvg.isVisible())) {
+      test.skip(true, 'MiniMap is auto-hidden in heavy graph mode');
+    }
     const box = await minimapSvg.boundingBox();
     expect(box).toBeTruthy();
 
@@ -176,7 +182,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // ---------------------------------------------------------------------------
   test('focus action button centers viewport on the node', async ({ page }) => {
     // Click a node first so its action buttons are interactable.
-    const firstNode = page.locator('.vue-flow__node').first();
+    const firstNode = await getInteractableNode(page);
     await firstNode.click();
 
     const viewportBefore = await getViewportTransform(page);
@@ -205,7 +211,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     expect(totalNodesBefore).toBeGreaterThan(1);
 
     // Click the first node, then its isolate button.
-    const firstNode = page.locator('.vue-flow__node').first();
+    const firstNode = await getInteractableNode(page);
     await firstNode.click();
 
     const isolateButton = firstNode.locator('.base-node-action-button[aria-label="Isolate node and neighbors"]');
@@ -228,7 +234,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // 10. Isolate layout spacing
   // ---------------------------------------------------------------------------
   test('isolate action lays out neighborhood nodes without overlap', async ({ page }) => {
-    const firstNode = page.locator('.vue-flow__node').first();
+    const firstNode = await getInteractableNode(page);
     await firstNode.click();
 
     const isolateButton = firstNode.locator('.base-node-action-button[aria-label="Isolate node and neighbors"]');
@@ -260,7 +266,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     const totalNodesBefore = await page.locator('.vue-flow__node').count();
 
     // Isolate the first node.
-    const firstNode = page.locator('.vue-flow__node').first();
+    const firstNode = await getInteractableNode(page);
     await firstNode.click();
     const isolateButton = firstNode.locator('.base-node-action-button[aria-label="Isolate node and neighbors"]');
     await isolateButton.click();
@@ -290,7 +296,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     await graphRoot.focus();
 
     // Select the first node by clicking it.
-    const firstNode = page.locator('.vue-flow__node').first();
+    const firstNode = await getInteractableNode(page);
     await firstNode.click();
 
     const firstNodeId = await firstNode.getAttribute('data-id');
@@ -317,7 +323,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // ---------------------------------------------------------------------------
   // 13. Graph controls panel
   // ---------------------------------------------------------------------------
-  test('graph controls panel renders with layout algorithm buttons', async ({ page }) => {
+  test('graph controls panel renders layout and rendering strategy controls', async ({ page }) => {
     // The controls are inside a Vue Flow panel at top-left.
     const controlsPanel = page.locator('.vue-flow__panel.top.left');
     await expect(controlsPanel).toBeVisible();
@@ -326,6 +332,67 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     for (const algo of ['layered', 'radial', 'force', 'stress']) {
       const button = controlsPanel.locator(`button[aria-label="Set layout algorithm to ${algo}"]`);
       await expect(button).toBeVisible();
+    }
+
+    // Rendering strategy section should be present and exposed as a radiogroup.
+    await expect(controlsPanel.locator('legend', { hasText: 'Rendering Strategy' })).toBeVisible();
+    const strategyGroup = controlsPanel.getByRole('radiogroup', { name: /rendering strategy/i });
+    await expect(strategyGroup).toBeVisible();
+
+    const strategyRadios = strategyGroup.getByRole('radio');
+    const strategyRadioCount = await strategyRadios.count();
+    expect(strategyRadioCount).toBeGreaterThan(1);
+
+    const checkedBefore = strategyGroup.locator('[role="radio"][aria-checked="true"]').first();
+    const checkedBeforeId = await checkedBefore.getAttribute('data-rendering-strategy-id');
+    expect(checkedBeforeId).toBeTruthy();
+
+    // Arrow-key navigation should move checked state.
+    await checkedBefore.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(120);
+
+    const checkedAfterArrow = strategyGroup.locator('[role="radio"][aria-checked="true"]').first();
+    const checkedAfterArrowId = await checkedAfterArrow.getAttribute('data-rendering-strategy-id');
+    expect(checkedAfterArrowId).toBeTruthy();
+
+    if (strategyRadioCount > 1) {
+      expect(checkedAfterArrowId).not.toBe(checkedBeforeId);
+    }
+
+    // Enter should also select the focused radio.
+    const selectableUnchecked = strategyGroup.locator('[role="radio"][aria-checked="false"][aria-disabled="false"]').first();
+    if (await selectableUnchecked.count()) {
+      const uncheckedId = await selectableUnchecked.getAttribute('data-rendering-strategy-id');
+      expect(uncheckedId).toBeTruthy();
+      if (!uncheckedId) {
+        throw new Error('Expected unchecked rendering strategy to include an id');
+      }
+
+      await selectableUnchecked.focus();
+      await page.keyboard.press('Enter');
+      await expect(
+        strategyGroup.locator(`[role="radio"][data-rendering-strategy-id="${uncheckedId}"]`)
+      ).toHaveAttribute('aria-checked', 'true');
+    }
+  });
+
+  test('canvas strategy unavailable copy appears only when canvas option is disabled', async ({ page }) => {
+    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const strategyGroup = controlsPanel.getByRole('radiogroup', { name: /rendering strategy/i });
+    await expect(strategyGroup).toBeVisible();
+
+    const canvasStrategy = strategyGroup.locator('[role="radio"][data-rendering-strategy-id="canvas"]');
+    await expect(canvasStrategy).toBeVisible();
+
+    const unavailableCopy = controlsPanel.locator('#rendering-strategy-canvas-unavailable-copy');
+    const ariaDisabled = await canvasStrategy.getAttribute('aria-disabled');
+
+    if (ariaDisabled === 'true') {
+      await expect(unavailableCopy).toBeVisible();
+      await expect(unavailableCopy).toContainText(/unavailable/i);
+    } else {
+      await expect(unavailableCopy).toHaveCount(0);
     }
   });
 
@@ -389,7 +456,62 @@ async function getViewportTransform(page: Page): Promise<{ x: number; y: number;
   };
 }
 
-type NodeBox = { id: string; x: number; y: number; width: number; height: number };
+async function getZoomInControl(page: Page): Promise<Locator> {
+  const zoomInButton = page
+    .locator(
+      '.vue-flow__controls button[aria-label="Zoom in"], .vue-flow__controls button[title="Zoom in"], .vue-flow__controls-zoomin, .vue-flow__controls-zoom-in'
+    )
+    .first();
+  await expect(zoomInButton).toBeVisible();
+  return zoomInButton;
+}
+
+async function getFitViewControl(page: Page): Promise<Locator> {
+  const fitViewButton = page
+    .locator(
+      '.vue-flow__controls button[aria-label="Fit view to content"], .vue-flow__controls button[title="Fit view"], .vue-flow__controls-fitview, .vue-flow__controls-fit-view'
+    )
+    .first();
+  await expect(fitViewButton).toBeVisible();
+  return fitViewButton;
+}
+
+function boxesOverlap(
+  first: { x: number; y: number; width: number; height: number },
+  second: { x: number; y: number; width: number; height: number }
+): boolean {
+  return (
+    first.x < second.x + second.width &&
+    first.x + first.width > second.x &&
+    first.y < second.y + second.height &&
+    first.y + first.height > second.y
+  );
+}
+
+async function getInteractableNode(page: Page): Promise<Locator> {
+  const nodes = page.locator('.vue-flow__node');
+  const count = await nodes.count();
+  const panelBox = await page.locator('.vue-flow__panel.top.left').first().boundingBox();
+  for (let index = 0; index < count; index += 1) {
+    const candidate = nodes.nth(index);
+    const box = await candidate.boundingBox();
+    if (!box) {
+      continue;
+    }
+    if (!panelBox || !boxesOverlap(box, panelBox)) {
+      return candidate;
+    }
+  }
+  return nodes.first();
+}
+
+interface NodeBox {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 async function getVisibleNodeBoxes(page: Page): Promise<NodeBox[]> {
   return page.locator('.vue-flow__node').evaluateAll((elements) =>

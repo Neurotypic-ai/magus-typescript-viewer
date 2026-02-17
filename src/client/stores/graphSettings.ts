@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
+import { isRenderingStrategyId, type RenderingStrategyId, type RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
+import { createDefaultStrategyOptionsById, sanitizeStrategyOptionsById } from '../rendering/strategyRegistry';
 
 export const DEFAULT_RELATIONSHIP_TYPES = [
   'import',
@@ -17,9 +19,20 @@ type RelationshipType = (typeof DEFAULT_RELATIONSHIP_TYPES)[number];
 type NodeTypeFilter = (typeof DEFAULT_NODE_TYPES)[number] | 'class' | 'interface' | 'package';
 export type ModuleMemberType = 'function' | 'type' | 'enum' | 'const' | 'var';
 type MemberNodeMode = 'compact' | 'graph';
+type LegacyEdgeRendererMode = 'hybrid-canvas' | 'vue-flow';
 
 export const DEFAULT_MODULE_MEMBER_TYPES: ModuleMemberType[] = ['function', 'type', 'enum', 'const', 'var'];
-export type EdgeRendererMode = 'hybrid-canvas' | 'vue-flow';
+
+const LEGACY_EDGE_RENDERER_MODE_TO_STRATEGY_ID: Record<LegacyEdgeRendererMode, RenderingStrategyId> = {
+  'hybrid-canvas': 'canvas',
+  'vue-flow': 'vueflow',
+};
+
+const STRATEGY_ID_TO_LEGACY_EDGE_RENDERER_MODE: Record<RenderingStrategyId, LegacyEdgeRendererMode> = {
+  canvas: 'hybrid-canvas',
+  vueflow: 'vue-flow',
+  folderDistributor: 'vue-flow',
+};
 
 export interface RelationshipAvailability {
   available: boolean;
@@ -45,7 +58,9 @@ interface PersistedGraphSettings {
   degreeWeightedLayers?: boolean;
   showFps?: boolean;
   showFpsAdvanced?: boolean;
-  edgeRendererMode?: EdgeRendererMode;
+  renderingStrategyId?: RenderingStrategyId;
+  strategyOptionsById?: RenderingStrategyOptionsById;
+  edgeRendererMode?: LegacyEdgeRendererMode;
   enabledModuleMemberTypes?: string[];
   collapsedFolderIds?: string[];
 }
@@ -61,10 +76,11 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   const degreeWeightedLayers = ref<boolean>(false);
   const showFps = ref<boolean>(false);
   const showFpsAdvanced = ref<boolean>(false);
-  const edgeRendererMode = ref<EdgeRendererMode>('hybrid-canvas');
+  const renderingStrategyId = ref<RenderingStrategyId>('canvas');
+  const strategyOptionsById = ref<RenderingStrategyOptionsById>(createDefaultStrategyOptionsById());
   const enabledModuleMemberTypes = ref<string[]>([...DEFAULT_MODULE_MEMBER_TYPES]);
   const collapsedFolderIds = ref<Set<string>>(new Set());
-  let hasPersistedEdgeRendererMode = false;
+  let hasPersistedRenderingStrategyId = false;
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     const enabledNodeTypeSet = new Set(enabledNodeTypes.value);
@@ -138,10 +154,14 @@ export const useGraphSettings = defineStore('graphSettings', () => {
       if (typeof parsed.showFpsAdvanced === 'boolean') {
         showFpsAdvanced.value = parsed.showFpsAdvanced;
       }
-      if (parsed.edgeRendererMode === 'hybrid-canvas' || parsed.edgeRendererMode === 'vue-flow') {
-        edgeRendererMode.value = parsed.edgeRendererMode;
-        hasPersistedEdgeRendererMode = true;
+      if (isRenderingStrategyId(parsed.renderingStrategyId)) {
+        renderingStrategyId.value = parsed.renderingStrategyId;
+        hasPersistedRenderingStrategyId = true;
+      } else if (parsed.edgeRendererMode === 'hybrid-canvas' || parsed.edgeRendererMode === 'vue-flow') {
+        renderingStrategyId.value = LEGACY_EDGE_RENDERER_MODE_TO_STRATEGY_ID[parsed.edgeRendererMode];
+        hasPersistedRenderingStrategyId = true;
       }
+      strategyOptionsById.value = sanitizeStrategyOptionsById(parsed.strategyOptionsById);
       if (Array.isArray(parsed.enabledModuleMemberTypes)) {
         enabledModuleMemberTypes.value = uniqueStrings(parsed.enabledModuleMemberTypes);
       }
@@ -159,6 +179,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     }
 
     try {
+      const legacyEdgeRendererMode = STRATEGY_ID_TO_LEGACY_EDGE_RENDERER_MODE[renderingStrategyId.value];
       const payload: PersistedGraphSettings = {
         collapseScc: collapseScc.value,
         clusterByFolder: clusterByFolder.value,
@@ -170,7 +191,9 @@ export const useGraphSettings = defineStore('graphSettings', () => {
         degreeWeightedLayers: degreeWeightedLayers.value,
         showFps: showFps.value,
         showFpsAdvanced: showFpsAdvanced.value,
-        edgeRendererMode: edgeRendererMode.value,
+        renderingStrategyId: renderingStrategyId.value,
+        strategyOptionsById: strategyOptionsById.value,
+        edgeRendererMode: legacyEdgeRendererMode,
         enabledModuleMemberTypes: enabledModuleMemberTypes.value,
         collapsedFolderIds: Array.from(collapsedFolderIds.value),
       };
@@ -250,15 +273,39 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
-  function initializeEdgeRendererMode(value: EdgeRendererMode): void {
-    if (hasPersistedEdgeRendererMode) {
+  function initializeRenderingStrategyId(value: RenderingStrategyId): void {
+    if (hasPersistedRenderingStrategyId) {
       return;
     }
-    edgeRendererMode.value = value;
+    renderingStrategyId.value = value;
   }
 
-  function setEdgeRendererMode(value: EdgeRendererMode): void {
-    edgeRendererMode.value = value;
+  function setRenderingStrategyId(value: RenderingStrategyId): void {
+    renderingStrategyId.value = value;
+    persistSettings();
+  }
+
+  function setRenderingStrategyOption(
+    strategyId: RenderingStrategyId,
+    optionId: string,
+    value: unknown
+  ): void {
+    if (!optionId) {
+      return;
+    }
+
+    const existingStrategyOptions = strategyOptionsById.value[strategyId];
+    if (existingStrategyOptions[optionId] === value) {
+      return;
+    }
+
+    strategyOptionsById.value = {
+      ...strategyOptionsById.value,
+      [strategyId]: {
+        ...existingStrategyOptions,
+        [optionId]: value,
+      },
+    };
     persistSettings();
   }
 
@@ -296,7 +343,8 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     degreeWeightedLayers,
     showFps,
     showFpsAdvanced,
-    edgeRendererMode,
+    renderingStrategyId,
+    strategyOptionsById,
     relationshipAvailability,
     activeRelationshipTypes,
     setCollapseScc,
@@ -311,8 +359,9 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     setDegreeWeightedLayers,
     setShowFps,
     setShowFpsAdvanced,
-    initializeEdgeRendererMode,
-    setEdgeRendererMode,
+    initializeRenderingStrategyId,
+    setRenderingStrategyId,
+    setRenderingStrategyOption,
     enabledModuleMemberTypes,
     toggleModuleMemberType,
     collapsedFolderIds,

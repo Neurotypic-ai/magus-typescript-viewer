@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyEdgeVisibility, buildOverviewGraph, buildSymbolDrilldownGraph, filterNodeChangesForFolderMode } from '../graph/buildGraphView';
+import {
+  applyEdgeVisibility,
+  buildFolderDistributorGraph,
+  buildOverviewGraph,
+  buildSymbolDrilldownGraph,
+  filterNodeChangesForFolderMode,
+} from '../graph/buildGraphView';
 
 import type { NodeChange } from '@vue-flow/core';
 
@@ -157,6 +163,58 @@ describe('buildOverviewGraph', () => {
     expect(result.semanticSnapshot).toBeDefined();
     expect(result.semanticSnapshot?.nodes.some((node) => node.type === 'group')).toBe(false);
     expect(result.edges.some((edge) => edge.data?.highwaySegment === 'highway')).toBe(true);
+  });
+});
+
+describe('buildFolderDistributorGraph export', () => {
+  it('returns empty rendered edges while preserving semantic edges', () => {
+    const data: DependencyPackageGraph = {
+      packages: [
+        {
+          id: 'pkg-1',
+          name: 'pkg',
+          version: '1.0.0',
+          path: '/pkg',
+          created_at: '2024-01-01T00:00:00.000Z',
+          modules: {
+            a: {
+              id: 'module-a',
+              name: 'a.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/a.ts' },
+              imports: {
+                i1: {
+                  uuid: 'i1',
+                  name: 'b',
+                  path: './b',
+                },
+              },
+            },
+            b: {
+              id: 'module-b',
+              name: 'b.ts',
+              package_id: 'pkg-1',
+              source: { relativePath: 'src/b.ts' },
+              imports: {},
+            },
+          },
+        },
+      ],
+    };
+
+    const result = buildFolderDistributorGraph({
+      data,
+      enabledNodeTypes: ['module'],
+      enabledRelationshipTypes: ['import'],
+      direction: 'LR',
+      collapsedFolderIds: new Set(),
+      hideTestFiles: false,
+      memberNodeMode: 'compact',
+      highlightOrphanGlobal: false,
+    });
+
+    expect(result.edges).toEqual([]);
+    expect(result.semanticSnapshot?.edges.length).toBeGreaterThan(0);
   });
 });
 

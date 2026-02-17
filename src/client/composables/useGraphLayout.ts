@@ -5,12 +5,13 @@ import { defaultLayoutConfig } from '../layout/config';
 import { WebWorkerLayoutProcessor } from '../layout/WebWorkerLayoutProcessor';
 import { measurePerformance } from '../utils/performanceMonitoring';
 
-import { buildOverviewGraph } from '../graph/buildGraphView';
+import { buildFolderDistributorGraph, buildOverviewGraph } from '../graph/buildGraphView';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { getHandlePositions } from '../graph/handleRouting';
 import { simpleHash } from '../utils/hash';
 import { waitForNextPaint } from '../utils/dom';
 import { isContainerNode } from './useNodeDimensions';
+import { getRenderingStrategy } from '../rendering/strategyRegistry';
 
 import type { Ref } from 'vue';
 
@@ -21,6 +22,7 @@ import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { ManualOffset } from '../types/ManualOffset';
+import type { RenderingStrategyId, RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
 
 export interface LayoutProcessOptions {
   fitViewToResult?: boolean;
@@ -128,6 +130,8 @@ export interface GraphSettings {
   memberNodeMode: MemberNodeMode;
   highlightOrphanGlobal: boolean;
   degreeWeightedLayers: boolean;
+  renderingStrategyId: RenderingStrategyId;
+  strategyOptionsById: RenderingStrategyOptionsById;
 }
 
 /** Options passed to fitView (duration, padding, node ids to fit). */
@@ -233,8 +237,8 @@ export interface GraphLayout {
   isLayoutMeasuring: Readonly<Ref<boolean>>;
   layoutConfig: LayoutConfig;
   processGraphLayout: ProcessGraphLayout;
-  initializeGraph: () => Promise<void>;
-  requestGraphInitialization: () => Promise<void>;
+  initializeGraph: (overrides?: LayoutProcessOptions) => Promise<void>;
+  requestGraphInitialization: (overrides?: LayoutProcessOptions) => Promise<void>;
   measureAllNodeDimensions: MeasureAllNodeDimensions;
   shouldRunTwoPassMeasure: ShouldRunTwoPassMeasure;
   setLayoutConfig: SetLayoutConfig;
@@ -266,6 +270,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   let layoutRequestVersion = 0;
   let graphInitPromise: Promise<void> | null = null;
   let graphInitQueued = false;
+  let queuedGraphInitOverrides: LayoutProcessOptions | undefined;
   const nodeMeasurementCache = new Map<string, NodeMeasurementCacheEntry>();
   const layoutCache = new Map<string, LayoutCacheEntry>();
   let layoutCacheWeight = 0;
@@ -684,7 +689,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   // ── Graph initialization ──
 
-  const initializeGraph = async () => {
+  const initializeGraph = async (overrides: LayoutProcessOptions = {}) => {
     const graphInitPerfMarks = createPerfMarkNames('graph-init');
     performance.mark(graphInitPerfMarks.start);
     try {
@@ -693,7 +698,9 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       graphStore.setViewMode('overview');
       initializeLayoutProcessor();
 
-      const overviewGraph = buildOverviewGraph({
+      const strategy = getRenderingStrategy(graphSettings.renderingStrategyId);
+      const strategyOptions = graphSettings.strategyOptionsById[strategy.id];
+      const sharedBuildOptions = {
         data: propsData.value,
         enabledNodeTypes: new Set(graphSettings.enabledNodeTypes),
         enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
@@ -704,13 +711,24 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         hideTestFiles: graphSettings.hideTestFiles,
         memberNodeMode: graphSettings.memberNodeMode,
         highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-      });
+      };
+      const overviewGraph =
+        strategy.runtime.buildMode === 'folderDistributor'
+          ? buildFolderDistributorGraph({
+              ...sharedBuildOptions,
+              strategyOptions,
+            })
+          : buildOverviewGraph(sharedBuildOptions);
       graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 
+      const fitViewToResult = overrides.fitViewToResult ?? true;
+      const fitPadding = overrides.fitPadding ?? 0.1;
+      const twoPassMeasure = overrides.twoPassMeasure ?? shouldRunTwoPassMeasure(overviewGraph.nodes.length);
       const layoutResult = await processGraphLayout(overviewGraph, {
-        fitViewToResult: true,
-        fitPadding: 0.1,
-        twoPassMeasure: shouldRunTwoPassMeasure(overviewGraph.nodes.length),
+        fitViewToResult,
+        fitPadding,
+        ...(overrides.fitNodes ? { fitNodes: overrides.fitNodes } : {}),
+        twoPassMeasure,
       });
       if (layoutResult) {
         graphStore.setOverviewSnapshot(layoutResult);
@@ -721,7 +739,8 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     }
   };
 
-  const requestGraphInitialization = async (): Promise<void> => {
+  const requestGraphInitialization = async (overrides?: LayoutProcessOptions): Promise<void> => {
+    queuedGraphInitOverrides = overrides;
     graphInitQueued = true;
     if (graphInitPromise) {
       await graphInitPromise;
@@ -731,7 +750,9 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     graphInitPromise = (async () => {
       while (graphInitQueued) {
         graphInitQueued = false;
-        await initializeGraph();
+        const nextOverrides = queuedGraphInitOverrides;
+        queuedGraphInitOverrides = undefined;
+        await initializeGraph(nextOverrides);
       }
     })();
 

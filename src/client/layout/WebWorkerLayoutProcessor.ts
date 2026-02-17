@@ -76,6 +76,10 @@ export class WebWorkerLayoutProcessor {
   private workerSupported: boolean;
   private currentRequestId = 0;
   private static readonly LAYOUT_TIMEOUT_MS = 30_000;
+  private static readonly FIREFOX_LAYOUT_TIMEOUT_MS = 60_000;
+  private static readonly MAX_LAYOUT_TIMEOUT_MS = 120_000;
+  private readonly timeoutMsOverride: number | null;
+  private readonly userAgent: string | null;
 
   /**
    * Deep-clone a value while stripping Vue reactive proxies at every level.
@@ -169,8 +173,19 @@ export class WebWorkerLayoutProcessor {
     };
   }
 
-  constructor(config?: WebWorkerLayoutConfig) {
+  constructor(
+    config?: WebWorkerLayoutConfig,
+    runtimeOptions?: {
+      timeoutMs?: number;
+      userAgent?: string;
+    }
+  ) {
     this.applyConfig(config);
+    this.timeoutMsOverride =
+      typeof runtimeOptions?.timeoutMs === 'number' && runtimeOptions.timeoutMs > 0
+        ? runtimeOptions.timeoutMs
+        : null;
+    this.userAgent = runtimeOptions?.userAgent ?? (typeof navigator !== 'undefined' ? navigator.userAgent : null);
 
     // Check if web workers are supported
     this.workerSupported = typeof Worker !== 'undefined';
@@ -179,6 +194,28 @@ export class WebWorkerLayoutProcessor {
     if (this.workerSupported) {
       this.initWorker();
     }
+  }
+
+  private getLayoutTimeoutMs(nodeCount: number, edgeCount: number): number {
+    if (this.timeoutMsOverride !== null) {
+      return this.timeoutMsOverride;
+    }
+
+    const isFirefox = typeof this.userAgent === 'string' && /firefox/i.test(this.userAgent);
+    const baseTimeoutMs = isFirefox
+      ? WebWorkerLayoutProcessor.FIREFOX_LAYOUT_TIMEOUT_MS
+      : WebWorkerLayoutProcessor.LAYOUT_TIMEOUT_MS;
+
+    const complexity = nodeCount + edgeCount;
+    if (complexity <= 3_000) {
+      return baseTimeoutMs;
+    }
+
+    const multiplier = Math.min(2, complexity / 3_000);
+    return Math.min(
+      Math.round(baseTimeoutMs * multiplier),
+      WebWorkerLayoutProcessor.MAX_LAYOUT_TIMEOUT_MS
+    );
   }
 
   /**
@@ -215,10 +252,10 @@ export class WebWorkerLayoutProcessor {
   public processLayout(graphData: { nodes: DependencyNode[]; edges: Edge[] }): Promise<LayoutResult> {
     // Normalize to plain objects so postMessage can structured-clone them.
     const { nodes, edges } = WebWorkerLayoutProcessor.preparePayload(graphData);
+    const timeoutMs = this.getLayoutTimeoutMs(nodes.length, edges.length);
 
     if (!this.workerSupported || !this.worker) {
-      const fallbackPayload = WebWorkerLayoutProcessor.preparePayload(graphData);
-      return this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges);
+      return this.fallbackProcessLayout(nodes, edges);
     }
 
     // Increment request ID to allow cancellation of stale requests
@@ -231,16 +268,25 @@ export class WebWorkerLayoutProcessor {
         return;
       }
 
-      // Set up a timeout to reject if the worker takes too long
+      // Set up a timeout to fall back if the worker takes too long
       const timeoutId = setTimeout(() => {
         this.worker?.removeEventListener('message', onMessage);
         this.worker?.removeEventListener('error', onError);
+        if (requestId !== this.currentRequestId) {
+          reject(new Error('Layout request superseded'));
+          return;
+        }
         // Recreate the worker when the latest request times out to recover from stuck state.
         if (requestId === this.currentRequestId) {
           this.initWorker();
         }
-        reject(new Error('Layout timed out'));
-      }, WebWorkerLayoutProcessor.LAYOUT_TIMEOUT_MS);
+        console.warn(
+          `[WebWorkerLayoutProcessor] Layout timed out after ${String(timeoutMs)}ms (nodes=${String(nodes.length)}, edges=${String(edges.length)}). Falling back to simplified layout.`
+        );
+        this.fallbackProcessLayout(nodes, edges)
+          .then(resolve)
+          .catch(reject);
+      }, timeoutMs);
 
       // Set up the message handler for worker responses
       const onMessage = (event: MessageEvent<WorkerResponse>) => {
@@ -271,10 +317,13 @@ export class WebWorkerLayoutProcessor {
         clearTimeout(timeoutId);
         this.worker?.removeEventListener('message', onMessage);
         this.worker?.removeEventListener('error', onError);
+        if (requestId !== this.currentRequestId) {
+          reject(new Error('Layout request superseded'));
+          return;
+        }
         console.error('Layout worker error:', error);
         // Fall back to synchronous processing
-        const fallbackPayload = WebWorkerLayoutProcessor.preparePayload(graphData);
-        this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges)
+        this.fallbackProcessLayout(nodes, edges)
           .then(resolve)
           .catch(reject);
       };
@@ -300,8 +349,7 @@ export class WebWorkerLayoutProcessor {
         clearTimeout(timeoutId);
         this.worker.removeEventListener('message', onMessage);
         this.worker.removeEventListener('error', onError);
-        const fallbackPayload = WebWorkerLayoutProcessor.preparePayload(graphData);
-        this.fallbackProcessLayout(fallbackPayload.nodes, fallbackPayload.edges)
+        this.fallbackProcessLayout(nodes, edges)
           .then(resolve)
           .catch(reject);
       }

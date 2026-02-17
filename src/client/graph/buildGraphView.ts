@@ -9,10 +9,12 @@ import type { DependencyNode } from '../types/DependencyNode';
 
 export type { GraphViewData } from './graphViewShared';
 export type { BuildOverviewGraphOptions } from './buildOverviewGraph';
+export type { BuildFolderDistributorGraphOptions } from './buildFolderDistributorGraph';
 export type { BuildModuleDrilldownGraphOptions } from './drilldown/buildModuleDrilldown';
 export type { BuildSymbolDrilldownGraphOptions } from './drilldown/buildSymbolDrilldown';
 
 export { buildOverviewGraph } from './buildOverviewGraph';
+export { buildFolderDistributorGraph } from './buildFolderDistributorGraph';
 export { buildModuleDrilldownGraph } from './drilldown/buildModuleDrilldown';
 export { buildSymbolDrilldownGraph } from './drilldown/buildSymbolDrilldown';
 export { applyEdgeVisibility } from './graphViewShared';

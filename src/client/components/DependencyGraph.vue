@@ -76,7 +76,6 @@ const {
   viewportState,
   isPanning,
   isMac,
-  isFirefox,
   handleWheel,
   onMoveStart,
   onMove,
@@ -129,7 +128,8 @@ const {
   handleDegreeWeightedLayersToggle,
   handleShowFpsToggle,
   handleFpsAdvancedToggle,
-  handleEdgeRendererModeChange,
+  handleRenderingStrategyChange,
+  handleRenderingStrategyOptionChange,
   nodeActions,
   highlightOrphanGlobal,
   folderCollapseActions,
@@ -258,7 +258,7 @@ onUnmounted(() => {
       <Background />
       <GraphControls
         :relationship-availability="graphSettings.relationshipAvailability"
-        :hybrid-canvas-available="canvasRendererAvailable"
+        :canvas-renderer-available="canvasRendererAvailable"
         @relationship-filter-change="handleRelationshipFilterChange"
         @node-type-filter-change="handleNodeTypeFilterChange"
         @layout-change="handleLayoutChange"
@@ -272,7 +272,8 @@ onUnmounted(() => {
         @toggle-degree-weighted-layers="handleDegreeWeightedLayersToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
-        @edge-renderer-mode-change="handleEdgeRendererModeChange"
+        @rendering-strategy-change="handleRenderingStrategyChange"
+        @rendering-strategy-option-change="handleRenderingStrategyOptionChange"
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <MiniMap
