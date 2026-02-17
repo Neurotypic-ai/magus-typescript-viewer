@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
+import { computed } from 'vue';
 
 import CollapsibleSection from './CollapsibleSection.vue';
-import { ISOLATE_EXPAND_ALL_KEY } from './utils';
 
 import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
 
@@ -12,23 +11,13 @@ interface EntityListSectionProps {
   badgeText: string;
   badgeClass: string;
   defaultOpen?: boolean;
-  maxVisible?: number;
 }
 
 const props = withDefaults(defineProps<EntityListSectionProps>(), {
   defaultOpen: false,
-  maxVisible: 12,
 });
 
-const isolateExpandAll = inject(ISOLATE_EXPAND_ALL_KEY, ref(false));
-
-const visibleEntities = computed(() =>
-  isolateExpandAll.value ? props.entities : props.entities.slice(0, props.maxVisible),
-);
-
-const hasOverflow = computed(() => !isolateExpandAll.value && props.entities.length > props.maxVisible);
-
-const overflowCount = computed(() => props.entities.length - props.maxVisible);
+const visibleEntities = computed(() => props.entities);
 </script>
 
 <template>
@@ -47,9 +36,6 @@ const overflowCount = computed(() => props.entities.length - props.maxVisible);
       <span class="entity-name">{{ entity.name }}</span>
       <span class="entity-detail">{{ entity.detail }}</span>
       <span v-if="entity.tags?.includes('async')" class="entity-tag">async</span>
-    </div>
-    <div v-if="hasOverflow" class="member-overflow">
-      +{{ overflowCount }} more
     </div>
   </CollapsibleSection>
 </template>
@@ -89,10 +75,6 @@ const overflowCount = computed(() => props.entities.length - props.maxVisible);
 .entity-detail {
   color: var(--text-secondary);
   opacity: 0.8;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 140px;
 }
 
 .entity-tag {
@@ -130,10 +112,4 @@ const overflowCount = computed(() => props.entities.length - props.maxVisible);
   color: rgb(253, 186, 116);
 }
 
-.member-overflow {
-  color: var(--text-secondary);
-  font-size: 0.65rem;
-  opacity: 0.7;
-  padding: 0.15rem 0.35rem;
-}
 </style>

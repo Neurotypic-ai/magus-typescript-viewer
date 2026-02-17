@@ -90,13 +90,20 @@ export function applyNodeChanges<T extends NodeWithId>(
         ? { ...((node as NodeWithId).position ?? { x: 0, y: 0 }), ...u.position }
         : undefined;
     const dimensions = u.dimensions;
+    const resolvedDimensions =
+      dimensions?.width !== undefined && dimensions?.height !== undefined
+        ? { width: dimensions.width, height: dimensions.height }
+        : undefined;
+    const resolvedMeasured =
+      dimensions?.measured ?? resolvedDimensions;
     const selected = u.selected;
     const updated = {
       ...node,
       ...(position != null && { position }),
       ...(dimensions?.width !== undefined && { width: dimensions.width }),
       ...(dimensions?.height !== undefined && { height: dimensions.height }),
-      ...(dimensions?.measured !== undefined && { measured: dimensions.measured }),
+      ...(resolvedDimensions !== undefined && { dimensions: resolvedDimensions }),
+      ...(resolvedMeasured !== undefined && { measured: resolvedMeasured }),
       ...(selected !== undefined && { selected }),
     } as T;
     result.push(updated);

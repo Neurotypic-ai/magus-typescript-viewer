@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 
@@ -12,12 +12,19 @@ interface CollapsibleSectionProps {
 const props = withDefaults(defineProps<CollapsibleSectionProps>(), {
   defaultOpen: true,
 });
+const emit = defineEmits<{
+  (event: 'toggle', isOpen: boolean): void;
+}>();
 
 const isOpen = ref(props.defaultOpen);
 
 const toggle = () => {
   isOpen.value = !isOpen.value;
 };
+
+watch(isOpen, (nextIsOpen) => {
+  emit('toggle', nextIsOpen);
+});
 
 useExpandCollapseState(
   () => isOpen.value,

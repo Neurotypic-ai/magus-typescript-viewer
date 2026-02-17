@@ -196,7 +196,8 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
         boundsNodes,
         posMap,
         resolverAnchors.size > 0 ? resolverAnchors : null,
-        config
+        config,
+        activeAnchors
       );
 
       lastCollisionResult.value = result;

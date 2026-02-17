@@ -425,8 +425,8 @@ onUnmounted(() => {
       @canvas-unavailable="handleCanvasUnavailable"
     />
     <DebugBoundsOverlay
-      v-if="graphSettings.showDebugBounds || graphSettings.showDebugHandles || graphSettings.showDebugNodeIds"
-      :nodes="visualNodes"
+      v-if="(graphSettings.showDebugBounds || graphSettings.showDebugHandles || graphSettings.showDebugNodeIds) && !isLayoutPending && !isLayoutMeasuring"
+      :nodes="nodes"
       :edges="renderedEdges"
       :viewport="viewportState"
       :show-bounds="graphSettings.showDebugBounds"

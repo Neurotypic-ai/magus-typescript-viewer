@@ -247,15 +247,19 @@ function computeRepulsionVector(
  *   When null/undefined, full resolution across all scopes is performed
  *   with no anchored nodes (all nodes movable, forward sweep fallback).
  * @param config - Tuning knobs.
+ * @param hardAnchoredNodeIds - Nodes that must never receive position updates
+ *   from this resolver (e.g. currently dragged nodes).
  */
 export function resolveCollisions(
   nodes: BoundsNode[],
   positionMap: Map<string, MutableBox>,
   anchoredNodeIds: Set<string> | null | undefined,
-  config: CollisionConfig = DEFAULT_COLLISION_CONFIG
+  config: CollisionConfig = DEFAULT_COLLISION_CONFIG,
+  hardAnchoredNodeIds: Set<string> | null | undefined = null
 ): CollisionResult {
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const anchored = anchoredNodeIds ?? new Set<string>();
+  const hardAnchored = hardAnchoredNodeIds ?? new Set<string>();
 
   // ---- Build hierarchy helpers ----
   const childIdsByParent = new Map<string, string[]>();
@@ -366,12 +370,52 @@ export function resolveCollisions(
       const parentNode = nodeById.get(parentId);
       const nodeType = (parentNode as { type?: string }).type;
       const padding = getContainerPadding(nodeType, config);
+      const layoutInsets = (parentNode as { data?: { layoutInsets?: { top?: number } } }).data?.layoutInsets;
+      const layoutTop = typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : 0;
+      const containerTopPadding = Math.max(layoutTop, padding.top);
+      const hasHardAnchoredChild = childIds.some((id) => hardAnchored.has(id));
+      const hasAnchoredChild = childIds.some((id) => anchored.has(id));
+
+      /**
+       * Group containers must be able to grow to top/left (not only right/bottom).
+       * We re-anchor children to the configured inset and compensate parent origin
+       * so children keep their absolute coordinates.
+       *
+       * For live-dragged children (hard anchors), skip origin shifts to avoid
+       * drag jitter/snap while the user is interacting.
+       */
+      if (nodeType === 'group' && !hasHardAnchoredChild) {
+        const minLeft = Math.min(...childBoxes.map((box) => box.x));
+        const minTop = Math.min(...childBoxes.map((box) => box.y));
+        const shouldExpandLeft = minLeft < padding.horizontal;
+        const shouldExpandTop = minTop < containerTopPadding;
+        const shouldCollapseLeft = !hasAnchoredChild && minLeft > padding.horizontal;
+        const shouldCollapseTop = !hasAnchoredChild && minTop > containerTopPadding;
+        const shiftX = shouldExpandLeft || shouldCollapseLeft ? minLeft - padding.horizontal : 0;
+        const shiftY = shouldExpandTop || shouldCollapseTop ? minTop - containerTopPadding : 0;
+
+        if (Math.abs(shiftX) > 0.01 || Math.abs(shiftY) > 0.01) {
+          parentBox.x += shiftX;
+          parentBox.y += shiftY;
+          for (const childBox of childBoxes) {
+            childBox.x -= shiftX;
+            childBox.y -= shiftY;
+          }
+        }
+      }
 
       const maxRight = Math.max(...childBoxes.map((box) => box.x + box.width));
       const maxBottom = Math.max(...childBoxes.map((box) => box.y + box.height));
+      const targetWidth = maxRight + padding.horizontal;
+      const targetHeight = maxBottom + padding.bottom;
 
-      parentBox.width = Math.max(parentBox.width, maxRight + padding.horizontal);
-      parentBox.height = Math.max(parentBox.height, maxBottom + padding.bottom);
+      if (nodeType === 'group' && !hasHardAnchoredChild) {
+        parentBox.width = Math.max(1, targetWidth);
+        parentBox.height = Math.max(1, targetHeight);
+      } else {
+        parentBox.width = Math.max(parentBox.width, targetWidth);
+        parentBox.height = Math.max(parentBox.height, targetHeight);
+      }
     }
   }
 
@@ -507,8 +551,8 @@ export function resolveCollisions(
   const updatedSizes = new Map<string, { width: number; height: number }>();
 
   for (const [id, box] of positionMap) {
-    // Never report position changes for hard-anchored (user-dragged) nodes
-    if (anchored.has(id)) continue;
+    // Never report position changes for live-dragged nodes.
+    if (hardAnchored.has(id)) continue;
 
     const origPos = originalPositions.get(id);
     if (origPos && (Math.abs(box.x - origPos.x) > 0.01 || Math.abs(box.y - origPos.y) > 0.01)) {

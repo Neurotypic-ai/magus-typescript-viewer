@@ -172,7 +172,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
             const d = dep as { packageName?: string; symbols?: string[] };
             estHeight += 42;
             const pkgName = d.packageName ?? '';
-            const symbols = Array.isArray(d.symbols) ? d.symbols.slice(0, 6).join(', ') : '';
+            const symbols = Array.isArray(d.symbols) ? d.symbols.join(', ') : '';
             maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(pkgName, 48));
             maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(symbols, 48));
           }
@@ -324,9 +324,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         const sourceNode = inputNodeById.get(elkNode.id);
         const isGroupNode = sourceNode?.type === 'group';
         const layoutInsets = sourceNode?.data?.layoutInsets as { top?: number } | undefined;
-        const defaultTopInset = isGroupNode ? 40 : 120;
+        const defaultTopInset = isGroupNode ? GROUP_EXCLUSION_ZONE_PX : 120;
         const topInset = typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : defaultTopInset;
-        const sidePadding = isGroupNode ? 16 : 24;
+        const sidePadding = isGroupNode ? GROUP_EXCLUSION_ZONE_PX : 24;
         const spacing = isGroupNode ? '16' : '24';
 
         elkNode.layoutOptions = {
@@ -334,7 +334,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
           'elk.algorithm': 'layered',
           'elk.direction': 'DOWN',
           // Reserve top area for node header/body/subnodes labels.
-          // Group (folder) nodes use tighter padding since they only have a small label header.
+          // Group nodes use exclusion-zone padding so layout/collision stay aligned.
           'elk.padding': `[top=${String(topInset)},left=${String(sidePadding)},bottom=${String(sidePadding)},right=${String(sidePadding)}]`,
           'elk.spacing.nodeNode': spacing,
           'elk.layered.spacing.nodeNodeBetweenLayers': spacing,

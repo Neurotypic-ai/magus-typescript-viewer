@@ -299,7 +299,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           id: ta.id,
           type: 'type',
           name: `${ta.name}${params}`,
-          detail: typeStr.length > 60 ? typeStr.slice(0, 60) + '...' : typeStr,
+          detail: typeStr,
         });
       });
     }
@@ -396,7 +396,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           0
         );
         const estimatedHeight = hasVueFlowChildren
-          ? Math.max(140, 120 + Math.min(visibleSubnodeCount, 8) * 90)
+          ? Math.max(140, 120 + visibleSubnodeCount * 90)
           : undefined;
 
         // In compact mode, embed class/interface data as symbols.

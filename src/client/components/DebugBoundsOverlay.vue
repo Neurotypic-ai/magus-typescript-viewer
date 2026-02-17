@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onUnmounted, shallowRef, watch } from 'vue';
 
 import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../layout/geometryBounds';
 import { getHandleAnchor } from '../layout/handleAnchors';
 
+import type { Rect } from '../layout/geometryBounds';
 import type { CollisionConfig, CollisionResult } from '../layout/collisionResolver';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
@@ -57,23 +58,6 @@ const props = withDefaults(defineProps<DebugBoundsOverlayProps>(), {
 
 const DEFAULT_NODE_WIDTH = 240;
 const DEFAULT_NODE_HEIGHT = 100;
-const VIEWPORT_PADDING_PX = 140;
-
-const containerRef = ref<HTMLElement | null>(null);
-const containerSize = ref({ width: 0, height: 0 });
-let resizeObserver: ResizeObserver | null = null;
-
-const updateContainerSize = (): void => {
-  const container = containerRef.value;
-  if (!container) {
-    containerSize.value = { width: 0, height: 0 };
-    return;
-  }
-  containerSize.value = {
-    width: Math.max(0, container.clientWidth),
-    height: Math.max(0, container.clientHeight),
-  };
-};
 
 const toScreenPoint = (point: { x: number; y: number }): { x: number; y: number } => ({
   x: point.x * props.viewport.zoom + props.viewport.x,
@@ -95,35 +79,43 @@ const toScreenRect = (rect: { x: number; y: number; width: number; height: numbe
   };
 };
 
-const isRectNearViewport = (
-  rect: { x: number; y: number; width: number; height: number },
-  padding = VIEWPORT_PADDING_PX
-): boolean => {
-  const { width, height } = containerSize.value;
-  return !(
-    rect.x + rect.width < -padding ||
-    rect.x > width + padding ||
-    rect.y + rect.height < -padding ||
-    rect.y > height + padding
-  );
-};
+/**
+ * Non-reactive snapshot of absolute node bounds. Updated via requestAnimationFrame
+ * to break the synchronous reactive chain between VueFlow's updateNodeDimensions
+ * (which mutates node.measured) and this overlay's render cycle.
+ */
+const absoluteBoundsById = shallowRef<Map<string, Rect>>(new Map());
+let boundsRafId: number | null = null;
 
-const isPointNearViewport = (point: { x: number; y: number }, padding = VIEWPORT_PADDING_PX): boolean => {
-  const { width, height } = containerSize.value;
-  return !(
-    point.x < -padding ||
-    point.x > width + padding ||
-    point.y < -padding ||
-    point.y > height + padding
-  );
-};
-
-const absoluteBoundsById = computed(() =>
-  buildAbsoluteNodeBoundsMap(props.nodes, {
+const refreshBounds = (): void => {
+  absoluteBoundsById.value = buildAbsoluteNodeBoundsMap(props.nodes, {
     defaultNodeWidth: DEFAULT_NODE_WIDTH,
     defaultNodeHeight: DEFAULT_NODE_HEIGHT,
-  })
+  });
+};
+
+const scheduleBoundsRefresh = (): void => {
+  if (boundsRafId !== null) return;
+  boundsRafId = requestAnimationFrame(() => {
+    boundsRafId = null;
+    refreshBounds();
+  });
+};
+
+watch(() => props.nodes, scheduleBoundsRefresh, { flush: 'post' });
+watch(
+  () => [props.viewport.x, props.viewport.y, props.viewport.zoom],
+  scheduleBoundsRefresh,
+  { flush: 'post' },
 );
+
+refreshBounds();
+
+onUnmounted(() => {
+  if (boundsRafId !== null) {
+    cancelAnimationFrame(boundsRafId);
+  }
+});
 
 const debugEnabled = computed(() => props.showBounds || props.showHandles || props.showNodeIds);
 
@@ -133,16 +125,14 @@ const screenRects = computed<ScreenRect[]>(() => {
   }
   const rects: ScreenRect[] = [];
   const groupPadding = props.collisionConfig.groupPadding;
+  const bounds = absoluteBoundsById.value;
 
   for (const node of props.nodes) {
-    const bounds = absoluteBoundsById.value.get(node.id);
-    if (!bounds) {
+    const nodeBounds = bounds.get(node.id);
+    if (!nodeBounds) {
       continue;
     }
-    const outerRect = toScreenRect(bounds);
-    if (!isRectNearViewport(outerRect)) {
-      continue;
-    }
+    const outerRect = toScreenRect(nodeBounds);
 
     if (node.type === 'group') {
       rects.push({
@@ -152,19 +142,17 @@ const screenRects = computed<ScreenRect[]>(() => {
       });
 
       const interiorWorld = {
-        x: bounds.x + groupPadding.horizontal,
-        y: bounds.y + groupPadding.top,
-        width: Math.max(1, bounds.width - groupPadding.horizontal * 2),
-        height: Math.max(1, bounds.height - groupPadding.top - groupPadding.bottom),
+        x: nodeBounds.x + groupPadding.horizontal,
+        y: nodeBounds.y + groupPadding.top,
+        width: Math.max(1, nodeBounds.width - groupPadding.horizontal * 2),
+        height: Math.max(1, nodeBounds.height - groupPadding.top - groupPadding.bottom),
       };
       const interiorRect = toScreenRect(interiorWorld);
-      if (isRectNearViewport(interiorRect)) {
-        rects.push({
-          key: `${node.id}-group-inner`,
-          ...interiorRect,
-          kind: 'groupInner',
-        });
-      }
+      rects.push({
+        key: `${node.id}-group-inner`,
+        ...interiorRect,
+        kind: 'groupInner',
+      });
       continue;
     }
 
@@ -184,39 +172,36 @@ const handlePoints = computed<ScreenPoint[]>(() => {
   }
 
   const points: ScreenPoint[] = [];
+  const bounds = absoluteBoundsById.value;
   for (const edge of props.edges) {
-    const sourceBounds = absoluteBoundsById.value.get(edge.source);
+    const sourceBounds = bounds.get(edge.source);
     if (sourceBounds && edge.sourceHandle) {
       const sourceAnchor = getHandleAnchor(sourceBounds, edge.sourceHandle);
       if (!sourceAnchor) {
         continue;
       }
       const sourcePoint = toScreenPoint(sourceAnchor);
-      if (isPointNearViewport(sourcePoint)) {
-        points.push({
-          key: `${edge.id}-source-${edge.sourceHandle}`,
-          x: sourcePoint.x,
-          y: sourcePoint.y,
-          kind: 'source',
-        });
-      }
+      points.push({
+        key: `${edge.id}-source-${edge.sourceHandle}`,
+        x: sourcePoint.x,
+        y: sourcePoint.y,
+        kind: 'source',
+      });
     }
 
-    const targetBounds = absoluteBoundsById.value.get(edge.target);
+    const targetBounds = bounds.get(edge.target);
     if (targetBounds && edge.targetHandle) {
       const targetAnchor = getHandleAnchor(targetBounds, edge.targetHandle);
       if (!targetAnchor) {
         continue;
       }
       const targetPoint = toScreenPoint(targetAnchor);
-      if (isPointNearViewport(targetPoint)) {
-        points.push({
-          key: `${edge.id}-target-${edge.targetHandle}`,
-          x: targetPoint.x,
-          y: targetPoint.y,
-          kind: 'target',
-        });
-      }
+      points.push({
+        key: `${edge.id}-target-${edge.targetHandle}`,
+        x: targetPoint.x,
+        y: targetPoint.y,
+        kind: 'target',
+      });
     }
   }
 
@@ -229,15 +214,13 @@ const nodeLabels = computed<ScreenLabel[]>(() => {
   }
 
   const labels: ScreenLabel[] = [];
+  const bounds = absoluteBoundsById.value;
   for (const node of props.nodes) {
-    const bounds = absoluteBoundsById.value.get(node.id);
-    if (!bounds) {
+    const nodeBounds = bounds.get(node.id);
+    if (!nodeBounds) {
       continue;
     }
-    const center = toScreenPoint(getBoundsCenter(bounds));
-    if (!isPointNearViewport(center)) {
-      continue;
-    }
+    const center = toScreenPoint(getBoundsCenter(nodeBounds));
     labels.push({
       key: `${node.id}-label`,
       id: node.id,
@@ -247,26 +230,10 @@ const nodeLabels = computed<ScreenLabel[]>(() => {
   }
   return labels;
 });
-
-onMounted(() => {
-  updateContainerSize();
-  if (!containerRef.value) {
-    return;
-  }
-  resizeObserver = new ResizeObserver(() => {
-    updateContainerSize();
-  });
-  resizeObserver.observe(containerRef.value);
-});
-
-onUnmounted(() => {
-  resizeObserver?.disconnect();
-  resizeObserver = null;
-});
 </script>
 
 <template>
-  <div ref="containerRef" class="debug-bounds-overlay" aria-hidden="true">
+  <div class="debug-bounds-overlay" aria-hidden="true">
     <svg v-if="debugEnabled" class="debug-bounds-svg">
       <rect
         v-for="rect in screenRects"
@@ -330,6 +297,8 @@ onUnmounted(() => {
   inset: 0;
   z-index: 12;
   pointer-events: none;
+  overflow: hidden;
+  contain: strict;
 }
 
 .debug-bounds-svg {

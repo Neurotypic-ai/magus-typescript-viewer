@@ -199,12 +199,42 @@ describe('resolveCollisions', () => {
       const nodes: BoundsNode[] = [parent, anchoredChild];
       const posMap = buildPositionMap(nodes, DEFAULTS);
 
-      const result = resolveCollisions(nodes, posMap, new Set(['anchored-child']));
+      const result = resolveCollisions(
+        nodes,
+        posMap,
+        new Set(['anchored-child']),
+        DEFAULT_COLLISION_CONFIG,
+        new Set(['anchored-child'])
+      );
       const childBox = posMap.get('anchored-child')!;
+      const parentBox = posMap.get('group-parent')!;
 
       expect(childBox.x).toBe(8);
       expect(childBox.y).toBe(8);
+      expect(parentBox.x).toBe(0);
+      expect(parentBox.y).toBe(0);
       expect(result.updatedPositions.has('anchored-child')).toBe(false);
+    });
+
+    it('expands group toward top/left when settled anchored child pushes into inset bounds', () => {
+      const parent = makeTypedNode('group-parent', 0, 0, 320, 220, undefined, 'group');
+      const anchoredChild = makeNode('anchored-child', 8, 8, 120, 80, 'group-parent');
+      const nodes: BoundsNode[] = [parent, anchoredChild];
+      const posMap = buildPositionMap(nodes, DEFAULTS);
+
+      const originalAbsoluteX = 8;
+      const originalAbsoluteY = 8;
+
+      resolveCollisions(nodes, posMap, new Set(['anchored-child']));
+
+      const childBox = posMap.get('anchored-child')!;
+      const parentBox = posMap.get('group-parent')!;
+      expect(parentBox.x).toBeLessThan(0);
+      expect(parentBox.y).toBeLessThan(0);
+      expect(parentBox.x + childBox.x).toBeCloseTo(originalAbsoluteX, 3);
+      expect(parentBox.y + childBox.y).toBeCloseTo(originalAbsoluteY, 3);
+      expect(parentBox.width).toBeGreaterThanOrEqual(childBox.x + childBox.width + GROUP_EXCLUSION_ZONE_PX);
+      expect(parentBox.height).toBeGreaterThanOrEqual(childBox.y + childBox.height + GROUP_EXCLUSION_ZONE_PX);
     });
 
     it('clamps non-anchored children to all group exclusion boundaries', () => {
@@ -222,6 +252,26 @@ describe('resolveCollisions', () => {
       expect(childBox.y).toBeLessThanOrEqual(maxY);
       expect(childBox.x).toBeGreaterThanOrEqual(GROUP_EXCLUSION_ZONE_PX);
       expect(childBox.y).toBeGreaterThanOrEqual(GROUP_EXCLUSION_ZONE_PX);
+    });
+
+    it('collapses an oversized group so children rest at inset limits', () => {
+      const parent = makeTypedNode('group-parent', 0, 0, 640, 420, undefined, 'group');
+      const child = makeNode('child', 180, 160, 120, 90, 'group-parent');
+      const nodes: BoundsNode[] = [parent, child];
+      const posMap = buildPositionMap(nodes, DEFAULTS);
+
+      const originalAbsoluteX = 180;
+      const originalAbsoluteY = 160;
+      resolveCollisions(nodes, posMap, null);
+
+      const childBox = posMap.get('child')!;
+      const parentBox = posMap.get('group-parent')!;
+      expect(parentBox.width).toBe(childBox.x + childBox.width + GROUP_EXCLUSION_ZONE_PX);
+      expect(parentBox.height).toBe(childBox.y + childBox.height + GROUP_EXCLUSION_ZONE_PX);
+      expect(childBox.x).toBe(GROUP_EXCLUSION_ZONE_PX);
+      expect(childBox.y).toBe(GROUP_EXCLUSION_ZONE_PX);
+      expect(parentBox.x + childBox.x).toBeCloseTo(originalAbsoluteX, 3);
+      expect(parentBox.y + childBox.y).toBeCloseTo(originalAbsoluteY, 3);
     });
 
     it('expands group size instead of moving anchored child near right/bottom edge', () => {

@@ -9,17 +9,13 @@ interface MemberListSectionProps {
   symbolId: string;
   keyPrefix: string;
   appendParens?: boolean;
-  maxVisible?: number;
   defaultOpen?: boolean;
 }
 
 const props = withDefaults(defineProps<MemberListSectionProps>(), {
   appendParens: false,
-  maxVisible: 8,
   defaultOpen: true,
 });
-
-const visibleMembers = () => props.members.slice(0, props.maxVisible);
 </script>
 
 <template>
@@ -30,15 +26,12 @@ const visibleMembers = () => props.members.slice(0, props.maxVisible);
     :default-open="defaultOpen"
   >
     <div
-      v-for="member in visibleMembers()"
+      v-for="member in members"
       :key="`${keyPrefix}-${symbolId}-${member.key}`"
       class="member-item"
     >
       <span class="member-name">{{ member.name }}{{ appendParens ? '()' : '' }}</span>
       <span class="member-type-annotation">{{ member.typeAnnotation }}</span>
-    </div>
-    <div v-if="members.length > maxVisible" class="member-overflow">
-      +{{ members.length - maxVisible }} more
     </div>
   </CollapsibleSection>
 </template>
@@ -71,10 +64,4 @@ const visibleMembers = () => props.members.slice(0, props.maxVisible);
   white-space: nowrap;
 }
 
-.member-overflow {
-  color: var(--text-secondary);
-  font-size: 0.65rem;
-  opacity: 0.7;
-  padding: 0.15rem 0.35rem;
-}
 </style>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue';
+import { useVueFlow } from '@vue-flow/core';
+import { computed, nextTick, ref, toRef, watch } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
@@ -9,6 +10,7 @@ import { buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 import type { DependencyProps } from '../../types/DependencyProps';
 
 const props = defineProps<DependencyProps>();
+const { updateNodeInternals } = useVueFlow();
 
 const nodeData = toRef(props, 'data');
 const nodeType = toRef(props, 'type');
@@ -28,6 +30,23 @@ const isCollapsible = computed(() => {
   return nodeData.value.collapsible === true;
 });
 const isCollapsed = ref(false);
+
+function refreshNodeBounds() {
+  const nodeIds = [props.id];
+  updateNodeInternals(nodeIds);
+  void nextTick(() => {
+    updateNodeInternals(nodeIds);
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        updateNodeInternals(nodeIds);
+      });
+    }
+    setTimeout(() => {
+      updateNodeInternals(nodeIds);
+    }, 340);
+  });
+}
+
 const toggleCollapsed = () => {
   if (isCollapsible.value) {
     isCollapsed.value = !isCollapsed.value;
@@ -64,6 +83,14 @@ const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase(
 const showProperties = ref(true);
 const showMethods = ref(true);
 
+const handleSectionToggle = () => {
+  refreshNodeBounds();
+};
+
+watch(isCollapsed, () => {
+  refreshNodeBounds();
+});
+
 const formattedProperties = computed(() => properties.value.map(formatProperty));
 const formattedMethods = computed(() => methods.value.map(formatMethod));
 </script>
@@ -98,18 +125,16 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
               title="Properties"
               :count="memberPropertyCount"
               :default-open="showProperties"
+              @toggle="handleSectionToggle"
             >
               <div
-                v-for="prop in formattedProperties.slice(0, 8)"
+                v-for="prop in formattedProperties"
                 :key="`prop-${prop.key}`"
                 class="member-item"
               >
                 <span class="member-visibility">{{ prop.indicator }}</span>
                 <span class="member-name">{{ prop.name }}</span>
                 <span class="member-type-annotation">: {{ prop.typeAnnotation }}</span>
-              </div>
-              <div v-if="formattedProperties.length > 8" class="member-overflow">
-                +{{ formattedProperties.length - 8 }} more properties
               </div>
             </CollapsibleSection>
 
@@ -118,18 +143,16 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
               title="Methods"
               :count="memberMethodCount"
               :default-open="showMethods"
+              @toggle="handleSectionToggle"
             >
               <div
-                v-for="method in formattedMethods.slice(0, 8)"
+                v-for="method in formattedMethods"
                 :key="`method-${method.key}`"
                 class="member-item"
               >
                 <span class="member-visibility">{{ method.indicator }}</span>
                 <span class="member-name">{{ method.name }}()</span>
                 <span class="member-type-annotation">: {{ method.typeAnnotation }}</span>
-              </div>
-              <div v-if="formattedMethods.length > 8" class="member-overflow">
-                +{{ formattedMethods.length - 8 }} more methods
               </div>
             </CollapsibleSection>
           </div>

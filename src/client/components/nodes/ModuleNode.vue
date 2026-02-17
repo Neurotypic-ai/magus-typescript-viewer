@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, toRef } from 'vue';
+import { computed, shallowRef, toRef } from 'vue';
 
 import { useGraphSettings } from '../../stores/graphSettings';
 import BaseNode from './BaseNode.vue';
@@ -142,25 +142,15 @@ const baseNodeProps = computed(() =>
   }),
 );
 
-// External deps show-more
-const showAllExternalDeps = ref(false);
-const visibleExternalDependencies = computed(() =>
-  showAllExternalDeps.value ? externalDependencies.value : externalDependencies.value.slice(0, 8),
-);
-const hiddenExternalDependencyCount = computed(() => Math.max(0, externalDependencies.value.length - 8));
-
 // Pre-isolate state (CollapsibleSection handles its own open/close state)
 useExpandCollapseState(
   () => ({
-    showAllExternalDeps: showAllExternalDeps.value,
     expandedSymbols: new Set(expandedSymbols.value),
   }),
   (saved) => {
-    showAllExternalDeps.value = saved.showAllExternalDeps;
     expandedSymbols.value = new Set(saved.expandedSymbols);
   },
   () => {
-    showAllExternalDeps.value = true;
     expandedSymbols.value = new Set(embeddedSymbols.value.map((s) => s.id));
   },
 );
@@ -202,24 +192,15 @@ useExpandCollapseState(
         :default-open="true"
       >
         <div
-          v-for="dependency in visibleExternalDependencies"
+          v-for="dependency in externalDependencies"
           :key="dependency.packageName"
           class="external-dependency"
         >
           <div class="external-dependency-name">{{ dependency.packageName }}</div>
           <div class="external-dependency-symbols">
-            {{ dependency.symbols.slice(0, 6).join(', ') }}
-            <span v-if="dependency.symbols.length > 6"> (+{{ dependency.symbols.length - 6 }} more)</span>
+            {{ dependency.symbols.join(', ') }}
           </div>
         </div>
-        <button
-          v-if="hiddenExternalDependencyCount > 0 && !showAllExternalDeps"
-          type="button"
-          class="dependency-more-button nodrag"
-          @click="showAllExternalDeps = true"
-        >
-          +{{ hiddenExternalDependencyCount }} more packages
-        </button>
       </CollapsibleSection>
 
       <!-- Embedded Symbols -->
@@ -322,20 +303,6 @@ useExpandCollapseState(
   color: var(--text-secondary);
   font-size: 0.7rem;
   opacity: 0.8;
-}
-
-.dependency-more-button {
-  border: 1px solid rgba(var(--border-default-rgb), 0.5);
-  border-radius: 0.3rem;
-  padding: 0.25rem 0.4rem;
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-secondary);
-  font-size: 0.66rem;
-  cursor: pointer;
-}
-
-.dependency-more-button:hover {
-  background: rgba(255, 255, 255, 0.08);
 }
 
 .module-symbols {

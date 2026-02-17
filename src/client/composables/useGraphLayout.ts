@@ -6,6 +6,7 @@ import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { optimizeHighwayHandleRouting } from '../graph/transforms/edgeHighways';
 import { WebWorkerLayoutProcessor } from '../layout/WebWorkerLayoutProcessor';
 import { defaultLayoutConfig } from '../layout/config';
+import { GROUP_EXCLUSION_ZONE_PX } from '../layout/edgeGeometryPolicy';
 import { getRenderingStrategy } from '../rendering/strategyRegistry';
 import { waitForNextPaint } from '../utils/dom';
 import { simpleHash } from '../utils/hash';
@@ -448,7 +449,10 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       let measuredTopInset = 0;
 
       if (m.isContainer) {
-        measuredTopInset = Math.max(96, Math.round(m.headerH + m.bodyH + m.subnodesH + 12));
+        measuredTopInset =
+          node.type === 'group'
+            ? GROUP_EXCLUSION_ZONE_PX
+            : Math.max(96, Math.round(m.headerH + m.bodyH + m.subnodesH + 12));
         const currentTopInset = node.data?.layoutInsets?.top ?? 0;
         const insetDelta = Math.abs(currentTopInset - measuredTopInset);
         const cacheDeltaInset = Math.abs((cached?.topInset ?? 0) - measuredTopInset);
