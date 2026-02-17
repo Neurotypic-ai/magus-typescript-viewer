@@ -5,7 +5,7 @@ import { Panel, VueFlow } from '@vue-flow/core';
 import { MiniMap } from '@vue-flow/minimap';
 import { onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
-import { parseEnvBoolean, parseEnvInt } from '../utils/env';
+import { parseEnvBoolean, parseEnvFloat, parseEnvInt } from '../utils/env';
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
   HIGHLIGHT_ORPHAN_GLOBAL_KEY,
@@ -55,6 +55,7 @@ const env = {
   USE_CSS_SELECTION_HOVER: parseEnvBoolean('VITE_USE_CSS_SELECTION_HOVER', true),
   PERF_MARKS_ENABLED: parseEnvBoolean('VITE_PERF_MARKS', false),
   EDGE_VIEWPORT_RECALC_THROTTLE_MS: parseEnvInt('VITE_EDGE_VIEWPORT_RECALC_THROTTLE_MS', 80),
+  MAC_TRACKPAD_PAN_SPEED: parseEnvFloat('VITE_MAC_TRACKPAD_PAN_SPEED', 1.6),
 };
 
 const core = useDependencyGraphCore({
@@ -455,6 +456,22 @@ onUnmounted(() => {
 
 .dependency-graph-root.graph-panning :deep(.base-node-container) {
   box-shadow: none !important;
+}
+
+/* VueFlow container must stack above the canvas edge layer (sibling with z-index: 1). */
+.dependency-graph-root :deep(.vue-flow) {
+  position: relative;
+  z-index: 2;
+}
+
+.dependency-graph-root :deep(.vue-flow__panel),
+.dependency-graph-root :deep(.vue-flow__controls),
+.dependency-graph-root :deep(.vue-flow__minimap) {
+  z-index: 20 !important;
+}
+
+.dependency-graph-root :deep(.vue-flow__panel) {
+  background-color: var(--color-background-paper) !important;
 }
 
 .dependency-graph-root.graph-panning :deep(.vue-flow__edge) {

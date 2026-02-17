@@ -9,6 +9,7 @@ const MIN_GRAPH_ZOOM = 0.1;
 const MAX_GRAPH_ZOOM = 2;
 const MAC_PINCH_ZOOM_SENSITIVITY = 0.014;
 const MAC_MOUSE_WHEEL_ZOOM_SENSITIVITY = 0.006;
+const DEFAULT_MAC_TRACKPAD_PAN_SPEED = 1.6;
 const MAX_ZOOM_DELTA_PER_EVENT = 140;
 
 export interface UseGraphViewportOptions {
@@ -16,6 +17,7 @@ export interface UseGraphViewportOptions {
   setViewport: (vp: { x: number; y: number; zoom: number }, opts?: { duration: number }) => Promise<boolean>;
   zoomTo: (zoom: number, opts?: { duration: number }) => Promise<boolean>;
   panBy: (delta: { x: number; y: number }) => void;
+  trackpadPanSpeed?: number;
   onViewportChange: () => void;
 }
 
@@ -36,7 +38,14 @@ export interface GraphViewport {
 }
 
 export function useGraphViewport(options: UseGraphViewportOptions): GraphViewport {
-  const { getViewport, setViewport, zoomTo, panBy, onViewportChange } = options;
+  const {
+    getViewport,
+    setViewport,
+    zoomTo,
+    panBy,
+    onViewportChange,
+    trackpadPanSpeed = DEFAULT_MAC_TRACKPAD_PAN_SPEED,
+  } = options;
 
   const isMac = ref(isMacPlatform());
   const isFirefox = ref(
@@ -44,6 +53,9 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
   );
   const viewportState = ref({ ...DEFAULT_VIEWPORT });
   const isPanning = ref(false);
+  const normalizedTrackpadPanSpeed = Number.isFinite(trackpadPanSpeed) && trackpadPanSpeed > 0
+    ? trackpadPanSpeed
+    : DEFAULT_MAC_TRACKPAD_PAN_SPEED;
 
   let cachedFlowContainer: HTMLElement | null = null;
   let cachedContainerRect: DOMRect | null = null;
@@ -107,13 +119,25 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
     onViewportChange();
   };
 
+  const applyPanDelta = (delta: { x: number; y: number }): void => {
+    if (!Number.isFinite(delta.x) || !Number.isFinite(delta.y)) {
+      return;
+    }
+    const currentViewport = viewportState.value;
+    viewportState.value = {
+      x: currentViewport.x + delta.x,
+      y: currentViewport.y + delta.y,
+      zoom: currentViewport.zoom,
+    };
+  };
+
   const onMoveStart = (): void => {
     if (panEndTimer) clearTimeout(panEndTimer);
     isPanning.value = true;
   };
 
   const onMove = (): void => {
-    scheduleViewportStateSync();
+    syncViewportState();
     onViewportChange();
   };
 
@@ -160,9 +184,13 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
     event.preventDefault();
 
     if (intent === 'trackpadScroll') {
-      panBy({ x: -event.deltaX, y: -event.deltaY });
-      scheduleViewportStateSync();
-      onViewportChange();
+      const panDelta = {
+        x: -event.deltaX * normalizedTrackpadPanSpeed,
+        y: -event.deltaY * normalizedTrackpadPanSpeed,
+      };
+      panBy(panDelta);
+      // Keep panning feedback immediate and let @move drive viewport recalc side effects.
+      applyPanDelta(panDelta);
       return;
     }
 

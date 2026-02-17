@@ -67,6 +67,7 @@ export interface DependencyGraphCoreEnv {
   USE_CSS_SELECTION_HOVER: boolean;
   PERF_MARKS_ENABLED: boolean;
   EDGE_VIEWPORT_RECALC_THROTTLE_MS: number;
+  MAC_TRACKPAD_PAN_SPEED: number;
 }
 
 export interface UseDependencyGraphCoreOptions {
@@ -245,6 +246,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     setViewport,
     zoomTo,
     panBy,
+    trackpadPanSpeed: env.MAC_TRACKPAD_PAN_SPEED,
     onViewportChange: () => {
       edgeVirtualization.requestViewportRecalc();
     },

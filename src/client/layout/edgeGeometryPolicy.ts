@@ -51,19 +51,34 @@ const SIDE_NORMALS: Record<EdgeHandleSide, EdgeGeometryPoint> = {
 
 const EPSILON = 0.001;
 
+/** Returns `true` when the side corresponds to a horizontal (left/right) exit or entry. */
+export const isHorizontalSide = (side: EdgeHandleSide): boolean => side === 'left' || side === 'right';
+
 const isGroupNode = (nodeType: string | undefined): boolean => nodeType === 'group';
 
-const offsetPoint = (
-  point: EdgeGeometryPoint,
-  normal: EdgeGeometryPoint,
-  distance: number
-): EdgeGeometryPoint => ({
+const offsetPoint = (point: EdgeGeometryPoint, normal: EdgeGeometryPoint, distance: number): EdgeGeometryPoint => ({
   x: point.x + normal.x * distance,
   y: point.y + normal.y * distance,
 });
 
 export const pointsEqual = (a: EdgeGeometryPoint, b: EdgeGeometryPoint): boolean =>
   Math.abs(a.x - b.x) <= EPSILON && Math.abs(a.y - b.y) <= EPSILON;
+
+/**
+ * Infer the best handle side (exit/entry direction) from the relative
+ * positions of two points.  When `getHandleSide` cannot determine a
+ * direction from the handle id, this provides a reasonable geometric
+ * fallback: the dominant axis of the vector from `from` to `to` decides
+ * the side.  Ties go to the horizontal axis.
+ */
+export function inferHandleSide(from: EdgeGeometryPoint, to: EdgeGeometryPoint): EdgeHandleSide {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? 'right' : 'left';
+  }
+  return dy >= 0 ? 'bottom' : 'top';
+}
 
 export function getHandleSide(handleId: string | null | undefined): EdgeHandleSide | undefined {
   if (!handleId) return undefined;
@@ -84,28 +99,40 @@ export function buildEdgePolyline(
   targetPoint: EdgeGeometryPoint,
   options: EdgePolylineOptions = {}
 ): EdgeGeometryPoint[] {
+  const sourceSide =
+    getHandleSide(options.sourceHandle) ?? inferHandleSide(sourcePoint, targetPoint);
+  const targetSide =
+    getHandleSide(options.targetHandle) ?? inferHandleSide(targetPoint, sourcePoint);
+
   const points: EdgeGeometryPoint[] = [{ x: sourcePoint.x, y: sourcePoint.y }];
 
-  const sourceSide = getHandleSide(options.sourceHandle);
-  if (sourceSide && isGroupNode(options.sourceNodeType)) {
-    points.push(offsetPoint(sourcePoint, SIDE_NORMALS[sourceSide], GROUP_ENTRY_STUB_PX));
+  // -- Source-side stub --
+  const sourceNormal = SIDE_NORMALS[sourceSide];
+  if (isGroupNode(options.sourceNodeType)) {
+    points.push(offsetPoint(sourcePoint, sourceNormal, GROUP_ENTRY_STUB_PX));
+  } else {
+    points.push(
+      offsetPoint(sourcePoint, sourceNormal, NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX)
+    );
   }
 
-  const targetSide = getHandleSide(options.targetHandle);
-  if (targetSide) {
-    const normal = SIDE_NORMALS[targetSide];
-    if (isGroupNode(options.targetNodeType)) {
-      points.push(offsetPoint(targetPoint, normal, GROUP_ENTRY_STUB_PX));
-    } else {
-      points.push(
-        offsetPoint(targetPoint, normal, NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX),
-        offsetPoint(targetPoint, normal, NODE_FINAL_APPROACH_PX)
-      );
-    }
+  // -- Target-side stubs --
+  const targetNormal = SIDE_NORMALS[targetSide];
+  if (isGroupNode(options.targetNodeType)) {
+    points.push(offsetPoint(targetPoint, targetNormal, GROUP_ENTRY_STUB_PX));
+  } else {
+    points.push(
+      offsetPoint(targetPoint, targetNormal, NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX),
+      offsetPoint(targetPoint, targetNormal, NODE_FINAL_APPROACH_PX)
+    );
   }
 
   points.push({ x: targetPoint.x, y: targetPoint.y });
 
+  // -- Insert orthogonal waypoints between source and target stubs --
+  insertOrthogonalMidpoints(points, sourceSide, targetSide);
+
+  // -- Deduplicate --
   const deduped: EdgeGeometryPoint[] = [];
   for (const point of points) {
     const previous = deduped[deduped.length - 1];
@@ -114,6 +141,94 @@ export function buildEdgePolyline(
     }
   }
   return deduped;
+}
+
+/**
+ * Inserts orthogonal waypoints into the polyline so that `buildRoundedPolylinePath`
+ * always has intermediate corners to round. The function modifies `points` in-place.
+ *
+ * After source and target stubs have been added to the polyline the "free" segment
+ * between the last source-side point and the first target-side point may still be a
+ * straight diagonal. This function detects that case and inserts either:
+ *
+ * - **L-shape** (1 midpoint): when source exits on one axis and target enters on the
+ *   perpendicular axis.
+ * - **S-shape** (2 midpoints): when source and target share the same axis, creating a
+ *   dogleg through the midline.
+ *
+ * If the free segment is already axis-aligned no points are inserted.
+ */
+export function insertOrthogonalMidpoints(
+  points: EdgeGeometryPoint[],
+  sourceExit: EdgeHandleSide,
+  targetEntry: EdgeHandleSide
+): void {
+  if (points.length < 2) return;
+
+  // Walk forward from the start to find the end of source-direction stubs.
+  const sourceHorizontal = isHorizontalSide(sourceExit);
+  let freeStartIdx = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    if (prev === undefined || curr === undefined) break;
+    const onAxis = sourceHorizontal ? Math.abs(curr.y - prev.y) <= EPSILON : Math.abs(curr.x - prev.x) <= EPSILON;
+    if (onAxis) {
+      freeStartIdx = i;
+    } else {
+      break;
+    }
+  }
+
+  // Walk backward from the end to find the start of target-direction stubs.
+  const targetHorizontal = isHorizontalSide(targetEntry);
+  let freeEndIdx = points.length - 1;
+  for (let i = points.length - 2; i >= 0; i -= 1) {
+    const curr = points[i];
+    const next = points[i + 1];
+    if (curr === undefined || next === undefined) break;
+    const onAxis = targetHorizontal ? Math.abs(curr.y - next.y) <= EPSILON : Math.abs(curr.x - next.x) <= EPSILON;
+    if (onAxis) {
+      freeEndIdx = i;
+    } else {
+      break;
+    }
+  }
+
+  // If the walks overlap or meet there is no free segment to route.
+  if (freeStartIdx >= freeEndIdx) return;
+
+  const freeStart = points[freeStartIdx];
+  const freeEnd = points[freeEndIdx];
+  if (freeStart === undefined || freeEnd === undefined) return;
+
+  // Already axis-aligned — nothing to do.
+  const dx = Math.abs(freeEnd.x - freeStart.x);
+  const dy = Math.abs(freeEnd.y - freeStart.y);
+  if (dx <= EPSILON || dy <= EPSILON) return;
+
+  const midpoints: EdgeGeometryPoint[] = [];
+
+  if (sourceHorizontal !== targetHorizontal) {
+    // L-shape: one corner midpoint where the two axes intersect.
+    if (sourceHorizontal) {
+      midpoints.push({ x: freeEnd.x, y: freeStart.y });
+    } else {
+      midpoints.push({ x: freeStart.x, y: freeEnd.y });
+    }
+  } else {
+    // S-shape: two midpoints creating a dogleg through the midline.
+    if (sourceHorizontal) {
+      const midX = (freeStart.x + freeEnd.x) / 2;
+      midpoints.push({ x: midX, y: freeStart.y }, { x: midX, y: freeEnd.y });
+    } else {
+      const midY = (freeStart.y + freeEnd.y) / 2;
+      midpoints.push({ x: freeStart.x, y: midY }, { x: freeEnd.x, y: midY });
+    }
+  }
+
+  // Replace any existing intermediate points with the new orthogonal waypoints.
+  points.splice(freeStartIdx + 1, freeEndIdx - freeStartIdx - 1, ...midpoints);
 }
 
 export function toLineSegments(polyline: EdgeGeometryPoint[]): EdgeLineSegment[] {
@@ -138,7 +253,9 @@ export function buildRoundedPolylinePath(
     return null;
   }
 
-  const start = normalizePoint(polyline[0]!);
+  const first = polyline[0];
+  if (first === undefined) return null;
+  const start = normalizePoint(first);
   const segments: RoundedPolylineSegment[] = [];
   const normalizedRadius = Number.isFinite(cornerRadius) ? Math.max(0, cornerRadius) : 0;
 
