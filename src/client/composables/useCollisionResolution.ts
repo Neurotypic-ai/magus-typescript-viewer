@@ -2,7 +2,14 @@ import { ref } from 'vue';
 
 import { filterNodeChangesForFolderMode } from '../graph/buildGraphView';
 import { applyNodeChanges } from '../utils/applyNodeChanges';
-import { resolveCollisions, buildPositionMap, DEFAULT_COLLISION_CONFIG } from '../layout/collisionResolver';
+import {
+  resolveCollisions,
+  buildPositionMap,
+  DEFAULT_COLLISION_CONFIG,
+  createCollisionConfig,
+  getActiveCollisionConfig,
+} from '../layout/collisionResolver';
+import type { CollisionConfig, CollisionResult } from '../layout/collisionResolver';
 
 import type { Ref } from 'vue';
 import type { NodeChange } from '@vue-flow/core';
@@ -16,6 +23,19 @@ const LIVE_SETTLE_MIN_INTERVAL_MS = 32;
 const DRAG_END_ONLY_THRESHOLD = 700;
 const DRAG_POSITION_EPSILON = 0.01;
 
+/** Map of strategyId -> { optionKey -> value }. Matches StrategyOptionsById from collisionResolver. */
+export type CollisionStrategyOptionsById = Record<string, Record<string, unknown>>;
+
+/** Strategy-driven collision config inputs. Pre-resolved minimumDistancePx overrides strategy lookup. */
+export interface CollisionConfigInputs {
+  /** Pre-resolved minimum distance (px). Takes precedence over strategy options when set. */
+  minimumDistancePx?: number | Ref<number>;
+  /** Active rendering strategy ID for option lookup. */
+  renderingStrategyId?: Ref<string> | string;
+  /** Strategy options by ID. Used with renderingStrategyId when minimumDistancePx not provided. */
+  strategyOptionsById?: Ref<CollisionStrategyOptionsById> | CollisionStrategyOptionsById;
+}
+
 export interface UseCollisionResolutionOptions {
   nodes: Ref<DependencyNode[]>;
   isLayoutPending: Ref<boolean>;
@@ -26,14 +46,52 @@ export interface UseCollisionResolutionOptions {
   updateNodesById: (updates: Map<string, DependencyNode>) => void;
   mergeManualOffsets: (offsets: Map<string, ManualOffset>) => void;
   reconcileSelectedNodeAfterStructuralChange: (nodes: DependencyNode[]) => void;
+  /** Strategy inputs for collision config. When omitted, uses DEFAULT_COLLISION_CONFIG. */
+  collisionConfigInputs?: CollisionConfigInputs;
 }
 
 export interface CollisionResolution {
   isApplyingCollisionResolution: Readonly<Ref<boolean>>;
   activeDraggedNodeIds: Readonly<Ref<Set<string>>>;
   userPinnedNodeIds: Readonly<Ref<Set<string>>>;
+  /** Last resolve result for debug UI (cyclesUsed, converged, updatedPositions/sizes). */
+  lastCollisionResult: Readonly<Ref<CollisionResult | null>>;
   handleNodesChange: (changes: NodeChange[]) => void;
   dispose: () => void;
+}
+
+function resolveActiveConfig(inputs: CollisionConfigInputs | undefined): CollisionConfig {
+  if (!inputs) return DEFAULT_COLLISION_CONFIG;
+
+  const rawMinPx =
+    inputs.minimumDistancePx != null
+      ? typeof inputs.minimumDistancePx === 'object' && 'value' in inputs.minimumDistancePx
+        ? inputs.minimumDistancePx.value
+        : inputs.minimumDistancePx
+      : undefined;
+
+  if (typeof rawMinPx === 'number' && Number.isFinite(rawMinPx) && rawMinPx >= 0) {
+    return createCollisionConfig(rawMinPx);
+  }
+
+  const strategyId =
+    inputs.renderingStrategyId != null && typeof inputs.renderingStrategyId === 'object' && 'value' in inputs.renderingStrategyId
+      ? inputs.renderingStrategyId.value
+      : inputs.renderingStrategyId;
+
+  const optionsById =
+    typeof inputs.strategyOptionsById === 'object' &&
+    /* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- typeof null==='object' in JS; null check required */
+    inputs.strategyOptionsById != null &&
+    'value' in inputs.strategyOptionsById
+      ? (inputs.strategyOptionsById as Ref<CollisionStrategyOptionsById>).value
+      : inputs.strategyOptionsById;
+
+  if (strategyId != null && optionsById != null) {
+    return getActiveCollisionConfig(strategyId, optionsById);
+  }
+
+  return DEFAULT_COLLISION_CONFIG;
 }
 
 export function useCollisionResolution(options: UseCollisionResolutionOptions): CollisionResolution {
@@ -47,11 +105,13 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
     updateNodesById,
     mergeManualOffsets,
     reconcileSelectedNodeAfterStructuralChange,
+    collisionConfigInputs,
   } = options;
 
   const isApplyingCollisionResolution = ref(false);
   const activeDraggedNodeIds = ref<Set<string>>(new Set());
   const userPinnedNodeIds = ref<Set<string>>(new Set());
+  const lastCollisionResult = ref<CollisionResult | null>(null);
   let collisionSettleRafId: number | null = null;
   let collisionDimensionTimer: ReturnType<typeof setTimeout> | null = null;
   let lastCollisionSettleTime = 0;
@@ -131,12 +191,15 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
         defaultNodeHeight: 100,
       });
 
+      const config = resolveActiveConfig(collisionConfigInputs);
       const result = resolveCollisions(
         boundsNodes,
         posMap,
         resolverAnchors.size > 0 ? resolverAnchors : null,
-        DEFAULT_COLLISION_CONFIG
+        config
       );
+
+      lastCollisionResult.value = result;
 
       if (result.updatedPositions.size === 0 && result.updatedSizes.size === 0) {
         return;
@@ -376,6 +439,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
     isApplyingCollisionResolution,
     activeDraggedNodeIds,
     userPinnedNodeIds,
+    lastCollisionResult,
     handleNodesChange,
     dispose,
   };

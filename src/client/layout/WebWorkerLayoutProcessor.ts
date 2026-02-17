@@ -167,7 +167,7 @@ export class WebWorkerLayoutProcessor {
       nodesep: mergedConfig.nodeSpacing,
       ranksep: mergedConfig.rankSpacing,
       edgesep: mergedConfig.edgeSpacing,
-      degreeWeightedLayers: mergedConfig.degreeWeightedLayers,
+      degreeWeightedLayers: mergedConfig.degreeWeightedLayers ?? false,
       theme: mergedConfig.theme,
       animationDuration: mergedConfig.animationDuration,
     };

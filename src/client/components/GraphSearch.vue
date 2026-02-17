@@ -1,84 +1,45 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-
-import { Panel } from '@vue-flow/core';
-
-import type { DependencyNode } from '../types/DependencyNode';
-import type { SearchResult } from '../types/SearchResult';
-import type { GraphEdge } from '../types/GraphEdge';
-
-interface GraphSearchProps {
-  nodes: DependencyNode[];
-  edges: GraphEdge[];
-}
-
-const props = defineProps<GraphSearchProps>();
-const emit = defineEmits<{
-  'search-result': [result: SearchResult];
+const props = defineProps<{
+  runSearch: () => void;
 }>();
 
-const searchQuery = ref('');
-
-// Debounce timer for search input
-let searchTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const handleSearch = () => {
-  if (!searchQuery.value) {
-    emit('search-result', { nodes: [], edges: [], path: [] });
-    return;
-  }
-
-  // Lowercase query once instead of per-node
-  const query = searchQuery.value.toLowerCase();
-  const matchingNodes = props.nodes.filter((node) =>
-    node.data?.label.toLowerCase().includes(query)
-  );
-
-  // Build a Set of matching node IDs for O(1) lookups instead of O(n*m) .some()
-  const matchingNodeIds = new Set(matchingNodes.map((n) => n.id));
-
-  const relatedEdges = props.edges.filter((edge) =>
-    matchingNodeIds.has(edge.source) || matchingNodeIds.has(edge.target)
-  );
-
-  emit('search-result', {
-    nodes: matchingNodes,
-    edges: relatedEdges,
-    path: matchingNodes,
-  });
-};
-
-// Enter key triggers immediate search (bypasses debounce)
-const handleKeyDown = (event: KeyboardEvent) => {
-  if (event.key === 'Enter') {
-    if (searchTimeout) clearTimeout(searchTimeout);
-    handleSearch();
-  }
-};
-
-// Watch searchQuery with 300ms debounce for auto-search on typing
-watch(searchQuery, () => {
-  if (searchTimeout) clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(handleSearch, 300);
-});
+const modelValue = defineModel<string>({ required: true });
 </script>
 
 <template>
-  <Panel position="top-right" class="mt-2 mr-2">
-    <div class="flex gap-2 bg-background-paper p-2 rounded-lg border border-gray-700 shadow-lg max-w-sm">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="Search nodes..."
-        @keydown="handleKeyDown"
-        class="px-3 py-1 bg-gray-800 text-white rounded border border-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
-      />
-      <button
-        @click="handleSearch"
-        class="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors border border-gray-600"
-      >
-        Search
-      </button>
-    </div>
-  </Panel>
+  <div class="flex gap-2">
+    <label for="graph-search-input" class="sr-only">Search nodes</label>
+    <input
+      id="graph-search-input"
+      v-model="modelValue"
+      type="search"
+      placeholder="Search nodes..."
+      autocomplete="off"
+      class="flex-1 px-3 py-1.5 bg-white/10 text-text-primary rounded border border-border-default text-xs focus:outline-none focus:border-primary-main focus:ring-1 focus:ring-primary-main"
+      aria-label="Search nodes in graph"
+      @keydown.enter="props.runSearch()"
+    />
+    <button
+      type="button"
+      class="px-3 py-1.5 bg-primary-main text-white rounded hover:bg-primary-dark transition-fast text-xs font-medium"
+      aria-label="Run search"
+      @click="props.runSearch()"
+    >
+      Search
+    </button>
+  </div>
 </template>
+
+<style scoped>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>

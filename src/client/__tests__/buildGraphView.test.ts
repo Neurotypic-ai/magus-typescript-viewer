@@ -13,6 +13,7 @@ import type { NodeChange } from '@vue-flow/core';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { GraphViewData } from '../graph/graphViewShared';
 
 describe('applyEdgeVisibility', () => {
   it('keeps uses edges visible while honoring enabled relationship filters for others', () => {
@@ -202,7 +203,7 @@ describe('buildFolderDistributorGraph export', () => {
       ],
     };
 
-    const result = buildFolderDistributorGraph({
+    const result: GraphViewData = buildFolderDistributorGraph({
       data,
       enabledNodeTypes: ['module'],
       enabledRelationshipTypes: ['import'],

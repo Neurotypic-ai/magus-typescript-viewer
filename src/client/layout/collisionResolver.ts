@@ -47,6 +47,53 @@ export const DEFAULT_COLLISION_CONFIG: CollisionConfig = {
   },
 };
 
+/** Option key used in strategy options for minimum node distance (px). */
+export const COLLISION_MINIMUM_DISTANCE_OPTION_KEY = 'minimumDistancePx';
+
+/**
+ * Create a CollisionConfig from a minimum distance value.
+ * Sets overlapGap and groupPadding from minimumDistancePx while preserving
+ * modulePadding, maxCycles, maxDisplacementPerCycle and other defaults.
+ */
+export function createCollisionConfig(minimumDistancePx: number): CollisionConfig {
+  const d = Math.max(0, minimumDistancePx);
+  return {
+    ...DEFAULT_COLLISION_CONFIG,
+    overlapGap: d,
+    groupPadding: {
+      horizontal: d,
+      top: d,
+      bottom: d,
+    },
+  };
+}
+
+/**
+ * Strategy options map: strategyId -> { optionKey -> value }.
+ * Kept generic to avoid circular deps on RenderingStrategy types.
+ */
+export type StrategyOptionsById = Record<string, Record<string, unknown>>;
+
+/**
+ * Resolve the active CollisionConfig for the given rendering strategy.
+ * Reads minimumDistancePx from strategy options; falls back to default when absent or invalid.
+ */
+export function getActiveCollisionConfig(
+  renderingStrategyId: string,
+  strategyOptionsById: StrategyOptionsById
+): CollisionConfig {
+  const options = strategyOptionsById[renderingStrategyId];
+  if (!options || typeof options !== 'object') {
+    return DEFAULT_COLLISION_CONFIG;
+  }
+  const value = options[COLLISION_MINIMUM_DISTANCE_OPTION_KEY];
+  const num = typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  if (num == null || num < 0) {
+    return DEFAULT_COLLISION_CONFIG;
+  }
+  return createCollisionConfig(num);
+}
+
 // ---------------------------------------------------------------------------
 // Internal types
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { useGraphSettings } from '../graphSettings';
+import { GRAPH_CONTROL_SECTION_KEYS, useGraphSettings } from '../graphSettings';
 
 const GRAPH_SETTINGS_CACHE_KEY = 'v1:typescript-viewer-graph-settings';
 
@@ -77,28 +77,98 @@ describe('graphSettings rendering strategy persistence', () => {
 
   it('persists and rehydrates strategyOptionsById', () => {
     const { store, localStorageMock } = useStoreFixture();
-    store.setRenderingStrategyOption('canvas', 'drawFpsOverlay', true);
+    store.setRenderingStrategyOption('canvas', 'degreeWeightedLayers', true);
 
     const persistedPayload = readPersistedPayload(localStorageMock);
-    expect(persistedPayload['strategyOptionsById']).toEqual({
+    expect(persistedPayload['strategyOptionsById']).toMatchObject({
       canvas: {
-        drawFpsOverlay: true,
+        degreeWeightedLayers: true,
       },
-      vueflow: {},
-      folderDistributor: {},
     });
 
     vi.stubGlobal('localStorage', localStorageMock);
     setActivePinia(createPinia());
     const rehydratedStore = useGraphSettings();
 
-    expect(rehydratedStore.strategyOptionsById).toEqual({
-      canvas: {
-        drawFpsOverlay: true,
+    expect(rehydratedStore.strategyOptionsById.canvas['degreeWeightedLayers']).toBe(true);
+  });
+
+  it('migrates legacy degreeWeightedLayers into strategy options for canvas and vueflow', () => {
+    const { store } = useStoreFixture({
+      degreeWeightedLayers: true,
+      strategyOptionsById: {
+        canvas: {},
+        vueflow: {},
+        folderDistributor: { minimumDistancePx: 60 },
       },
-      vueflow: {},
-      folderDistributor: {},
     });
+
+    expect(store.strategyOptionsById.canvas['degreeWeightedLayers']).toBe(true);
+    expect(store.strategyOptionsById.vueflow['degreeWeightedLayers']).toBe(true);
+    expect(store.strategyOptionsById.folderDistributor['minimumDistancePx']).toBe(60);
+  });
+
+  it('does not persist standalone degreeWeightedLayers', () => {
+    const { store, localStorageMock } = useStoreFixture();
+    store.setRenderingStrategyOption('canvas', 'degreeWeightedLayers', true);
+
+    const persistedPayload = readPersistedPayload(localStorageMock);
+    expect(persistedPayload).not.toHaveProperty('degreeWeightedLayers');
+  });
+
+  it('persists and rehydrates collapsed GraphControls sections with unknown-key tolerance', () => {
+    const { store, localStorageMock } = useStoreFixture();
+    store.setCollapsedSection('analysis', true);
+    store.setCollapsedSection('debug', true);
+
+    const persistedPayload = readPersistedPayload(localStorageMock);
+    expect(persistedPayload['collapsedSections']).toMatchObject({
+      analysis: true,
+      debug: true,
+    });
+
+    localStorageMock.__state[GRAPH_SETTINGS_CACHE_KEY] = JSON.stringify({
+      ...persistedPayload,
+      collapsedSections: {
+        ...(persistedPayload['collapsedSections'] as Record<string, boolean>),
+        unknownSectionKey: true,
+      },
+    });
+
+    vi.stubGlobal('localStorage', localStorageMock);
+    setActivePinia(createPinia());
+    const rehydratedStore = useGraphSettings();
+
+    for (const key of GRAPH_CONTROL_SECTION_KEYS) {
+      if (key === 'analysis' || key === 'debug') {
+        expect(rehydratedStore.collapsedSections[key]).toBe(true);
+      } else {
+        expect(rehydratedStore.collapsedSections[key]).toBe(false);
+      }
+    }
+    expect(
+      Object.prototype.hasOwnProperty.call(rehydratedStore.collapsedSections, 'unknownSectionKey')
+    ).toBe(false);
+  });
+
+  it('persists and rehydrates debug visibility toggles', () => {
+    const { store, localStorageMock } = useStoreFixture();
+    store.setShowDebugBounds(true);
+    store.setShowDebugHandles(true);
+    store.setShowDebugNodeIds(true);
+
+    const persistedPayload = readPersistedPayload(localStorageMock);
+    expect(persistedPayload['showDebugBounds']).toBe(true);
+    expect(persistedPayload['showDebugHandles']).toBe(true);
+    expect(persistedPayload['showDebugNodeIds']).toBe(true);
+
+    vi.stubGlobal('localStorage', localStorageMock);
+    setActivePinia(createPinia());
+    const rehydratedStore = useGraphSettings();
+
+    expect(rehydratedStore.showDebugBounds).toBe(true);
+    expect(rehydratedStore.showDebugHandles).toBe(true);
+    expect(rehydratedStore.showDebugNodeIds).toBe(true);
   });
 
   it.each([

@@ -14,6 +14,7 @@ export type { BuildModuleDrilldownGraphOptions } from './drilldown/buildModuleDr
 export type { BuildSymbolDrilldownGraphOptions } from './drilldown/buildSymbolDrilldown';
 
 export { buildOverviewGraph } from './buildOverviewGraph';
+// eslint-disable-next-line import-x/no-unresolved -- module exists; TS and runtime resolve it; resolver does not
 export { buildFolderDistributorGraph } from './buildFolderDistributorGraph';
 export { buildModuleDrilldownGraph } from './drilldown/buildModuleDrilldown';
 export { buildSymbolDrilldownGraph } from './drilldown/buildSymbolDrilldown';

@@ -18,8 +18,9 @@ import PackageNode from './nodes/PackageNode.vue';
 import SymbolNode from './nodes/SymbolNode.vue';
 import { useDependencyGraphCore, DEFAULT_VIEWPORT } from '../composables/useDependencyGraphCore';
 import CanvasEdgeLayer from './CanvasEdgeLayer.vue';
+import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
+import { useGraphSearch } from '../composables/useGraphSearch';
 import GraphControls from './GraphControls.vue';
-import GraphSearch from './GraphSearch.vue';
 import InsightsDashboard from './InsightsDashboard.vue';
 import IssuesPanel from './IssuesPanel.vue';
 import NodeContextMenu from './NodeContextMenu.vue';
@@ -64,6 +65,13 @@ const core = useDependencyGraphCore({
   env,
 });
 
+const graphSearchContext = useGraphSearch({
+  nodes: core.nodes,
+  edges: core.edges,
+  onSearchResult: core.handleSearchResult,
+  debounceMs: 300,
+});
+
 const {
   nodes,
   edges,
@@ -71,6 +79,8 @@ const {
   issuesStore,
   visualNodes,
   renderedEdges,
+  activeCollisionConfig,
+  lastCollisionResult,
   useOnlyRenderVisibleElements,
   defaultEdgeOptions,
   viewportState,
@@ -105,7 +115,6 @@ const {
   handleOpenSymbolUsageGraph,
   handleReturnToOverview,
   handleNodesChange,
-  handleSearchResult,
   handleFocusNode,
   handleMinimapNodeClick,
   handleCanvasUnavailable,
@@ -115,9 +124,6 @@ const {
   handleKeyDown,
   onNodeMouseEnter,
   onNodeMouseLeave,
-  handleLayoutChange,
-  handleResetLayout,
-  handleResetView,
   handleRelationshipFilterChange,
   handleNodeTypeFilterChange,
   handleCollapseSccToggle,
@@ -125,7 +131,6 @@ const {
   handleHideTestFilesToggle,
   handleMemberNodeModeChange,
   handleOrphanGlobalToggle,
-  handleDegreeWeightedLayersToggle,
   handleShowFpsToggle,
   handleFpsAdvancedToggle,
   handleRenderingStrategyChange,
@@ -259,23 +264,19 @@ onUnmounted(() => {
       <GraphControls
         :relationship-availability="graphSettings.relationshipAvailability"
         :canvas-renderer-available="canvasRendererAvailable"
+        :graph-search-context="graphSearchContext"
         @relationship-filter-change="handleRelationshipFilterChange"
         @node-type-filter-change="handleNodeTypeFilterChange"
-        @layout-change="handleLayoutChange"
-        @reset-layout="handleResetLayout"
-        @reset-view="handleResetView"
         @toggle-collapse-scc="handleCollapseSccToggle"
         @toggle-cluster-folder="handleClusterByFolderToggle"
         @toggle-hide-test-files="handleHideTestFilesToggle"
         @member-node-mode-change="handleMemberNodeModeChange"
         @toggle-orphan-global="handleOrphanGlobalToggle"
-        @toggle-degree-weighted-layers="handleDegreeWeightedLayersToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
         @rendering-strategy-change="handleRenderingStrategyChange"
         @rendering-strategy-option-change="handleRenderingStrategyOptionChange"
       />
-      <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <MiniMap
         v-if="showMiniMap && !isLayoutPending && !isLayoutMeasuring"
         position="bottom-right"
@@ -422,6 +423,18 @@ onUnmounted(() => {
       :dim-non-highlighted="true"
       class="absolute inset-0"
       @canvas-unavailable="handleCanvasUnavailable"
+    />
+    <DebugBoundsOverlay
+      v-if="graphSettings.showDebugBounds || graphSettings.showDebugHandles || graphSettings.showDebugNodeIds"
+      :nodes="visualNodes"
+      :edges="renderedEdges"
+      :viewport="viewportState"
+      :show-bounds="graphSettings.showDebugBounds"
+      :show-handles="graphSettings.showDebugHandles"
+      :show-node-ids="graphSettings.showDebugNodeIds"
+      :collision-config="activeCollisionConfig"
+      :last-collision-result="lastCollisionResult"
+      class="absolute inset-0"
     />
     <NodeDetails
       v-if="selectedNode"

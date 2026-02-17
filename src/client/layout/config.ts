@@ -17,25 +17,26 @@ export interface LayoutConfig {
   nodeSpacing: number;
   rankSpacing: number;
   edgeSpacing: number;
-  degreeWeightedLayers: boolean;
+  /** From strategy options; not in defaults. */
+  degreeWeightedLayers?: boolean;
   margins: LayoutMargins;
   animationDuration: number;
   theme: GraphTheme;
 }
 
-export const defaultLayoutConfig: LayoutConfig = {
+/** Frozen layout defaults; algorithm/direction/spacing are internal-only, no user mutability. */
+export const defaultLayoutConfig: Readonly<LayoutConfig> = Object.freeze({
   algorithm: 'layered',
-  direction: 'LR', // Left-to-right works better for hierarchical dependency graphs
+  direction: 'LR',
   nodeSpacing: 80,
   rankSpacing: 200,
   edgeSpacing: 30,
-  degreeWeightedLayers: false,
-  margins: {
+  margins: Object.freeze({
     top: 80,
     right: 80,
     bottom: 80,
     left: 80,
-  },
+  }),
   animationDuration: 150,
   theme: graphTheme,
-};
+});

@@ -35,19 +35,19 @@ import { useNodeHoverZIndex } from './useNodeHoverZIndex';
 import { useSearchHighlighting } from './useSearchHighlighting';
 import { useSelectionHighlighting } from './useSelectionHighlighting';
 import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
+import { getActiveCollisionConfig } from '../layout/collisionResolver';
 import { getRenderingStrategy } from '../rendering/strategyRegistry';
 import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
 
 import type { ComputedRef, Ref } from 'vue';
 import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
-import type { LayoutConfig } from '../layout/config';
+import type { CollisionConfig, CollisionResult } from '../layout/collisionResolver';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { SearchResult } from '../types/SearchResult';
 
 export { DEFAULT_VIEWPORT };
-export type { LayoutConfig };
 
 /** Type for graph/edge stat count entries (avoids exporting local interface). */
 export interface GraphStatCountEntry {
@@ -109,6 +109,8 @@ export interface DependencyGraphCoreReturn {
   highlightedEdgeIds: Ref<Set<string>>;
   highlightedEdgeIdList: Ref<string[]>;
   renderedEdges: ComputedRef<GraphEdge[]>;
+  activeCollisionConfig: ComputedRef<CollisionConfig>;
+  lastCollisionResult: Ref<CollisionResult | null>;
   useOnlyRenderVisibleElements: ComputedRef<boolean>;
   defaultEdgeOptions: ComputedRef<DefaultEdgeOptions>;
   selectedNode: Ref<DependencyNode | null>;
@@ -148,9 +150,6 @@ export interface DependencyGraphCoreReturn {
   handleKeyDown: (event: KeyboardEvent) => void;
   onNodeMouseEnter: (params: { node: unknown }) => void;
   onNodeMouseLeave: (params: { node: unknown }) => void;
-  handleLayoutChange: (config: { algorithm?: string; direction?: string; nodeSpacing?: number; rankSpacing?: number }) => Promise<void>;
-  handleResetLayout: () => Promise<void>;
-  handleResetView: () => void;
   handleRelationshipFilterChange: (types: string[]) => Promise<void>;
   handleNodeTypeFilterChange: (types: string[]) => Promise<void>;
   handleCollapseSccToggle: (value: boolean) => Promise<void>;
@@ -158,7 +157,6 @@ export interface DependencyGraphCoreReturn {
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;
   handleMemberNodeModeChange: (value: 'compact' | 'graph') => Promise<void>;
   handleOrphanGlobalToggle: (value: boolean) => Promise<void>;
-  handleDegreeWeightedLayersToggle: (value: boolean) => Promise<void>;
   handleShowFpsToggle: (value: boolean) => void;
   handleFpsAdvancedToggle: (value: boolean) => void;
   handleRenderingStrategyChange: (id: RenderingStrategyId) => Promise<void>;
@@ -193,6 +191,13 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   const graphSettings = useGraphSettings();
   const envDefaultRendererMode: RenderingStrategyId = env.EDGE_RENDERER_MODE === 'vue-flow' ? 'vueflow' : 'canvas';
   graphSettings.initializeRenderingStrategyId(envDefaultRendererMode);
+  const startupStrategy = getRenderingStrategy(graphSettings.renderingStrategyId);
+  if (startupStrategy.runtime.forcesClusterByFolder && !graphSettings.clusterByFolder) {
+    graphSettings.setClusterByFolder(true);
+  }
+  if (startupStrategy.runtime.forcesClusterByFolder && graphSettings.collapseScc) {
+    graphSettings.setCollapseScc(false);
+  }
   const issuesStore = useIssuesStore();
   const insightsStore = useInsightsStore();
   const interaction = useGraphInteractionController();
@@ -371,9 +376,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
       get highlightOrphanGlobal() {
         return graphSettings.highlightOrphanGlobal;
       },
-      get degreeWeightedLayers() {
-        return graphSettings.degreeWeightedLayers;
-      },
       get renderingStrategyId() {
         return graphSettings.renderingStrategyId;
       },
@@ -404,6 +406,9 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   });
 
   const { isLayoutPending, isLayoutMeasuring, layoutConfig } = graphLayout;
+  const activeCollisionConfig = computed(() =>
+    getActiveCollisionConfig(graphSettings.renderingStrategyId, graphSettings.strategyOptionsById)
+  );
 
   let reconcileSelectedNodeFn: (updatedNodes: DependencyNode[]) => void = (_updatedNodes) => undefined;
 
@@ -425,9 +430,13 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     reconcileSelectedNodeAfterStructuralChange: (updatedNodes) => {
       reconcileSelectedNodeFn(updatedNodes);
     },
+    collisionConfigInputs: {
+      renderingStrategyId: computed(() => graphSettings.renderingStrategyId),
+      strategyOptionsById: computed(() => graphSettings.strategyOptionsById),
+    },
   });
 
-  const { handleNodesChange } = collisionResolution;
+  const { handleNodesChange, lastCollisionResult } = collisionResolution;
 
   const selectionHighlighting = useSelectionHighlighting({
     nodes,
@@ -643,6 +652,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   const onPaneClick = (): void => {
     setSelectedNode(null);
     contextMenu.value = null;
+    interaction.setCameraMode('free');
   };
 
   const handleFocusNode = async (nodeId: string): Promise<void> => {
@@ -743,26 +753,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     }
   };
 
-  const handleLayoutChange = async (config: {
-    algorithm?: string;
-    direction?: string;
-    nodeSpacing?: number;
-    rankSpacing?: number;
-  }) => {
-    graphLayout.setLayoutConfig(config as Partial<LayoutConfig>);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleResetLayout = async (): Promise<void> => {
-    graphLayout.resetLayoutConfig();
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleResetView = (): void => {
-    interaction.setCameraMode('free');
-    setSelectedNode(null);
-  };
-
   const handleRelationshipFilterChange = async (types: string[]) => {
     graphSettings.setEnabledRelationshipTypes(types);
     await graphLayout.requestGraphInitialization();
@@ -775,7 +765,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   };
 
   const handleCollapseSccToggle = async (value: boolean) => {
-    if (graphSettings.clusterByFolder && value) {
+    const strategyForScc = getRenderingStrategy(graphSettings.renderingStrategyId);
+    if ((graphSettings.clusterByFolder || strategyForScc.runtime.forcesClusterByFolder) && value) {
       graphSettings.setCollapseScc(false);
       return;
     }
@@ -784,6 +775,15 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   };
 
   const handleClusterByFolderToggle = async (value: boolean) => {
+    const activeStrategy = getRenderingStrategy(graphSettings.renderingStrategyId);
+    if (activeStrategy.runtime.forcesClusterByFolder && !value) {
+      graphSettings.setClusterByFolder(true);
+      if (graphSettings.collapseScc) {
+        graphSettings.setCollapseScc(false);
+      }
+      await graphLayout.requestGraphInitialization();
+      return;
+    }
     if (value && graphSettings.collapseScc) {
       graphSettings.setCollapseScc(false);
     }
@@ -806,11 +806,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     await graphLayout.requestGraphInitialization();
   };
 
-  const handleDegreeWeightedLayersToggle = async (value: boolean) => {
-    graphSettings.setDegreeWeightedLayers(value);
-    await graphLayout.requestGraphInitialization();
-  };
-
   const handleShowFpsToggle = (value: boolean): void => {
     graphSettings.setShowFps(value);
   };
@@ -820,6 +815,13 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   };
 
   const handleRenderingStrategyChange = async (id: RenderingStrategyId): Promise<void> => {
+    const strategy = getRenderingStrategy(id);
+    if (strategy.runtime.forcesClusterByFolder) {
+      graphSettings.setClusterByFolder(true);
+      if (graphSettings.collapseScc) {
+        graphSettings.setCollapseScc(false);
+      }
+    }
     if (graphSettings.renderingStrategyId !== id) {
       graphSettings.setRenderingStrategyId(id);
       await graphLayout.requestGraphInitialization();
@@ -912,6 +914,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     highlightedEdgeIds,
     highlightedEdgeIdList,
     renderedEdges,
+    activeCollisionConfig,
+    lastCollisionResult,
     useOnlyRenderVisibleElements,
     defaultEdgeOptions,
     selectedNode,
@@ -965,18 +969,14 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     handleKeyDown,
     onNodeMouseEnter,
     onNodeMouseLeave,
-    handleLayoutChange,
-    handleResetLayout,
-    handleResetView,
-    handleRelationshipFilterChange,
+  handleRelationshipFilterChange,
     handleNodeTypeFilterChange,
     handleCollapseSccToggle,
     handleClusterByFolderToggle,
     handleHideTestFilesToggle,
     handleMemberNodeModeChange,
-    handleOrphanGlobalToggle,
-    handleDegreeWeightedLayersToggle,
-    handleShowFpsToggle,
+  handleOrphanGlobalToggle,
+  handleShowFpsToggle,
     handleFpsAdvancedToggle,
     handleRenderingStrategyChange,
     handleRenderingStrategyOptionChange,

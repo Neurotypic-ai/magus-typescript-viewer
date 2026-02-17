@@ -50,6 +50,8 @@ export interface RenderingStrategyRuntime {
   supportsDegreeWeightedLayers: boolean;
   buildMode: 'overview' | 'folderDistributor';
   supportsIsolation: boolean;
+  /** When true, graph building always clusters by folder; Folder toggle is locked. */
+  forcesClusterByFolder: boolean;
 }
 
 export interface RenderingStrategy {

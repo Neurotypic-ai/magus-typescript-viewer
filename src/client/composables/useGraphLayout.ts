@@ -1,28 +1,27 @@
 import { nextTick, ref } from 'vue';
 
-import { optimizeHighwayHandleRouting } from '../graph/transforms/edgeHighways';
-import { defaultLayoutConfig } from '../layout/config';
-import { WebWorkerLayoutProcessor } from '../layout/WebWorkerLayoutProcessor';
-import { measurePerformance } from '../utils/performanceMonitoring';
-
 import { buildFolderDistributorGraph, buildOverviewGraph } from '../graph/buildGraphView';
-import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { getHandlePositions } from '../graph/handleRouting';
-import { simpleHash } from '../utils/hash';
-import { waitForNextPaint } from '../utils/dom';
-import { isContainerNode } from './useNodeDimensions';
+import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
+import { optimizeHighwayHandleRouting } from '../graph/transforms/edgeHighways';
+import { WebWorkerLayoutProcessor } from '../layout/WebWorkerLayoutProcessor';
+import { defaultLayoutConfig } from '../layout/config';
 import { getRenderingStrategy } from '../rendering/strategyRegistry';
+import { waitForNextPaint } from '../utils/dom';
+import { simpleHash } from '../utils/hash';
+import { measurePerformance } from '../utils/performanceMonitoring';
+import { isContainerNode } from './useNodeDimensions';
 
 import type { Ref } from 'vue';
 
 import type { WebWorkerLayoutConfig } from '../layout/WebWorkerLayoutProcessor';
 import type { LayoutConfig } from '../layout/config';
+import type { RenderingStrategyId, RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { ManualOffset } from '../types/ManualOffset';
-import type { RenderingStrategyId, RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
 
 export interface LayoutProcessOptions {
   fitViewToResult?: boolean;
@@ -107,6 +106,14 @@ export type SuspendCacheWrites = () => void;
 /** Resumes cache writes. */
 export type ResumeCacheWrites = () => void;
 
+function getActiveDegreeWeightedLayers(
+  strategyId: RenderingStrategyId,
+  strategyOptionsById: RenderingStrategyOptionsById
+): boolean {
+  const opts = strategyOptionsById[strategyId];
+  return typeof opts['degreeWeightedLayers'] === 'boolean' ? opts['degreeWeightedLayers'] : false;
+}
+
 export interface GraphLayoutStore {
   nodes: DependencyNode[];
   setNodes: SetNodes;
@@ -129,7 +136,6 @@ export interface GraphSettings {
   hideTestFiles: boolean;
   memberNodeMode: MemberNodeMode;
   highlightOrphanGlobal: boolean;
-  degreeWeightedLayers: boolean;
   renderingStrategyId: RenderingStrategyId;
   strategyOptionsById: RenderingStrategyOptionsById;
 }
@@ -229,9 +235,6 @@ export type MeasureAllNodeDimensions = (layoutedNodes: DependencyNode[]) => Meas
 /** Returns whether two-pass measurement should run for the given node count. */
 export type ShouldRunTwoPassMeasure = (nodeCount: number) => boolean;
 
-/** Sets layout config from a partial. */
-export type SetLayoutConfig = (partial: Partial<LayoutConfig>) => void;
-
 export interface GraphLayout {
   isLayoutPending: Readonly<Ref<boolean>>;
   isLayoutMeasuring: Readonly<Ref<boolean>>;
@@ -241,8 +244,6 @@ export interface GraphLayout {
   requestGraphInitialization: (overrides?: LayoutProcessOptions) => Promise<void>;
   measureAllNodeDimensions: MeasureAllNodeDimensions;
   shouldRunTwoPassMeasure: ShouldRunTwoPassMeasure;
-  setLayoutConfig: SetLayoutConfig;
-  resetLayoutConfig: () => void;
   dispose: () => void;
 }
 
@@ -275,20 +276,26 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   const layoutCache = new Map<string, LayoutCacheEntry>();
   let layoutCacheWeight = 0;
 
-  const layoutConfig: LayoutConfig = { ...defaultLayoutConfig };
+  const layoutConfig = defaultLayoutConfig;
 
   // ── Layout processor config ──
 
-  const getLayoutProcessorConfig = (): WebWorkerLayoutConfig => ({
-    algorithm: layoutConfig.algorithm,
-    direction: layoutConfig.direction,
-    nodeSpacing: layoutConfig.nodeSpacing,
-    rankSpacing: layoutConfig.rankSpacing,
-    edgeSpacing: layoutConfig.edgeSpacing,
-    degreeWeightedLayers: graphSettings.degreeWeightedLayers,
-    theme: layoutConfig.theme,
-    animationDuration: layoutConfig.animationDuration,
-  });
+  const getLayoutProcessorConfig = (): WebWorkerLayoutConfig => {
+    const degreeWeightedLayers = getActiveDegreeWeightedLayers(
+      graphSettings.renderingStrategyId,
+      graphSettings.strategyOptionsById
+    );
+    return {
+      algorithm: layoutConfig.algorithm,
+      direction: layoutConfig.direction,
+      nodeSpacing: layoutConfig.nodeSpacing,
+      rankSpacing: layoutConfig.rankSpacing,
+      edgeSpacing: layoutConfig.edgeSpacing,
+      degreeWeightedLayers,
+      theme: layoutConfig.theme,
+      animationDuration: layoutConfig.animationDuration,
+    };
+  };
 
   const initializeLayoutProcessor = () => {
     layoutRequestVersion += 1;
@@ -303,10 +310,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   // ── Cache helpers ──
 
-  const computeLayoutCacheKey = (
-    cacheNodes: DependencyNode[],
-    edgeList: GraphEdge[]
-  ): string => {
+  const computeLayoutCacheKey = (cacheNodes: DependencyNode[], edgeList: GraphEdge[]): string => {
     const nodeIds = cacheNodes
       .map((n) => n.id)
       .sort()
@@ -315,7 +319,9 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       .map((e) => e.id)
       .sort()
       .join(',');
-    const dwl = graphSettings.degreeWeightedLayers ? 1 : 0;
+    const dwl = getActiveDegreeWeightedLayers(graphSettings.renderingStrategyId, graphSettings.strategyOptionsById)
+      ? 1
+      : 0;
     return `${layoutConfig.algorithm}:${layoutConfig.direction}:${String(layoutConfig.nodeSpacing)}:${String(layoutConfig.rankSpacing)}:${String(layoutConfig.edgeSpacing)}:dwl${String(dwl)}:${String(nodeIds.length)}:${String(edgeIds.length)}:${String(simpleHash(nodeIds))}:${String(simpleHash(edgeIds))}`;
   };
 
@@ -490,10 +496,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   // ── Layout normalization ──
 
-  const normalizeLayoutResult = (
-    resultNodes: DependencyNode[],
-    resultEdges: GraphEdge[]
-  ): GraphSnapshot => {
+  const normalizeLayoutResult = (resultNodes: DependencyNode[], resultEdges: GraphEdge[]): GraphSnapshot => {
     const { sourcePosition, targetPosition } = getHandlePositions(layoutConfig.direction);
 
     const nodesWithHandles = resultNodes.map((node) => ({
@@ -545,9 +548,8 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         layoutCache.set(cacheKey, cachedEntry);
 
         const previousNodes = graphStore.nodes;
-        const cachedNodes = graphStore.manualOffsets.size > 0
-          ? graphStore.applyManualOffsets(cachedEntry.nodes)
-          : cachedEntry.nodes;
+        const cachedNodes =
+          graphStore.manualOffsets.size > 0 ? graphStore.applyManualOffsets(cachedEntry.nodes) : cachedEntry.nodes;
         graphStore.setNodes(cachedNodes);
         graphStore.setEdges(cachedEntry.edges);
         pruneNodeMeasurementCache(cachedNodes);
@@ -763,34 +765,6 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     }
   };
 
-  // ── Config management ──
-
-  const setLayoutConfig = (partial: Partial<LayoutConfig>): void => {
-    if (partial.algorithm) {
-      layoutConfig.algorithm = partial.algorithm;
-    }
-    if (partial.direction) {
-      layoutConfig.direction = partial.direction;
-    }
-    if (partial.nodeSpacing !== undefined) {
-      layoutConfig.nodeSpacing = partial.nodeSpacing;
-    }
-    if (partial.rankSpacing !== undefined) {
-      layoutConfig.rankSpacing = partial.rankSpacing;
-    }
-    if (partial.edgeSpacing !== undefined) {
-      layoutConfig.edgeSpacing = partial.edgeSpacing;
-    }
-  };
-
-  const resetLayoutConfig = (): void => {
-    layoutConfig.algorithm = defaultLayoutConfig.algorithm;
-    layoutConfig.direction = defaultLayoutConfig.direction;
-    layoutConfig.nodeSpacing = defaultLayoutConfig.nodeSpacing;
-    layoutConfig.rankSpacing = defaultLayoutConfig.rankSpacing;
-    layoutConfig.edgeSpacing = defaultLayoutConfig.edgeSpacing;
-  };
-
   // ── Cleanup ──
 
   const dispose = (): void => {
@@ -812,8 +786,6 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     requestGraphInitialization,
     measureAllNodeDimensions,
     shouldRunTwoPassMeasure,
-    setLayoutConfig,
-    resetLayoutConfig,
     dispose,
   };
 }

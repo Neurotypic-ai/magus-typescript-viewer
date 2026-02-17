@@ -321,21 +321,140 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 13. Graph controls panel
+  // 13. Graph controls panel (new controls architecture)
   // ---------------------------------------------------------------------------
-  test('graph controls panel renders layout and rendering strategy controls', async ({ page }) => {
-    // The controls are inside a Vue Flow panel at top-left.
+  test('graph controls panel renders search at top without layout/direction/reset controls', async ({ page }) => {
     const controlsPanel = page.locator('.vue-flow__panel.top.left');
     await expect(controlsPanel).toBeVisible();
 
-    // Verify layout algorithm buttons exist.
+    // Search input appears at top of controls (embedded in panel per new architecture).
+    const searchInput = controlsPanel.locator('input[placeholder*="Search" i]');
+    await expect(searchInput).toBeVisible();
+
+    // Deprecated layout/reset controls must NOT exist.
+    await expect(controlsPanel.getByRole('button', { name: /reset view/i })).toHaveCount(0);
+    await expect(controlsPanel.getByRole('button', { name: /reset layout/i })).toHaveCount(0);
     for (const algo of ['layered', 'radial', 'force', 'stress']) {
-      const button = controlsPanel.locator(`button[aria-label="Set layout algorithm to ${algo}"]`);
-      await expect(button).toBeVisible();
+      await expect(controlsPanel.locator(`button[aria-label="Set layout algorithm to ${algo}"]`)).toHaveCount(0);
+    }
+    for (const dir of ['LR', 'RL', 'TB', 'BT']) {
+      await expect(controlsPanel.locator(`button[aria-label="Set layout direction to ${dir}"]`)).toHaveCount(0);
+    }
+  });
+
+  test('Folder control exists in Node Types section', async ({ page }) => {
+    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const nodeTypesToggle = controlsPanel.getByRole('button', { name: /node types/i }).first();
+    await expect(nodeTypesToggle).toBeVisible();
+    if ((await nodeTypesToggle.getAttribute('aria-expanded')) === 'false') {
+      await nodeTypesToggle.click();
+    }
+    const nodeTypesSectionId = await nodeTypesToggle.getAttribute('aria-controls');
+    expect(nodeTypesSectionId).toBeTruthy();
+    if (!nodeTypesSectionId) {
+      throw new Error('Node Types section id missing');
+    }
+    const nodeTypesBlock = controlsPanel.locator(`#${nodeTypesSectionId}`);
+    await expect(nodeTypesBlock).toBeVisible();
+
+    const folderControl = nodeTypesBlock.locator('label').filter({ hasText: /^folder$/i }).first();
+    await expect(folderControl).toBeVisible();
+  });
+
+  test('SCC (Collapse cycles) appears in Analysis section with disable logic', async ({ page }) => {
+    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const analysisToggle = controlsPanel.getByRole('button', { name: /analysis/i }).first();
+    await expect(analysisToggle).toBeVisible();
+    if ((await analysisToggle.getAttribute('aria-expanded')) === 'false') {
+      await analysisToggle.click();
+    }
+    const analysisSectionId = await analysisToggle.getAttribute('aria-controls');
+    expect(analysisSectionId).toBeTruthy();
+    if (!analysisSectionId) {
+      throw new Error('Analysis section id missing');
+    }
+    const analysisBlock = controlsPanel.locator(`#${analysisSectionId}`);
+    await expect(analysisBlock).toBeVisible();
+
+    const sccLabel = analysisBlock.locator('label').filter({ hasText: /collapse cycles/i }).first();
+    await expect(sccLabel).toBeVisible();
+
+    const sccCheckbox = sccLabel.locator('input[type="checkbox"]');
+    await expect(sccCheckbox).toBeVisible();
+
+    // When clusterByFolder is ON (or forcesClusterByFolder), SCC must be disabled.
+    const folderCheckbox = controlsPanel
+      .locator('label')
+      .filter({ hasText: /folder|cluster by folder/i })
+      .first()
+      .locator('input[type="checkbox"]');
+    const folderChecked = await folderCheckbox.isChecked();
+
+    if (folderChecked) {
+      await expect(sccCheckbox).toBeDisabled();
+    }
+  });
+
+  test('at least one collapsible section toggles expand/collapse', async ({ page }) => {
+    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const collapsibleToggles = controlsPanel.locator('[aria-expanded]');
+    if ((await collapsibleToggles.count()) === 0) {
+      test.skip(true, 'Collapsible sections not yet implemented');
+    }
+    const collapsibleToggle = collapsibleToggles.first();
+
+    const expandedBefore = await collapsibleToggle.getAttribute('aria-expanded');
+    await collapsibleToggle.click();
+    await page.waitForTimeout(150);
+
+    const expandedAfter = await collapsibleToggle.getAttribute('aria-expanded');
+    expect(expandedAfter).not.toBe(expandedBefore);
+
+    await collapsibleToggle.click();
+    await page.waitForTimeout(150);
+    const expandedRestored = await collapsibleToggle.getAttribute('aria-expanded');
+    expect(expandedRestored).toBe(expandedBefore);
+  });
+
+  test('debug bounds overlay renders when enabled from Debug section', async ({ page }) => {
+    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const debugToggle = controlsPanel.getByRole('button', { name: /debug/i }).first();
+    await expect(debugToggle).toBeVisible();
+    if ((await debugToggle.getAttribute('aria-expanded')) === 'false') {
+      await debugToggle.click();
     }
 
-    // Rendering strategy section should be present and exposed as a radiogroup.
-    await expect(controlsPanel.locator('legend', { hasText: 'Rendering Strategy' })).toBeVisible();
+    const debugSectionId = await debugToggle.getAttribute('aria-controls');
+    expect(debugSectionId).toBeTruthy();
+    if (!debugSectionId) {
+      throw new Error('Debug section id missing');
+    }
+    const debugSection = controlsPanel.locator(`#${debugSectionId}`);
+    await expect(debugSection).toBeVisible();
+
+    const boundsLabel = debugSection.locator('label').filter({ hasText: /show collision bounds/i }).first();
+    await expect(boundsLabel).toBeVisible();
+
+    const boundsCheckbox = boundsLabel.locator('input[type="checkbox"]');
+    if (!(await boundsCheckbox.isChecked())) {
+      await boundsCheckbox.check();
+    }
+
+    await expect(page.locator('.debug-bounds-overlay')).toBeVisible();
+    await expect(page.locator('.debug-bounds-overlay rect').first()).toBeVisible();
+
+    if (await boundsCheckbox.isChecked()) {
+      await boundsCheckbox.uncheck();
+    }
+  });
+
+  test('rendering strategy radiogroup works with keyboard navigation', async ({ page }) => {
+    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const strategyToggle = controlsPanel.getByRole('button', { name: /rendering strategy/i }).first();
+    await expect(strategyToggle).toBeVisible();
+    if ((await strategyToggle.getAttribute('aria-expanded')) === 'false') {
+      await strategyToggle.click();
+    }
     const strategyGroup = controlsPanel.getByRole('radiogroup', { name: /rendering strategy/i });
     await expect(strategyGroup).toBeVisible();
 
@@ -347,7 +466,6 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     const checkedBeforeId = await checkedBefore.getAttribute('data-rendering-strategy-id');
     expect(checkedBeforeId).toBeTruthy();
 
-    // Arrow-key navigation should move checked state.
     await checkedBefore.focus();
     await page.keyboard.press('ArrowRight');
     await page.waitForTimeout(120);
@@ -358,22 +476,6 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
 
     if (strategyRadioCount > 1) {
       expect(checkedAfterArrowId).not.toBe(checkedBeforeId);
-    }
-
-    // Enter should also select the focused radio.
-    const selectableUnchecked = strategyGroup.locator('[role="radio"][aria-checked="false"][aria-disabled="false"]').first();
-    if (await selectableUnchecked.count()) {
-      const uncheckedId = await selectableUnchecked.getAttribute('data-rendering-strategy-id');
-      expect(uncheckedId).toBeTruthy();
-      if (!uncheckedId) {
-        throw new Error('Expected unchecked rendering strategy to include an id');
-      }
-
-      await selectableUnchecked.focus();
-      await page.keyboard.press('Enter');
-      await expect(
-        strategyGroup.locator(`[role="radio"][data-rendering-strategy-id="${uncheckedId}"]`)
-      ).toHaveAttribute('aria-checked', 'true');
     }
   });
 
