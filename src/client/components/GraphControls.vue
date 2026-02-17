@@ -78,6 +78,8 @@ if (!fallbackRenderingStrategy) {
   throw new Error('Rendering strategy registry is empty.');
 }
 const canvasUnavailableMessageId = 'rendering-strategy-canvas-unavailable-copy';
+const folderRequiredReasonId = 'node-types-folder-required-copy';
+const collapseSccDisabledReasonId = 'analysis-collapse-scc-disabled-copy';
 
 const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
 const nodeTypes = ['module', 'class', 'interface', 'package'] as const;
@@ -100,6 +102,11 @@ const moduleMemberLabels: Record<ModuleMemberType, string> = {
 const getRelationshipAvailability = (type: string) => props.relationshipAvailability[type] ?? { available: true };
 const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
 const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
+const relationshipReasonId = (type: string): string =>
+  `relationship-reason-${type.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()}`;
+
+type MemberDisplayMode = 'compact' | 'graph';
+const memberDisplayModes: MemberDisplayMode[] = ['compact', 'graph'];
 
 const activeRenderingStrategy = computed<RenderingStrategy>(() => {
   return (
@@ -286,6 +293,26 @@ const handleNumberRenderingOptionChange = (
   handleRenderingStrategyOptionChange(strategyId, option.id, normalizeNumberOptionValue(option, raw));
 };
 
+const getMemberDisplayTabIndex = (mode: MemberDisplayMode): number =>
+  graphSettings.memberNodeMode === mode ? 0 : -1;
+
+const findAdjacentMemberDisplayMode = (
+  currentMode: MemberDisplayMode,
+  direction: 1 | -1
+): MemberDisplayMode => {
+  const currentIdx = memberDisplayModes.indexOf(currentMode);
+  const baseIdx = currentIdx >= 0 ? currentIdx : 0;
+  const nextIdx = (baseIdx + direction + memberDisplayModes.length) % memberDisplayModes.length;
+  return memberDisplayModes[nextIdx] ?? currentMode;
+};
+
+const focusMemberDisplayRadio = (target: EventTarget | null, mode: MemberDisplayMode) => {
+  if (!(target instanceof HTMLElement)) return;
+  const group = target.closest('[role="radiogroup"]');
+  const radio = group?.querySelector<HTMLElement>(`[role="radio"][data-member-display-mode="${mode}"]`);
+  radio?.focus();
+};
+
 const handleModuleMemberTypeToggle = (type: ModuleMemberType, checked: boolean) => {
   graphSettings.toggleModuleMemberType(type, checked);
 };
@@ -305,10 +332,31 @@ const handleNodeTypeFilterChange = (type: (typeof nodeTypes)[number], checked: b
 const handleCollapseSccToggle = (checked: boolean) => emit('toggle-collapse-scc', checked);
 const handleClusterByFolderToggle = (checked: boolean) => emit('toggle-cluster-folder', checked);
 const handleHideTestFilesToggle = (checked: boolean) => emit('toggle-hide-test-files', checked);
-const handleMemberNodeModeChange = (mode: 'compact' | 'graph') => emit('member-node-mode-change', mode);
+const handleMemberNodeModeChange = (mode: MemberDisplayMode) => emit('member-node-mode-change', mode);
 const handleOrphanGlobalToggle = (checked: boolean) => emit('toggle-orphan-global', checked);
 const handleShowFpsToggle = (checked: boolean) => emit('toggle-show-fps', checked);
 const handleFpsAdvancedToggle = (checked: boolean) => emit('toggle-fps-advanced', checked);
+
+const handleMemberDisplayModeKeydown = (event: KeyboardEvent, mode: MemberDisplayMode) => {
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const prev = findAdjacentMemberDisplayMode(mode, -1);
+    handleMemberNodeModeChange(prev);
+    focusMemberDisplayRadio(event.currentTarget, prev);
+    return;
+  }
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    const next = findAdjacentMemberDisplayMode(mode, 1);
+    handleMemberNodeModeChange(next);
+    focusMemberDisplayRadio(event.currentTarget, next);
+    return;
+  }
+  if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+    event.preventDefault();
+    handleMemberNodeModeChange(mode);
+  }
+};
 
 const onSearchQueryUpdate = (v: string) => {
   if (props.graphSearchContext) props.graphSearchContext.searchQuery.value = v;
@@ -326,9 +374,8 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 
 <template>
   <Panel position="top-left">
-    <div class="bg-background-paper p-4 rounded-lg border border-border-default shadow-xl">
-      <!-- Search Nodes (embedded at top) -->
-      <div v-if="graphSearchContext" class="mb-4">
+    <div class="graph-controls-shell bg-background-paper p-5 rounded-lg border border-border-default shadow-xl">
+      <div v-if="graphSearchContext" class="mb-4 border-b border-border-default pb-4">
         <GraphSearch
           :model-value="searchQueryValue"
           :run-search="graphSearchContext.runSearch"
@@ -336,7 +383,6 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         />
       </div>
 
-      <!-- Node Types -->
       <div class="section-collapse">
         <button
           type="button"
@@ -352,49 +398,52 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         <div
           v-show="!isSectionCollapsed('nodeTypes')"
           :id="'section-nodeTypes'"
-          class="section-content pt-2"
+          class="section-content"
         >
-          <div class="flex flex-col gap-1.5">
-            <label
-              v-for="nodeType in nodeTypes"
-              :key="nodeType"
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.enabledNodeTypes.includes(nodeType)"
-                :aria-label="`Show ${nodeType} nodes`"
-                @change="(e) => handleNodeTypeFilterChange(nodeType, (e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">{{ nodeTypeLabels[nodeType] }}</span>
-            </label>
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary transition-fast mt-1"
-              :class="clusterByFolderEffective ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:text-text-primary'"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="clusterByFolderEffective"
-                :disabled="forcesClusterByFolder"
-                :aria-label="forcesClusterByFolder ? 'Folder nodes (required by Folder View)' : 'Show folder nodes'"
-                @change="(e) => !forcesClusterByFolder && handleClusterByFolderToggle((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Folder</span>
-            </label>
-            <p
-              v-if="forcesClusterByFolder"
-              class="text-[10px] text-text-muted mt-0.5 ml-5"
-            >
-              Required by Folder View strategy.
-            </p>
-          </div>
+          <fieldset class="control-fieldset">
+            <legend class="sr-only">Node type filters</legend>
+            <div class="control-group">
+              <label
+                v-for="nodeType in nodeTypes"
+                :key="nodeType"
+                class="control-row control-row-interactive"
+              >
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.enabledNodeTypes.includes(nodeType)"
+                  @change="(e) => handleNodeTypeFilterChange(nodeType, (e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">{{ nodeTypeLabels[nodeType] }}</span>
+              </label>
+              <label
+                class="control-row"
+                :class="clusterByFolderEffective ? 'control-row-disabled' : 'control-row-interactive'"
+              >
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="clusterByFolderEffective"
+                  :disabled="forcesClusterByFolder"
+                  :aria-disabled="forcesClusterByFolder"
+                  :aria-describedby="forcesClusterByFolder ? folderRequiredReasonId : undefined"
+                  @change="(e) => !forcesClusterByFolder && handleClusterByFolderToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Folder</span>
+              </label>
+            </div>
+          </fieldset>
+          <p
+            v-if="forcesClusterByFolder"
+            :id="folderRequiredReasonId"
+            class="section-helper ml-6 mt-1"
+          >
+            Required by Folder View strategy.
+          </p>
         </div>
       </div>
 
-      <!-- Rendering Strategy -->
-      <div class="section-collapse mt-4 pt-4 border-t border-border-default">
+      <div class="section-collapse section-divider">
         <button
           type="button"
           class="section-header"
@@ -409,9 +458,9 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         <div
           v-show="!isSectionCollapsed('renderingStrategy')"
           :id="'section-renderingStrategy'"
-          class="section-content pt-2"
+          class="section-content"
         >
-          <p class="text-[10px] text-text-secondary mb-2 leading-tight">
+          <p class="section-description">
             Choose a strategy for edge rendering and graph runtime behavior.
           </p>
           <div role="radiogroup" aria-label="Rendering strategy" class="flex flex-col gap-2">
@@ -429,47 +478,46 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
               :tabindex="getRenderingStrategyTabIndex(strategy.id)"
               :data-rendering-strategy-id="strategy.id"
               :class="[
-                'w-full rounded border px-2 py-2 text-left transition-fast',
-                graphSettings.renderingStrategyId === strategy.id
-                  ? 'bg-primary-main/20 border-primary-main text-text-primary'
-                  : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
-                isRenderingStrategyDisabled(strategy.id) ? 'cursor-not-allowed opacity-50 hover:bg-white/10' : '',
+                'strategy-radio',
+                graphSettings.renderingStrategyId === strategy.id ? 'strategy-radio-active' : 'strategy-radio-inactive',
+                isRenderingStrategyDisabled(strategy.id) ? 'strategy-radio-disabled' : '',
               ]"
               @click="handleRenderingStrategyChange(strategy.id)"
               @keydown="(e) => handleRenderingStrategyRadioKeydown(e, strategy.id)"
             >
-              <div class="text-xs font-semibold">{{ strategy.label }}</div>
-              <div class="text-[10px] leading-tight text-text-secondary">{{ strategy.description }}</div>
+              <div class="text-xs font-semibold leading-tight">{{ strategy.label }}</div>
+              <div class="mt-1 text-[11px] leading-tight text-text-secondary">{{ strategy.description }}</div>
             </button>
           </div>
           <p
             v-if="!props.canvasRendererAvailable"
             :id="canvasUnavailableMessageId"
-            class="text-[10px] text-text-muted mt-2 leading-tight"
+            class="section-helper mt-2"
           >
             Canvas strategy is unavailable in this browser session.
           </p>
-          <div v-if="activeRenderingOptions.length > 0" class="mt-3 space-y-2">
-            <h5 class="text-[11px] font-semibold text-text-primary">{{ activeRenderingStrategy.label }} options</h5>
+          <div v-if="activeRenderingOptions.length > 0" class="mt-3 space-y-2" aria-live="polite" aria-atomic="false">
+            <h5 class="text-xs font-semibold text-text-primary">{{ activeRenderingStrategy.label }} options</h5>
             <div
               v-for="option in activeRenderingOptions"
               :key="`${activeRenderingStrategy.id}-${option.id}`"
-              class="rounded border border-border-default bg-white/5 px-2 py-2"
+              class="option-card"
             >
               <label
                 :for="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
-                class="text-xs font-medium text-text-primary"
+                class="block text-xs font-medium text-text-primary"
               >
                 {{ option.label }}
               </label>
-              <p class="mb-2 text-[10px] leading-tight text-text-secondary">{{ option.description }}</p>
+              <p class="option-description">{{ option.description }}</p>
               <input
                 v-if="option.type === 'boolean'"
                 :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
                 type="checkbox"
-                class="cursor-pointer accent-primary-main"
+                class="control-checkbox"
                 :checked="getBooleanRenderingOptionValue(activeRenderingStrategy.id, option)"
                 :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
+                :aria-disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
                 @change="
                   (e) =>
                     handleBooleanRenderingOptionChange(
@@ -482,9 +530,10 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
               <select
                 v-else-if="option.type === 'select'"
                 :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
-                class="w-full rounded border border-border-default bg-background-paper px-2 py-1 text-xs text-text-primary"
+                class="option-select"
                 :value="getSelectRenderingOptionValue(activeRenderingStrategy.id, option)"
                 :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
+                :aria-disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
                 @change="
                   (e) =>
                     handleSelectRenderingOptionChange(
@@ -506,12 +555,17 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
                 <input
                   :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
                   type="range"
-                  class="flex-1 accent-primary-main cursor-pointer"
+                  class="option-range"
                   :min="option.min"
                   :max="option.max"
                   :step="option.step ?? 1"
                   :value="getNumberRenderingOptionValue(activeRenderingStrategy.id, option)"
                   :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
+                  :aria-disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
+                  :aria-valuemin="typeof option.min === 'number' ? option.min : undefined"
+                  :aria-valuemax="typeof option.max === 'number' ? option.max : undefined"
+                  :aria-valuenow="getNumberRenderingOptionValue(activeRenderingStrategy.id, option)"
+                  :aria-valuetext="String(getNumberRenderingOptionValue(activeRenderingStrategy.id, option))"
                   @input="
                     (e) =>
                       handleNumberRenderingOptionChange(
@@ -530,8 +584,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         </div>
       </div>
 
-      <!-- Analysis -->
-      <div class="section-collapse mt-4 pt-4 border-t border-border-default">
+      <div class="section-collapse section-divider">
         <button
           type="button"
           class="section-header"
@@ -546,56 +599,50 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         <div
           v-show="!isSectionCollapsed('analysis')"
           :id="'section-analysis'"
-          class="section-content pt-2"
+          class="section-content"
         >
-          <div class="flex flex-col gap-2">
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.collapseScc"
-                :disabled="isSccDisabled"
-                :aria-label="
-                  isSccDisabled
-                    ? 'Collapse cycles (SCC) unavailable when clustering by folder'
-                    : 'Collapse cycles (SCC)'
-                "
-                @change="(e) => handleCollapseSccToggle((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Collapse cycles (SCC)</span>
-            </label>
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.hideTestFiles"
-                aria-label="Hide test files"
-                @change="(e) => handleHideTestFilesToggle((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Hide test files</span>
-            </label>
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.highlightOrphanGlobal"
-                aria-label="Highlight global orphans"
-                @change="(e) => handleOrphanGlobalToggle((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Highlight global orphans</span>
-            </label>
-          </div>
+          <fieldset class="control-fieldset">
+            <legend class="sr-only">Analysis options</legend>
+            <div class="control-group">
+              <label class="control-row" :class="isSccDisabled ? 'control-row-disabled' : 'control-row-interactive'">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.collapseScc"
+                  :disabled="isSccDisabled"
+                  :aria-disabled="isSccDisabled"
+                  :aria-describedby="isSccDisabled ? collapseSccDisabledReasonId : undefined"
+                  @change="(e) => handleCollapseSccToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Collapse cycles (SCC)</span>
+              </label>
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.hideTestFiles"
+                  @change="(e) => handleHideTestFilesToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Hide test files</span>
+              </label>
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.highlightOrphanGlobal"
+                  @change="(e) => handleOrphanGlobalToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Highlight global orphans</span>
+              </label>
+            </div>
+          </fieldset>
+          <p v-if="isSccDisabled" :id="collapseSccDisabledReasonId" class="section-helper ml-6 mt-1">
+            Unavailable while folder clustering is active.
+          </p>
         </div>
       </div>
 
-      <!-- Module Sections -->
-      <div class="section-collapse mt-4 pt-4 border-t border-border-default">
+      <div class="section-collapse section-divider">
         <button
           type="button"
           class="section-header"
@@ -610,32 +657,33 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         <div
           v-show="!isSectionCollapsed('moduleSections')"
           :id="'section-moduleSections'"
-          class="section-content pt-2"
+          class="section-content"
         >
-          <p class="text-[10px] text-text-secondary mb-2 leading-tight">
-            Toggle which entity types are shown inside module nodes
+          <p class="section-description">
+            Toggle which entity types are shown inside module nodes.
           </p>
-          <div class="flex flex-col gap-1.5">
-            <label
-              v-for="memberType in moduleMemberTypes"
-              :key="memberType"
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.enabledModuleMemberTypes.includes(memberType)"
-                :aria-label="`Show ${moduleMemberLabels[memberType]}`"
-                @change="(e) => handleModuleMemberTypeToggle(memberType, (e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">{{ moduleMemberLabels[memberType] }}</span>
-            </label>
-          </div>
+          <fieldset class="control-fieldset">
+            <legend class="sr-only">Module entity type visibility</legend>
+            <div class="control-group">
+              <label
+                v-for="memberType in moduleMemberTypes"
+                :key="memberType"
+                class="control-row control-row-interactive"
+              >
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.enabledModuleMemberTypes.includes(memberType)"
+                  @change="(e) => handleModuleMemberTypeToggle(memberType, (e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">{{ moduleMemberLabels[memberType] }}</span>
+              </label>
+            </div>
+          </fieldset>
         </div>
       </div>
 
-      <!-- Member Display -->
-      <div class="section-collapse mt-4 pt-4 border-t border-border-default">
+      <div class="section-collapse section-divider">
         <button
           type="button"
           class="section-header"
@@ -650,35 +698,39 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         <div
           v-show="!isSectionCollapsed('memberDisplay')"
           :id="'section-memberDisplay'"
-          class="section-content pt-2"
+          class="section-content"
         >
-          <p class="text-[10px] text-text-secondary mb-2 leading-tight">
-            How properties and methods render within class/interface nodes
+          <p class="section-description">
+            How properties and methods render within class/interface nodes.
           </p>
-          <div class="grid grid-cols-2 gap-2">
+          <div role="radiogroup" aria-label="Member display mode" class="grid grid-cols-2 gap-2">
             <button
               type="button"
+              role="radio"
+              data-member-display-mode="compact"
+              :aria-checked="graphSettings.memberNodeMode === 'compact'"
+              :tabindex="getMemberDisplayTabIndex('compact')"
               :class="[
-                'px-2 py-1.5 text-xs rounded border transition-fast',
-                graphSettings.memberNodeMode === 'compact'
-                  ? 'bg-primary-main text-white border-primary-main'
-                  : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
+                'strategy-radio member-mode-radio',
+                graphSettings.memberNodeMode === 'compact' ? 'strategy-radio-active' : 'strategy-radio-inactive',
               ]"
-              aria-label="Set member display mode to compact"
               @click="handleMemberNodeModeChange('compact')"
+              @keydown="(e) => handleMemberDisplayModeKeydown(e, 'compact')"
             >
               Compact
             </button>
             <button
               type="button"
+              role="radio"
+              data-member-display-mode="graph"
+              :aria-checked="graphSettings.memberNodeMode === 'graph'"
+              :tabindex="getMemberDisplayTabIndex('graph')"
               :class="[
-                'px-2 py-1.5 text-xs rounded border transition-fast',
-                graphSettings.memberNodeMode === 'graph'
-                  ? 'bg-primary-main text-white border-primary-main'
-                  : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
+                'strategy-radio member-mode-radio',
+                graphSettings.memberNodeMode === 'graph' ? 'strategy-radio-active' : 'strategy-radio-inactive',
               ]"
-              aria-label="Set member display mode to separate nodes"
               @click="handleMemberNodeModeChange('graph')"
+              @keydown="(e) => handleMemberDisplayModeKeydown(e, 'graph')"
             >
               Separate Nodes
             </button>
@@ -686,8 +738,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         </div>
       </div>
 
-      <!-- Relationship Types -->
-      <div class="section-collapse mt-4 pt-4 border-t border-border-default">
+      <div class="section-collapse section-divider">
         <button
           type="button"
           class="section-header"
@@ -702,40 +753,34 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         <div
           v-show="!isSectionCollapsed('relationshipTypes')"
           :id="'section-relationshipTypes'"
-          class="section-content pt-2"
+          class="section-content"
         >
-          <div class="flex flex-col gap-1.5">
-            <label
-              v-for="type in relationshipTypes"
-              :key="type"
-              class="flex items-center gap-2 text-sm text-text-secondary transition-fast"
-              :class="[
-                isRelationshipDisabled(type)
-                  ? 'cursor-not-allowed opacity-60'
-                  : 'cursor-pointer hover:text-text-primary',
-              ]"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.enabledRelationshipTypes.includes(type)"
-                :disabled="isRelationshipDisabled(type)"
-                :aria-label="`${type} relationships`"
-                @change="(e) => handleRelationshipFilterChange(type, (e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs capitalize">
-                {{ type }}
-                <span v-if="isRelationshipDisabled(type)" class="text-text-muted">
-                  ({{ relationshipReason(type) }})
-                </span>
-              </span>
-            </label>
-          </div>
+          <fieldset class="control-fieldset">
+            <legend class="sr-only">Relationship visibility filters</legend>
+            <div class="control-group">
+              <div v-for="type in relationshipTypes" :key="type" class="space-y-1">
+                <label class="control-row" :class="isRelationshipDisabled(type) ? 'control-row-disabled' : 'control-row-interactive'">
+                  <input
+                    type="checkbox"
+                    class="control-checkbox"
+                    :checked="graphSettings.enabledRelationshipTypes.includes(type)"
+                    :disabled="isRelationshipDisabled(type)"
+                    :aria-disabled="isRelationshipDisabled(type)"
+                    :aria-describedby="isRelationshipDisabled(type) ? relationshipReasonId(type) : undefined"
+                    @change="(e) => handleRelationshipFilterChange(type, (e.target as HTMLInputElement).checked)"
+                  />
+                  <span class="control-label capitalize">{{ type }}</span>
+                </label>
+                <p v-if="isRelationshipDisabled(type)" :id="relationshipReasonId(type)" class="section-helper ml-6">
+                  {{ relationshipReason(type) }}
+                </p>
+              </div>
+            </div>
+          </fieldset>
         </div>
       </div>
 
-      <!-- Performance -->
-      <div class="section-collapse mt-4 pt-4 border-t border-border-default">
+      <div class="section-collapse section-divider">
         <button
           type="button"
           class="section-header"
@@ -750,38 +795,35 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         <div
           v-show="!isSectionCollapsed('performance')"
           :id="'section-performance'"
-          class="section-content pt-2"
+          class="section-content"
         >
-          <div class="flex flex-col gap-2">
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.showFps"
-                aria-label="Show FPS"
-                @change="(e) => handleShowFpsToggle((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Show FPS</span>
-            </label>
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.showFpsAdvanced"
-                aria-label="FPS advanced stats"
-                @change="(e) => handleFpsAdvancedToggle((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Advanced</span>
-            </label>
-          </div>
+          <fieldset class="control-fieldset">
+            <legend class="sr-only">Performance options</legend>
+            <div class="control-group">
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.showFps"
+                  @change="(e) => handleShowFpsToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Show FPS</span>
+              </label>
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.showFpsAdvanced"
+                  @change="(e) => handleFpsAdvancedToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Advanced</span>
+              </label>
+            </div>
+          </fieldset>
         </div>
       </div>
 
-      <div class="section-collapse mt-4 pt-4 border-t border-border-default">
+      <div class="section-collapse section-divider">
         <button
           type="button"
           class="section-header"
@@ -796,51 +838,45 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         <div
           v-show="!isSectionCollapsed('debug')"
           :id="'section-debug'"
-          class="section-content pt-2"
+          class="section-content"
         >
-          <div class="flex flex-col gap-2">
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.showDebugBounds"
-                aria-label="Show debug collision bounds"
-                @change="(e) => graphSettings.setShowDebugBounds((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Show collision bounds</span>
-            </label>
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.showDebugHandles"
-                aria-label="Show debug handle anchors"
-                @change="(e) => graphSettings.setShowDebugHandles((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Show handles</span>
-            </label>
-            <label
-              class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer hover:text-text-primary transition-fast"
-            >
-              <input
-                type="checkbox"
-                class="cursor-pointer accent-primary-main"
-                :checked="graphSettings.showDebugNodeIds"
-                aria-label="Show debug node ids"
-                @change="(e) => graphSettings.setShowDebugNodeIds((e.target as HTMLInputElement).checked)"
-              />
-              <span class="text-xs">Show node IDs</span>
-            </label>
-            <div class="rounded border border-border-default bg-white/5 px-2 py-2 text-[10px] text-text-secondary leading-tight">
-              <div>Strategy: {{ graphSettings.renderingStrategyId }}</div>
-              <div>Minimum distance: {{ activeMinimumDistance }}px</div>
-              <div>Overlap gap: {{ activeCollisionConfig.overlapGap }}px</div>
+          <fieldset class="control-fieldset">
+            <legend class="sr-only">Debug rendering options</legend>
+            <div class="control-group">
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.showDebugBounds"
+                  @change="(e) => graphSettings.setShowDebugBounds((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Show collision bounds</span>
+              </label>
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.showDebugHandles"
+                  @change="(e) => graphSettings.setShowDebugHandles((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Show handles</span>
+              </label>
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.showDebugNodeIds"
+                  @change="(e) => graphSettings.setShowDebugNodeIds((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Show node IDs</span>
+              </label>
+              <div class="debug-summary">
+                <div>Strategy: {{ graphSettings.renderingStrategyId }}</div>
+                <div>Minimum distance: {{ activeMinimumDistance }}px</div>
+                <div>Overlap gap: {{ activeCollisionConfig.overlapGap }}px</div>
+              </div>
             </div>
-          </div>
+          </fieldset>
         </div>
       </div>
     </div>
@@ -848,8 +884,35 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 </template>
 
 <style scoped>
+.graph-controls-shell {
+  width: min(24rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 1.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.graph-controls-shell::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+.graph-controls-shell::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.graph-controls-shell::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .section-collapse {
   margin: 0;
+}
+
+.section-divider {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.7);
 }
 
 .section-header {
@@ -857,33 +920,233 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 0;
+  min-height: 2rem;
   margin: 0;
+  padding: 0.4rem 0.45rem;
   background: none;
   border: none;
+  border-radius: 0.4rem;
   color: inherit;
   font: inherit;
   cursor: pointer;
   text-align: left;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
 }
 
 .section-header:hover {
   color: var(--color-text-primary, currentColor);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .section-header:focus-visible {
-  outline: 2px solid var(--color-border-focus, #22d3ee);
+  outline: 2px solid var(--focus-ring, #00ffff);
   outline-offset: 2px;
 }
 
 .section-label {
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.84rem;
+  font-weight: 650;
   color: var(--color-text-primary, currentColor);
+  letter-spacing: 0.01em;
 }
 
 .section-chevron {
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   opacity: 0.9;
+}
+
+.section-content {
+  padding: 0.45rem 0.45rem 0;
+}
+
+.section-description {
+  margin-bottom: 0.55rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.section-helper {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.control-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 1.65rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--color-text-secondary);
+  transition: color 150ms ease-out;
+}
+
+.control-row-interactive {
+  cursor: pointer;
+}
+
+.control-row-interactive:hover {
+  color: var(--color-text-primary);
+}
+
+.control-row-disabled {
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+}
+
+.control-label {
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.control-checkbox {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  min-height: 1rem;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary-main);
+}
+
+.control-checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.control-checkbox:focus-visible {
+  outline: 2px solid var(--focus-ring, #00ffff);
+  outline-offset: 2px;
+}
+
+.strategy-radio {
+  width: 100%;
+  border-radius: 0.45rem;
+  border: 1px solid var(--color-border-default);
+  padding: 0.58rem 0.65rem;
+  text-align: left;
+  transition:
+    border-color 150ms ease-out,
+    background-color 150ms ease-out,
+    color 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+
+.strategy-radio-inactive {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.strategy-radio-inactive:hover {
+  border-color: var(--color-border-hover);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.strategy-radio-active {
+  color: var(--color-text-primary);
+  border-color: var(--color-primary-main);
+  background: rgba(144, 202, 249, 0.2);
+  box-shadow: 0 0 0 1px rgba(144, 202, 249, 0.2);
+}
+
+.strategy-radio-disabled {
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+  border-color: rgba(var(--border-default-rgb, 64, 64, 64), 0.6);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.strategy-radio:focus-visible {
+  outline: 2px solid var(--focus-ring, #00ffff);
+  outline-offset: 2px;
+}
+
+.member-mode-radio {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.option-card {
+  border-radius: 0.45rem;
+  border: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.72);
+  background: rgba(255, 255, 255, 0.09);
+  padding: 0.55rem 0.6rem;
+}
+
+.option-description {
+  margin-bottom: 0.5rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.option-select {
+  width: 100%;
+  border-radius: 0.4rem;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-background-paper);
+  color: var(--color-text-primary);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  padding: 0.3rem 0.5rem;
+}
+
+.option-select:focus-visible {
+  outline: 2px solid var(--focus-ring, #00ffff);
+  outline-offset: 2px;
+  border-color: var(--color-primary-main);
+}
+
+.option-range {
+  flex: 1;
+  cursor: pointer;
+  accent-color: var(--color-primary-main);
+}
+
+.option-range:disabled {
+  cursor: not-allowed;
+}
+
+.option-range:focus-visible {
+  outline: 2px solid var(--focus-ring, #00ffff);
+  outline-offset: 2px;
+}
+
+.debug-summary {
+  border-radius: 0.45rem;
+  border: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.72);
+  background: rgba(255, 255, 255, 0.09);
+  padding: 0.5rem 0.6rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

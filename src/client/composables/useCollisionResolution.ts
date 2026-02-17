@@ -217,7 +217,9 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
           } as DependencyNode);
         }
 
+        // Clamp positions to exclusion zones before writing — prevents spring overshoot
         if (nodeUpdates.size > 0) {
+          clampToExclusionZone(nodeUpdates, nodeById);
           updateNodesById(nodeUpdates);
         }
 
@@ -313,21 +315,21 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
       // ---- Apply path: spring animation or immediate ----
 
       if (useSpring && !reducedMotion.value) {
-        // Build node type map for spring profile selection
-        const nodeTypeMap = new Map<string, string>();
-        for (const n of enrichedNodes) {
-          if (n.type) nodeTypeMap.set(n.id, n.type);
+        // GROUP SIZES: apply immediately — no spring delay for folder expansion
+        if (result.updatedSizes.size > 0) {
+          applyGroupSizesImmediately(result.updatedSizes, nodeById);
         }
 
-        // Initialize spring current positions from store if node is new to spring system
-        initializeSpringPositions(result, nodeById);
-
-        springAnimation.setTargets(
-          result.updatedPositions,
-          result.updatedSizes,
-          nodeTypeMap
-        );
-        springFrameCount = 0;
+        // NODE POSITIONS: animate through springs (sizes bypass springs entirely)
+        if (result.updatedPositions.size > 0) {
+          const nodeTypeMap = new Map<string, string>();
+          for (const n of enrichedNodes) {
+            if (n.type) nodeTypeMap.set(n.id, n.type);
+          }
+          initializeSpringPositions(result, nodeById);
+          springAnimation.setTargets(result.updatedPositions, new Map(), nodeTypeMap);
+          springFrameCount = 0;
+        }
       } else {
         // Immediate application (non-drag, reduced motion, or final settle)
         applyResultsImmediately(result, nodeById, enrichedNodes);
@@ -367,6 +369,78 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
           }
           springAnimation.setTargets(seedPos, seedSize, nodeTypeMap);
         }
+      }
+    }
+  }
+
+  /** Apply group sizes immediately to the store — bypasses spring animation. */
+  function applyGroupSizesImmediately(
+    sizes: Map<string, { width: number; height: number }>,
+    nodeById: Map<string, DependencyNode>
+  ): void {
+    const updates = new Map<string, DependencyNode>();
+    for (const [id, size] of sizes) {
+      const node = nodeById.get(id);
+      if (!node) continue;
+      const style = typeof node.style === 'object'
+        ? (node.style as Record<string, unknown>) : {};
+      const targetWidth = Math.ceil(size.width);
+      const targetHeight = Math.ceil(size.height);
+      updates.set(id, {
+        ...node,
+        style: {
+          ...style,
+          width: `${String(targetWidth)}px`,
+          height: `${String(targetHeight)}px`,
+        },
+      } as DependencyNode);
+    }
+    if (updates.size > 0) updateNodesById(updates);
+  }
+
+  /**
+   * Clamp node positions to stay within their parent's exclusion zone.
+   * Runs every spring frame to prevent overshoot into the safe border.
+   */
+  function clampToExclusionZone(
+    updates: Map<string, DependencyNode>,
+    nodeById: Map<string, DependencyNode>
+  ): void {
+    const config = resolveActiveConfig(collisionConfigInputs);
+    for (const [id, node] of updates) {
+      const parentId = (node as { parentNode?: string }).parentNode;
+      if (!parentId) continue;
+      if (activeDraggedNodeIds.value.has(id)) continue;
+
+      const parent = nodeById.get(parentId) ?? updates.get(parentId);
+      if (!parent) continue;
+
+      const parentStyle = typeof parent.style === 'object'
+        ? (parent.style as Record<string, unknown>) : {};
+      const parentW = parseStyleSize(parentStyle['width']);
+      const parentH = parseStyleSize(parentStyle['height']);
+      if (parentW === null || parentH === null) continue;
+
+      const isGroup = (parent as { type?: string }).type === 'group';
+      const padding = isGroup ? config.groupPadding : config.modulePadding;
+      const measured = (node as EnrichedNode).measured
+        ?? (node as EnrichedNode).dimensions;
+      const nodeW = measured?.width ?? 260;
+      const nodeH = measured?.height ?? 100;
+
+      const minX = padding.horizontal;
+      const minY = padding.top;
+      const maxX = Math.max(minX, parentW - padding.horizontal - nodeW);
+      const maxY = Math.max(minY, parentH - padding.bottom - nodeH);
+
+      const pos = node.position;
+      const cx = Math.max(minX, Math.min(maxX, pos.x));
+      const cy = Math.max(minY, Math.min(maxY, pos.y));
+
+      if (cx !== pos.x || cy !== pos.y) {
+        updates.set(id, {
+          ...node, position: { x: cx, y: cy },
+        } as DependencyNode);
       }
     }
   }

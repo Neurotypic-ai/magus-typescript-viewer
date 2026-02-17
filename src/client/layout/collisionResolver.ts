@@ -37,7 +37,7 @@ export interface CollisionConfig {
 
 export const DEFAULT_COLLISION_CONFIG: CollisionConfig = {
   overlapGap: 40,
-  maxCycles: 20,
+  maxCycles: 50,
   maxDisplacementPerCycle: 0, // unlimited — bounded by cycle count
   modulePadding: { horizontal: 20, top: 42, bottom: 20 },
   groupPadding: {
