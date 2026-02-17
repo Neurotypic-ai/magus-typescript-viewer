@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import { filterNodeChangesForFolderMode } from '../graph/buildGraphView';
 import { applyNodeChanges } from '../utils/applyNodeChanges';
@@ -527,6 +527,20 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
     }, 60);
   };
 
+  // ---- Post-layout collision settle ----
+  // During two-pass layout, isLayoutPending is true and all dimension-change
+  // events are suppressed. When the layout completes and clears the flag,
+  // we need to run a collision settle so the initial render respects
+  // minimumDistance. Without this, nodes sit at ELK's raw positions.
+  let layoutWasActive = isLayoutPending.value;
+  const stopLayoutWatch = watch(isLayoutPending, (pending) => {
+    if (layoutWasActive && !pending) {
+      // Layout just finished — schedule a settle after dimensions stabilize
+      scheduleDimensionSettle();
+    }
+    layoutWasActive = pending;
+  });
+
   // ---- Event classification ----
 
   const handleNodesChange = (changes: NodeChange[]) => {
@@ -629,6 +643,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
   };
 
   const dispose = (): void => {
+    stopLayoutWatch();
     springAnimation.dispose();
     if (collisionDimensionTimer !== null) {
       clearTimeout(collisionDimensionTimer);
