@@ -451,3 +451,54 @@ describe('buildPositionMap', () => {
     expect(map.size).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression tests for settle loop reorder and group contraction
+// ---------------------------------------------------------------------------
+
+describe('settle loop regressions', () => {
+  it('does not overlap last child with second-to-last in multi-child group', () => {
+    // Regression: the old settle loop order (expandParents → repelSiblings →
+    // enforceMinPositions) could clamp the last child upward into the
+    // second-to-last because enforceMinPositions used stale parent height.
+    const pad = GROUP_EXCLUSION_ZONE_PX;
+    const parent = makeTypedNode('grp', 0, 0, 300, 500, undefined, 'group');
+    // Three children stacked vertically, initially slightly overlapping
+    const child1 = makeNode('c1', pad, pad, 120, 80, 'grp');
+    const child2 = makeNode('c2', pad, pad + 60, 120, 80, 'grp'); // overlaps c1
+    const child3 = makeNode('c3', pad, pad + 120, 120, 80, 'grp'); // overlaps c2
+
+    const nodes: BoundsNode[] = [parent, child1, child2, child3];
+    const posMap = buildPositionMap(nodes, DEFAULTS);
+
+    const result = resolveCollisions(nodes, posMap, null);
+    expect(result.converged).toBe(true);
+
+    const c2Box = posMap.get('c2')!;
+    const c3Box = posMap.get('c3')!;
+    const gap = DEFAULT_COLLISION_CONFIG.overlapGap;
+
+    // c3 should be fully below c2 with at least the overlap gap
+    expect(c3Box.y).toBeGreaterThanOrEqual(c2Box.y + c2Box.height + gap);
+  });
+
+  it('group contracts height when children are moved closer together', () => {
+    // A group with children spread far apart should shrink when resolve runs
+    // without anchored children.
+    const pad = GROUP_EXCLUSION_ZONE_PX;
+    const parent = makeTypedNode('grp', 0, 0, 400, 800, undefined, 'group');
+    const child1 = makeNode('c1', pad, pad, 120, 80, 'grp');
+    // child2 is far below with no overlap — group should contract to fit
+    const child2 = makeNode('c2', pad, pad + 200, 120, 80, 'grp');
+
+    const nodes: BoundsNode[] = [parent, child1, child2];
+    const posMap = buildPositionMap(nodes, DEFAULTS);
+
+    resolveCollisions(nodes, posMap, null);
+
+    const parentBox = posMap.get('grp')!;
+    // The group should be smaller than the original 800px height
+    // since children only need pad + 200 + 80 + pad(bottom) = ~376
+    expect(parentBox.height).toBeLessThan(800);
+  });
+});

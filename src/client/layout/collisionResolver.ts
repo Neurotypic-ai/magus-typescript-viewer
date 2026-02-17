@@ -377,12 +377,15 @@ export function resolveCollisions(
       const hasAnchoredChild = childIds.some((id) => anchored.has(id));
 
       /**
-       * Group containers must be able to grow to top/left (not only right/bottom).
+       * Group containers grow/shrink to fit children in all directions.
        * We re-anchor children to the configured inset and compensate parent origin
        * so children keep their absolute coordinates.
        *
-       * For live-dragged children (hard anchors), skip origin shifts to avoid
-       * drag jitter/snap while the user is interacting.
+       * Origin shifts are skipped when a hard-anchored child exists because
+       * shifting the parent origin requires compensating all children's relative
+       * positions — but hard-anchored children must not be moved. Once the drag
+       * ends and the spring animation takes over, the origin shift resumes
+       * naturally over subsequent frames.
        */
       if (nodeType === 'group' && !hasHardAnchoredChild) {
         const minLeft = Math.min(...childBoxes.map((box) => box.x));
@@ -409,10 +412,12 @@ export function resolveCollisions(
       const targetWidth = maxRight + padding.horizontal;
       const targetHeight = maxBottom + padding.bottom;
 
-      if (nodeType === 'group' && !hasHardAnchoredChild) {
+      if (nodeType === 'group') {
+        // Groups always resize to fit children (both grow AND shrink)
         parentBox.width = Math.max(1, targetWidth);
         parentBox.height = Math.max(1, targetHeight);
       } else {
+        // Non-group containers (modules): only grow, never shrink
         parentBox.width = Math.max(parentBox.width, targetWidth);
         parentBox.height = Math.max(parentBox.height, targetHeight);
       }
@@ -536,8 +541,8 @@ export function resolveCollisions(
   let converged = false;
   for (let cycle = 0; cycle < config.maxCycles; cycle++) {
     cyclesUsed = cycle + 1;
-    expandParentsBottomUp();
     const hadOverlaps = repelSiblings();
+    expandParentsBottomUp();
     if (!hadOverlaps) {
       converged = true;
       break;

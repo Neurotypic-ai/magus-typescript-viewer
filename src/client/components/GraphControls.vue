@@ -502,25 +502,29 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
                   {{ selectOption.label }}
                 </option>
               </select>
-              <input
-                v-else
-                :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
-                type="number"
-                class="w-full rounded border border-border-default bg-background-paper px-2 py-1 text-xs text-text-primary"
-                :min="option.min"
-                :max="option.max"
-                :step="option.step ?? 1"
-                :value="getNumberRenderingOptionValue(activeRenderingStrategy.id, option)"
-                :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
-                @change="
-                  (e) =>
-                    handleNumberRenderingOptionChange(
-                      activeRenderingStrategy.id,
-                      option,
-                      (e.target as HTMLInputElement).value
-                    )
-                "
-              />
+              <div v-else class="flex items-center gap-2">
+                <input
+                  :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
+                  type="range"
+                  class="flex-1 accent-primary-main cursor-pointer"
+                  :min="option.min"
+                  :max="option.max"
+                  :step="option.step ?? 1"
+                  :value="getNumberRenderingOptionValue(activeRenderingStrategy.id, option)"
+                  :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
+                  @input="
+                    (e) =>
+                      handleNumberRenderingOptionChange(
+                        activeRenderingStrategy.id,
+                        option,
+                        (e.target as HTMLInputElement).value
+                      )
+                  "
+                />
+                <span class="w-8 text-right text-xs tabular-nums text-text-secondary">
+                  {{ getNumberRenderingOptionValue(activeRenderingStrategy.id, option) }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
