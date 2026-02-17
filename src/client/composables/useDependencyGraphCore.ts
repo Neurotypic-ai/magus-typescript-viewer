@@ -534,7 +534,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => {
     const lowDetailEdges =
-      isHybridCanvasMode.value ||
       edges.value.length >= env.HIGH_EDGE_MARKER_THRESHOLD ||
       viewportState.value.zoom < env.LOW_DETAIL_EDGE_ZOOM_THRESHOLD;
 

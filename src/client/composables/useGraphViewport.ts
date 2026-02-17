@@ -161,7 +161,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
 
     if (intent === 'trackpadScroll') {
       panBy({ x: -event.deltaX, y: -event.deltaY });
-      syncViewportState();
+      scheduleViewportStateSync();
       onViewportChange();
       return;
     }

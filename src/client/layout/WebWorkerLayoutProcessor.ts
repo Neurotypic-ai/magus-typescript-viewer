@@ -35,6 +35,7 @@ export interface LayoutResult {
  */
 interface WorkerRequest {
   type: 'process-layout';
+  requestId: number;
   payload: {
     nodes: DependencyNode[];
     edges: Edge[];
@@ -43,6 +44,7 @@ interface WorkerRequest {
 }
 
 interface WorkerResponse {
+  requestId: number;
   type: 'layout-complete' | 'layout-error';
   payload: LayoutResult | { error: string };
 }
@@ -73,7 +75,7 @@ export class WebWorkerLayoutProcessor {
   private config!: WorkerLayoutConfig;
   private workerSupported: boolean;
   private currentRequestId = 0;
-  private static readonly LAYOUT_TIMEOUT_MS = 15_000;
+  private static readonly LAYOUT_TIMEOUT_MS = 30_000;
 
   /**
    * Deep-clone a value while stripping Vue reactive proxies at every level.
@@ -192,6 +194,11 @@ export class WebWorkerLayoutProcessor {
    * Initialize the web worker
    */
   private initWorker(): void {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+
     try {
       this.worker = new Worker(new URL('../workers/GraphLayoutWorker.ts', import.meta.url), { type: 'module' });
     } catch (error) {
@@ -228,11 +235,19 @@ export class WebWorkerLayoutProcessor {
       const timeoutId = setTimeout(() => {
         this.worker?.removeEventListener('message', onMessage);
         this.worker?.removeEventListener('error', onError);
+        // Recreate the worker when the latest request times out to recover from stuck state.
+        if (requestId === this.currentRequestId) {
+          this.initWorker();
+        }
         reject(new Error('Layout timed out'));
       }, WebWorkerLayoutProcessor.LAYOUT_TIMEOUT_MS);
 
       // Set up the message handler for worker responses
       const onMessage = (event: MessageEvent<WorkerResponse>) => {
+        if (event.data.requestId !== requestId) {
+          return;
+        }
+
         clearTimeout(timeoutId);
         this.worker?.removeEventListener('message', onMessage); // Clean up listener
         this.worker?.removeEventListener('error', onError); // Clean up listener
@@ -271,6 +286,7 @@ export class WebWorkerLayoutProcessor {
       // Send the data to the worker
       const message: WorkerRequest = {
         type: 'process-layout',
+        requestId,
         payload: {
           nodes,
           edges,

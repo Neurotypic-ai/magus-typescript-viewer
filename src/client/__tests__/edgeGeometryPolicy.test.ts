@@ -5,6 +5,7 @@ import {
   NODE_FINAL_APPROACH_PX,
   NODE_PRE_APPROACH_STUB_PX,
   buildEdgePolyline,
+  buildRoundedPolylinePath,
 } from '../layout/edgeGeometryPolicy';
 
 describe('edgeGeometryPolicy', () => {
@@ -49,5 +50,41 @@ describe('edgeGeometryPolicy', () => {
     });
 
     expect(polyline[1]).toEqual({ x: source.x - GROUP_ENTRY_STUB_PX, y: source.y });
+  });
+
+  it('builds rounded-corner path segments for orthogonal bends', () => {
+    const path = buildRoundedPolylinePath(
+      [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+        { x: 100, y: 100 },
+      ],
+      20
+    );
+
+    expect(path).not.toBeNull();
+    expect(path?.start).toEqual({ x: 0, y: 0 });
+    expect(path?.segments).toEqual([
+      { kind: 'line', to: { x: 80, y: 0 } },
+      { kind: 'quadratic', control: { x: 100, y: 0 }, to: { x: 100, y: 20 } },
+      { kind: 'line', to: { x: 100, y: 100 } },
+    ]);
+  });
+
+  it('keeps straight segments when rounded path radius is zero', () => {
+    const path = buildRoundedPolylinePath(
+      [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+        { x: 100, y: 100 },
+      ],
+      0
+    );
+
+    expect(path).not.toBeNull();
+    expect(path?.segments).toEqual([
+      { kind: 'line', to: { x: 100, y: 0 } },
+      { kind: 'line', to: { x: 100, y: 100 } },
+    ]);
   });
 });

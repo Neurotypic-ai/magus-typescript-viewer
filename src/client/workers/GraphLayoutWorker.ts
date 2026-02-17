@@ -28,6 +28,7 @@ interface ElkLayoutResult {
 // Worker message types
 interface WorkerMessage {
   type: 'process-layout';
+  requestId: number;
   payload: {
     nodes: DependencyNode[];
     edges: Edge[];
@@ -72,7 +73,8 @@ async function getElkInstance(): Promise<{
 
 // Handle messages from the main thread using ELK layered layout
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-  const { nodes, edges, config } = event.data.payload;
+  const { requestId, payload } = event.data;
+  const { nodes, edges, config } = payload;
 
   try {
     const elk = await getElkInstance();
@@ -883,6 +885,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
     // Return all edges (including containment edges), not just the ones used for layout
     self.postMessage({
+      requestId,
       type: 'layout-complete',
       payload: { nodes: newNodes, edges: edgesWithAnchors },
     });
@@ -890,6 +893,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     console.error('ELK layout error:', error);
     // Fallback: return nodes unchanged
     self.postMessage({
+      requestId,
       type: 'layout-complete',
       payload: { nodes, edges },
     });

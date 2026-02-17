@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue';
+import { isProxy, ref, toRaw, watch } from 'vue';
 
 import { measurePerformance } from '../utils/performanceMonitoring';
 import {
@@ -126,6 +126,40 @@ export interface NavigatorWithDeviceMemory extends Navigator {
   deviceMemory?: number;
 }
 
+const toFiniteNumber = (value: unknown, fallback: number): number => {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+};
+
+const toSerializableDimension = (value: unknown): string | number | undefined => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return undefined;
+};
+
+const toPlainPoint = (point: EdgeVirtualizationPoint | undefined): EdgeVirtualizationPoint | undefined => {
+  if (!point) {
+    return undefined;
+  }
+  const rawPoint = isProxy(point) ? toRaw(point) : point;
+  return {
+    x: toFiniteNumber(rawPoint.x, 0),
+    y: toFiniteNumber(rawPoint.y, 0),
+  };
+};
+
+const toPlainViewport = (viewport: EdgeVirtualizationViewport): EdgeVirtualizationViewport => {
+  const rawViewport = isProxy(viewport) ? toRaw(viewport) : viewport;
+  return {
+    x: toFiniteNumber(rawViewport.x, 0),
+    y: toFiniteNumber(rawViewport.y, 0),
+    zoom: toFiniteNumber(rawViewport.zoom, 1),
+  };
+};
+
 // ── Composable return ──
 
 /** Return type of useEdgeVirtualizationWorker. */
@@ -141,28 +175,42 @@ export interface UseEdgeVirtualizationWorkerReturn {
 
 const serializeNodesForWorker = (nodes: DependencyNode[]): EdgeVirtualizationNode[] => {
   return nodes.map((node) => {
-    const nodeStyle = typeof node.style === 'object' ? (node.style as NodeStyleRecord) : undefined;
-    const measured = (node as unknown as NodeWithMeasured).measured;
+    const rawStyle = isProxy(node.style) ? toRaw(node.style) : node.style;
+    const nodeStyle = typeof rawStyle === 'object'
+      ? (rawStyle as NodeStyleRecord)
+      : undefined;
+    const measuredRaw = (node as unknown as NodeWithMeasured).measured;
+    const measured = measuredRaw && isProxy(measuredRaw) ? toRaw(measuredRaw) : measuredRaw;
     const parentNode = (node as NodeWithParentNode).parentNode;
+    const rawPosition = isProxy(node.position) ? toRaw(node.position) : node.position;
     const serialized: EdgeVirtualizationNode = {
       id: node.id,
     };
 
-    serialized.position = { x: node.position.x, y: node.position.y };
+    serialized.position = {
+      x: toFiniteNumber(rawPosition.x, 0),
+      y: toFiniteNumber(rawPosition.y, 0),
+    };
     if (parentNode) {
       serialized.parentNode = parentNode;
     }
     if (nodeStyle) {
-      const style: NodeStyleForSerialization = {
-        width: nodeStyle['width'],
-        height: nodeStyle['height'],
-      };
-      serialized.style = style;
+      const width = toSerializableDimension(nodeStyle['width']);
+      const height = toSerializableDimension(nodeStyle['height']);
+      if (width !== undefined || height !== undefined) {
+        const style: NodeStyleForSerialization = {
+          ...(width !== undefined ? { width } : {}),
+          ...(height !== undefined ? { height } : {}),
+        };
+        serialized.style = style;
+      }
     }
-    if (measured && (measured.width !== undefined || measured.height !== undefined)) {
+    const measuredWidth = toFiniteNumber(measured?.width, Number.NaN);
+    const measuredHeight = toFiniteNumber(measured?.height, Number.NaN);
+    if (!Number.isNaN(measuredWidth) || !Number.isNaN(measuredHeight)) {
       const m: NodeMeasuredShape = {};
-      if (measured.width !== undefined) m.width = measured.width;
-      if (measured.height !== undefined) m.height = measured.height;
+      if (!Number.isNaN(measuredWidth)) m.width = measuredWidth;
+      if (!Number.isNaN(measuredHeight)) m.height = measuredHeight;
       serialized.measured = m;
     }
 
@@ -172,8 +220,9 @@ const serializeNodesForWorker = (nodes: DependencyNode[]): EdgeVirtualizationNod
 
 const serializeEdgesForWorker = (edges: GraphEdge[]): EdgeVirtualizationEdge[] => {
   return edges.map((edge) => {
-    const sourceAnchor = edge.data?.sourceAnchor as EdgeVirtualizationPoint | undefined;
-    const targetAnchor = edge.data?.targetAnchor as EdgeVirtualizationPoint | undefined;
+    const rawData = edge.data && isProxy(edge.data) ? toRaw(edge.data) : edge.data;
+    const sourceAnchor = toPlainPoint(rawData?.sourceAnchor as EdgeVirtualizationPoint | undefined);
+    const targetAnchor = toPlainPoint(rawData?.targetAnchor as EdgeVirtualizationPoint | undefined);
     const serialized: EdgeVirtualizationEdge = {
       id: edge.id,
       source: edge.source,
@@ -191,8 +240,8 @@ const serializeEdgesForWorker = (edges: GraphEdge[]): EdgeVirtualizationEdge[] =
     }
 
     const data: EdgeVirtualizationEdge['data'] = {};
-    if (edge.data?.type) {
-      data.type = edge.data.type;
+    if (rawData?.type) {
+      data.type = rawData.type;
     }
     if (sourceAnchor) {
       data.sourceAnchor = sourceAnchor;
@@ -287,8 +336,12 @@ export function useEdgeVirtualizationWorker(
         edges: serializeEdgesForWorker(edges.value),
       },
     };
-    worker.postMessage(message);
-    graphSyncPending = false;
+    try {
+      worker.postMessage(message);
+      graphSyncPending = false;
+    } catch (error) {
+      notifyWorkerUnavailable(error instanceof Error ? error.message : 'Failed to sync graph snapshot');
+    }
   };
 
   const applyWorkerResult = (message: RecalculateResultMessage): void => {
@@ -373,16 +426,24 @@ export function useEdgeVirtualizationWorker(
     const requestId = ++nextRequestId;
     workerRequestInFlightId = requestId;
     const rect = getContainerRect();
+    const viewport = toPlainViewport(getViewport());
+    const configOverrides = getDefaultEdgeVirtualizationConfigOverrides();
+    const config = {
+      ...configOverrides,
+      ...(configOverrides.edgeTypePriority
+        ? { edgeTypePriority: { ...configOverrides.edgeTypePriority } }
+        : {}),
+    };
     const message: RecalculateMessage = {
       type: 'recalculate',
       requestId,
       payload: {
         recalcVersion,
         graphVersion,
-        viewport: getViewport(),
+        viewport,
         containerSize: rect ? { width: rect.width, height: rect.height } : null,
         userHiddenEdgeIds: [...userHiddenIds],
-        config: getDefaultEdgeVirtualizationConfigOverrides(),
+        config,
         deviceProfile: getDeviceProfile(),
       },
     };
@@ -392,7 +453,12 @@ export function useEdgeVirtualizationWorker(
     }
 
     stats.value.requests += 1;
-    worker.postMessage(message as WorkerRequestMessage);
+    try {
+      worker.postMessage(message as WorkerRequestMessage);
+    } catch (error) {
+      workerRequestInFlightId = null;
+      notifyWorkerUnavailable(error instanceof Error ? error.message : 'Failed to request edge virtualization recalculation');
+    }
   };
 
   const runRecalcFrame = (timestamp: number): void => {

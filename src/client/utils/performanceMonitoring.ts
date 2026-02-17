@@ -1,6 +1,7 @@
 import { createLogger } from '../../shared/utils/logger';
 
 const perfLogger = createLogger('Performance');
+let performanceMeasureSequence = 0;
 
 /**
  * Creates a mark in the performance timeline
@@ -22,15 +23,24 @@ export function mark(name: string): void {
  * @returns The duration in milliseconds
  */
 export function measurePerformance(name: string, startMark: string, endMark: string): number {
+  const measurementName = `${name}#${String(++performanceMeasureSequence)}`;
   try {
+    if (performance.getEntriesByName(startMark, 'mark').length === 0) {
+      return 0;
+    }
+    if (performance.getEntriesByName(endMark, 'mark').length === 0) {
+      return 0;
+    }
+
     // Create the measurement between marks
-    performance.measure(name, startMark, endMark);
+    performance.measure(measurementName, startMark, endMark);
 
     // Get the measurement
-    const entries = performance.getEntriesByName(name, 'measure');
+    const entries = performance.getEntriesByName(measurementName, 'measure');
 
-    if (entries.length > 0 && entries[0]) {
-      const duration = entries[0].duration;
+    const latestEntry = entries[entries.length - 1];
+    if (latestEntry) {
+      const duration = latestEntry.duration;
       perfLogger.info(`${name} took ${duration.toFixed(2)}ms`);
       return duration;
     }
@@ -40,7 +50,7 @@ export function measurePerformance(name: string, startMark: string, endMark: str
     // Always clear marks/measures to prevent timeline growth on errors/missing entries.
     performance.clearMarks(startMark);
     performance.clearMarks(endMark);
-    performance.clearMeasures(name);
+    performance.clearMeasures(measurementName);
   }
 
   return 0;

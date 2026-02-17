@@ -57,6 +57,15 @@ export interface NodeMeasuredData {
 const MAX_LAYOUT_CACHE_ENTRIES = 8;
 const MAX_LAYOUT_CACHE_WEIGHT = 220_000;
 const MAX_NODE_MEASUREMENT_CACHE_ENTRIES = 4_000;
+let perfMarkSequence = 0;
+
+const createPerfMarkNames = (scope: string): { start: string; end: string } => {
+  const id = `${String(Date.now())}-${String(++perfMarkSequence)}`;
+  return {
+    start: `${scope}-start-${id}`,
+    end: `${scope}-end-${id}`,
+  };
+};
 
 // ── Types ──
 
@@ -502,6 +511,8 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     const fitViewToResult = layoutOptions.fitViewToResult ?? true;
     const fitPadding = layoutOptions.fitPadding ?? 0.1;
     const twoPassMeasure = layoutOptions.twoPassMeasure ?? shouldRunTwoPassMeasure(graphData.nodes.length);
+    const layoutPerfMarks = createPerfMarkNames('layout');
+    let didMeasureLayout = false;
 
     isLayoutPending.value = true;
     if (twoPassMeasure) {
@@ -512,7 +523,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     graphStore.suspendCacheWrites();
 
     try {
-      performance.mark('layout-start');
+      performance.mark(layoutPerfMarks.start);
 
       // Check layout cache
       const cacheKey = computeLayoutCacheKey(graphData.nodes, graphData.edges);
@@ -544,8 +555,9 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         syncViewportState();
         resumeEdgeVirtualization();
 
-        performance.mark('layout-end');
-        measurePerformance('graph-layout', 'layout-start', 'layout-end');
+        performance.mark(layoutPerfMarks.end);
+        measurePerformance('graph-layout', layoutPerfMarks.start, layoutPerfMarks.end);
+        didMeasureLayout = true;
         return { nodes: cachedEntry.nodes, edges: cachedEntry.edges };
       }
 
@@ -632,8 +644,9 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       });
       layoutCacheWeight += cacheEntryWeight;
 
-      performance.mark('layout-end');
-      measurePerformance('graph-layout', 'layout-start', 'layout-end');
+      performance.mark(layoutPerfMarks.end);
+      measurePerformance('graph-layout', layoutPerfMarks.start, layoutPerfMarks.end);
+      didMeasureLayout = true;
 
       return normalized;
     } catch (err) {
@@ -641,6 +654,10 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       console.error('Layout processing failed:', error);
       return null;
     } finally {
+      if (!didMeasureLayout) {
+        performance.clearMarks(layoutPerfMarks.start);
+        performance.clearMarks(layoutPerfMarks.end);
+      }
       isLayoutMeasuring.value = false;
       graphStore.resumeCacheWrites();
       resumeEdgeVirtualization();
@@ -653,37 +670,40 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   // ── Graph initialization ──
 
   const initializeGraph = async () => {
-    performance.mark('graph-init-start');
-    resetSearchHighlightState();
-    interaction.resetInteraction();
-    graphStore.setViewMode('overview');
-    initializeLayoutProcessor();
+    const graphInitPerfMarks = createPerfMarkNames('graph-init');
+    performance.mark(graphInitPerfMarks.start);
+    try {
+      resetSearchHighlightState();
+      interaction.resetInteraction();
+      graphStore.setViewMode('overview');
+      initializeLayoutProcessor();
 
-    const overviewGraph = buildOverviewGraph({
-      data: propsData.value,
-      enabledNodeTypes: new Set(graphSettings.enabledNodeTypes),
-      enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
-      direction: layoutConfig.direction,
-      clusterByFolder: graphSettings.clusterByFolder,
-      collapseScc: graphSettings.collapseScc,
-      collapsedFolderIds: graphSettings.collapsedFolderIds,
-      hideTestFiles: graphSettings.hideTestFiles,
-      memberNodeMode: graphSettings.memberNodeMode,
-      highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-    });
-    graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
+      const overviewGraph = buildOverviewGraph({
+        data: propsData.value,
+        enabledNodeTypes: new Set(graphSettings.enabledNodeTypes),
+        enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
+        direction: layoutConfig.direction,
+        clusterByFolder: graphSettings.clusterByFolder,
+        collapseScc: graphSettings.collapseScc,
+        collapsedFolderIds: graphSettings.collapsedFolderIds,
+        hideTestFiles: graphSettings.hideTestFiles,
+        memberNodeMode: graphSettings.memberNodeMode,
+        highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
+      });
+      graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 
-    const layoutResult = await processGraphLayout(overviewGraph, {
-      fitViewToResult: true,
-      fitPadding: 0.1,
-      twoPassMeasure: shouldRunTwoPassMeasure(overviewGraph.nodes.length),
-    });
-    if (layoutResult) {
-      graphStore.setOverviewSnapshot(layoutResult);
+      const layoutResult = await processGraphLayout(overviewGraph, {
+        fitViewToResult: true,
+        fitPadding: 0.1,
+        twoPassMeasure: shouldRunTwoPassMeasure(overviewGraph.nodes.length),
+      });
+      if (layoutResult) {
+        graphStore.setOverviewSnapshot(layoutResult);
+      }
+    } finally {
+      performance.mark(graphInitPerfMarks.end);
+      measurePerformance('graph-initialization', graphInitPerfMarks.start, graphInitPerfMarks.end);
     }
-
-    performance.mark('graph-init-end');
-    measurePerformance('graph-initialization', 'graph-init-start', 'graph-init-end');
   };
 
   const requestGraphInitialization = async (): Promise<void> => {

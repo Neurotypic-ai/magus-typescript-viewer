@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
-import { buildEdgePolyline } from '../layout/edgeGeometryPolicy';
+import { DEFAULT_CANVAS_EDGE_CORNER_RADIUS_PX, buildEdgePolyline, buildRoundedPolylinePath } from '../layout/edgeGeometryPolicy';
 import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../layout/geometryBounds';
 import { getHandleAnchor } from '../layout/handleAnchors';
 import { measurePerformance } from '../utils/performanceMonitoring';
@@ -203,11 +203,26 @@ const renderCanvas = (): void => {
     context.lineWidth = Number.isFinite(strokeWidth)
       ? Math.max(0.8, strokeWidth * Math.max(0.55, Math.min(1.1, props.viewport.zoom)))
       : 1.2;
+    const edgePathOptions = typeof edge.pathOptions === 'object'
+      ? edge.pathOptions as { borderRadius?: number }
+      : undefined;
+    const requestedCornerRadius = edgePathOptions?.borderRadius;
+    const cornerRadius = Number.isFinite(requestedCornerRadius)
+      ? Math.max(0, Number(requestedCornerRadius))
+      : DEFAULT_CANVAS_EDGE_CORNER_RADIUS_PX;
+    const roundedPath = buildRoundedPolylinePath(screenPolyline, cornerRadius);
+    if (!roundedPath) {
+      continue;
+    }
+
     context.beginPath();
-    context.moveTo(screenPolyline[0]!.x, screenPolyline[0]!.y);
-    for (let i = 1; i < screenPolyline.length; i += 1) {
-      const point = screenPolyline[i]!;
-      context.lineTo(point.x, point.y);
+    context.moveTo(roundedPath.start.x, roundedPath.start.y);
+    for (const segment of roundedPath.segments) {
+      if (segment.kind === 'quadratic' && segment.control) {
+        context.quadraticCurveTo(segment.control.x, segment.control.y, segment.to.x, segment.to.y);
+      } else {
+        context.lineTo(segment.to.x, segment.to.y);
+      }
     }
     context.stroke();
   }
