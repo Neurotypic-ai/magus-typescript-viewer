@@ -76,6 +76,7 @@ const {
   viewportState,
   isPanning,
   isMac,
+  isFirefox,
   handleWheel,
   onMoveStart,
   onMove,
@@ -88,6 +89,7 @@ const {
   selectedNode,
   hoveredNodeId,
   contextMenu,
+  canvasRendererAvailable,
   isHybridCanvasMode,
   isHeavyEdgeMode,
   minimapAutoHidden,
@@ -127,6 +129,7 @@ const {
   handleDegreeWeightedLayersToggle,
   handleShowFpsToggle,
   handleFpsAdvancedToggle,
+  handleEdgeRendererModeChange,
   nodeActions,
   highlightOrphanGlobal,
   folderCollapseActions,
@@ -215,6 +218,7 @@ onUnmounted(() => {
         'graph-heavy-edges': isHeavyEdgeMode,
         'graph-isolate-animating': isIsolateAnimating,
         'graph-layout-measuring': isLayoutMeasuring,
+        'graph-layout-active': isLayoutPending,
       },
     ]"
     role="application"
@@ -254,6 +258,7 @@ onUnmounted(() => {
       <Background />
       <GraphControls
         :relationship-availability="graphSettings.relationshipAvailability"
+        :hybrid-canvas-available="canvasRendererAvailable"
         @relationship-filter-change="handleRelationshipFilterChange"
         @node-type-filter-change="handleNodeTypeFilterChange"
         @layout-change="handleLayoutChange"
@@ -267,6 +272,7 @@ onUnmounted(() => {
         @toggle-degree-weighted-layers="handleDegreeWeightedLayersToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
+        @edge-renderer-mode-change="handleEdgeRendererModeChange"
       />
       <GraphSearch @search-result="handleSearchResult" :nodes="nodes" :edges="edges" />
       <MiniMap
@@ -452,6 +458,13 @@ onUnmounted(() => {
 .dependency-graph-root.graph-layout-measuring :deep(.vue-flow__node) {
   content-visibility: visible !important;
   contain-intrinsic-size: auto !important;
+}
+
+/* ── Layout performance: suppress transitions during layout to avoid mass-
+     transition compositor overhead when hundreds of nodes are inserted. ── */
+.dependency-graph-root.graph-layout-active :deep(.vue-flow__node),
+.dependency-graph-root.graph-layout-active :deep(.vue-flow__edge-path) {
+  transition: none !important;
 }
 
 .dependency-graph-root.graph-panning :deep(.base-node-container) {

@@ -13,6 +13,8 @@ interface NodeDimensionTracker {
   stop: () => void;
   refresh: () => void;
   get: (nodeId: string) => NodeDimensionMeasurement | undefined;
+  pause: () => void;
+  resume: () => void;
 }
 
 function measureNodeElement(nodeElement: HTMLElement): NodeDimensionMeasurement {
@@ -33,6 +35,7 @@ export function createNodeDimensionTracker(): NodeDimensionTracker {
   let resizeObserver: ResizeObserver | null = null;
   let mutationObserver: MutationObserver | null = null;
   let scanRafId: number | null = null;
+  let paused = false;
 
   const updateNodeMeasurement = (nodeId: string, nodeElement: HTMLElement): void => {
     measurements.set(nodeId, measureNodeElement(nodeElement));
@@ -87,7 +90,7 @@ export function createNodeDimensionTracker(): NodeDimensionTracker {
   };
 
   const scheduleScan = (): void => {
-    if (scanRafId !== null) {
+    if (paused || scanRafId !== null) {
       return;
     }
 
@@ -156,6 +159,12 @@ export function createNodeDimensionTracker(): NodeDimensionTracker {
       scanNodeElements();
     },
     get: (nodeId: string) => measurements.get(nodeId),
+    pause: () => {
+      paused = true;
+    },
+    resume: () => {
+      paused = false;
+    },
   };
 }
 

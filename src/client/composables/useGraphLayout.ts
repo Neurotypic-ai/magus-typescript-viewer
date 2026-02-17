@@ -180,6 +180,8 @@ export interface NodeDimensions {
 export interface NodeDimensionTracker {
   refresh: () => void;
   get: (nodeId: string) => NodeDimensions | undefined;
+  pause: () => void;
+  resume: () => void;
 }
 
 /** One entry in the node measurement cache (width, height, topInset). */
@@ -207,6 +209,8 @@ export interface UseGraphLayoutOptions {
   syncViewportState: SyncViewportState;
   nodeDimensionTracker: NodeDimensionTracker;
   resetSearchHighlightState: ResetSearchHighlightState;
+  isFirefox: Ref<boolean>;
+  graphRootRef: Ref<HTMLElement | null>;
 }
 
 /** Processes graph layout; returns normalized nodes/edges or null. */
@@ -251,6 +255,8 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     syncViewportState,
     nodeDimensionTracker,
     resetSearchHighlightState,
+    isFirefox,
+    graphRootRef,
   } = options;
 
   const isLayoutPending = ref(false);
@@ -521,6 +527,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
     suspendEdgeVirtualization();
     graphStore.suspendCacheWrites();
+    nodeDimensionTracker.pause();
 
     try {
       performance.mark(layoutPerfMarks.start);
@@ -546,8 +553,9 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         }
 
         if (fitViewToResult) {
+          const fitDuration = isFirefox.value ? 0 : 180;
           await fitView({
-            duration: 180,
+            duration: fitDuration,
             padding: fitPadding,
             ...(layoutOptions.fitNodes?.length ? { nodes: layoutOptions.fitNodes } : {}),
           });
@@ -619,15 +627,16 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       }
 
       if (fitViewToResult) {
+        const fitDuration = isFirefox.value ? 0 : 180;
         if (layoutOptions.fitNodes && layoutOptions.fitNodes.length > 0) {
           await fitView({
-            duration: 180,
+            duration: fitDuration,
             padding: fitPadding,
             nodes: layoutOptions.fitNodes,
           });
         } else {
           await fitView({
-            duration: 180,
+            duration: fitDuration,
             padding: fitPadding,
           });
         }
@@ -659,10 +668,16 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         performance.clearMarks(layoutPerfMarks.end);
       }
       isLayoutMeasuring.value = false;
+      nodeDimensionTracker.resume();
       graphStore.resumeCacheWrites();
       resumeEdgeVirtualization();
       if (requestVersion === layoutRequestVersion) {
         isLayoutPending.value = false;
+      }
+      // Enable content-visibility culling after layout stabilizes (skipped
+      // on Firefox where the feature causes severe toggle-thrash regressions).
+      if (!isFirefox.value) {
+        graphRootRef.value?.classList.add('cv-ready');
       }
     }
   };

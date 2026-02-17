@@ -40,6 +40,7 @@ import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeome
 import type { ComputedRef, Ref } from 'vue';
 import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
 import type { LayoutConfig } from '../layout/config';
+import type { EdgeRendererMode } from '../stores/graphSettings';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
@@ -88,6 +89,7 @@ export interface DependencyGraphCoreReturn {
   viewportState: Ref<{ x: number; y: number; zoom: number }>;
   isPanning: Ref<boolean>;
   isMac: Ref<boolean>;
+  isFirefox: Ref<boolean>;
   handleWheel: (e: WheelEvent) => void;
   onMoveStart: () => void;
   onMove: (e: unknown) => void;
@@ -159,6 +161,7 @@ export interface DependencyGraphCoreReturn {
   handleDegreeWeightedLayersToggle: (value: boolean) => Promise<void>;
   handleShowFpsToggle: (value: boolean) => void;
   handleFpsAdvancedToggle: (value: boolean) => void;
+  handleEdgeRendererModeChange: (value: EdgeRendererMode) => void;
   nodeActions: NodeActions;
   highlightOrphanGlobal: ComputedRef<boolean>;
   folderCollapseActions: FolderCollapseActions;
@@ -183,6 +186,9 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const graphStore = useGraphStore();
   const graphSettings = useGraphSettings();
+  const envDefaultRendererMode: EdgeRendererMode =
+    env.EDGE_RENDERER_MODE === 'vue-flow' ? 'vue-flow' : 'hybrid-canvas';
+  graphSettings.initializeEdgeRendererMode(envDefaultRendererMode);
   const issuesStore = useIssuesStore();
   const insightsStore = useInsightsStore();
   const interaction = useGraphInteractionController();
@@ -264,6 +270,11 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     initContainerCache,
   } =
     viewport;
+
+  // Tag <html> so CSS can apply Firefox-specific overrides (e.g. text-rendering).
+  if (isFirefox.value) {
+    document.documentElement.setAttribute('data-firefox', '');
+  }
 
   const edgeVirtualization = useEdgeVirtualizationOrchestrator({
     nodes,
@@ -378,6 +389,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     resetSearchHighlightState: () => {
       searchHighlighting.resetSearchHighlightState();
     },
+    isFirefox,
+    graphRootRef,
   });
 
   const { isLayoutPending, isLayoutMeasuring, layoutConfig } = graphLayout;
@@ -505,9 +518,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   const { isIsolateAnimating, isolateExpandAll, isolateNeighborhood, handleOpenSymbolUsageGraph, handleReturnToOverview } =
     isolationMode;
 
-  const isCanvasModeRequested = computed(
-    () => env.EDGE_RENDERER_MODE === 'hybrid-canvas' || env.EDGE_RENDERER_MODE === 'hybrid-canvas-experimental'
-  );
+  const isCanvasModeRequested = computed(() => graphSettings.edgeRendererMode === 'hybrid-canvas');
 
   const isHybridCanvasMode = computed(
     () =>
@@ -791,6 +802,12 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     graphSettings.setShowFpsAdvanced(value);
   };
 
+  const handleEdgeRendererModeChange = (value: EdgeRendererMode): void => {
+    graphSettings.setEdgeRendererMode(value);
+    syncViewportState();
+    edgeVirtualization.requestViewportRecalc(true);
+  };
+
   const nodeActions = {
     focusNode: (nodeId: string) => void handleFocusNode(nodeId),
     isolateNeighborhood: (nodeId: string) => void isolateNeighborhood(nodeId),
@@ -850,6 +867,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     viewportState,
     isPanning,
     isMac,
+    isFirefox,
     handleWheel,
     onMoveStart,
     onMove,
@@ -941,6 +959,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     handleDegreeWeightedLayersToggle,
     handleShowFpsToggle,
     handleFpsAdvancedToggle,
+    handleEdgeRendererModeChange,
 
     // Provide values
     nodeActions,

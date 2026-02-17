@@ -19,6 +19,7 @@ export type ModuleMemberType = 'function' | 'type' | 'enum' | 'const' | 'var';
 type MemberNodeMode = 'compact' | 'graph';
 
 export const DEFAULT_MODULE_MEMBER_TYPES: ModuleMemberType[] = ['function', 'type', 'enum', 'const', 'var'];
+export type EdgeRendererMode = 'hybrid-canvas' | 'vue-flow';
 
 export interface RelationshipAvailability {
   available: boolean;
@@ -44,6 +45,7 @@ interface PersistedGraphSettings {
   degreeWeightedLayers?: boolean;
   showFps?: boolean;
   showFpsAdvanced?: boolean;
+  edgeRendererMode?: EdgeRendererMode;
   enabledModuleMemberTypes?: string[];
   collapsedFolderIds?: string[];
 }
@@ -59,8 +61,10 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   const degreeWeightedLayers = ref<boolean>(false);
   const showFps = ref<boolean>(false);
   const showFpsAdvanced = ref<boolean>(false);
+  const edgeRendererMode = ref<EdgeRendererMode>('hybrid-canvas');
   const enabledModuleMemberTypes = ref<string[]>([...DEFAULT_MODULE_MEMBER_TYPES]);
   const collapsedFolderIds = ref<Set<string>>(new Set());
+  let hasPersistedEdgeRendererMode = false;
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     const enabledNodeTypeSet = new Set(enabledNodeTypes.value);
@@ -134,6 +138,10 @@ export const useGraphSettings = defineStore('graphSettings', () => {
       if (typeof parsed.showFpsAdvanced === 'boolean') {
         showFpsAdvanced.value = parsed.showFpsAdvanced;
       }
+      if (parsed.edgeRendererMode === 'hybrid-canvas' || parsed.edgeRendererMode === 'vue-flow') {
+        edgeRendererMode.value = parsed.edgeRendererMode;
+        hasPersistedEdgeRendererMode = true;
+      }
       if (Array.isArray(parsed.enabledModuleMemberTypes)) {
         enabledModuleMemberTypes.value = uniqueStrings(parsed.enabledModuleMemberTypes);
       }
@@ -162,6 +170,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
         degreeWeightedLayers: degreeWeightedLayers.value,
         showFps: showFps.value,
         showFpsAdvanced: showFpsAdvanced.value,
+        edgeRendererMode: edgeRendererMode.value,
         enabledModuleMemberTypes: enabledModuleMemberTypes.value,
         collapsedFolderIds: Array.from(collapsedFolderIds.value),
       };
@@ -241,6 +250,18 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     persistSettings();
   }
 
+  function initializeEdgeRendererMode(value: EdgeRendererMode): void {
+    if (hasPersistedEdgeRendererMode) {
+      return;
+    }
+    edgeRendererMode.value = value;
+  }
+
+  function setEdgeRendererMode(value: EdgeRendererMode): void {
+    edgeRendererMode.value = value;
+    persistSettings();
+  }
+
   function toggleFolderCollapsed(folderId: string): void {
     const next = new Set(collapsedFolderIds.value);
     if (next.has(folderId)) {
@@ -275,6 +296,7 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     degreeWeightedLayers,
     showFps,
     showFpsAdvanced,
+    edgeRendererMode,
     relationshipAvailability,
     activeRelationshipTypes,
     setCollapseScc,
@@ -289,6 +311,8 @@ export const useGraphSettings = defineStore('graphSettings', () => {
     setDegreeWeightedLayers,
     setShowFps,
     setShowFpsAdvanced,
+    initializeEdgeRendererMode,
+    setEdgeRendererMode,
     enabledModuleMemberTypes,
     toggleModuleMemberType,
     collapsedFolderIds,

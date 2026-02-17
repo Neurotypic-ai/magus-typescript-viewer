@@ -4,14 +4,16 @@ import { ref } from 'vue';
 
 import { DEFAULT_MODULE_MEMBER_TYPES, DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../stores/graphSettings';
 
-import type { ModuleMemberType } from '../stores/graphSettings';
+import type { EdgeRendererMode, ModuleMemberType } from '../stores/graphSettings';
 
 interface GraphControlsProps {
   relationshipAvailability?: Record<string, { available: boolean; reason?: string }>;
+  hybridCanvasAvailable?: boolean;
 }
 
 const props = withDefaults(defineProps<GraphControlsProps>(), {
   relationshipAvailability: () => ({}),
+  hybridCanvasAvailable: true,
 });
 
 const emit = defineEmits<{
@@ -28,6 +30,7 @@ const emit = defineEmits<{
   'toggle-degree-weighted-layers': [value: boolean];
   'toggle-show-fps': [value: boolean];
   'toggle-fps-advanced': [value: boolean];
+  'edge-renderer-mode-change': [value: EdgeRendererMode];
 }>();
 
 const graphSettings = useGraphSettings();
@@ -137,6 +140,10 @@ const handleShowFpsToggle = (checked: boolean) => {
 
 const handleFpsAdvancedToggle = (checked: boolean) => {
   emit('toggle-fps-advanced', checked);
+};
+
+const handleEdgeRendererModeChange = (mode: EdgeRendererMode) => {
+  emit('edge-renderer-mode-change', mode);
 };
 
 </script>
@@ -380,6 +387,43 @@ const handleFpsAdvancedToggle = (checked: boolean) => {
             <span class="text-xs">Highlight global orphans</span>
           </label>
         </div>
+      </div>
+
+      <!-- Edge Renderer -->
+      <div class="mt-4 pt-4 border-t border-border-default">
+        <h4 class="text-sm font-semibold text-text-primary mb-1">Edge Renderer</h4>
+        <p class="text-[10px] text-text-secondary mb-2 leading-tight">Switch between hybrid canvas and Vue Flow SVG edges</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            @click="handleEdgeRendererModeChange('hybrid-canvas')"
+            :disabled="!props.hybridCanvasAvailable"
+            :class="[
+              'px-2 py-1.5 text-xs rounded border transition-fast',
+              graphSettings.edgeRendererMode === 'hybrid-canvas'
+                ? 'bg-primary-main text-white border-primary-main'
+                : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
+              !props.hybridCanvasAvailable ? 'opacity-50 cursor-not-allowed hover:bg-white/10' : '',
+            ]"
+            aria-label="Set edge renderer mode to hybrid canvas"
+          >
+            Hybrid
+          </button>
+          <button
+            @click="handleEdgeRendererModeChange('vue-flow')"
+            :class="[
+              'px-2 py-1.5 text-xs rounded border transition-fast',
+              graphSettings.edgeRendererMode === 'vue-flow'
+                ? 'bg-primary-main text-white border-primary-main'
+                : 'bg-white/10 text-text-primary border-border-default hover:bg-white/20',
+            ]"
+            aria-label="Set edge renderer mode to Vue Flow"
+          >
+            Vue Flow
+          </button>
+        </div>
+        <p v-if="!props.hybridCanvasAvailable" class="text-[10px] text-text-muted mt-2 leading-tight">
+          Hybrid canvas is unavailable in this browser session.
+        </p>
       </div>
 
       <!-- Performance -->

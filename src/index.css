@@ -86,6 +86,12 @@
   --focus-ring: #00ffff;
 }
 
+/* Firefox uses a significantly slower text shaping path with
+   optimizeLegibility — override for graph-heavy pages. */
+:root[data-firefox] {
+  text-rendering: optimizeSpeed;
+}
+
 :where(button, [role='button'], input, [tabindex])::selection {
   background: rgba(0, 255, 255, 0.25);
 }
@@ -232,8 +238,11 @@ body {
 /* Hover z-index elevation is handled in DependencyGraph.vue. */
 
 /* Browser-native off-screen culling: skip layout/paint/composite for nodes
-   outside the viewport.  contain-intrinsic-size prevents layout thrash. */
-.vue-flow__node {
+   outside the viewport.  Gated behind .cv-ready because Firefox has severe
+   regressions toggling content-visibility on hundreds of elements during
+   layout measurement.  The class is added after initial layout completes
+   (and never on Firefox). */
+.cv-ready .vue-flow__node {
   content-visibility: auto;
   contain-intrinsic-size: 280px 120px;
 }
