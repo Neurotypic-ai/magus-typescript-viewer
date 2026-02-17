@@ -4,18 +4,14 @@
  * DependencyGraph.vue calls this and uses the returned API.
  */
 
-import { MarkerType, useVueFlow } from '@vue-flow/core';
+import { useVueFlow } from '@vue-flow/core';
 import { computed, ref } from 'vue';
 
-import { buildParentMap } from '../graph/cluster/folderMembership';
-import { traverseGraph } from '../graph/traversal';
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
   HIGHLIGHT_ORPHAN_GLOBAL_KEY,
   ISOLATE_EXPAND_ALL_KEY,
   NODE_ACTIONS_KEY,
-  type FolderCollapseActions,
-  type NodeActions,
 } from '../components/nodes/utils';
 import { storeToRefs } from 'pinia';
 import { useGraphSettings } from '../stores/graphSettings';
@@ -26,162 +22,40 @@ import { graphTheme } from '../theme/graphTheme';
 import { useCollisionResolution } from './useCollisionResolution';
 import { useEdgeVirtualizationOrchestrator } from './useEdgeVirtualizationOrchestrator';
 import { useFpsCounter } from './useFpsCounter';
+import { useFpsChart } from './useFpsChart';
 import { useGraphInteractionController } from './useGraphInteractionController';
-import { useGraphLayout, type LayoutProcessOptions } from './useGraphLayout';
+import { useGraphLayout } from './useGraphLayout';
+import { useGraphNavigationHandlers } from './useGraphNavigationHandlers';
+import { useGraphRenderedStats } from './useGraphRenderedStats';
+import { useGraphRenderingState } from './useGraphRenderingState';
+import { useGraphSelectionHandlers } from './useGraphSelectionHandlers';
+import { useGraphSettingsHandlers } from './useGraphSettingsHandlers';
+import { useMinimapHelpers } from './useMinimapHelpers';
 import { useGraphViewport, DEFAULT_VIEWPORT } from './useGraphViewport';
 import { useIsolationMode } from './useIsolationMode';
 import { createNodeDimensionTracker } from './useNodeDimensions';
+import { createGraphLayoutOptions } from './createGraphLayoutOptions';
+import { createGraphNodeActions } from './createGraphNodeActions';
 import { useNodeHoverZIndex } from './useNodeHoverZIndex';
 import { useSearchHighlighting } from './useSearchHighlighting';
 import { useSelectionHighlighting } from './useSelectionHighlighting';
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
 import { getActiveCollisionConfig } from '../layout/collisionResolver';
 import { getRenderingStrategy } from '../rendering/strategyRegistry';
 import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
+import type {
+  DependencyGraphCoreReturn,
+  UseDependencyGraphCoreOptions,
+} from './dependencyGraphCoreTypes';
 
-import type { ComputedRef, Ref } from 'vue';
-import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
-import type { CollisionConfig, CollisionResult } from '../layout/collisionResolver';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
-import type { GraphEdge } from '../types/GraphEdge';
-import type { SearchResult } from '../types/SearchResult';
 
 export { DEFAULT_VIEWPORT };
-
-/** Type for graph/edge stat count entries (avoids exporting local interface). */
-export interface GraphStatCountEntry {
-  type: string;
-  count: number;
-}
-
-export interface DependencyGraphCoreEnv {
-  EDGE_VISIBLE_RENDER_THRESHOLD: number;
-  MINIMAP_AUTO_HIDE_EDGE_THRESHOLD: number;
-  HEAVY_EDGE_STYLE_THRESHOLD: number;
-  HIGH_EDGE_MARKER_THRESHOLD: number;
-  LOW_DETAIL_EDGE_ZOOM_THRESHOLD: number;
-  EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD: number;
-  NODE_VISIBLE_RENDER_THRESHOLD: number;
-  EDGE_RENDERER_MODE: string;
-  EDGE_VIRTUALIZATION_MODE: 'main' | 'worker';
-  USE_CSS_SELECTION_HOVER: boolean;
-  PERF_MARKS_ENABLED: boolean;
-  EDGE_VIEWPORT_RECALC_THROTTLE_MS: number;
-  MAC_TRACKPAD_PAN_SPEED: number;
-}
-
-export interface UseDependencyGraphCoreOptions {
-  /** Props from the component (data: DependencyPackageGraph). */
-  propsData: { data: DependencyPackageGraph };
-  graphRootRef: Ref<HTMLElement | null>;
-  env: DependencyGraphCoreEnv;
-}
-
-export interface DependencyGraphCoreReturn {
-  nodes: Ref<DependencyNode[]>;
-  edges: Ref<GraphEdge[]>;
-  graphStore: unknown;
-  graphSettings: ReturnType<typeof useGraphSettings>;
-  issuesStore: ReturnType<typeof useIssuesStore>;
-  insightsStore: ReturnType<typeof useInsightsStore>;
-  interaction: unknown;
-  viewportState: Ref<{ x: number; y: number; zoom: number }>;
-  isPanning: Ref<boolean>;
-  isMac: Ref<boolean>;
-  isFirefox: Ref<boolean>;
-  handleWheel: (e: WheelEvent) => void;
-  onMoveStart: () => void;
-  onMove: (e: unknown) => void;
-  syncViewportState: () => void;
-  initContainerCache: (el: HTMLElement) => void;
-  viewport: unknown;
-  edgeVirtualization: unknown;
-  edgeVirtualizationEnabled: Ref<boolean>;
-  edgeVirtualizationRuntimeMode: Ref<string>;
-  edgeVirtualizationWorkerStats: Ref<{ lastVisibleCount: number; lastHiddenCount: number; staleResponses: number }>;
-  graphLayout: { requestGraphInitialization: (options?: LayoutProcessOptions) => void | Promise<void> };
-  isLayoutPending: Ref<boolean>;
-  isLayoutMeasuring: Ref<boolean>;
-  layoutConfig: { direction: string };
-  visualNodes: Ref<DependencyNode[]>;
-  visualEdges: Ref<GraphEdge[]>;
-  highlightedEdgeIds: Ref<Set<string>>;
-  highlightedEdgeIdList: Ref<string[]>;
-  renderedEdges: ComputedRef<GraphEdge[]>;
-  activeCollisionConfig: ComputedRef<CollisionConfig>;
-  lastCollisionResult: Ref<CollisionResult | null>;
-  useOnlyRenderVisibleElements: ComputedRef<boolean>;
-  defaultEdgeOptions: ComputedRef<DefaultEdgeOptions>;
-  selectedNode: Ref<DependencyNode | null>;
-  hoveredNodeId: Ref<string | null>;
-  setSelectedNode: (node: DependencyNode | null) => void;
-  clearHoverState: () => void;
-  contextMenu: Ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>;
-  canvasRendererAvailable: Ref<boolean>;
-  isCanvasModeRequested: ComputedRef<boolean>;
-  isHybridCanvasMode: ComputedRef<boolean>;
-  isHeavyEdgeMode: ComputedRef<boolean>;
-  minimapAutoHidden: ComputedRef<boolean>;
-  showMiniMap: ComputedRef<boolean>;
-  fps: Ref<number>;
-  fpsHistory: Ref<number[]>;
-  fpsStats: Ref<{ min: number; max: number; avg: number; p90: number; sampleCount: number }>;
-  fpsChartScaleMax: ComputedRef<number>;
-  fpsChartPoints: ComputedRef<string>;
-  fpsTargetLineY: ComputedRef<string>;
-  FPS_CHART_WIDTH: number;
-  FPS_CHART_HEIGHT: number;
-  startFps: () => void;
-  stopFps: () => void;
-  isIsolateAnimating: Ref<boolean>;
-  isolateExpandAll: Ref<boolean>;
-  isolateNeighborhood: (nodeId: string) => Promise<void>;
-  handleOpenSymbolUsageGraph: (nodeId: string) => Promise<void>;
-  handleReturnToOverview: () => Promise<void>;
-  handleNodesChange: (changes: NodeChange[]) => void;
-  handleSearchResult: (result: SearchResult) => void;
-  handleFocusNode: (nodeId: string) => Promise<void>;
-  handleMinimapNodeClick: (params: { node: { id: string } }) => void;
-  handleCanvasUnavailable: () => void;
-  onMoveEnd: () => void;
-  onNodeClick: (params: { node: unknown }) => void;
-  onPaneClick: () => void;
-  handleKeyDown: (event: KeyboardEvent) => void;
-  onNodeMouseEnter: (params: { node: unknown }) => void;
-  onNodeMouseLeave: (params: { node: unknown }) => void;
-  handleRelationshipFilterChange: (types: string[]) => Promise<void>;
-  handleNodeTypeFilterChange: (types: string[]) => Promise<void>;
-  handleCollapseSccToggle: (value: boolean) => Promise<void>;
-  handleClusterByFolderToggle: (value: boolean) => Promise<void>;
-  handleHideTestFilesToggle: (value: boolean) => Promise<void>;
-  handleMemberNodeModeChange: (value: 'compact' | 'graph') => Promise<void>;
-  handleOrphanGlobalToggle: (value: boolean) => Promise<void>;
-  handleShowFpsToggle: (value: boolean) => void;
-  handleFpsAdvancedToggle: (value: boolean) => void;
-  handleRenderingStrategyChange: (id: RenderingStrategyId) => Promise<void>;
-  handleRenderingStrategyOptionChange: (payload: {
-    strategyId: RenderingStrategyId;
-    optionId: string;
-    value: unknown;
-  }) => Promise<void>;
-  nodeActions: NodeActions;
-  highlightOrphanGlobal: ComputedRef<boolean>;
-  folderCollapseActions: FolderCollapseActions;
-  NODE_ACTIONS_KEY: symbol;
-  ISOLATE_EXPAND_ALL_KEY: symbol;
-  HIGHLIGHT_ORPHAN_GLOBAL_KEY: symbol;
-  FOLDER_COLLAPSE_ACTIONS_KEY: symbol;
-  minimapNodeColor: (node: { type?: string }) => string;
-  minimapNodeStrokeColor: (node: { id?: string }) => string;
-  nodeDimensionTracker: { start: (root: HTMLElement) => void; stop: () => void };
-  renderedNodeCount: ComputedRef<number>;
-  renderedEdgeCount: ComputedRef<number>;
-  renderedNodeTypeCounts: Ref<GraphStatCountEntry[]>;
-  renderedEdgeTypeCounts: Ref<GraphStatCountEntry[]>;
-  scopeMode: Ref<string>;
-  dispose: () => void;
-}
+export type {
+  DependencyGraphCoreEnv,
+  DependencyGraphCoreReturn,
+  GraphStatCountEntry,
+  UseDependencyGraphCoreOptions,
+} from './dependencyGraphCoreTypes';
 
 export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): DependencyGraphCoreReturn {
   const { propsData, graphRootRef, env } = options;
@@ -221,39 +95,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const showFps = computed(() => graphSettings.showFps);
   const { fps, fpsHistory, fpsStats, start: startFps, stop: stopFps } = useFpsCounter(showFps);
-  const FPS_CHART_WIDTH = 220;
-  const FPS_CHART_HEIGHT = 56;
-
-  const fpsChartScaleMax = computed(() => {
-    if (!fpsHistory.value.length) return 60;
-    return Math.max(60, ...fpsHistory.value);
-  });
-
-  const fpsChartPoints = computed(() => {
-    const samples = fpsHistory.value;
-    if (!samples.length) return '';
-    const maxScale = fpsChartScaleMax.value;
-    if (samples.length === 1) {
-      const onlySample = samples[0];
-      if (onlySample === undefined) return '';
-      const normalized = Math.max(0, Math.min(onlySample / maxScale, 1));
-      const y = FPS_CHART_HEIGHT - normalized * FPS_CHART_HEIGHT;
-      return `0.0,${y.toFixed(1)} ${FPS_CHART_WIDTH.toFixed(1)},${y.toFixed(1)}`;
-    }
-    const step = FPS_CHART_WIDTH / (samples.length - 1);
-    return samples
-      .map((sample, index) => {
-        const normalized = Math.max(0, Math.min(sample / maxScale, 1));
-        const x = index * step;
-        const y = FPS_CHART_HEIGHT - normalized * FPS_CHART_HEIGHT;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(' ');
-  });
-
-  const fpsTargetLineY = computed(() => {
-    const ratio = Math.min(60 / fpsChartScaleMax.value, 1);
-    return (FPS_CHART_HEIGHT - ratio * FPS_CHART_HEIGHT).toFixed(1);
+  const { fpsChartScaleMax, fpsChartPoints, fpsTargetLineY, FPS_CHART_WIDTH, FPS_CHART_HEIGHT } = useFpsChart({
+    fpsHistory,
   });
 
   const viewport = useGraphViewport({
@@ -319,91 +162,33 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   const nodeHoverZIndex = useNodeHoverZIndex({ graphRootRef, nodes });
   const { elevateNodeAndChildren, restoreHoverZIndex } = nodeHoverZIndex;
 
-  const graphLayout = useGraphLayout({
-    propsData: computed(() => props.data.value),
-    graphStore: {
-      get nodes() {
-        return graphStore.nodes;
+  const graphLayout = useGraphLayout(
+    createGraphLayoutOptions({
+      propsData: computed(() => props.data.value),
+      graphStore,
+      graphSettings,
+      interaction: {
+        resetInteraction: () => {
+          interaction.resetInteraction();
+        },
       },
-      setNodes: (n) => {
-        graphStore.setNodes(n);
+      fitView,
+      updateNodeInternals,
+      suspendEdgeVirtualization: () => {
+        edgeVirtualization.suspend();
       },
-      setEdges: (e) => {
-        graphStore.setEdges(e);
+      resumeEdgeVirtualization: () => {
+        edgeVirtualization.resume();
       },
-      setOverviewSnapshot: (s) => {
-        graphStore.setOverviewSnapshot(s);
+      syncViewportState,
+      nodeDimensionTracker,
+      resetSearchHighlightState: () => {
+        searchHighlighting.resetSearchHighlightState();
       },
-      setSemanticSnapshot: (s) => {
-        graphStore.setSemanticSnapshot(s);
-      },
-      setViewMode: (m) => {
-        graphStore.setViewMode(m);
-      },
-      suspendCacheWrites: () => {
-        graphStore.suspendCacheWrites();
-      },
-      resumeCacheWrites: () => {
-        graphStore.resumeCacheWrites();
-      },
-      get manualOffsets() {
-        return graphStore.manualOffsets;
-      },
-      applyManualOffsets: (n) => graphStore.applyManualOffsets(n),
-    },
-    graphSettings: {
-      get enabledNodeTypes() {
-        return graphSettings.enabledNodeTypes;
-      },
-      get activeRelationshipTypes() {
-        return graphSettings.activeRelationshipTypes;
-      },
-      get clusterByFolder() {
-        return graphSettings.clusterByFolder;
-      },
-      get collapseScc() {
-        return graphSettings.collapseScc;
-      },
-      get collapsedFolderIds() {
-        return graphSettings.collapsedFolderIds;
-      },
-      get hideTestFiles() {
-        return graphSettings.hideTestFiles;
-      },
-      get memberNodeMode() {
-        return graphSettings.memberNodeMode;
-      },
-      get highlightOrphanGlobal() {
-        return graphSettings.highlightOrphanGlobal;
-      },
-      get renderingStrategyId() {
-        return graphSettings.renderingStrategyId;
-      },
-      get strategyOptionsById() {
-        return graphSettings.strategyOptionsById;
-      },
-    },
-    interaction: {
-      resetInteraction: () => {
-        interaction.resetInteraction();
-      },
-    },
-    fitView,
-    updateNodeInternals,
-    suspendEdgeVirtualization: () => {
-      edgeVirtualization.suspend();
-    },
-    resumeEdgeVirtualization: () => {
-      edgeVirtualization.resume();
-    },
-    syncViewportState,
-    nodeDimensionTracker,
-    resetSearchHighlightState: () => {
-      searchHighlighting.resetSearchHighlightState();
-    },
-    isFirefox,
-    graphRootRef,
-  });
+      isFirefox,
+      graphRootRef,
+    })
+  );
 
   const { isLayoutPending, isLayoutMeasuring, layoutConfig } = graphLayout;
   const activeCollisionConfig = computed(() =>
@@ -537,332 +322,143 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   const { isIsolateAnimating, isolateExpandAll, isolateNeighborhood, handleOpenSymbolUsageGraph, handleReturnToOverview } =
     isolationMode;
 
-  const activeRenderingStrategy = computed(() => getRenderingStrategy(graphSettings.renderingStrategyId));
-  const isCanvasModeRequested = computed(() => activeRenderingStrategy.value.runtime.edgeMode === 'canvas');
-
-  const isHybridCanvasMode = computed(
-    () =>
-      canvasRendererAvailable.value &&
-      isCanvasModeRequested.value
-  );
-
-  const renderedEdges = computed(() => {
-    if (!isHybridCanvasMode.value) return visualEdges.value;
-    if (highlightedEdgeIds.value.size === 0) return [];
-    return visualEdges.value.filter((edge) => highlightedEdgeIds.value.has(edge.id));
+  const {
+    isCanvasModeRequested,
+    isHybridCanvasMode,
+    renderedEdges,
+    useOnlyRenderVisibleElements,
+    isHeavyEdgeMode,
+    minimapAutoHidden,
+    showMiniMap,
+    defaultEdgeOptions,
+  } = useGraphRenderingState({
+    env,
+    nodes,
+    edges,
+    viewportState,
+    isLayoutMeasuring,
+    visualEdges,
+    highlightedEdgeIds,
+    edgeVirtualizationEnabled,
+    isFirefox,
+    canvasRendererAvailable,
+    renderingStrategyId: computed(() => graphSettings.renderingStrategyId),
   });
 
-  const useOnlyRenderVisibleElements = computed(() => {
-    if (isLayoutMeasuring.value) return false;
-    if (isHybridCanvasMode.value) return false;
-    return (
-      (edgeVirtualizationEnabled.value && edges.value.length >= env.EDGE_VISIBLE_RENDER_THRESHOLD) ||
-      nodes.value.length >= env.NODE_VISIBLE_RENDER_THRESHOLD
-    );
+  const { renderedNodeCount, renderedEdgeCount, renderedNodeTypeCounts, renderedEdgeTypeCounts } = useGraphRenderedStats({
+    visualNodes,
+    visualEdges,
   });
 
-  const isHeavyEdgeMode = computed(() => edges.value.length >= env.HEAVY_EDGE_STYLE_THRESHOLD);
-  const minimapAutoHidden = computed(() => edges.value.length >= env.MINIMAP_AUTO_HIDE_EDGE_THRESHOLD);
-  const showMiniMap = computed(() => !isFirefox.value && !isHybridCanvasMode.value && !minimapAutoHidden.value);
+  const { minimapNodeColor, minimapNodeStrokeColor } = useMinimapHelpers({ selectedNode });
 
-  const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => {
-    const lowDetailEdges =
-      edges.value.length >= env.HIGH_EDGE_MARKER_THRESHOLD ||
-      viewportState.value.zoom < env.LOW_DETAIL_EDGE_ZOOM_THRESHOLD;
-
-    if (lowDetailEdges) {
-      return { zIndex: 2, type: 'straight' };
-    }
-    return {
-      markerEnd: { type: MarkerType.ArrowClosed, width: EDGE_MARKER_WIDTH_PX, height: EDGE_MARKER_HEIGHT_PX },
-      zIndex: 2,
-      type: 'smoothstep',
-    };
-  });
-
-  const toSortedTypeCounts = (counts: Map<string, number>): GraphStatCountEntry[] =>
-    [...counts.entries()]
-      .map(([type, count]) => ({ type, count }))
-      .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.type.localeCompare(b.type)));
-
-  const renderedNodeCount = computed(() => visualNodes.value.length);
-  const renderedEdgeCount = computed(() => visualEdges.value.filter((edge) => !edge.hidden).length);
-
-  const renderedNodeTypeCounts = computed<GraphStatCountEntry[]>(() => {
-    const counts = new Map<string, number>();
-    visualNodes.value.forEach((node) => {
-      const type = node.type ?? 'unknown';
-      counts.set(type, (counts.get(type) ?? 0) + 1);
-    });
-    return toSortedTypeCounts(counts);
-  });
-
-  const renderedEdgeTypeCounts = computed<GraphStatCountEntry[]>(() => {
-    const counts = new Map<string, number>();
-    visualEdges.value.forEach((edge) => {
-      if (edge.hidden) return;
-      const bundledTypes = edge.data?.bundledTypes ?? [];
-      if (bundledTypes.length > 0) {
-        [...new Set(bundledTypes)].forEach((type) => {
-          counts.set(type, (counts.get(type) ?? 0) + 1);
-        });
-        return;
-      }
-      const type = edge.data?.type ?? 'unknown';
-      counts.set(type, (counts.get(type) ?? 0) + 1);
-    });
-    return toSortedTypeCounts(counts);
-  });
-
-  const minimapNodeColor = (node: { type?: string }): string => {
-    if (node.type === 'package') return 'rgba(20, 184, 166, 0.8)';
-    if (node.type === 'module') return 'rgba(59, 130, 246, 0.75)';
-    if (node.type === 'class' || node.type === 'interface') return 'rgba(217, 119, 6, 0.7)';
-    return 'rgba(148, 163, 184, 0.6)';
-  };
-
-  const minimapNodeStrokeColor = (node: { id?: string }): string =>
-    node.id === selectedNode.value?.id ? '#22d3ee' : 'rgba(226, 232, 240, 0.8)';
-
-  const handleMinimapNodeClick = (params: { node: { id: string } }): void => {
-    void handleFocusNode(params.node.id);
-  };
-
-  const handleCanvasUnavailable = (): void => {
-    if (!canvasRendererAvailable.value) return;
-    canvasRendererAvailable.value = false;
-    if (graphSettings.renderingStrategyId === 'canvas') {
-      graphSettings.setRenderingStrategyId('vueflow');
-      void graphLayout.requestGraphInitialization();
-    }
-    syncViewportState();
-    edgeVirtualization.requestViewportRecalc(true);
-  };
-
-  const onMoveEnd = (): void => {
-    viewport.onMoveEnd();
-    edgeVirtualization.requestViewportRecalc(true);
-  };
-
-  const onNodeClick = ({ node }: { node: unknown }): void => {
-    const clickedNode = node as DependencyNode;
-    setSelectedNode(selectedNode.value?.id === clickedNode.id ? null : clickedNode);
-  };
-
-  const onPaneClick = (): void => {
-    setSelectedNode(null);
-    contextMenu.value = null;
-    interaction.setCameraMode('free');
-  };
-
-  const handleFocusNode = async (nodeId: string): Promise<void> => {
-    const targetNode = nodes.value.find((node: DependencyNode) => node.id === nodeId);
-    if (!targetNode) return;
-
-    setSelectedNode(targetNode);
-    interaction.setCameraMode('fitSelection');
-
-    await fitView({ nodes: [nodeId], duration: 180, padding: 0.4 });
-
-    const semanticSnapshot = graphStore.semanticSnapshot;
-    if (semanticSnapshot) {
-      void traverseGraph(nodeId, {
-        maxDepth: 1,
-        semanticEdges: semanticSnapshot.edges,
-        semanticNodes: semanticSnapshot.nodes,
-        parentMap: buildParentMap(semanticSnapshot.nodes),
-      });
-    }
-
-    syncViewportState();
-    edgeVirtualization.requestViewportRecalc(true);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && selectedNode.value) {
-      setSelectedNode(null);
-      return;
-    }
-
-    if (
-      selectedNode.value &&
-      (event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'ArrowDown')
-    ) {
-      event.preventDefault();
-      const connectedEdges = edges.value.filter(
-        (edge: GraphEdge) => edge.source === selectedNode.value?.id || edge.target === selectedNode.value?.id
-      );
-      if (connectedEdges.length > 0) {
-        let nextNodeId: string | undefined;
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-          if (connectedEdges[0]) {
-            nextNodeId =
-              connectedEdges[0].source === selectedNode.value.id ? connectedEdges[0].target : connectedEdges[0].source;
-          }
-        } else {
-          const lastEdge = connectedEdges[connectedEdges.length - 1];
-          if (lastEdge) {
-            nextNodeId = lastEdge.source === selectedNode.value.id ? lastEdge.target : lastEdge.source;
-          }
-        }
-        if (nextNodeId) {
-          const nextNode = nodes.value.find((node: DependencyNode) => node.id === nextNodeId);
-          if (nextNode) {
-            setSelectedNode(nextNode);
-            void fitView({ nodes: [nextNode.id], duration: 150, padding: 0.5 }).then(() => {
-              syncViewportState();
-              edgeVirtualization.requestViewportRecalc(true);
-            });
-          }
-        }
-      }
-    }
-
-    if (event.key === 'f' && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      const target = event.target;
-      const tag = target instanceof HTMLElement ? target.tagName : '';
-      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
-        graphSettings.setShowFps(!graphSettings.showFps);
-      }
-    }
-  };
-
-  const onNodeMouseEnter = ({ node }: { node: unknown }): void => {
-    const entered = node as DependencyNode;
-    if (selectedNode.value !== null) {
-      clearHoverState();
-      return;
-    }
-    if (entered.type === 'package' || entered.type === 'group') {
-      clearHoverState();
-      return;
-    }
-    if (hoveredNodeId.value && hoveredNodeId.value !== entered.id) {
-      restoreHoverZIndex(hoveredNodeId.value);
-    }
-    hoveredNodeId.value = entered.id;
-    elevateNodeAndChildren(entered.id);
-    applyHoverEdgeHighlight(entered.id);
-  };
-
-  const onNodeMouseLeave = ({ node }: { node: unknown }): void => {
-    const left = node as DependencyNode;
-    if (left.type === 'package' || left.type === 'group') return;
-    if (hoveredNodeId.value === left.id) {
-      clearHoverState();
-    }
-  };
-
-  const handleRelationshipFilterChange = async (types: string[]) => {
-    graphSettings.setEnabledRelationshipTypes(types);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleNodeTypeFilterChange = async (types: string[]) => {
-    graphSettings.setEnabledNodeTypes(types);
-    setSelectedNode(null);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleCollapseSccToggle = async (value: boolean) => {
-    const strategyForScc = getRenderingStrategy(graphSettings.renderingStrategyId);
-    if ((graphSettings.clusterByFolder || strategyForScc.runtime.forcesClusterByFolder) && value) {
-      graphSettings.setCollapseScc(false);
-      return;
-    }
-    graphSettings.setCollapseScc(value);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleClusterByFolderToggle = async (value: boolean) => {
-    const activeStrategy = getRenderingStrategy(graphSettings.renderingStrategyId);
-    if (activeStrategy.runtime.forcesClusterByFolder && !value) {
-      graphSettings.setClusterByFolder(true);
-      if (graphSettings.collapseScc) {
-        graphSettings.setCollapseScc(false);
-      }
-      await graphLayout.requestGraphInitialization();
-      return;
-    }
-    if (value && graphSettings.collapseScc) {
-      graphSettings.setCollapseScc(false);
-    }
-    graphSettings.setClusterByFolder(value);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleHideTestFilesToggle = async (value: boolean) => {
-    graphSettings.setHideTestFiles(value);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleMemberNodeModeChange = async (value: 'compact' | 'graph') => {
-    graphSettings.setMemberNodeMode(value);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleOrphanGlobalToggle = async (value: boolean) => {
-    graphSettings.setHighlightOrphanGlobal(value);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleShowFpsToggle = (value: boolean): void => {
-    graphSettings.setShowFps(value);
-  };
-
-  const handleFpsAdvancedToggle = (value: boolean): void => {
-    graphSettings.setShowFpsAdvanced(value);
-  };
-
-  const handleRenderingStrategyChange = async (id: RenderingStrategyId): Promise<void> => {
-    const strategy = getRenderingStrategy(id);
-    if (strategy.runtime.forcesClusterByFolder) {
-      graphSettings.setClusterByFolder(true);
-      if (graphSettings.collapseScc) {
-        graphSettings.setCollapseScc(false);
-      }
-    }
-    if (graphSettings.renderingStrategyId !== id) {
-      graphSettings.setRenderingStrategyId(id);
-      await graphLayout.requestGraphInitialization();
-    }
-    syncViewportState();
-    edgeVirtualization.requestViewportRecalc(true);
-  };
-
-  const handleRenderingStrategyOptionChange = async (payload: {
-    strategyId: RenderingStrategyId;
-    optionId: string;
-    value: unknown;
-  }): Promise<void> => {
-    const optionTargetsActiveStrategy = payload.strategyId === graphSettings.renderingStrategyId;
-    graphSettings.setRenderingStrategyOption(payload.strategyId, payload.optionId, payload.value);
-    if (optionTargetsActiveStrategy) {
-      await graphLayout.requestGraphInitialization();
-    }
-    syncViewportState();
-    edgeVirtualization.requestViewportRecalc(true);
-  };
-
-  const nodeActions = {
-    focusNode: (nodeId: string) => void handleFocusNode(nodeId),
-    isolateNeighborhood: (nodeId: string) => void isolateNeighborhood(nodeId),
-    showContextMenu: (nodeId: string, label: string, event: MouseEvent) => {
-      contextMenu.value = { nodeId, nodeLabel: label, x: event.clientX, y: event.clientY };
+  const { handleFocusNode, handleMinimapNodeClick, handleCanvasUnavailable, onMoveEnd } = useGraphNavigationHandlers({
+    nodes,
+    setSelectedNode,
+    fitView,
+    interaction: {
+      setCameraMode: (mode) => {
+        interaction.setCameraMode(mode);
+      },
     },
-  };
+    graphStore: {
+      get semanticSnapshot() {
+        return graphStore.semanticSnapshot;
+      },
+    },
+    graphSettings: {
+      get renderingStrategyId() {
+        return graphSettings.renderingStrategyId;
+      },
+      setRenderingStrategyId: (id) => {
+        graphSettings.setRenderingStrategyId(id);
+      },
+    },
+    graphLayout: {
+      requestGraphInitialization: () => graphLayout.requestGraphInitialization(),
+    },
+    canvasRendererAvailable,
+    viewport: {
+      onMoveEnd: () => {
+        viewport.onMoveEnd();
+      },
+    },
+    edgeVirtualization: {
+      requestViewportRecalc: (force) => {
+        edgeVirtualization.requestViewportRecalc(force);
+      },
+    },
+    syncViewportState,
+  });
+
+  const { onNodeClick, onPaneClick, handleKeyDown, onNodeMouseEnter, onNodeMouseLeave } = useGraphSelectionHandlers({
+    state: {
+      selectedNode,
+      hoveredNodeId,
+      contextMenu,
+    },
+    actions: {
+      setSelectedNode,
+      clearHoverState,
+      applyHoverEdgeHighlight,
+      restoreHoverZIndex,
+      elevateNodeAndChildren,
+    },
+    graphSettings: {
+      get showFps() {
+        return graphSettings.showFps;
+      },
+      setShowFps: (value) => {
+        graphSettings.setShowFps(value);
+      },
+    },
+    interaction: {
+      setCameraMode: (mode) => {
+        interaction.setCameraMode(mode);
+      },
+    },
+    nodes,
+    edges,
+    fitView,
+    syncViewportState,
+    requestViewportRecalc: (force) => {
+      edgeVirtualization.requestViewportRecalc(force);
+    },
+  });
+
+  const {
+    handleRelationshipFilterChange,
+    handleNodeTypeFilterChange,
+    handleCollapseSccToggle,
+    handleClusterByFolderToggle,
+    handleHideTestFilesToggle,
+    handleMemberNodeModeChange,
+    handleOrphanGlobalToggle,
+    handleShowFpsToggle,
+    handleFpsAdvancedToggle,
+    handleRenderingStrategyChange,
+    handleRenderingStrategyOptionChange,
+  } = useGraphSettingsHandlers({
+    graphLayout,
+    graphSettings,
+    setSelectedNode,
+    syncViewportState,
+    requestViewportRecalc: (force) => {
+      edgeVirtualization.requestViewportRecalc(force);
+    },
+  });
+
+  const { nodeActions, folderCollapseActions } = createGraphNodeActions({
+    handleFocusNode,
+    isolateNeighborhood,
+    contextMenu,
+    toggleFolderCollapsed: (folderId) => {
+      graphSettings.toggleFolderCollapsed(folderId);
+    },
+    requestGraphInitialization: (layoutOptions) => graphLayout.requestGraphInitialization(layoutOptions),
+  });
 
   const highlightOrphanGlobal = computed(() => graphSettings.highlightOrphanGlobal);
-
-  const folderCollapseActions = {
-    toggleFolderCollapsed: (folderId: string) => {
-      graphSettings.toggleFolderCollapsed(folderId);
-      void graphLayout.requestGraphInitialization({
-        fitViewToResult: false,
-        twoPassMeasure: true,
-      });
-    },
-  };
 
   function dispose() {
     viewport.dispose();
@@ -969,14 +565,14 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     handleKeyDown,
     onNodeMouseEnter,
     onNodeMouseLeave,
-  handleRelationshipFilterChange,
+    handleRelationshipFilterChange,
     handleNodeTypeFilterChange,
     handleCollapseSccToggle,
     handleClusterByFolderToggle,
     handleHideTestFilesToggle,
     handleMemberNodeModeChange,
-  handleOrphanGlobalToggle,
-  handleShowFpsToggle,
+    handleOrphanGlobalToggle,
+    handleShowFpsToggle,
     handleFpsAdvancedToggle,
     handleRenderingStrategyChange,
     handleRenderingStrategyOptionChange,
