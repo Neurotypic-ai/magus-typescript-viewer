@@ -2,7 +2,7 @@
   "compilerOptions": {
     "outDir": "${configDir}/dist/test",
     "rootDir": "${configDir}/src",
-    "types": [ "node", "vitest/globals", "vitest" ],
+    "types": ["node", "vitest/globals", "vitest"],
     "tsBuildInfoFile": "${configDir}/dist/test.tsbuildinfo"
   },
   "extends": "./base.json",
@@ -16,6 +16,14 @@
     "${configDir}/src/**/*.test.mts",
     "${configDir}/src/**/*.spec.mts",
     "${configDir}/src/**/*.test.mtsx",
-    "${configDir}/src/**/*.spec.mtsx"
+    "${configDir}/src/**/*.spec.mtsx",
+    "${configDir}/**/__tests__/**/*.ts",
+    "${configDir}/**/__tests__/**/*.tsx",
+    "${configDir}/**/__tests__/**/*.mts",
+    "${configDir}/**/__tests__/**/*.mtsx",
+    "${configDir}/**/__tests__/**/*.spec.ts",
+    "${configDir}/**/__tests__/**/*.spec.tsx",
+    "${configDir}/**/__tests__/**/*.spec.mts",
+    "${configDir}/**/__tests__/**/*.spec.mtsx"
   ]
 }
