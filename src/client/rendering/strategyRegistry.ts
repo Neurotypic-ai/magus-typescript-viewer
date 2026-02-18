@@ -29,7 +29,8 @@ const MINIMUM_DISTANCE_PX_OPTION = {
 
 export const RENDERING_STRATEGY_IDS: readonly RenderingStrategyId[] = ['canvas', 'vueflow', 'folderDistributor'];
 
-export const RENDERING_STRATEGIES = new Map<RenderingStrategyId, RenderingStrategy>([
+export const RENDERING_STRATEGIES: Map<RenderingStrategyId, RenderingStrategy> =
+  new Map<RenderingStrategyId, RenderingStrategy>([
   [
     'canvas',
     {
@@ -81,7 +82,7 @@ export const RENDERING_STRATEGIES = new Map<RenderingStrategyId, RenderingStrate
       },
     },
   ],
-]);
+  ]);
 
 const FALLBACK_STRATEGY: RenderingStrategy = (() => {
   const strategy = RENDERING_STRATEGIES.get('canvas');

@@ -16,7 +16,13 @@ export interface UseGraphSearchOptions {
   debounceMs?: number;
 }
 
-export function useGraphSearch(options: UseGraphSearchOptions) {
+export interface UseGraphSearchResult {
+  searchQuery: Ref<string>;
+  runSearch: () => void;
+  clearSearch: () => void;
+}
+
+export function useGraphSearch(options: UseGraphSearchOptions): UseGraphSearchResult {
   const { nodes, edges, onSearchResult, debounceMs = 300 } = options;
 
   const searchQuery = ref('');

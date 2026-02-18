@@ -1,11 +1,24 @@
-import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { defineStore, type SetupStoreDefinition } from 'pinia';
+import { computed, ref, type ComputedRef, type Ref } from 'vue';
 
 import { getApiBaseUrl } from '../assemblers/api';
 
 import type { InsightKind, InsightReport, InsightResult } from '../../server/insights/types';
 
-export const useInsightsStore = defineStore('insights', () => {
+interface InsightsStore {
+  report: Ref<InsightReport | null>;
+  loading: Ref<boolean>;
+  activeFilter: Ref<InsightKind | null>;
+  dashboardOpen: Ref<boolean>;
+  insightsByNodeId: ComputedRef<Map<string, InsightResult[]>>;
+  filteredNodeIds: ComputedRef<Set<string>>;
+  nodeSeverityCounts: (nodeId: string) => { critical: number; warning: number; info: number };
+  fetchInsights: (packageId?: string) => Promise<void>;
+  setActiveFilter: (kind: InsightKind | null) => void;
+  toggleDashboard: () => void;
+}
+
+const createInsightsStore = (): InsightsStore => {
   const report = ref<InsightReport | null>(null);
   const loading = ref(false);
   const activeFilter = ref<InsightKind | null>(null);
@@ -98,15 +111,20 @@ export const useInsightsStore = defineStore('insights', () => {
   }
 
   return {
-    report,
-    loading,
-    activeFilter,
-    dashboardOpen,
-    insightsByNodeId,
-    filteredNodeIds,
-    nodeSeverityCounts,
-    fetchInsights,
-    setActiveFilter,
-    toggleDashboard,
+    report: report,
+    loading: loading,
+    activeFilter: activeFilter,
+    dashboardOpen: dashboardOpen,
+    insightsByNodeId: insightsByNodeId,
+    filteredNodeIds: filteredNodeIds,
+    nodeSeverityCounts: nodeSeverityCounts,
+    fetchInsights: fetchInsights,
+    setActiveFilter: setActiveFilter,
+    toggleDashboard: toggleDashboard,
   };
-});
+};
+
+export const useInsightsStore: SetupStoreDefinition<
+  'insights',
+  InsightsStore
+> = defineStore('insights', createInsightsStore);

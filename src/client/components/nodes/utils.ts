@@ -60,19 +60,35 @@ interface DependencyPropsInput {
   readonly parentNodeId?: string | undefined;
 }
 
+export interface BuildBaseNodePropsOverrides {
+  isContainer?: boolean;
+  showSubnodes?: boolean;
+  subnodesCount?: number;
+  zIndex?: number;
+}
+
+export interface BaseNodeProps extends BuildBaseNodePropsOverrides {
+  id: string;
+  type: DependencyKind;
+  data: DependencyData;
+  selected?: boolean;
+  dragging?: boolean;
+  connectable?: boolean | number | string;
+  width?: number;
+  height?: number;
+  sourcePosition?: Position;
+  targetPosition?: Position;
+  parentNodeId?: string;
+}
+
 /**
  * Build the base node props object from DependencyProps.
  * Replaces the duplicated `baseNodeProps` computed in ModuleNode, PackageNode, and SymbolNode.
  */
 export function buildBaseNodeProps(
   props: DependencyPropsInput,
-  overrides?: {
-    isContainer?: boolean;
-    showSubnodes?: boolean;
-    subnodesCount?: number;
-    zIndex?: number;
-  }
-) {
+  overrides?: BuildBaseNodePropsOverrides
+): BaseNodeProps {
   return {
     id: props.id,
     type: props.type,

@@ -11,11 +11,11 @@ export const EDGE_HOVER_Z_INDEX = 12;
 export const EDGE_HOVER_BASE_STROKE_VAR = '--edge-hover-base-stroke';
 export const EDGE_HOVER_FALLBACK_STROKE = '#404040';
 export const NODE_SELECTION_CLASS_TOKENS = ['selection-target', 'selection-connected', 'selection-dimmed'] as const;
-export const EDGE_SELECTION_CLASS_TOKENS = [
+export const EDGE_SELECTION_CLASS_TOKENS: readonly [string, string, string] = [
   'edge-selection-highlighted',
   'edge-selection-dimmed',
   EDGE_HOVER_CLASS,
-] as const;
+];
 
 // ── Class manipulation ──
 

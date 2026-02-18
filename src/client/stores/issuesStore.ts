@@ -1,11 +1,27 @@
-import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { defineStore, type SetupStoreDefinition } from 'pinia';
+import { computed, ref, type ComputedRef, type Ref } from 'vue';
 
 import { getApiBaseUrl } from '../assemblers/api';
 
 import type { CodeIssueRef } from '../types/CodeIssueRef';
 
-export const useIssuesStore = defineStore('issues', () => {
+interface IssuesStore {
+  issues: Ref<CodeIssueRef[]>;
+  panelOpen: Ref<boolean>;
+  selectedNodeFilter: Ref<string | null>;
+  previewResult: Ref<{ original: string; transformed: string } | null>;
+  issuesByModuleId: ComputedRef<Map<string, CodeIssueRef[]>>;
+  issuesByEntityId: ComputedRef<Map<string, CodeIssueRef[]>>;
+  issueCountByNodeId: ComputedRef<Map<string, number>>;
+  filteredIssues: ComputedRef<CodeIssueRef[]>;
+  fetchIssues: () => Promise<void>;
+  previewRefactor: (issueId: string) => Promise<void>;
+  executeRefactor: (issueId: string) => Promise<boolean>;
+  setNodeFilter: (id: string | null) => void;
+  togglePanel: () => void;
+}
+
+const createIssuesStore = (): IssuesStore => {
   const issues = ref<CodeIssueRef[]>([]);
   const panelOpen = ref(false);
   const selectedNodeFilter = ref<string | null>(null);
@@ -160,18 +176,23 @@ export const useIssuesStore = defineStore('issues', () => {
   }
 
   return {
-    issues,
-    panelOpen,
-    selectedNodeFilter,
-    previewResult,
-    issuesByModuleId,
-    issuesByEntityId,
-    issueCountByNodeId,
-    filteredIssues,
-    fetchIssues,
-    previewRefactor,
-    executeRefactor,
-    setNodeFilter,
-    togglePanel,
+    issues: issues,
+    panelOpen: panelOpen,
+    selectedNodeFilter: selectedNodeFilter,
+    previewResult: previewResult,
+    issuesByModuleId: issuesByModuleId,
+    issuesByEntityId: issuesByEntityId,
+    issueCountByNodeId: issueCountByNodeId,
+    filteredIssues: filteredIssues,
+    fetchIssues: fetchIssues,
+    previewRefactor: previewRefactor,
+    executeRefactor: executeRefactor,
+    setNodeFilter: setNodeFilter,
+    togglePanel: togglePanel,
   };
-});
+};
+
+export const useIssuesStore: SetupStoreDefinition<
+  'issues',
+  IssuesStore
+> = defineStore('issues', createIssuesStore);

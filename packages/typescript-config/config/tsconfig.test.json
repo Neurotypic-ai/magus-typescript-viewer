@@ -5,5 +5,5 @@
     "rootDir": "${configDir}/src"
   },
   "extends": "./tsconfig.settings.json",
-  "include": [ "${configDir}/src/**/*.{test,spec}.{ts,tsx,mts,mtsx}" ]
+  "include": [ "${configDir}/src/**/*.{test,spec}.{ts,tsx,mts,mtsx}", "${configDir}/src/**/__tests__/**/*.{ts,tsx,mts,mtsx}" ]
 }

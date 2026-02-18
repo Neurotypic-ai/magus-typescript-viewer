@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref, type Ref } from 'vue';
+import { computed, onUnmounted, ref, type ComputedRef, type Ref } from 'vue';
 
 const MAX_FPS_HISTORY_POINTS = 90;
 
@@ -10,6 +10,14 @@ export interface FpsStatsSummary {
   sampleCount: number;
 }
 
+export interface UseFpsCounterResult {
+  fps: Ref<number>;
+  fpsHistory: Ref<number[]>;
+  fpsStats: ComputedRef<FpsStatsSummary>;
+  start: () => void;
+  stop: () => void;
+}
+
 /**
  * Composable that measures rendering FPS using requestAnimationFrame.
  *
@@ -17,7 +25,7 @@ export interface FpsStatsSummary {
  * The rAF loop only runs while `enabled` is true, so there's zero overhead
  * when the counter is hidden.
  */
-export function useFpsCounter(enabled: Readonly<Ref<boolean>>) {
+export function useFpsCounter(enabled: Readonly<Ref<boolean>>): UseFpsCounterResult {
   const fps = ref(0);
   const fpsHistory = ref<number[]>([]);
   const fpsStats = computed<FpsStatsSummary>(() => {

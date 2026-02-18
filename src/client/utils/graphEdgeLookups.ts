@@ -30,8 +30,8 @@ export function isExternalImportRef(imp: {
 }
 
 export const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'] as const;
-export const FILE_EXTENSION_PATTERN = /\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
-export const INDEX_FILE_PATTERN = /^(.*)\/index\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
+export const FILE_EXTENSION_PATTERN: RegExp = /\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
+export const INDEX_FILE_PATTERN: RegExp = /^(.*)\/index\.(ts|tsx|js|jsx|mjs|cjs|vue)$/i;
 
 export function normalizePath(path: string): string {
   const normalized = path.replace(/\\/g, '/');

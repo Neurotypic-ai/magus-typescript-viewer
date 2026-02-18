@@ -1,4 +1,4 @@
-const TEST_FILE_PATTERNS = [
+const TEST_FILE_PATTERNS: readonly RegExp[] = [
   /(^|\/)__tests__(\/|$)/i,
   /\.(test|spec)\.[cm]?[jt]sx?$/i,
   /\.(e2e|integration)\.[cm]?[jt]sx?$/i,

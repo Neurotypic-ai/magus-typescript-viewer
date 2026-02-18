@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { defineStore, type SetupStoreDefinition } from 'pinia';
+import { computed, ref, type ComputedRef, type Ref } from 'vue';
 import { isRenderingStrategyId, type RenderingStrategyId, type RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
 import { createDefaultStrategyOptionsById, sanitizeStrategyOptionsById } from '../rendering/strategyRegistry';
 
@@ -98,7 +98,53 @@ interface PersistedGraphSettings {
   showDebugNodeIds?: boolean;
 }
 
-export const useGraphSettings = defineStore('graphSettings', () => {
+interface GraphSettingsStore {
+  collapseScc: Ref<boolean>;
+  clusterByFolder: Ref<boolean>;
+  enabledRelationshipTypes: Ref<string[]>;
+  enabledNodeTypes: Ref<string[]>;
+  hideTestFiles: Ref<boolean>;
+  memberNodeMode: Ref<MemberNodeMode>;
+  highlightOrphanGlobal: Ref<boolean>;
+  showFps: Ref<boolean>;
+  showFpsAdvanced: Ref<boolean>;
+  renderingStrategyId: Ref<RenderingStrategyId>;
+  strategyOptionsById: Ref<RenderingStrategyOptionsById>;
+  relationshipAvailability: ComputedRef<Record<RelationshipType, RelationshipAvailability>>;
+  activeRelationshipTypes: ComputedRef<string[]>;
+  setCollapseScc: (value: boolean) => void;
+  setClusterByFolder: (value: boolean) => void;
+  setEnabledRelationshipTypes: (types: string[]) => void;
+  toggleRelationshipType: (type: RelationshipType, enabled: boolean) => void;
+  setEnabledNodeTypes: (types: string[]) => void;
+  toggleNodeType: (type: NodeTypeFilter, enabled: boolean) => void;
+  setHideTestFiles: (value: boolean) => void;
+  setMemberNodeMode: (value: MemberNodeMode) => void;
+  setHighlightOrphanGlobal: (value: boolean) => void;
+  setShowFps: (value: boolean) => void;
+  setShowFpsAdvanced: (value: boolean) => void;
+  initializeRenderingStrategyId: (value: RenderingStrategyId) => void;
+  setRenderingStrategyId: (value: RenderingStrategyId) => void;
+  setRenderingStrategyOption: (
+    strategyId: RenderingStrategyId,
+    optionId: string,
+    value: unknown
+  ) => void;
+  enabledModuleMemberTypes: Ref<string[]>;
+  toggleModuleMemberType: (type: ModuleMemberType, enabled: boolean) => void;
+  collapsedFolderIds: Ref<Set<string>>;
+  toggleFolderCollapsed: (folderId: string) => void;
+  collapsedSections: Ref<Record<GraphControlSectionKey, boolean>>;
+  setCollapsedSection: (sectionId: GraphControlSectionKey, collapsed: boolean) => void;
+  showDebugBounds: Ref<boolean>;
+  setShowDebugBounds: (value: boolean) => void;
+  showDebugHandles: Ref<boolean>;
+  setShowDebugHandles: (value: boolean) => void;
+  showDebugNodeIds: Ref<boolean>;
+  setShowDebugNodeIds: (value: boolean) => void;
+}
+
+const createGraphSettingsStore = (): GraphSettingsStore => {
   const collapseScc = ref<boolean>(true);
   const clusterByFolder = ref<boolean>(false);
   const enabledRelationshipTypes = ref<string[]>([...DEFAULT_RELATIONSHIP_TYPES]);
@@ -421,44 +467,49 @@ export const useGraphSettings = defineStore('graphSettings', () => {
   loadSettings();
 
   return {
-    collapseScc,
-    clusterByFolder,
-    enabledRelationshipTypes,
-    enabledNodeTypes,
-    hideTestFiles,
-    memberNodeMode,
-    highlightOrphanGlobal,
-    showFps,
-    showFpsAdvanced,
-    renderingStrategyId,
-    strategyOptionsById,
-    relationshipAvailability,
-    activeRelationshipTypes,
-    setCollapseScc,
-    setClusterByFolder,
-    setEnabledRelationshipTypes,
-    toggleRelationshipType,
-    setEnabledNodeTypes,
-    toggleNodeType,
-    setHideTestFiles,
-    setMemberNodeMode,
-    setHighlightOrphanGlobal,
-    setShowFps,
-    setShowFpsAdvanced,
-    initializeRenderingStrategyId,
-    setRenderingStrategyId,
-    setRenderingStrategyOption,
-    enabledModuleMemberTypes,
-    toggleModuleMemberType,
-    collapsedFolderIds,
-    toggleFolderCollapsed,
-    collapsedSections,
-    setCollapsedSection,
-    showDebugBounds,
-    setShowDebugBounds,
-    showDebugHandles,
-    setShowDebugHandles,
-    showDebugNodeIds,
-    setShowDebugNodeIds,
+    collapseScc: collapseScc,
+    clusterByFolder: clusterByFolder,
+    enabledRelationshipTypes: enabledRelationshipTypes,
+    enabledNodeTypes: enabledNodeTypes,
+    hideTestFiles: hideTestFiles,
+    memberNodeMode: memberNodeMode,
+    highlightOrphanGlobal: highlightOrphanGlobal,
+    showFps: showFps,
+    showFpsAdvanced: showFpsAdvanced,
+    renderingStrategyId: renderingStrategyId,
+    strategyOptionsById: strategyOptionsById,
+    relationshipAvailability: relationshipAvailability,
+    activeRelationshipTypes: activeRelationshipTypes,
+    setCollapseScc: setCollapseScc,
+    setClusterByFolder: setClusterByFolder,
+    setEnabledRelationshipTypes: setEnabledRelationshipTypes,
+    toggleRelationshipType: toggleRelationshipType,
+    setEnabledNodeTypes: setEnabledNodeTypes,
+    toggleNodeType: toggleNodeType,
+    setHideTestFiles: setHideTestFiles,
+    setMemberNodeMode: setMemberNodeMode,
+    setHighlightOrphanGlobal: setHighlightOrphanGlobal,
+    setShowFps: setShowFps,
+    setShowFpsAdvanced: setShowFpsAdvanced,
+    initializeRenderingStrategyId: initializeRenderingStrategyId,
+    setRenderingStrategyId: setRenderingStrategyId,
+    setRenderingStrategyOption: setRenderingStrategyOption,
+    enabledModuleMemberTypes: enabledModuleMemberTypes,
+    toggleModuleMemberType: toggleModuleMemberType,
+    collapsedFolderIds: collapsedFolderIds,
+    toggleFolderCollapsed: toggleFolderCollapsed,
+    collapsedSections: collapsedSections,
+    setCollapsedSection: setCollapsedSection,
+    showDebugBounds: showDebugBounds,
+    setShowDebugBounds: setShowDebugBounds,
+    showDebugHandles: showDebugHandles,
+    setShowDebugHandles: setShowDebugHandles,
+    showDebugNodeIds: showDebugNodeIds,
+    setShowDebugNodeIds: setShowDebugNodeIds,
   };
-});
+};
+
+export const useGraphSettings: SetupStoreDefinition<
+  'graphSettings',
+  GraphSettingsStore
+> = defineStore('graphSettings', createGraphSettingsStore);

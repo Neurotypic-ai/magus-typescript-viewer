@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import { defineStore, type SetupStoreDefinition } from 'pinia';
 import { ref, shallowRef, watch } from 'vue';
 
 import type { Ref, ShallowRef } from 'vue';
@@ -64,7 +64,7 @@ function debounce<P extends unknown[]>(func: (...args: P) => void, wait: number)
 /**
  * Pinia store for graph state management
  */
-export const useGraphStore = defineStore('graph', (): GraphStore => {
+export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineStore('graph', (): GraphStore => {
   // State
   const nodes = ref<DependencyNode[]>([]);
   const edges = ref<GraphEdge[]>([]);
