@@ -1,4 +1,4 @@
-# @magus-mark/typescript-config
+# @neurotypic-ai/typescript-config
 
 Shared TypeScript configurations for Magus Mark projects.
 
@@ -8,7 +8,7 @@ Add as a workspace dependency:
 
 ```json
 "dependencies": {
-  "@magus-mark/typescript-config": "workspace:*"
+  "@neurotypic-ai/typescript-config": "workspace:*"
 }
 ```
 
@@ -16,7 +16,7 @@ Then extend the appropriate configuration in your project's `tsconfig.json`:
 
 ```json
 {
-  "extends": "@magus-mark/typescript-config/library.json",
+  "extends": "@neurotypic-ai/typescript-config/library.json",
   // Additional project-specific settings
   "compilerOptions": {
     "rootDir": "./src",
@@ -29,18 +29,17 @@ Then extend the appropriate configuration in your project's `tsconfig.json`:
 
 ## Available Configurations
 
-- **base.json**: Base configuration with common settings
-- **settings.json**: Core TypeScript settings with strict type checking
-- **build.json**: Settings for building production code
-- **test.json**: Settings for test files
-- **app.json**: Base settings for applications
+- **tsconfig.base.json**: Base configuration with common settings
+- **tsconfig.settings.json**: Core TypeScript settings with strict type checking
+- **tsconfig.build.json**: Settings for building production code
+- **tsconfig.test.json**: Settings for test files
+- **tsconfig.app.json**: Base settings for applications
 - **library.json**: Settings for library packages (e.g., core)
 - **cli.json**: Settings for CLI applications
 - **obsidian.json**: Settings for Obsidian plugins
 - **vscode.json**: Settings for VS Code extensions
 
-Notes
------
+## Notes
 
 - These presets enable strict mode, declaration maps, and incremental builds
 - Use project references for monorepos; presets are configured with `${configDir}` placeholders
@@ -51,7 +50,7 @@ Notes
 
 ```json
 {
-  "extends": "@magus-mark/typescript-config/library.json",
+  "extends": "@neurotypic-ai/typescript-config/library.json",
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
@@ -67,7 +66,7 @@ Notes
 
 ```json
 {
-  "extends": "@magus-mark/typescript-config/cli.json",
+  "extends": "@neurotypic-ai/typescript-config/cli.json",
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist"
@@ -81,7 +80,7 @@ Notes
 
 ```json
 {
-  "extends": "@magus-mark/typescript-config/obsidian.json",
+  "extends": "@neurotypic-ai/typescript-config/obsidian.json",
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist"
@@ -95,7 +94,7 @@ Notes
 
 ```json
 {
-  "extends": "@magus-mark/typescript-config/vscode.json",
+  "extends": "@neurotypic-ai/typescript-config/vscode.json",
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist"

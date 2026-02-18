@@ -1,3 +1,15 @@
 {
-  "extends": "@magus-mark/typescript-config/config/app.json"
+  "extends": "@neurotypic-ai/typescript-config/config/tsconfig.base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["./scripts/**/*.ts", "eslint.config.ts", "prettier.config.ts"],
+  "exclude": ["node_modules", "**/node_modules/**/*", "**/dist/**/*", "**/node_modules/.pnpm/**/*"],
+  "references": [
+
+  ]
 }

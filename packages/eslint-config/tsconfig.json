@@ -1,0 +1,3 @@
+{
+  "extends": "@neurotypic-ai/typescript-config/config/tsconfig.base.json"
+}

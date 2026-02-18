@@ -1,0 +1,25 @@
+---
+globs: apps/dollarwise/src/**/*.vue
+---
+# Accessibility Heuristics
+
+## Landmarks
+
+- Use proper landmarks and labels: `role="navigation" aria-label="Primary"` for main nav; `header`, `main`, `footer` where applicable.
+
+## Focus
+
+- Use `focus-ring` utility for interactive elements; ensure keyboard reachability for all actions.
+
+## Labels
+
+- Inputs must have visible labels or `aria-label`/`aria-labelledby`.
+- Buttons with only icons should include `aria-label` and/or visible label nearby.
+
+## Contrast & Theme
+
+- Ensure sufficient contrast in both light and dark modes using theme tokens.
+
+## Motion
+
+- Respect `prefers-reduced-motion`; timings come from CSS variables already wired in `style.css`.

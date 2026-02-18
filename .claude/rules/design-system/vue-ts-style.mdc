@@ -1,0 +1,47 @@
+---
+globs: apps/dollarwise/src/**/*.ts,apps/dollarwise/src/**/*.vue,packages/**/*.ts
+---
+# Vue + TypeScript Style Guide
+
+## General
+
+- Prefer explicit types on exported functions, public component props, emits, and store methods.
+- Use guard clauses and shallow nesting. Handle errors and edge cases first.
+- Avoid `any`; prefer precise domain types from [packages/data/src/types](mdc:packages/data/src/types).
+
+## Single File Components
+
+- `<script lang="ts" setup>` with composition API.
+- Name props and emits with full words; avoid abbreviations.
+- Keep templates clean: push logic into computed/derived state.
+- Co-locate tiny helpers inside component; move reusable ones to `composables/`.
+
+## Stores (Dual Architecture)
+
+Stores exist in **two locations** with distinct purposes:
+
+1. **Data Layer Stores (PRIMARY)**: [packages/data/src/stores](mdc:packages/data/src/stores)
+   - Domain data, business logic, API interactions
+   - Components MUST import domain data from these stores
+   - Example: `import { useTransactionsStore } from '@neurotypic-ai/data/stores/transactions'`
+
+2. **App Stores (UI ONLY)**: [apps/dollarwise/src/stores](mdc:apps/dollarwise/src/stores)
+   - UI-specific app state: settings, system health, app-only preferences
+   - Never handle domain data or API calls here
+
+Shared UI stores (theme/toast) live in the design system: [packages/design-system/src/stores](mdc:packages/design-system/src/stores)
+
+- Expose minimal public API; type all state and actions.
+- See [stores-patterns](mdc:.cursor/rules/stores-patterns.mdc) for detailed patterns.
+
+## Errors
+
+- Do not `try/catch` without meaningful handling. Surface user-visible errors via the UI store or local component state.
+
+## Formatting
+
+- Follow existing Tailwind-first approach; do not inline long, complex ternaries; prefer computed classes.
+
+## Imports
+
+- Never import app code from the data package at build paths (use package public entrypoints where defined). Keep boundaries clean.

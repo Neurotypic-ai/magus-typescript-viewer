@@ -1,0 +1,428 @@
+---
+description: Patterns for building complex input components with validation, formatting, and accessibility
+globs: **/inputs/*.vue,**/inputs/*.ts
+---
+
+# Complex Input Component Patterns
+
+Guidelines for building sophisticated input components like CurrencyField, DateField, etc.
+
+## Architecture
+
+### Component Responsibility Layers
+
+1. **Props Interface**: External API (modelValue, validation rules, formatting options)
+2. **Display Logic**: Format for user presentation
+3. **Input Processing**: Parse, validate, and normalize user input
+4. **Emit Logic**: Communicate canonical value to parent
+5. **Accessibility**: ARIA attributes, keyboard navigation
+
+### Core Props Pattern
+
+Every complex input should have:
+
+```typescript
+const props = withDefaults(
+  defineProps<{
+    modelValue: T;              // Canonical value (e.g., cents for currency)
+    label: string;              // Visible label
+    error?: string;             // External validation error
+    disabled?: boolean;
+    placeholder?: string;
+    autofocus?: boolean;
+    // ... component-specific props
+  }>(),
+  {
+    disabled: false,
+    autofocus: false,
+  }
+);
+```
+
+### Emits Pattern
+
+```typescript
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: T): void;
+  (e: 'blur' | 'focus'): void;
+  (e: 'invalid', detail: ValidationDetail): void; // Optional validation events
+}>();
+```
+
+## Input Processing Pipeline
+
+### 1. Display Value vs. Model Value
+
+Always separate display (what user sees) from model (canonical data):
+
+```typescript
+// Model: cents (stored in database, used in calculations)
+const modelValue = ref<number>(12345); // 12345 cents
+
+// Display: formatted string for UI
+const displayValue = ref<string>(''); // "$123.45"
+
+function formatForDisplay(cents: number): string {
+  // Use Intl.NumberFormat or custom formatter
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: props.currency,
+  }).format(cents / 100);
+}
+
+function parseToModel(display: string): number {
+  // Strip formatting, convert to canonical form
+  const digits = display.replace(/\D/g, '');
+  return parseInt(digits, 10);
+}
+```
+
+### 2. Input Filtering
+
+Block invalid characters **before** they appear:
+
+```typescript
+function isValidInputChar(char: string): boolean {
+  if (/[0-9]/.test(char)) return true;
+  if (char === decimalSymbol.value && !props.autoDecimal) return true;
+  // Never allow characters that should be controlled by props
+  return false;
+}
+
+function filterInput(raw: string): string {
+  return raw
+    .split('')
+    .filter((char) => isValidInputChar(char))
+    .join('');
+}
+
+function handleInput(e: Event) {
+  const el = e.target as HTMLInputElement;
+  const raw = el.value;
+  const filtered = filterInput(raw);
+  
+  if (filtered !== raw) {
+    el.value = filtered; // Restore filtered value immediately
+  }
+  
+  // Continue processing...
+}
+```
+
+### 3. Cursor Position Management
+
+Preserve cursor position through formatting changes:
+
+```typescript
+function countDigitsLeftOfCaret(value: string, caretIndex: number): number {
+  const left = value.slice(0, caretIndex);
+  return left.replace(/\D/g, '').length; // Count only digits
+}
+
+function computeCaretFromDigitCount(formatted: string, digitsLeft: number): number {
+  let count = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    const ch = formatted.charAt(i);
+    if (/[0-9]/.test(ch)) count++;
+    if (count >= digitsLeft) return i + 1;
+  }
+  return formatted.length;
+}
+
+function handleInput(e: Event) {
+  const el = e.target as HTMLInputElement;
+  const caret = el.selectionStart ?? 0;
+  const digitsLeft = countDigitsLeftOfCaret(el.value, caret);
+  
+  // ... process input, format value ...
+  
+  void nextTick(() => {
+    const newCaret = computeCaretFromDigitCount(formatted, digitsLeft);
+    el.setSelectionRange(newCaret, newCaret);
+  });
+}
+```
+
+### 4. Separator Protection
+
+Prevent deletion of formatting characters:
+
+```typescript
+function handleKeydown(e: KeyboardEvent) {
+  const el = inputEl.value;
+  
+  if (el && (e.key === 'Backspace' || e.key === 'Delete')) {
+    const cursorPos = el.selectionStart ?? 0;
+    const cursorEnd = el.selectionEnd ?? 0;
+    
+    if (cursorPos === cursorEnd) { // No selection
+      if (e.key === 'Backspace' && cursorPos > 0) {
+        const charBefore = el.value.charAt(cursorPos - 1);
+        if (charBefore === decimalSymbol.value || charBefore === groupSymbol.value) {
+          e.preventDefault(); // Block deletion of separator
+          return;
+        }
+      }
+    }
+  }
+}
+```
+
+## Validation Patterns
+
+### Internal vs. External Validation
+
+```typescript
+const internalError = ref<string | undefined>(undefined);
+
+// Internal validation (min/max, format)
+function validateBounds(value: number) {
+  internalError.value = undefined;
+  if (typeof props.min === 'number' && value < props.min) {
+    internalError.value = `Must be at least ${formatForDisplay(props.min)}`;
+    emit('invalid', { reason: 'min', value, bound: props.min });
+  }
+}
+
+// Combined error state
+const ariaInvalid = computed(() => {
+  return Boolean(props.error) || Boolean(internalError.value);
+});
+```
+
+### Emit vs. Blur Updates
+
+Support both immediate and deferred updates:
+
+```typescript
+function emitModel(nextValue: T) {
+  if (props.updateOn === 'blur') return; // Wait for blur
+  
+  if (props.emitDebounceMs > 0) {
+    if (emitTimer) clearTimeout(emitTimer);
+    emitTimer = window.setTimeout(() => {
+      emit('update:modelValue', nextValue);
+    }, props.emitDebounceMs);
+  } else {
+    emit('update:modelValue', nextValue);
+  }
+}
+
+function handleBlur() {
+  if (props.updateOn === 'blur') {
+    emit('update:modelValue', currentValue.value);
+  }
+  emit('blur');
+}
+```
+
+## Locale Awareness
+
+### Use Intl APIs
+
+```typescript
+const nfParts = computed(() => {
+  try {
+    return new Intl.NumberFormat(props.locale, {
+      style: 'currency',
+      currency: props.currency,
+      minimumFractionDigits: fractionDigits.value,
+    }).formatToParts(123456.78);
+  } catch {
+    return new Intl.NumberFormat(undefined, { 
+      style: 'currency', 
+      currency: 'USD' 
+    }).formatToParts(123456.78);
+  }
+});
+
+const currencySymbol = computed(() => 
+  nfParts.value.find((p) => p.type === 'currency')?.value ?? '$'
+);
+const groupSymbol = computed(() => 
+  nfParts.value.find((p) => p.type === 'group')?.value ?? ','
+);
+const decimalSymbol = computed(() => 
+  nfParts.value.find((p) => p.type === 'decimal')?.value ?? '.'
+);
+```
+
+## Keyboard Enhancements
+
+### Power User Shortcuts
+
+```typescript
+function handleKeydown(e: KeyboardEvent) {
+  // Multipliers
+  if (e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    const next = currentValue.value * 1000;
+    updateValue(next);
+    return;
+  }
+  
+  // Arrow keys with modifiers
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    const base = props.stepAmount;
+    const factor = (e.shiftKey ? 10 : 1) * (e.ctrlKey || e.metaKey ? 100 : 1);
+    const delta = base * factor * (e.key === 'ArrowUp' ? 1 : -1);
+    updateValue(currentValue.value + delta);
+  }
+}
+```
+
+## Composition-Friendly API
+
+### Expose Methods for Parent Control
+
+```typescript
+function focus(): void {
+  inputEl.value?.focus();
+}
+
+function select(): void {
+  inputEl.value?.select();
+}
+
+function setCaret(pos: number): void {
+  inputEl.value?.setSelectionRange(pos, pos);
+}
+
+defineExpose({ focus, select, setCaret });
+```
+
+## Accessibility Checklist
+
+- [ ] Proper `<label>` with `for` attribute pointing to input `id`
+- [ ] `aria-invalid` when error present
+- [ ] `aria-describedby` linking to error message element
+- [ ] `inputmode` hint for mobile keyboards (e.g., `"decimal"` for currency)
+- [ ] Keyboard navigation works (Tab, Arrow keys, Enter)
+- [ ] Error messages have unique `id` for aria reference
+- [ ] Disabled state prevents interaction and has correct styling
+- [ ] Focus ring visible in all states
+
+## Sign Handling Pattern (Currency-Specific)
+
+**Critical**: Never allow manual sign input via keyboard. Control sign via prop:
+
+```typescript
+const props = defineProps<{
+  isNegative?: boolean; // Controls sign externally
+}>();
+
+// Always strip manual signs
+function filterInput(raw: string): string {
+  return raw.replace(/[-()]/g, ''); // Remove minus and parentheses
+}
+
+// Apply sign in formatting
+function formatForDisplay(cents: number): string {
+  const absCents = Math.abs(cents);
+  const formatted = formatNumber(absCents);
+  
+  if (!props.isNegative) return formatted;
+  
+  return props.negativeStyle === 'parentheses' 
+    ? `(${formatted})` 
+    : `-${formatted}`;
+}
+
+// Apply sign in normalization
+function normalize(input: string): number {
+  const cents = parseDigits(input); // Always positive
+  return props.isNegative ? -cents : cents;
+}
+```
+
+## Component Template Structure
+
+```vue
+<template>
+  <div class="w-full">
+    <label :for="id" class="mb-2 block text-sm text-zinc-600 dark:text-zinc-300">
+      {{ label }}
+    </label>
+    
+    <div class="relative">
+      <slot name="prefix">
+        <!-- Currency symbol, icon, etc. -->
+      </slot>
+      
+      <input
+        :id="id"
+        ref="inputEl"
+        type="text"
+        :name="name"
+        :disabled="disabled"
+        :placeholder="placeholder"
+        :inputmode="inputmode"
+        :aria-invalid="ariaInvalid ? 'true' : undefined"
+        :aria-describedby="ariaInvalid ? errorId : undefined"
+        :value="displayValue"
+        :class="error || internalError ? 'border-red-500' : ''"
+        @input="handleInput"
+        @blur="handleBlur"
+        @focus="handleFocus"
+        @keydown="handleKeydown"
+        @paste="handlePaste"
+      />
+      
+      <slot name="suffix">
+        <!-- Clear button, trailing icon, etc. -->
+      </slot>
+    </div>
+    
+    <span 
+      v-if="error || internalError" 
+      :id="errorId" 
+      class="mt-1 block text-sm text-red-600"
+    >
+      {{ error || internalError }}
+    </span>
+  </div>
+</template>
+```
+
+## Anti-Patterns
+
+❌ **Don't**: Mix display and model value
+
+```typescript
+const value = ref('$123.45'); // Display string in model
+```
+
+✅ **Do**: Separate concerns
+
+```typescript
+const modelValue = ref(12345); // Cents
+const displayValue = computed(() => format(modelValue.value));
+```
+
+❌ **Don't**: Allow invalid characters, then validate
+
+```typescript
+if (!/^\d+$/.test(input.value)) { /* show error */ }
+```
+
+✅ **Do**: Prevent invalid characters from appearing
+
+```typescript
+input.value = input.value.replace(/\D/g, '');
+```
+
+❌ **Don't**: Hardcode symbols
+
+```typescript
+const symbol = '$'; // US-only
+```
+
+✅ **Do**: Use Intl APIs
+
+```typescript
+const symbol = computed(() => 
+  new Intl.NumberFormat(locale, { style: 'currency', currency }).formatToParts()
+    .find(p => p.type === 'currency')?.value ?? '$'
+);
+```

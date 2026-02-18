@@ -1,0 +1,511 @@
+---
+description: Storybook stories, test utilities, and comprehensive test data patterns
+globs: **/*.stories.ts,**/storybook-utils.ts,**/__tests__/**
+---
+
+# Storybook & Test Utilities Guide
+
+Patterns for creating comprehensive Storybook stories and reusable test utilities.
+
+## Storybook Story Structure
+
+### Basic Story File
+
+```typescript
+import Component from './Component.vue';
+import type { Meta, StoryObj } from '@storybook/vue3-vite';
+import type { ComponentProps } from './Component.types';
+
+const meta: Meta<ComponentProps> = {
+  title: 'UI/Inputs/Component',
+  component: Component,
+  args: {
+    // Sensible defaults for all stories
+    modelValue: '',
+    label: 'Field Label',
+  },
+};
+
+export default meta;
+type Story = StoryObj<ComponentProps>;
+
+export const Default: Story = {
+  render: (args) => ({
+    components: { Component },
+    setup: () => ({ args }),
+    template: '<Component v-bind="args" />',
+  }),
+};
+
+export const WithError: Story = {
+  args: {
+    error: 'This field is required',
+  },
+};
+
+export const Disabled: Story = {
+  args: {
+    disabled: true,
+  },
+};
+```
+
+### Stories for Complex States
+
+Cover all major use cases:
+
+```typescript
+export const Expense: Story = {
+  args: {
+    modelValue: 12345,
+    isNegative: true,
+    label: 'Expense Amount',
+  },
+};
+
+export const Income: Story = {
+  args: {
+    modelValue: 12345,
+    isNegative: false,
+    label: 'Income Amount',
+  },
+};
+
+export const MinMax: Story = {
+  args: {
+    min: 100,      // $1.00
+    max: 1000000,  // $10,000.00
+  },
+};
+
+export const DifferentCurrency: Story = {
+  args: {
+    currency: 'EUR',
+    locale: 'de-DE',
+  },
+};
+```
+
+## Test Data Utilities
+
+### Centralized Default Data
+
+Create comprehensive default test data that reflects production reality:
+
+**Reference**: [storybook-utils.ts](mdc:apps/dollarwise/src/__tests__/storybook-utils.ts)
+
+```typescript
+/**
+ * Get default test data for stories
+ */
+function getDefaultStoreState() {
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+
+  const accounts: Account[] = [
+    {
+      id: 'acc-checking',
+      memberId: 'm-1',
+      name: 'Checking Account',
+      currentBalance: 250000, // $2,500
+      type: 'checking',
+      connectionStatus: 'connected',
+      isActive: true,
+      // ... all required fields
+    },
+    {
+      id: 'acc-savings',
+      memberId: 'm-1',
+      name: 'Savings Account',
+      currentBalance: 1000000, // $10,000
+      type: 'savings',
+      // ...
+    },
+  ];
+
+  const categories: Category[] = [
+    { id: 'cat-groceries', name: 'Groceries', icon: 'GROCERIES', type: 'CUSTOM' },
+    { id: 'cat-dining', name: 'Dining Out', icon: 'DINING', type: 'CUSTOM' },
+    // ...
+  ];
+
+  const budgets: Budget[] = [
+    {
+      id: 'b-groceries',
+      categoryId: 'cat-groceries',
+      month: currentMonth,
+      year: currentYear,
+      amount: 50000,
+      spent: 32000,
+      remaining: 18000,
+      percentUsed: 64,
+      // ...
+    },
+  ];
+
+  const transactions: Transaction[] = [
+    {
+      id: 'tx-1',
+      accountId: 'acc-checking',
+      categoryId: 'cat-groceries',
+      amount: -8000,
+      name: 'Whole Foods',
+      datetime: new Date(currentYear, currentMonth - 1, 15),
+      kind: 'expense',
+      // ...
+    },
+  ];
+
+  return { accounts, categories, budgets, transactions };
+}
+```
+
+### Setup Story with Stores
+
+Create a utility that provides realistic stores with comprehensive data:
+
+```typescript
+export interface SetupStoryOptions {
+  /** Override accounts data (defaults to comprehensive test data) */
+  accounts?: Account[];
+  /** Override categories data (defaults to comprehensive test data) */
+  categories?: Category[];
+  /** Override budgets data (defaults to comprehensive test data) */
+  budgets?: Budget[];
+  /** Override transactions data (defaults to comprehensive test data) */
+  transactions?: Transaction[];
+  /** Additional initial state for other stores */
+  initialState?: Record<string, unknown>;
+  /** Spies to apply to store methods */
+  spies?: Record<string, Record<string, (...args: unknown[]) => unknown>>;
+}
+
+export function setupStoryWithStores(options: SetupStoryOptions = {}) {
+  const router = createTestRouter();
+  const defaultState = getDefaultStoreState();
+
+  // Merge defaults with overrides
+  const initialState = {
+    accounts: {
+      accounts: options.accounts ?? defaultState.accounts,
+      loading: false,
+      error: null,
+    },
+    categories: {
+      categories: options.categories ?? defaultState.categories,
+      loading: false,
+      error: null,
+    },
+    // ... other stores
+    ...options.initialState,
+  };
+
+  const pinia = createTestingPinia({
+    createSpy: createMockFn,
+    stubActions: false, // Use real implementations
+    initialState,
+  });
+
+  const applySpies = () => {
+    // Apply method spies after store instantiation
+    // ...
+  };
+
+  return { pinia, router, applySpies };
+}
+```
+
+### Usage Patterns
+
+#### Simple Case (Use Defaults)
+
+```typescript
+export const TransactionList: Story = {
+  render: (args) => {
+    const { pinia, router } = setupStoryWithStores();
+    
+    return {
+      components: { TransactionListView },
+      setup: () => ({ args }),
+      template: '<TransactionListView v-bind="args" />',
+      global: {
+        plugins: [pinia, router],
+      },
+    };
+  },
+};
+```
+
+#### Override for Edge Cases
+
+```typescript
+export const EmptyState: Story = {
+  render: (args) => {
+    const { pinia, router } = setupStoryWithStores({
+      transactions: [], // Empty array
+    });
+    
+    return {
+      components: { TransactionListView },
+      setup: () => ({ args }),
+      template: '<TransactionListView v-bind="args" />',
+      global: {
+        plugins: [pinia, router],
+      },
+    };
+  },
+};
+```
+
+#### Mock API Calls
+
+```typescript
+export const WithAPIError: Story = {
+  render: (args) => {
+    const { pinia, router, applySpies } = setupStoryWithStores({
+      spies: {
+        transactions: {
+          createTransaction: async () => {
+            throw new Error('Network error');
+          },
+        },
+      },
+    });
+    
+    return {
+      components: { TransactionForm },
+      setup: () => {
+        applySpies(); // Apply after stores instantiated
+        return { args };
+      },
+      template: '<TransactionForm v-bind="args" />',
+      global: {
+        plugins: [pinia, router],
+      },
+    };
+  },
+};
+```
+
+## Browser-Compatible Mock Functions
+
+For Storybook (runs in browser), create custom mock functions:
+
+```typescript
+/**
+ * Browser-compatible mock function factory (replaces vi.fn for Storybook)
+ */
+function createMockFn(): MockFunction {
+  const calls: unknown[][] = [];
+  let implementation: ((...args: unknown[]) => unknown) | null = null;
+
+  const fn = function (...args: unknown[]) {
+    calls.push(args);
+    if (implementation) {
+      return implementation(...args);
+    }
+    return undefined;
+  };
+
+  const mockFn = fn as MockFunction;
+  mockFn.calls = calls;
+  mockFn.mockImplementation = (impl: (...args: unknown[]) => unknown) => {
+    implementation = impl;
+    return mockFn;
+  };
+
+  return mockFn;
+}
+
+interface MockFunction {
+  (...args: unknown[]): unknown;
+  calls: unknown[][];
+  mockImplementation: (impl: (...args: unknown[]) => unknown) => MockFunction;
+}
+```
+
+## Test Router
+
+Create lightweight test router for stories:
+
+```typescript
+export function createTestRouter(): Router {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', name: 'home', component: { template: '<div />' } },
+      { path: '/overview', name: 'overview', component: { template: '<div />' } },
+      { path: '/budgets', name: 'budgets', component: { template: '<div />' } },
+      { path: '/activity', name: 'activity', component: { template: '<div />' } },
+      { path: '/profile', name: 'profile', component: { template: '<div />' } },
+    ],
+  });
+}
+```
+
+## Test Utils for Component Tests
+
+### Render with Providers
+
+```typescript
+/**
+ * Render component with all necessary providers (Pinia, Router, etc.)
+ */
+export function renderWithProviders(
+  component: Component,
+  options: {
+    props?: Record<string, unknown>;
+    initialState?: Record<string, unknown>;
+  } = {}
+) {
+  const pinia = createTestingPinia({
+    createSpy: vi.fn,
+    stubActions: false,
+    initialState: options.initialState,
+  });
+
+  const router = createTestRouter();
+
+  return render(component, {
+    props: options.props,
+    global: {
+      plugins: [pinia, router],
+    },
+  });
+}
+```
+
+### Get Emitted Helper
+
+Extract typed emitted events:
+
+```typescript
+/**
+ * Type-safe helper to extract emitted events
+ */
+export function getEmitted<T extends unknown[]>(
+  emitted: Record<string, unknown>,
+  eventName: string
+): T[] {
+  const events = emitted[eventName];
+  if (!events || !Array.isArray(events)) return [];
+  return events as T[];
+}
+
+// Usage:
+const updates = getEmitted<[string]>(emitted(), 'update:modelValue');
+expect(updates[0][0]).toBe('groceries');
+```
+
+## Documentation Best Practices
+
+### JSDoc for Utilities
+
+```typescript
+/**
+ * Set up Storybook story with real stores and comprehensive default test data
+ *
+ * This utility creates Pinia and Router instances with realistic default data including:
+ * - 2 accounts (checking, savings)
+ * - 3 categories (2 expense, 1 income)
+ * - 2 budgets (1 per expense category for current month)
+ * - Sample transactions
+ *
+ * All computed store properties (byMonth, incomeTotal, etc.) work automatically.
+ * Only override data when testing specific edge cases or mock API methods.
+ *
+ * @example
+ * Simple case (uses all defaults):
+ * ```typescript
+ * const { pinia, router } = setupStoryWithStores();
+ * return {
+ *   components: { MyComponent },
+ *   template: '<MyComponent />',
+ *   global: { plugins: [pinia, router] },
+ * };
+ * ```
+ *
+ * @example
+ * Override for edge case (empty state):
+ * ```typescript
+ * const { pinia, router } = setupStoryWithStores({
+ *   transactions: [], // Override with empty array
+ * });
+ * ```
+ */
+```
+
+## Default Data Principles
+
+1. **Realistic**: Use actual amounts, names, dates that reflect production
+2. **Comprehensive**: Include enough variety to test edge cases (empty budgets, overspent, etc.)
+3. **Related**: Transactions reference valid accounts and categories
+4. **Current**: Use current month/year for time-sensitive features
+5. **Minimal but Complete**: 2-3 of each entity type is usually enough
+
+## Story Checklist
+
+For every component with stories:
+
+- [ ] Default story with basic props
+- [ ] All prop variants have stories
+- [ ] Error state story
+- [ ] Disabled state story
+- [ ] Empty/null/undefined state stories (if applicable)
+- [ ] Locale variations (if applicable)
+- [ ] Mobile vs. desktop stories (if different)
+- [ ] Loading state story (if applicable)
+
+## Anti-Patterns
+
+❌ **Don't**: Create minimal/sparse test data
+
+```typescript
+const accounts = [{ id: '1', name: 'Account' }]; // Missing required fields
+```
+
+✅ **Do**: Use complete, realistic entities
+
+```typescript
+const accounts = [{
+  id: 'acc-1',
+  name: 'Checking Account',
+  currentBalance: 250000,
+  institutionName: 'Test Bank',
+  type: 'checking',
+  // ... all required fields
+}];
+```
+
+❌ **Don't**: Override everything in every story
+
+```typescript
+setupStoryWithStores({
+  accounts: [...],
+  categories: [...],
+  budgets: [...],
+  transactions: [...],
+}); // Too much boilerplate
+```
+
+✅ **Do**: Override only what's needed
+
+```typescript
+setupStoryWithStores({
+  transactions: [], // Just test empty state
+});
+```
+
+❌ **Don't**: Use unstubbed actions with missing data
+
+```typescript
+stubActions: true, // Actions don't work
+initialState: {}, // Missing required data
+```
+
+✅ **Do**: Use real actions with complete data
+
+```typescript
+stubActions: false,
+initialState: getDefaultStoreState(),
+```

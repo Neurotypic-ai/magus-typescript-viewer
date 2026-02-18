@@ -1,0 +1,433 @@
+---
+description: Form handling and validation patterns using useModelForm composable
+globs: **/composables/useModelForm.ts,**/*Form*.vue,**/*Modal.vue
+---
+
+# Forms and Validation Patterns
+
+Comprehensive guide to form handling using the `useModelForm` composable.
+
+## Core Pattern
+
+**Reference**: [useModelForm.ts](mdc:packages/design-system/src/composables/useModelForm.ts)
+
+The `useModelForm` composable provides a complete form state management solution with validation, error handling, and field bindings.
+
+## Basic Setup
+
+```typescript
+import { useModelForm, validators } from '@neurotypic-ai/design-system/composables/useModelForm';
+
+interface FormData extends Record<string, unknown> {
+  description: string;
+  amountStr: string;
+  categoryId?: string;
+  date: string;
+}
+
+const form = useModelForm<FormData>(
+  {
+    description: '',
+    amountStr: '',
+    categoryId: undefined,
+    date: today,
+  },
+  {
+    onSubmit: handleSubmit,
+    validation: {
+      description: [validators.required('Description is required')],
+      amountStr: [
+        validators.required('Amount is required'),
+        validators.pattern(/^\d*(?:\.\d{1,2})?$/, 'Invalid amount format'),
+      ],
+      date: [validators.required('Date is required')],
+    },
+  }
+);
+```
+
+## Field Bindings
+
+Use the `field()` method to create reactive field bindings:
+
+```typescript
+const description: FieldBinding<string> = form.field('description');
+const categoryId: FieldBinding<string | undefined> = form.field('categoryId');
+
+// In template:
+<TextField
+  v-model="description.model.value"
+  label="Description"
+  :error="description.error.value || ''"
+  :disabled="isLoading"
+/>
+```
+
+### FieldBinding Interface
+
+```typescript
+interface FieldBinding<T> {
+  model: Ref<T>;        // Two-way reactive binding
+  value: Ref<T>;        // Alias for model
+  error: ComputedRef<string | undefined>; // Current error message
+  touched: ComputedRef<boolean>;          // Has user interacted?
+  onBlur: () => void;   // Call on blur to trigger validation
+}
+```
+
+## Built-in Validators
+
+```typescript
+export const validators = {
+  required: <T>(message = 'This field is required'): ValidationRule<T>,
+
+  min: (min: number, message?: string): ValidationRule<number>,
+  max: (max: number, message?: string): ValidationRule<number>,
+
+  minLength: (min: number, message?: string): ValidationRule<string>,
+  maxLength: (max: number, message?: string): ValidationRule<string>,
+
+  email: (message = 'Invalid email address'): ValidationRule<string>,
+
+  pattern: (pattern: RegExp, message = 'Invalid format'): ValidationRule<string>,
+};
+```
+
+## Custom Validation Rules
+
+```typescript
+const customValidator: ValidationRule<string> = {
+  validate: (value) => value.startsWith('$'),
+  message: 'Must start with $',
+};
+
+const form = useModelForm<FormData>(initialData, {
+  validation: {
+    amount: [
+      validators.required(),
+      customValidator,
+    ],
+  },
+});
+```
+
+## Async Validation
+
+For validation that requires API calls:
+
+```typescript
+const form = useModelForm<FormData>(initialData, {
+  asyncValidation: {
+    username: {
+      validate: async (value) => {
+        const response = await checkUsernameAvailable(value);
+        return response.available;
+      },
+      message: 'Username already taken',
+      debounceMs: 500, // Debounce API calls
+    },
+  },
+});
+```
+
+## Validation Timing
+
+Control when validation runs:
+
+```typescript
+const form = useModelForm<FormData>(initialData, {
+  validateOn: 'change', // 'change' | 'blur' | 'submit'
+  debounceMs: 300,      // Debounce validation on change
+});
+```
+
+## Form State
+
+Access comprehensive form state:
+
+```typescript
+form.formData     // Computed<Partial<T>> - Current form values
+form.errors       // Computed<Partial<Record<keyof T, string>>> - All errors
+form.touched      // Computed<Partial<Record<keyof T, boolean>>> - Touched fields
+form.isSubmitting // Computed<boolean> - Submit in progress
+form.isDirty      // Computed<boolean> - Form modified from initial
+form.isValid      // Computed<boolean> - No validation errors
+form.globalError  // Computed<string | null> - Form-level error
+```
+
+## Form Actions
+
+### Submit
+
+```typescript
+async function handleSubmit() {
+  if (!form.validateForm()) return;
+
+  const payload = buildPayload();
+
+  try {
+    await api.save(payload);
+    toast.show('Saved successfully', 'success');
+    // Close your modal/sheet (e.g., emit('close') or set open=false)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to save';
+    toast.show(message, 'error');
+  }
+}
+
+// Form handles submit internally:
+const form = useModelForm<FormData>(initialData, {
+  onSubmit: handleSubmit, // Called after validation passes
+});
+```
+
+### Reset
+
+```typescript
+// Reset to original values
+form.reset();
+
+// Set new data (also resets dirty/touched/errors)
+form.setData({
+  description: 'New values',
+  amountStr: '123.45',
+});
+```
+
+### Manual Field Updates
+
+```typescript
+// Set field value (triggers validation)
+form.setFieldValue('description', 'New description');
+
+// Set field error manually
+form.setFieldError('description', 'Custom error message');
+
+// Mark field as touched (triggers blur validation)
+form.touchField('description');
+
+// Validate single field
+const isValid = form.validateField('description');
+
+// Validate entire form
+const isValid = form.validateForm();
+```
+
+## Adapting Between Field Types
+
+When using components with different value types:
+
+```typescript
+// CurrencyField expects number (cents), form stores string (dollars)
+const amountCents = computed<number>({
+  get: () => parseCurrency(amountStr.model.value || ''),
+  set: (cents: number) => {
+    const dollars = cents / 100;
+    form.setFieldValue('amountStr', Math.abs(dollars).toFixed(2));
+  },
+});
+
+// In template:
+<CurrencyField
+  v-model="amountCents"
+  label="Amount"
+  :is-negative="kind.model.value === 'expense'"
+/>
+```
+
+## Modal Integration
+
+Bind form reset to modal close:
+
+```typescript
+import { toRef, watch } from 'vue';
+
+// In a modal component that receives `open` as a prop:
+const openRef = toRef(props, 'open');
+
+watch(openRef, async (open) => {
+  if (open) {
+    await initializeForm();
+  } else {
+    form.reset(); // Reset when modal closes
+  }
+});
+
+// Or use built-in helper (resets only if resetOnClose is enabled in useModelForm options):
+form.bindToOpen(openRef);
+```
+
+## Form Component Integration
+
+Use with the Form layout component:
+
+```vue
+<template>
+  <Form :on-submit="form.submit">
+    <div class="mb-4 grid gap-4">
+      <TextField
+        v-model="description.model.value"
+        label="Description"
+        :error="description.error.value || ''"
+      />
+
+      <CurrencyField
+        v-model="amountCents"
+        label="Amount"
+        :error="amountStr.error.value || ''"
+      />
+    </div>
+
+    <template #footer="{ loading }">
+      <Button variant="primary" full type="submit" :loading="loading">
+        Save
+      </Button>
+    </template>
+  </Form>
+</template>
+```
+
+## Complete Example
+
+**Reference**: [TransactionFormModal.vue](mdc:apps/dollarwise/src/components/features/transactions/TransactionFormModal.vue)
+
+```typescript
+interface TxFormData extends Record<string, unknown> {
+  kind: TransactionKind;
+  description: string;
+  amountStr: string;
+  categoryId?: Id | undefined;
+  date: string;
+}
+
+const form = useModelForm<TxFormData>(
+  {
+    kind: 'expense',
+    description: '',
+    amountStr: '',
+    categoryId: undefined,
+    date: today,
+  },
+  {
+    onSubmit: handleSubmit,
+    validation: {
+      description: [validators.required('Description is required')],
+      amountStr: [
+        validators.required('Amount is required'),
+        validators.pattern(/^\d*(?:\.\d{1,2})?$/, 'Invalid amount format'),
+      ],
+      date: [validators.required('Date is required')],
+    },
+  }
+);
+
+// Create field bindings
+const kind = form.field('kind');
+const description = form.field('description');
+const amountStr = form.field('amountStr');
+const categoryId = form.field('categoryId');
+const date = form.field('date');
+
+// Adapter for CurrencyField
+const amountCents = computed<number>({
+  get: () => parseCurrency(amountStr.model.value || ''),
+  set: (cents: number) => {
+    const dollars = cents / 100;
+    form.setFieldValue('amountStr', Math.abs(dollars).toFixed(2));
+  },
+});
+
+async function handleSubmit() {
+  if (!form.validateForm()) return;
+
+  const payload = {
+    description: form.formData.value.description?.trim(),
+    amountCents: parseCurrency(form.formData.value.amountStr ?? ''),
+    categoryId: form.formData.value.categoryId,
+    date: form.formData.value.date,
+  };
+
+  try {
+    await transactions.createTransaction(payload);
+    toast.show('Transaction created', 'success');
+    modal.close();
+  } catch (error) {
+    toast.show('Failed to create transaction', 'error');
+  }
+}
+```
+
+## Schema Validation (Optional)
+
+Integrate with Zod or similar:
+
+```typescript
+import { z } from 'zod';
+
+const schema = z.object({
+  description: z.string().min(1),
+  amountStr: z.string().regex(/^\d*(?:\.\d{1,2})?$/),
+});
+
+const form = useModelForm<FormData>(initialData, {
+  schema: {
+    parse: (data) => schema.parse(data),
+  },
+});
+```
+
+## Best Practices
+
+1. **Type Safety**: Always use `Record<string, unknown>` extension for form data types
+2. **Field Bindings**: Create field bindings once at component setup
+3. **Adapters**: Use computed properties to adapt between component value types
+4. **Validation Messages**: Provide clear, user-friendly error messages
+5. **Loading States**: Use `form.isSubmitting` to disable form during submission
+6. **Error Display**: Always display validation errors below fields
+7. **Reset on Close**: Reset form when modals close to clear state
+8. **Transform Data**: Use payload builders to transform form data before submission
+
+## Anti-Patterns
+
+❌ **Don't**: Access formData directly in v-model
+
+```vue
+<TextField v-model="form.formData.value.description" />
+```
+
+✅ **Do**: Use field bindings
+
+```vue
+<TextField v-model="description.model.value" />
+```
+
+❌ **Don't**: Manually manage touched/error state
+
+```typescript
+const touched = ref({});
+const errors = ref({});
+```
+
+✅ **Do**: Use form state
+
+```typescript
+const description = form.field('description');
+// Access: description.error.value, description.touched.value
+```
+
+❌ **Don't**: Skip validation before submit
+
+```typescript
+async function handleSubmit() {
+  await api.save(form.formData.value); // No validation!
+}
+```
+
+✅ **Do**: Always validate
+
+```typescript
+async function handleSubmit() {
+  if (!form.validateForm()) return;
+  await api.save(form.formData.value);
+}
+```

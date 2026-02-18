@@ -1,0 +1,27 @@
+---
+globs: *.ts,*.vue,*.js,apps/dollarwise/e2e/**,**/__tests__/**
+---
+# Linting, Tests, and Tooling
+
+## ESLint
+
+- Base config package: [packages/eslint-config](mdc:packages/eslint-config)
+- App config: [apps/dollarwise/eslint.config.ts](mdc:apps/dollarwise/eslint.config.ts)
+- Important rule: no direct imports from data internals (see `packages/eslint-config/rules/no-direct-data-import.ts`).
+
+## Unit Tests (Vitest)
+
+- Test locations: `**/__tests__/**` and co-located `*.test.ts`.
+- Example: [packages/design-system/src/components/CurrencyField.test.ts](mdc:packages/design-system/src/components/CurrencyField.test.ts)
+- **For comprehensive testing patterns and best practices**, see [unit-testing](mdc:.cursor/rules/unit-testing.mdc)
+
+## E2E (Playwright)
+
+- Config: [apps/dollarwise/playwright.config.ts](mdc:apps/dollarwise/playwright.config.ts)
+- Specs: [apps/dollarwise/e2e](mdc:apps/dollarwise/e2e)
+
+## Formatting
+
+- Prettier config: [prettier.config.js](mdc:prettier.config.js)
+
+Run linters before committing; keep types strict and public APIs explicit.

@@ -1,0 +1,112 @@
+---
+globs: apps/dollarwise/src/**/*.vue,packages/**/*.ts
+description: Reusable UI components, when to use them, and API notes
+---
+# UI Components Guide
+
+Authoritative index of reusable components and when to use them.
+
+## Layout
+
+- **Page** — full-screen route scaffold with paddings.
+  - Use for top-level views.
+  - File: [Page.vue](mdc:packages/design-system/src/components/Page.vue)
+- **Section** — logical grouping inside a page.
+  - Use to separate major areas, with title/description.
+  - File: [Section.vue](mdc:packages/design-system/src/components/Section.vue)
+- **Card** — elevated or bordered container for content blocks.
+  - Use for contained modules and dashboards.
+  - File: [Card.vue](mdc:packages/design-system/src/components/Card.vue)
+- **HStack/VStack** — horizontal/vertical layout primitives.
+  - Use for simple spacing and alignment.
+  - Files: [HStack.vue](mdc:packages/design-system/src/components/HStack.vue), [VStack.vue](mdc:packages/design-system/src/components/VStack.vue)
+- **Form** — opinionated form layout.
+  - Use for grouped fields with consistent spacing.
+  - File: [Form.vue](mdc:packages/design-system/src/components/Form.vue)
+
+## Inputs
+
+### Basic Inputs
+
+- **Button** — primary/secondary/ghost actions.
+  - File: [Button.vue](mdc:packages/design-system/src/components/Button.vue)
+- **TextField** — single-line text input with label and error.
+  - File: [TextField.vue](mdc:packages/design-system/src/components/TextField.vue)
+- **Textarea** — multi-line text input.
+  - File: [Textarea.vue](mdc:packages/design-system/src/components/Textarea.vue)
+- **SearchField** — text input optimized for search with clear button.
+  - File: [SearchField.vue](mdc:packages/design-system/src/components/SearchField.vue)
+
+### Specialized Text Inputs
+
+- **PasswordField** — text field with visibility toggle.
+  - File: [PasswordField.vue](mdc:packages/design-system/src/components/PasswordField.vue)
+- **EmailField** — email input with validation.
+  - File: [EmailField.vue](mdc:packages/design-system/src/components/EmailField.vue)
+- **PhoneField** — phone number input with formatting.
+  - File: [PhoneField.vue](mdc:packages/design-system/src/components/PhoneField.vue)
+- **OTPField** — one-time password code input.
+  - File: [OTPField.vue](mdc:packages/design-system/src/components/OTPField.vue)
+
+### Numeric Inputs
+
+- **CurrencyField** — formatted currency input with locale support, sign control, keyboard shortcuts.
+  - File: [CurrencyField.vue](mdc:packages/design-system/src/components/CurrencyField.vue)
+  - **For complex input patterns**, see [complex-inputs](mdc:.cursor/rules/complex-inputs.mdc)
+- **NumberField** — numeric input with step controls.
+  - File: [NumberField.vue](mdc:packages/design-system/src/components/NumberField.vue)
+- **DateField** — date picker input.
+  - File: [DateField.vue](mdc:packages/design-system/src/components/DateField.vue)
+
+### Selection Inputs
+
+- **Select** — dropdown select field.
+  - File: [Select.vue](mdc:packages/design-system/src/components/Select.vue)
+- **Checkbox** — single checkbox input.
+  - File: [Checkbox.vue](mdc:packages/design-system/src/components/Checkbox.vue)
+- **RadioGroup** — radio button group.
+  - File: [RadioGroup.vue](mdc:packages/design-system/src/components/RadioGroup.vue)
+- **Switch** — toggle switch.
+  - File: [Switch.vue](mdc:packages/design-system/src/components/Switch.vue)
+
+### Specialized Pickers
+
+- **IconPickerField** — opens modal to select category icon.
+  - File: [IconPickerField.vue](mdc:apps/dollarwise/src/components/ui/inputs/IconPickerField.vue)
+
+## Display
+
+- **List** — basic list wrapper.
+  - File: [List.vue](mdc:packages/design-system/src/components/List.vue)
+- **ListItem** — row with slots for icon, title, meta, and actions.
+  - File: [ListItem.vue](mdc:packages/design-system/src/components/ListItem.vue)
+- **Empty** — empty-state with icon and text.
+  - File: [Empty.vue](mdc:packages/design-system/src/components/Empty.vue)
+- **CategoryCircle** — colored circular icon for categories.
+  - File: [CategoryCircle.vue](mdc:apps/dollarwise/src/components/ui/display/CategoryCircle.vue)
+
+## Navigation
+
+- **Header** — top app bar with title and actions.
+  - File: [Header.vue](mdc:packages/design-system/src/components/Header.vue)
+- **BottomNav** — primary tab navigation.
+  - File: [BottomNav.vue](mdc:apps/dollarwise/src/components/ui/navigation/BottomNav.vue)
+- **Link** — unified link component for internal (Vue Router) and external URLs.
+  - Auto-detects external links (http://, mailto:, tel:, etc.)
+  - Supports `newTab`, `disabled`, `replace`, and `custom` slot rendering
+  - Use instead of `<a>` or `router.push()` for clickable navigation
+  - File: [Link.vue](mdc:packages/design-system/src/components/Link.vue)
+  - Types: [Link.types.ts](mdc:packages/design-system/src/components/Link.types.ts)
+
+## When to Use What (Decision Hints)
+
+- Need a new screen? Start with `Page` → compose `Section`/`Card`.
+- Listing entities? Use `List` + `ListItem`; put avatars/icons in the left slot.
+- Collecting amounts? Use `CurrencyField`; free text → `TextField`.
+- No data to show? Use `Empty` with a clear call to action `Button`.
+- Navigating to another page/route? Use `Link` for proper accessibility; use `custom` slot for styled buttons that navigate.
+
+## Theming and A11y
+
+- Use theme tokens from [style.css](mdc:apps/dollarwise/src/style.css) for colors.
+- Ensure labeled controls and focus visibility; see [a11y rules](mdc:.cursor/rules/a11y.mdc).

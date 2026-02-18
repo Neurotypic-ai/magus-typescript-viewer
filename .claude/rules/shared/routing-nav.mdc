@@ -1,0 +1,42 @@
+---
+globs: apps/dollarwise/src/router.ts,apps/dollarwise/src/components/ui/navigation/**
+---
+# Routing and Navigation Patterns
+
+- Router config and routes: [apps/dollarwise/src/router.ts](mdc:apps/dollarwise/src/router.ts)
+
+## Conventions
+
+- Use named routes: `overview`, `budgets`, `activity`, `profile`, etc.
+- When switching tabs, use `BottomNav`’s `directionChange` event to set a local route-direction override for transitions (see [App.vue](mdc:apps/dollarwise/src/App.vue) and [BottomNav.vue](mdc:apps/dollarwise/src/components/ui/navigation/BottomNav.vue)).
+- Respect `RouteMeta` flags: `requiresAuth`, `hideHeader`, `hideNav`, `requiresSubscription`.
+- Use `getTypedQuery` for safe query parsing.
+
+## Route Meta Types
+
+```typescript
+interface RouteMeta {
+  requiresAuth?: boolean;
+  hideHeader?: boolean;
+  requiresSubscription?: boolean;
+  hideNav?: boolean;
+}
+```
+
+## Lazy Loading
+
+Routes use a `lazyLoadComponent` wrapper that handles:
+
+- Automatic retry on chunk loading failures
+- Sentry error reporting for failed loads
+- Force reload to get latest bundle on persistent failures
+
+## Scroll Behavior
+
+- Preserves position for same-path, query-only navigations.
+- Hash anchors are supported via `{ el: to.hash }`.
+
+## Accessibility
+
+- Primary nav must have `role="navigation"` and `aria-label`.
+- Use `RouterLink` with `custom` slot and forward `href`.

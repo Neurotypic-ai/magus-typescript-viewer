@@ -1,0 +1,26 @@
+---
+globs: apps/dollarwise/src/**/*.vue,apps/dollarwise/src/style.css
+---
+# Tailwind + Theme Tokens
+
+Use CSS variables defined in [apps/dollarwise/src/style.css](mdc:apps/dollarwise/src/style.css).
+
+## Colors
+
+- Brand: `--color-dollar-*` (primary), `--color-wise-*` (secondary), `--color-budget-*` (accent)
+- Neutrals and paper: `--color-paper-*`, `--color-neutral-*`
+- Map to utilities via arbitrary values, e.g.: `bg-[var(--color-dollar-300)]`, `text-[var(--color-text-muted)]`.
+
+## Motion
+
+- Central timings: `--motion-duration-theme`, `--motion-duration-overlay`, `--motion-duration-tab`.
+- Use provided transition classes for modals and route transitions; see definitions in `style.css`.
+
+## Layout Helpers
+
+- Container: `container-responsive`
+- Focus ring: `focus-ring`
+
+## Dark Mode
+
+- Use the provided `@variant dark` selector; pair light/dark classes for contrast-sensitive UI.

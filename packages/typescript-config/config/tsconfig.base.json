@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.settings.json",
+  "references": [
+    {
+      "path": "./tsconfig.configs.json"
+    },
+    {
+      "path": "./tsconfig.build.json"
+    },
+    {
+      "path": "./tsconfig.test.json"
+    },
+    {
+      "path": "./tsconfig.storybook.json"
+    }
+  ]
+}

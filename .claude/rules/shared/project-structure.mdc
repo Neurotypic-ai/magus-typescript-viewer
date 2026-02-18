@@ -1,0 +1,116 @@
+---
+alwaysApply: true
+---
+# DollarWise Monorepo Structure
+
+This workspace is a pnpm monorepo with the primary mobile/web app in `apps/dollarwise` and shared packages in `packages/*`.
+
+## App Entrypoints
+
+### @neurotypic-ai/app (`apps/dollarwise`)
+
+- Main app bootstrap: [apps/dollarwise/src/main.ts](mdc:apps/dollarwise/src/main.ts)
+- Logger initialization: [apps/dollarwise/src/init/logger.ts](mdc:apps/dollarwise/src/init/logger.ts)
+- Global styles and theme tokens: [apps/dollarwise/src/style.css](mdc:apps/dollarwise/src/style.css)
+- Router setup: [apps/dollarwise/src/router.ts](mdc:apps/dollarwise/src/router.ts)
+- Top-level routes (views): [apps/dollarwise/src/views](mdc:apps/dollarwise/src/views)
+- App-specific stores: [apps/dollarwise/src/stores](mdc:apps/dollarwise/src/stores)
+
+### @neurotypic-ai/admin (`apps/admin`)
+
+- Admin dashboard (Vue 3)
+- Entry: `apps/admin/src/main.ts`
+
+### @neurotypic-ai/backend (`apps/backend`)
+
+- Laravel API Proxy & Migration Layer
+- Entry: `apps/backend/public/index.php`
+- Config: `apps/backend/config/`
+
+## Shared Packages
+
+### @neurotypic-ai/data
+
+- **Location**: [packages/data](mdc:packages/data)
+- API client and services: [packages/data/src/api](mdc:packages/data/src/api)
+- Domain types and DTOs: [packages/data/src/types](mdc:packages/data/src/types)
+- Transformers: [packages/data/src/transformers](mdc:packages/data/src/transformers)
+- **Data layer stores**: [packages/data/src/stores](mdc:packages/data/src/stores) (auth, transactions, budgets, categories, accounts, members, quiltt)
+- Helpers and utilities: [packages/data/src/helpers](mdc:packages/data/src/helpers)
+
+### @neurotypic-ai/design-system
+
+- **Location**: [packages/design-system](mdc:packages/design-system)
+- Reusable UI components: `src/components`
+- Composables: `src/composables`
+- Stores: `src/stores`
+
+### Logging (Consola + Sentry)
+
+- **Logger**: consola v3 (see `apps/dollarwise/package.json` for the exact version)
+- **Initialization**: [apps/dollarwise/src/init/logger.ts](mdc:apps/dollarwise/src/init/logger.ts)
+- **Composable**: [apps/dollarwise/src/composables/useLogger.ts](mdc:apps/dollarwise/src/composables/useLogger.ts)
+- **Data logger**: [packages/data/src/logging.ts](mdc:packages/data/src/logging.ts)
+- **Breadcrumbs**: [packages/data/src/helpers/breadcrumbs.ts](mdc:packages/data/src/helpers/breadcrumbs.ts)
+- **See**: [logging-sentry](mdc:.cursor/rules/logging-sentry.mdc) for usage patterns
+
+### @neurotypic-ai/shared
+
+- **Location**: [packages/shared](mdc:packages/shared)
+- Common validators and utilities
+
+### @neurotypic-ai/eslint-config
+
+- **Location**: [packages/eslint-config](mdc:packages/eslint-config)
+- Shared ESLint configurations and custom rules
+
+### @neurotypic-ai/typescript-config
+
+- **Location**: [packages/typescript-config](mdc:packages/typescript-config)
+- Shared TypeScript configuration presets
+
+## Store Architecture
+
+**IMPORTANT**: Stores exist in TWO locations:
+
+1. **Data Layer Stores** (`packages/data/src/stores`): PRIMARY data sources for domain/business logic
+   - auth.ts, transactions.ts, budgets.ts, categories.ts, accounts.ts, members.ts, quiltt.ts
+   - **Components MUST import from these stores for domain data**
+
+2. **App Stores** (`apps/dollarwise/src/stores`): UI-specific state only
+   - settings.ts, system.ts
+   - Never handle domain data or API calls here
+
+3. **Design System UI Stores** (`packages/design-system/src/stores`): shared UI state
+   - theme.ts, toast.ts
+   - Used by the app via `@neurotypic-ai/design-system/stores/*`
+
+See [stores-patterns](mdc:.cursor/rules/stores-patterns.mdc) for detailed patterns.
+
+## UI Layer
+
+- Reusable components (Design System): [packages/design-system/src/components](mdc:packages/design-system/src/components)
+- App-specific UI components: [apps/dollarwise/src/components/ui](mdc:apps/dollarwise/src/components/ui)
+  - Inputs: [apps/dollarwise/src/components/ui/inputs](mdc:apps/dollarwise/src/components/ui/inputs)
+  - Display: [apps/dollarwise/src/components/ui/display](mdc:apps/dollarwise/src/components/ui/display)
+  - Navigation: [apps/dollarwise/src/components/ui/navigation](mdc:apps/dollarwise/src/components/ui/navigation)
+  - Feedback: [apps/dollarwise/src/components/ui/feedback](mdc:apps/dollarwise/src/components/ui/feedback)
+- Feature components: [apps/dollarwise/src/components/features](mdc:apps/dollarwise/src/components/features)
+- Composables: [apps/dollarwise/src/composables](mdc:apps/dollarwise/src/composables)
+
+## Configuration
+
+- App tsconfig: [apps/dollarwise/tsconfig.json](mdc:apps/dollarwise/tsconfig.json)
+- Root tsconfig and workspace: [tsconfig.json](mdc:tsconfig.json), [pnpm-workspace.yaml](mdc:pnpm-workspace.yaml)
+- Vite config: [apps/dollarwise/vite.config.ts](mdc:apps/dollarwise/vite.config.ts)
+- Capacitor config: [apps/dollarwise/capacitor.config.ts](mdc:apps/dollarwise/capacitor.config.ts)
+
+## Testing
+
+- Unit tests (Vitest): Tests co-located with source in `__tests__` directories
+  - Store tests: [packages/data/src/stores/**tests**](mdc:packages/data/src/stores/__tests__)
+  - Component tests: Throughout `apps/dollarwise/src/components`
+- E2E tests (Playwright): [apps/dollarwise/e2e](mdc:apps/dollarwise/e2e)
+- Test setup: [packages/data/test/setup.ts](mdc:packages/data/test/setup.ts)
+
+Use this guide as a map to quickly jump to the right area of the codebase.

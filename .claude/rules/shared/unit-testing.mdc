@@ -1,0 +1,320 @@
+---
+description: Unit testing best practices and patterns for the DollarWise codebase
+---
+
+# Unit Testing Guide
+
+Comprehensive guide to writing high-quality unit tests using Vitest and Testing Library.
+
+## Test Structure
+
+### File Organization
+
+- Co-locate tests with the component: `Component.test.ts` next to `Component.vue`
+- Use descriptive `describe` blocks for component name
+- Group related tests with nested `describe` blocks for specific features
+
+### Test Naming
+
+- Use clear, behavior-focused test descriptions
+- Pattern: `it('performs action when condition', () => ...)`
+- Examples:
+  - `it('formats initial cents to display value', ...)`
+  - `it('emits cents on input and preserves cursor around separators', ...)`
+  - `it('disables button when disabled prop true', ...)`
+
+## Type Safety in Tests
+
+**CRITICAL**: Always use `satisfies` for prop type checking in tests:
+
+```typescript
+render(CurrencyField, {
+  props: { 
+    modelValue: 12345, 
+    label: 'Amount',
+    isNegative: true 
+  } satisfies { modelValue: number; label: string; isNegative: boolean },
+});
+```
+
+This ensures:
+
+1. Full TypeScript type checking
+2. Compile-time detection of invalid props
+3. IntelliSense support for component props
+4. Catches breaking changes when component APIs change
+
+## Testing Complex Input Components
+
+### User Input Simulation
+
+Use `fireEvent.update` for text inputs:
+
+```typescript
+const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Amount' });
+await fireEvent.update(input, '123.45');
+```
+
+### Emitted Events
+
+Extract and verify the **last** emitted event:
+
+```typescript
+const { emitted } = render(Component, { props: {...} });
+const updateEvents = emitted()['update:modelValue'] as number[][];
+const lastEvent = updateEvents[updateEvents.length - 1];
+expect(lastEvent?.[0]).toBe(12345);
+```
+
+### Keyboard Interactions
+
+Test keyboard shortcuts and special keys:
+
+```typescript
+await fireEvent.keyDown(input, { key: 'k' }); // Multiply by 1000
+await fireEvent.keyDown(input, { key: 'ArrowUp' }); // Increment
+await fireEvent.keyDown(input, { key: 'Backspace' }); // Delete character
+```
+
+### Locale-Independent Assertions
+
+Use regex for locale-aware formatting:
+
+```typescript
+// Accepts both US (123.45) and European (123,45) formats
+expect(input.value).toMatch(/123\.45|123,45/);
+expect(input.value).toMatch(/^0\.00$|^0,00$/);
+```
+
+## Accessibility Testing
+
+### ARIA Attributes
+
+Always verify ARIA attributes are properly set:
+
+```typescript
+it('button has proper ARIA attributes', () => {
+  renderWithProviders(Component, {
+    props: { buttonAriaLabel: 'Select category icon' },
+  });
+  
+  const button = screen.getByLabelText('Select category icon');
+  expect(button.getAttribute('aria-label')).toBe('Select category icon');
+});
+```
+
+### Error Linking
+
+Test `aria-describedby` connections:
+
+```typescript
+it('error message is linked via aria-describedby', () => {
+  render(Component, {
+    props: { error: 'Required field' },
+  });
+  
+  const button = screen.getByLabelText('Choose icon');
+  const errorMessage = screen.getByText('Required field');
+  const errorId = errorMessage.id;
+  
+  expect(button.getAttribute('aria-describedby')).toBe(errorId);
+});
+```
+
+### Invalid State
+
+Verify `aria-invalid` is set correctly:
+
+```typescript
+const ariaInvalid = computed(() => {
+  if ((props.error?.length ?? 0) > 0) return true;
+  return Boolean(internalError.value);
+});
+```
+
+## Edge Cases and Boundary Conditions
+
+### Input Validation
+
+Test all validation scenarios:
+
+```typescript
+it('rejects alphabetic characters', async () => {
+  await fireEvent.update(input, 'abc123def');
+  expect(input.value).toMatch(/1\.23|1,23/);
+  expect(input.value).not.toMatch(/[a-zA-Z]/);
+});
+
+it('rejects special characters', async () => {
+  await fireEvent.update(input, '!@#$%^&*()');
+  expect(input.value).toMatch(/^0\.00$|^0,00$/);
+});
+```
+
+### Empty States
+
+```typescript
+it('always displays 0.00 when all digits are deleted', async () => {
+  await fireEvent.update(input, '');
+  expect(input.value).toMatch(/^0\.00$|^0,00$/);
+});
+```
+
+### Min/Max Boundaries
+
+```typescript
+it('validates against min prop', () => {
+  render(Component, {
+    props: { min: 100, modelValue: 50 },
+  });
+  expect(screen.getByText(/Must be at least/)).toBeTruthy();
+});
+```
+
+## Modal and Dialog Testing
+
+### Opening Modals
+
+```typescript
+it('opens modal when button clicked', async () => {
+  const button = screen.getByLabelText('Choose icon');
+  void fireEvent.click(button);
+  
+  await waitFor(() => {
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+});
+```
+
+### Modal Interactions
+
+```typescript
+it('closes modal on cancel', async () => {
+  void fireEvent.click(openButton);
+  await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy());
+  
+  const closeButton = screen.getAllByRole('button')
+    .find((btn) => btn.getAttribute('aria-label') === 'Close');
+  if (closeButton) {
+    void fireEvent.click(closeButton);
+  }
+});
+```
+
+## Test Utilities
+
+### Custom Render Helpers
+
+For components requiring providers (Pinia, Router):
+
+```typescript
+import { getEmitted, renderWithProviders } from '../../../__tests__/test-utils';
+
+renderWithProviders(Component, {
+  props: { modelValue: '' },
+});
+```
+
+### Emitted Event Helper
+
+Extract typed emissions:
+
+```typescript
+const updates = getEmitted<[string]>(emitted(), 'update:modelValue');
+expect(updates[0][0]).toBe('groceries');
+```
+
+## Coverage Goals
+
+### Essential Tests
+
+For every input component, test:
+
+1. **Rendering**: Initial state, labels, placeholders
+2. **Input handling**: Valid input, invalid input, filtering
+3. **Events**: Emitted values and timing
+4. **Validation**: Errors, min/max, required fields
+5. **Accessibility**: ARIA attributes, keyboard navigation, focus management
+6. **Edge cases**: Empty, null, undefined, extreme values
+7. **Disabled state**: Prevents interaction when disabled
+
+### Sign-off Checklist
+
+- [ ] All props have at least one test
+- [ ] All emitted events are tested
+- [ ] Error states are tested
+- [ ] Disabled state is tested
+- [ ] ARIA attributes are verified
+- [ ] Keyboard interactions work
+- [ ] Edge cases are covered
+- [ ] Type safety via `satisfies` is used
+
+## Example: Complete Test Suite Structure
+
+```typescript
+describe('CurrencyField', () => {
+  // Basic rendering
+  it('formats initial cents to display value', () => {...});
+  
+  // Input handling
+  it('emits cents on input and preserves cursor', async () => {...});
+  it('supports k/m keyboard shortcuts', async () => {...});
+  
+  // Validation
+  it('rejects alphabetic characters', async () => {...});
+  it('rejects special characters', async () => {...});
+  it('allows numeric characters and decimal separators', async () => {...});
+  
+  // Sign handling
+  it('displays negative sign when isNegative is true', () => {...});
+  it('emits negative value when isNegative is true', async () => {...});
+  
+  // Edge cases
+  it('always displays 0.00 when all digits are deleted', async () => {...});
+  it('prevents deletion of decimal separator', async () => {...});
+  
+  // Accessibility
+  it('button has proper ARIA attributes', () => {...});
+  it('error message is linked via aria-describedby', () => {...});
+});
+```
+
+## Anti-Patterns to Avoid
+
+❌ **Don't**: Skip type checking in tests
+
+```typescript
+render(Component, { props: { modelValue: 'wrong-type' } }); // No type check
+```
+
+✅ **Do**: Use `satisfies` for type safety
+
+```typescript
+render(Component, {
+  props: { modelValue: 12345 } satisfies { modelValue: number },
+});
+```
+
+❌ **Don't**: Test implementation details
+
+```typescript
+expect(component.vm.internalState).toBe(true); // Internal implementation
+```
+
+✅ **Do**: Test user-visible behavior
+
+```typescript
+expect(screen.getByText('Error message')).toBeTruthy(); // User sees this
+```
+
+❌ **Don't**: Make brittle locale assumptions
+
+```typescript
+expect(input.value).toBe('123.45'); // Fails in some locales
+```
+
+✅ **Do**: Use locale-flexible assertions
+
+```typescript
+expect(input.value).toMatch(/123\.45|123,45/); // Works in all locales
+```

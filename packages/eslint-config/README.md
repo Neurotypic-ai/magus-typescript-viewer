@@ -1,4 +1,4 @@
-# @magus-mark/eslint-config
+# @neurotypic-ai/eslint-config
 
 Shared ESLint configuration for Magus Mark projects.
 
@@ -9,7 +9,7 @@ Shared ESLint configuration for Magus Mark projects.
 The package is available as a workspace dependency:
 
 ```bash
-"@magus-mark/eslint-config": "workspace:*"
+"@neurotypic-ai/eslint-config": "workspace:*"
 ```
 
 ### Using in a project
@@ -18,7 +18,7 @@ Create an `eslint.config.js` file in your project root:
 
 ```js
 // eslint.config.js
-import customConfig from '@magus-mark/eslint-config';
+import customConfig from '@neurotypic-ai/eslint-config';
 
 export default [
   ...customConfig,
@@ -32,6 +32,13 @@ export default [
   },
 ];
 ```
+
+### Peer Dependencies
+
+Ensure your project has compatible versions of:
+
+- `eslint@^9`
+- `typescript@^5.8` (or workspace-provided)
 
 ### Configuration Structure
 
@@ -50,3 +57,62 @@ This configuration:
 - React Hooks (`eslint-plugin-react-hooks`)
 - JSX Accessibility (`eslint-plugin-jsx-a11y`)
 - Testing Library (`eslint-plugin-testing-library`)
+
+## Custom Rules
+
+### no-direct-data-import
+
+Enforces clean architectural boundaries:
+
+- Disallows importing `@neurotypic-ai/data` directly from Vue components
+- Allowed in `stores/` and test files
+
+Example violation:
+
+```ts
+// app/src/components/Foo.vue (disallowed)
+import { transactionsService } from '@neurotypic-ai/data/api';
+```
+
+Allowed:
+
+```ts
+// app/src/stores/transactions.ts
+import { transactionsService } from '@neurotypic-ai/data/api';
+```
+
+### no-dynamic-imports
+
+Enforces static imports for build reliability and type safety:
+
+- Disallows `import()` and `await import()` syntax
+- Only allowed in Vue Router route definitions for lazy loading
+
+Example violations:
+
+```ts
+// Forbidden - dynamic import
+const module = await import('./some-module');
+
+// Forbidden - conditional dynamic import
+if (condition) {
+  const module = await import('./conditional-module');
+}
+```
+
+Allowed:
+
+```ts
+// Static imports - always use these
+import MyComponent from '@/components/MyComponent.vue';
+
+import { myFunction } from './some-module';
+
+// Vue Router lazy routes - acceptable
+const routes = [
+  {
+    path: '/dashboard',
+    component: () => import('@/views/Dashboard.vue'),
+  },
+];
+```

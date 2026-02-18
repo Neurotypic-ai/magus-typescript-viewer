@@ -1,0 +1,219 @@
+---
+description: Consola logging patterns and best practices for the DollarWise codebase
+---
+# Consola Logging Patterns
+
+## Overview
+
+DollarWise uses **consola** v3 from unjs for elegant, structured logging throughout the application (see `apps/dollarwise/package.json` for the exact version). Consola provides a global singleton instance that's shared across the entire codebase (app and data packages).
+
+## Installation
+
+- **App package**: `consola` is a regular dependency in [apps/dollarwise/package.json](mdc:apps/dollarwise/package.json)
+- **Data package**: `consola` is a peer dependency in [packages/data/package.json](mdc:packages/data/package.json)
+- **Global Singleton**: All imports reference the same consola instance
+
+## Initialization
+
+Logger is initialized in [apps/dollarwise/src/init/logger.ts](mdc:apps/dollarwise/src/init/logger.ts) and MUST be called before any other application code runs.
+
+See [main.ts](mdc:apps/dollarwise/src/main.ts) for the bootstrap sequence.
+
+## Usage Patterns
+
+### In Vue Components
+
+Use the `useLogger` composable for namespace validation:
+
+```typescript
+import { useLogger } from '@/composables/useLogger';
+
+const logger = useLogger('MyComponent');
+
+logger.info('Component mounted', { props });
+logger.success('Data saved successfully');
+logger.warn('Validation warning', { field: 'email' });
+logger.error('Failed to load data', { error });
+```
+
+### In Services and Stores
+
+Import consola directly and create tagged instances:
+
+```typescript
+import { consola } from 'consola';
+
+const logger = consola.withTag('my-service');
+
+logger.debug('Processing request', { id: requestId });
+logger.info('Request completed', { duration: 123 });
+logger.error('Request failed', { error, requestId });
+```
+
+### In Data Package
+
+Use the `getDataLogger` helper for consistent namespacing:
+
+```typescript
+import { getDataLogger } from '@neurotypic-ai/data/logging';
+
+const logger = getDataLogger('my-store');
+
+logger.info('Store action', { action: 'fetch', count: 10 });
+```
+
+## Log Levels
+
+Consola provides these log levels (ordered by severity):
+
+1. **`logger.fatal()`** - Fatal errors that crash the app
+2. **`logger.error()`** - Errors that need attention
+3. **`logger.warn()`** - Warnings about potential issues
+4. **`logger.info()`** - Informational messages
+5. **`logger.success()`** - Success messages (green checkmark)
+6. **`logger.debug()`** - Debug information
+7. **`logger.trace()`** - Verbose tracing
+
+### When to Use Each Level
+
+- **fatal**: App crashes, unrecoverable errors
+- **error**: API failures, exceptions, data corruption
+- **warn**: Deprecated features, rate limits, recoverable errors
+- **info**: User actions, state changes, navigation
+- **success**: Operation completions, successful saves
+- **debug**: Development debugging, verbose data
+- **trace**: Very verbose tracing (rarely used)
+
+## Structured Logging
+
+Always log with structured data (objects), not string concatenation:
+
+### ❌ Bad
+
+```typescript
+logger.info(`User ${userId} created transaction ${txId}`);
+logger.error('Failed: ' + error.message);
+```
+
+### ✅ Good
+
+```typescript
+logger.info('Transaction created', { userId, transactionId: txId });
+logger.error('Operation failed', { error, context: 'save-transaction' });
+```
+
+## Sentry Integration
+
+**Important**: Consola logs are automatically captured as Sentry breadcrumbs. You don't need to manually call `Sentry.addBreadcrumb()` - just log with consola and Sentry will track it.
+
+```typescript
+// This log automatically becomes a Sentry breadcrumb
+logger.info('User navigated', { from: '/overview', to: '/budgets' });
+
+// Errors are captured as breadcrumbs AND as exceptions
+logger.error('API request failed', { error, endpoint: '/transactions' });
+```
+
+## Namespacing
+
+Use descriptive, hierarchical namespaces:
+
+```typescript
+// Component
+const logger = useLogger('TransactionForm');
+
+// Service
+const logger = consola.withTag('iap.service');
+
+// Store
+const logger = consola.withTag('transactions.store');
+
+// Data package
+const logger = getDataLogger('auth'); // Becomes 'data.auth'
+```
+
+## Best Practices
+
+### Do ✅
+
+- Use `useLogger()` in Vue components
+- Use `consola.withTag()` in services/stores
+- Log structured data as objects
+- Use appropriate log levels
+- Keep namespaces descriptive and hierarchical
+- Log at decision points and state changes
+- Include error objects when logging failures
+
+### Don't ❌
+
+- Don't use `console.log()` directly
+- Don't log on every render or tick
+- Don't log sensitive data (passwords, tokens, PII)
+- Don't concatenate strings for log messages
+- Don't log massive objects (impacts performance)
+- Don't create logger instances inside render functions
+
+## Examples
+
+### Component Lifecycle
+
+```typescript
+const logger = useLogger('Dashboard');
+
+onMounted(() => {
+  logger.debug('Dashboard mounted');
+});
+
+onUnmounted(() => {
+  logger.debug('Dashboard unmounted');
+});
+```
+
+### Store Actions
+
+```typescript
+const logger = consola.withTag('budgets.store');
+
+async function createBudget(data: CreateBudgetData) {
+  logger.info('Creating budget', { categoryId: data.categoryId, amount: data.amount });
+
+  try {
+    const budget = await budgetService.create(data);
+    logger.success('Budget created', { budgetId: budget.id });
+    return budget;
+  } catch (error) {
+    logger.error('Failed to create budget', { error, data });
+    throw error;
+  }
+}
+```
+
+### API Requests
+
+The API client already logs requests/responses. Don't duplicate in services:
+
+```typescript
+// ❌ Don't do this - API client already logs
+async function fetchData() {
+  logger.info('Fetching data...');
+  const data = await api.get('/data');
+  logger.info('Data fetched');
+  return data;
+}
+
+// ✅ Do this - log at business logic level
+async function loadUserData() {
+  logger.info('Loading user data');
+  const data = await api.get('/data');
+  logger.success('User data loaded', { count: data.length });
+  return data;
+}
+```
+
+## Reference
+
+- **Consola docs**: https://github.com/unjs/consola
+- **Initialization**: [apps/dollarwise/src/init/logger.ts](mdc:apps/dollarwise/src/init/logger.ts)
+- **useLogger composable**: [apps/dollarwise/src/composables/useLogger.ts](mdc:apps/dollarwise/src/composables/useLogger.ts)
+- **Data logger helper**: [packages/data/src/logging.ts](mdc:packages/data/src/logging.ts)
+- **Sentry integration**: [logging-sentry](mdc:.cursor/rules/logging-sentry.mdc)

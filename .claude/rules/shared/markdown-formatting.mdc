@@ -1,0 +1,35 @@
+---
+globs: *.md
+alwaysApply: false
+---
+# Overview
+
+Proper markdown formatting for our project.
+
+Table Separator Spacing
+
+Wrong
+
+```text
+|--------|-------|------------|
+```
+
+Correct
+
+```text
+| -------- | ------- | ------------ |
+```
+
+Code Blocks for non-programming languages
+
+Wrong
+
+```
+This is a text block
+```
+
+Correct
+
+```text
+This is a text block
+```
