@@ -10,7 +10,6 @@ import {
   getActiveCollisionConfig,
 } from '../layout/collisionResolver';
 import type { CollisionConfig, CollisionResult } from '../layout/collisionResolver';
-import { useSpringAnimation } from './useSpringAnimation';
 
 import type { Ref } from 'vue';
 import type { NodeChange } from '@vue-flow/core';
@@ -23,12 +22,8 @@ import type { DependencyNode } from '../types/DependencyNode';
 const DRAG_END_ONLY_THRESHOLD = 700;
 const DRAG_POSITION_EPSILON = 0.01;
 
-/**
- * How often (in spring animation frames) to re-run the collision resolver
- * using current interpolated positions. This catches cascading collisions
- * from spring overshoot. ~4 frames at 60fps ≈ 66ms.
- */
-const RERESOLUTION_FRAME_INTERVAL = 4;
+/** Delay before applying folder contraction (ms). Expansion is always instant. */
+const FOLDER_CONTRACTION_DELAY_MS = 400;
 
 /** Map of strategyId -> { optionKey -> value }. Matches StrategyOptionsById from collisionResolver. */
 export type CollisionStrategyOptionsById = Record<string, Record<string, unknown>>;
@@ -165,91 +160,16 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
   const lastCollisionResult = ref<CollisionResult | null>(null);
   let collisionDimensionTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Reduced motion detection
-  const reducedMotion = ref(false);
-  if (typeof window !== 'undefined') {
-    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
-    reducedMotion.value = mql.matches;
-    mql.addEventListener('change', (e: MediaQueryListEvent) => {
-      reducedMotion.value = e.matches;
-    });
-  }
-
-  // Frame counter for throttled re-resolution during spring animation
-  let springFrameCount = 0;
-  // Track whether the current resolve context is a drag interaction
-  let isDragInteraction = false;
-
-  // ---- Spring animation system ----
-
-  const springAnimation = useSpringAnimation({
-    onFrame: (positions, sizes) => {
-      isApplyingCollisionResolution.value = true;
-      try {
-        const currentNodes = nodes.value;
-        const nodeById = new Map(currentNodes.map((n) => [n.id, n]));
-        const nodeUpdates = new Map<string, DependencyNode>();
-
-        for (const [id, pos] of positions) {
-          const node = nodeById.get(id);
-          if (!node) continue;
-          // Skip dragged nodes — they should not be animated
-          if (activeDraggedNodeIds.value.has(id)) continue;
-          nodeUpdates.set(id, {
-            ...node,
-            position: { x: pos.x, y: pos.y },
-          } as DependencyNode);
-        }
-
-        for (const [id, size] of sizes) {
-          const existing = nodeUpdates.get(id) ?? nodeById.get(id);
-          if (!existing) continue;
-          const currentStyle = typeof existing.style === 'object' ? (existing.style as Record<string, unknown>) : {};
-          const targetWidth = Math.ceil(size.width);
-          const targetHeight = Math.ceil(size.height);
-          nodeUpdates.set(id, {
-            ...existing,
-            style: {
-              ...currentStyle,
-              width: `${String(targetWidth)}px`,
-              height: `${String(targetHeight)}px`,
-            },
-          } as DependencyNode);
-        }
-
-        // Clamp positions to exclusion zones before writing — prevents spring overshoot
-        if (nodeUpdates.size > 0) {
-          clampToExclusionZone(nodeUpdates, nodeById);
-          updateNodesById(nodeUpdates);
-        }
-
-        // Throttled re-resolution: detect cascading collisions from spring overshoot
-        springFrameCount++;
-        if (springFrameCount % RERESOLUTION_FRAME_INTERVAL === 0) {
-          reResolveFromInterpolatedPositions();
-        }
-      } finally {
-        isApplyingCollisionResolution.value = false;
-      }
-    },
-    onSettle: () => {
-      // Final collision check after all springs settle to catch overshoot overlaps
-      runCollisionSettle(null, false);
-    },
-    reducedMotion,
-  });
+  // Pending folder contraction timers — instant expand, delayed contract
+  const contractionTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   // ---- Core resolve logic ----
 
   /**
-   * Run the collision resolver and either apply results immediately or
-   * feed them to the spring animation system.
-   *
-   * @param anchoredNodeIds - Nodes to treat as anchored (immovable).
-   * @param useSpring - Whether to animate results via springs (drag interactions)
-   *   or apply immediately (dimension changes, reduced motion, final settle).
+   * Run the collision resolver and apply results immediately.
+   * All position and size changes are applied without animation for snappy interaction.
    */
-  const runCollisionSettle = (anchoredNodeIds: Set<string> | null, useSpring = false) => {
+  const runCollisionSettle = (anchoredNodeIds: Set<string> | null) => {
     if (isApplyingCollisionResolution.value || isLayoutPending.value || isLayoutMeasuring.value) {
       return;
     }
@@ -312,137 +232,84 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
         return;
       }
 
-      // ---- Apply path: spring animation or immediate ----
-
-      if (useSpring && !reducedMotion.value) {
-        // GROUP SIZES: apply immediately — no spring delay for folder expansion
-        if (result.updatedSizes.size > 0) {
-          applyGroupSizesImmediately(result.updatedSizes, nodeById);
-        }
-
-        // NODE POSITIONS: animate through springs (sizes bypass springs entirely)
-        if (result.updatedPositions.size > 0) {
-          const nodeTypeMap = new Map<string, string>();
-          for (const n of enrichedNodes) {
-            if (n.type) nodeTypeMap.set(n.id, n.type);
-          }
-          initializeSpringPositions(result, nodeById);
-          springAnimation.setTargets(result.updatedPositions, new Map(), nodeTypeMap);
-          springFrameCount = 0;
-        }
-      } else {
-        // Immediate application (non-drag, reduced motion, or final settle)
-        applyResultsImmediately(result, nodeById, enrichedNodes);
+      // Apply group sizes with contraction delay, then positions immediately
+      if (result.updatedSizes.size > 0) {
+        applyGroupSizesWithContractionDelay(result.updatedSizes, nodeById);
       }
+      applyResultsImmediately(result, nodeById, enrichedNodes);
     } finally {
       isApplyingCollisionResolution.value = false;
     }
   };
 
   /**
-   * Initialize spring "current" positions from store state for nodes that
-   * are newly entering the spring system. This ensures the first frame
-   * starts from the node's actual position, not its target.
+   * Apply group sizes: expansions are instant, contractions are delayed.
+   * If a folder is expanding, any pending contraction timer is cancelled.
    */
-  function initializeSpringPositions(
-    result: CollisionResult,
-    nodeById: Map<string, DependencyNode>
-  ): void {
-    const currentPositions = springAnimation.getCurrentPositions();
-    for (const [id] of result.updatedPositions) {
-      if (!currentPositions.has(id)) {
-        // Node is new to springs — seed with its current store position
-        const node = nodeById.get(id);
-        if (node?.position) {
-          const currentStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
-          const w = parseStyleSize(currentStyle['width']);
-          const h = parseStyleSize(currentStyle['height']);
-          // We set target = current so setTargets() will then update target
-          const seedPos = new Map<string, { x: number; y: number }>([[id, node.position]]);
-          const seedSize = w != null && h != null
-            ? new Map<string, { width: number; height: number }>([[id, { width: w, height: h }]])
-            : new Map<string, { width: number; height: number }>();
-          const nodeTypeMap = new Map<string, string>();
-          const nodeType = (node as { type?: string }).type;
-          if (nodeType) {
-            nodeTypeMap.set(id, nodeType);
-          }
-          springAnimation.setTargets(seedPos, seedSize, nodeTypeMap);
-        }
-      }
-    }
-  }
-
-  /** Apply group sizes immediately to the store — bypasses spring animation. */
-  function applyGroupSizesImmediately(
+  function applyGroupSizesWithContractionDelay(
     sizes: Map<string, { width: number; height: number }>,
     nodeById: Map<string, DependencyNode>
   ): void {
-    const updates = new Map<string, DependencyNode>();
-    for (const [id, size] of sizes) {
+    const immediateUpdates = new Map<string, DependencyNode>();
+
+    for (const [id, targetSize] of sizes) {
       const node = nodeById.get(id);
       if (!node) continue;
+
       const style = typeof node.style === 'object'
         ? (node.style as Record<string, unknown>) : {};
-      const targetWidth = Math.ceil(size.width);
-      const targetHeight = Math.ceil(size.height);
-      updates.set(id, {
-        ...node,
-        style: {
-          ...style,
-          width: `${String(targetWidth)}px`,
-          height: `${String(targetHeight)}px`,
-        },
-      } as DependencyNode);
-    }
-    if (updates.size > 0) updateNodesById(updates);
-  }
+      const currentWidth = parseStyleSize(style['width']);
+      const currentHeight = parseStyleSize(style['height']);
+      const targetWidth = Math.ceil(targetSize.width);
+      const targetHeight = Math.ceil(targetSize.height);
 
-  /**
-   * Clamp node positions to stay within their parent's exclusion zone.
-   * Runs every spring frame to prevent overshoot into the safe border.
-   */
-  function clampToExclusionZone(
-    updates: Map<string, DependencyNode>,
-    nodeById: Map<string, DependencyNode>
-  ): void {
-    const config = resolveActiveConfig(collisionConfigInputs);
-    for (const [id, node] of updates) {
-      const parentId = (node as { parentNode?: string }).parentNode;
-      if (!parentId) continue;
-      if (activeDraggedNodeIds.value.has(id)) continue;
+      // Determine if this is an expansion or contraction
+      const isExpanding =
+        (currentWidth !== null && targetWidth > currentWidth) ||
+        (currentHeight !== null && targetHeight > currentHeight);
 
-      const parent = nodeById.get(parentId) ?? updates.get(parentId);
-      if (!parent) continue;
-
-      const parentStyle = typeof parent.style === 'object'
-        ? (parent.style as Record<string, unknown>) : {};
-      const parentW = parseStyleSize(parentStyle['width']);
-      const parentH = parseStyleSize(parentStyle['height']);
-      if (parentW === null || parentH === null) continue;
-
-      const isGroup = (parent as { type?: string }).type === 'group';
-      const padding = isGroup ? config.groupPadding : config.modulePadding;
-      const measured = (node as EnrichedNode).measured
-        ?? (node as EnrichedNode).dimensions;
-      const nodeW = measured?.width ?? 260;
-      const nodeH = measured?.height ?? 100;
-
-      const minX = padding.horizontal;
-      const minY = padding.top;
-      const maxX = Math.max(minX, parentW - padding.horizontal - nodeW);
-      const maxY = Math.max(minY, parentH - padding.bottom - nodeH);
-
-      const pos = node.position;
-      const cx = Math.max(minX, Math.min(maxX, pos.x));
-      const cy = Math.max(minY, Math.min(maxY, pos.y));
-
-      if (cx !== pos.x || cy !== pos.y) {
-        updates.set(id, {
-          ...node, position: { x: cx, y: cy },
+      if (isExpanding || currentWidth === null || currentHeight === null) {
+        // Expansion: apply immediately, cancel any pending contraction
+        const existingTimer = contractionTimers.get(id);
+        if (existingTimer !== undefined) {
+          clearTimeout(existingTimer);
+          contractionTimers.delete(id);
+        }
+        immediateUpdates.set(id, {
+          ...node,
+          style: {
+            ...style,
+            width: `${String(targetWidth)}px`,
+            height: `${String(targetHeight)}px`,
+          },
         } as DependencyNode);
+      } else {
+        // Contraction: schedule delayed application
+        const existingTimer = contractionTimers.get(id);
+        if (existingTimer !== undefined) {
+          clearTimeout(existingTimer);
+        }
+        contractionTimers.set(id, setTimeout(() => {
+          contractionTimers.delete(id);
+          const currentNode = nodes.value.find((n) => n.id === id);
+          if (!currentNode) return;
+          const currentStyle = typeof currentNode.style === 'object'
+            ? (currentNode.style as Record<string, unknown>) : {};
+          updateNodesById(new Map([[id, {
+            ...currentNode,
+            style: {
+              ...currentStyle,
+              width: `${String(targetWidth)}px`,
+              height: `${String(targetHeight)}px`,
+            },
+          } as DependencyNode]]));
+          // Re-settle to catch any new collisions from the size change
+          scheduleDimensionSettle();
+        }, FOLDER_CONTRACTION_DELAY_MS));
       }
     }
+
+    if (immediateUpdates.size > 0) updateNodesById(immediateUpdates);
   }
 
   /** Apply collision results immediately to the graph store (no animation). */
@@ -464,32 +331,6 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
         position: { x: newPos.x, y: newPos.y },
       } as DependencyNode);
       offsetUpdates.set(id, { dx, dy });
-    }
-
-    for (const [id, newSize] of result.updatedSizes) {
-      const existing = nodeUpdates.get(id) ?? nodeById.get(id);
-      if (!existing) continue;
-      const currentStyle = typeof existing.style === 'object' ? (existing.style as Record<string, unknown>) : {};
-      const targetWidth = Math.ceil(newSize.width);
-      const targetHeight = Math.ceil(newSize.height);
-      const currentWidth = parseStyleSize(currentStyle['width']);
-      const currentHeight = parseStyleSize(currentStyle['height']);
-      if (
-        currentWidth !== null &&
-        currentHeight !== null &&
-        Math.abs(currentWidth - targetWidth) < 1 &&
-        Math.abs(currentHeight - targetHeight) < 1
-      ) {
-        continue;
-      }
-      nodeUpdates.set(id, {
-        ...existing,
-        style: {
-          ...currentStyle,
-          width: `${String(targetWidth)}px`,
-          height: `${String(targetHeight)}px`,
-        },
-      } as DependencyNode);
     }
 
     // Refresh actively-dragged nodes' positions from VueFlow to prevent snap-back
@@ -521,73 +362,6 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
     }
   }
 
-  /**
-   * Re-run the collision resolver using the spring system's current
-   * interpolated positions. This catches cascading collisions caused
-   * by spring overshoot. Called from the spring onFrame callback at
-   * a throttled interval.
-   */
-  function reResolveFromInterpolatedPositions(): void {
-    const currentNodes = nodes.value;
-    if (currentNodes.length === 0) return;
-
-    const vfNodes = getVueFlowNodes();
-    const enrichedNodes = (Array.isArray(vfNodes) ? vfNodes : []) as EnrichedNode[];
-    const boundsNodes = enrichedNodes.map(enrichedToBoundsNode);
-
-    const posMap = buildPositionMap(boundsNodes, {
-      defaultNodeWidth: 260,
-      defaultNodeHeight: 100,
-    });
-
-    // Overlay spring interpolated positions onto the position map
-    const springPositions = springAnimation.getCurrentPositions();
-    const springSizes = springAnimation.getCurrentSizes();
-    for (const [id, pos] of springPositions) {
-      const box = posMap.get(id);
-      if (box) {
-        box.x = pos.x;
-        box.y = pos.y;
-      }
-    }
-    for (const [id, size] of springSizes) {
-      const box = posMap.get(id);
-      if (box) {
-        box.width = size.width;
-        box.height = size.height;
-      }
-    }
-
-    const nodeById = new Map(currentNodes.map((n) => [n.id, n]));
-    const activeAnchors = new Set<string>();
-    for (const id of activeDraggedNodeIds.value) {
-      if (nodeById.has(id)) activeAnchors.add(id);
-    }
-
-    const resolverAnchors = new Set<string>(activeAnchors);
-    for (const id of userPinnedNodeIds.value) {
-      if (nodeById.has(id)) resolverAnchors.add(id);
-    }
-
-    const config = resolveActiveConfig(collisionConfigInputs);
-    const result = resolveCollisions(
-      boundsNodes,
-      posMap,
-      resolverAnchors.size > 0 ? resolverAnchors : null,
-      config,
-      activeAnchors
-    );
-
-    if (result.updatedPositions.size > 0 || result.updatedSizes.size > 0) {
-      const nodeTypeMap = new Map<string, string>();
-      for (const n of enrichedNodes) {
-        if (n.type) nodeTypeMap.set(n.id, n.type);
-      }
-      // Feed new targets to springs — velocity is preserved for smooth retargeting
-      springAnimation.setTargets(result.updatedPositions, result.updatedSizes, nodeTypeMap);
-    }
-  }
-
   // ---- Dimension change debounce (non-drag path) ----
 
   const scheduleDimensionSettle = () => {
@@ -597,7 +371,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
     collisionDimensionTimer = setTimeout(() => {
       collisionDimensionTimer = null;
       const activeAnchors = activeDraggedNodeIds.value;
-      runCollisionSettle(activeAnchors.size > 0 ? new Set(activeAnchors) : null, false);
+      runCollisionSettle(activeAnchors.size > 0 ? new Set(activeAnchors) : null);
     }, 60);
   };
 
@@ -690,8 +464,6 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
       for (const [nodeId, dragging] of dragStateById) {
         if (dragging) {
           nextActiveDragged.add(nodeId);
-          // Remove dragged node from spring system — it's hard-anchored
-          springAnimation.removeNode(nodeId);
         } else {
           nextActiveDragged.delete(nodeId);
         }
@@ -701,7 +473,6 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
 
     if (dragPositionIds.size > 0) {
       const nodeCount = nodes.value.length;
-      isDragInteraction = hasLiveDrag || hasDragEnd;
 
       // For very large graphs, only resolve on drag-end
       if (nodeCount > DRAG_END_ONLY_THRESHOLD && hasLiveDrag && !hasDragEnd) {
@@ -709,8 +480,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
       }
 
       const settleAnchors = dragLifecycleIds.size > 0 ? dragLifecycleIds : dragPositionIds;
-      // Use spring animation for drag interactions (smooth), immediate for drag-end settle
-      runCollisionSettle(settleAnchors, isDragInteraction && hasLiveDrag);
+      runCollisionSettle(settleAnchors);
     } else if (hasDimensionChange && !isLayoutPending.value && !isLayoutMeasuring.value) {
       scheduleDimensionSettle();
     }
@@ -718,7 +488,10 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
 
   const dispose = (): void => {
     stopLayoutWatch();
-    springAnimation.dispose();
+    for (const timer of contractionTimers.values()) {
+      clearTimeout(timer);
+    }
+    contractionTimers.clear();
     if (collisionDimensionTimer !== null) {
       clearTimeout(collisionDimensionTimer);
       collisionDimensionTimer = null;

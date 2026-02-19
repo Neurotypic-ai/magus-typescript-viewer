@@ -20,9 +20,9 @@ const MINIMUM_DISTANCE_PX_OPTION = {
   id: 'minimumDistancePx',
   type: 'number' as const,
   label: 'Minimum distance (px)',
-  description: 'Minimum spacing between nodes and folder bounds for collision resolution.',
-  defaultValue: 40,
-  min: 20,
+  description: 'Collision box radius around each node (px). Actual distance between nodes is twice this value.',
+  defaultValue: 20,
+  min: 10,
   max: 100,
   step: 5,
 };

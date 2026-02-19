@@ -339,6 +339,19 @@ export function computeEdgeVirtualizationResult(
     const sourceAnchor = sourceHandleAnchor ?? edge.data?.sourceAnchor;
     const targetAnchor = targetHandleAnchor ?? edge.data?.targetAnchor;
     if (sourceAnchor && targetAnchor) {
+      // Fast path: if either endpoint node is in the viewport, the edge is visible.
+      // Without this, a partially-visible node whose handle anchor falls outside
+      // the padded viewport bounds would have all its edges culled — the polyline
+      // exits away from the viewport to reach the off-screen peer and never
+      // intersects the viewport rectangle.
+      if (
+        (sourceBounds && isNodeInBounds(sourceBounds, bounds)) ||
+        (targetBounds && isNodeInBounds(targetBounds, bounds))
+      ) {
+        viewportVisibleIds.add(edge.id);
+        continue;
+      }
+
       const polylineOptions = {
         sourceHandle: edge.sourceHandle ?? null,
         targetHandle: edge.targetHandle ?? null,

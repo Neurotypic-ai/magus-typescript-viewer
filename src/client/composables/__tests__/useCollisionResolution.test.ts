@@ -13,11 +13,6 @@ import {
 import { filterNodeChangesForFolderMode } from '../../graph/buildGraphView';
 import type { DependencyNode } from '../../types/DependencyNode';
 import { useCollisionResolution } from '../useCollisionResolution';
-import { useSpringAnimation } from '../useSpringAnimation';
-
-vi.mock('../useSpringAnimation', () => ({
-  useSpringAnimation: vi.fn(),
-}));
 
 vi.mock('../../graph/buildGraphView', () => ({
   filterNodeChangesForFolderMode: vi.fn((changes: NodeChange[]) => changes),
@@ -38,7 +33,7 @@ vi.mock('../../layout/collisionResolver', () => {
       const distance = Math.max(0, minimumDistancePx);
       return {
         ...DEFAULT_COLLISION_CONFIG,
-        overlapGap: distance,
+        overlapGap: distance * 2,
         groupPadding: {
           horizontal: distance,
           top: distance,
@@ -64,25 +59,6 @@ interface MockCollisionResult {
   converged: boolean;
 }
 
-type SpringFrameCallback = (
-  positions: Map<string, { x: number; y: number }>,
-  sizes: Map<string, { width: number; height: number }>
-) => void;
-
-let capturedOnFrame: SpringFrameCallback | null = null;
-let capturedOnSettle: (() => void) | null = null;
-
-const springMock = {
-  setTargets: vi.fn(),
-  removeNode: vi.fn(),
-  clear: vi.fn(),
-  isAnimating: ref(false),
-  settlingCount: ref(0),
-  getCurrentPositions: vi.fn(() => new Map<string, { x: number; y: number }>()),
-  getCurrentSizes: vi.fn(() => new Map<string, { width: number; height: number }>()),
-  dispose: vi.fn(),
-};
-
 function makeCollisionResult(
   positions: Array<[string, { x: number; y: number }]> = [],
   sizes: Array<[string, { width: number; height: number }]> = []
@@ -105,6 +81,16 @@ function makeNode(id: string, x: number, y: number, type = 'module'): Dependency
   } as DependencyNode;
 }
 
+function makeGroupNode(id: string, x: number, y: number, width: number, height: number): DependencyNode {
+  return {
+    id,
+    type: 'group',
+    data: {} as never,
+    position: { x, y },
+    style: { width: `${width}px`, height: `${height}px` },
+  } as DependencyNode;
+}
+
 function makePositionChange(id: string, x: number, y: number, dragging: boolean): NodeChange {
   return {
     id,
@@ -123,23 +109,6 @@ function makeDimensionsChange(id: string, width: number, height: number): NodeCh
   } as unknown as NodeChange;
 }
 
-function invokeSpringFrame(
-  positions = new Map<string, { x: number; y: number }>(),
-  sizes = new Map<string, { width: number; height: number }>()
-): void {
-  if (!capturedOnFrame) {
-    throw new Error('Expected spring onFrame callback to be captured.');
-  }
-  capturedOnFrame(positions, sizes);
-}
-
-function invokeSpringSettle(): void {
-  if (!capturedOnSettle) {
-    throw new Error('Expected spring onSettle callback to be captured.');
-  }
-  capturedOnSettle();
-}
-
 function createHarness(initialNodes: DependencyNode[] = [makeNode('a', 0, 0)]) {
   const nodes = ref<DependencyNode[]>([...initialNodes]);
   const isLayoutPending = ref(false);
@@ -151,8 +120,8 @@ function createHarness(initialNodes: DependencyNode[] = [makeNode('a', 0, 0)]) {
   });
   const updateNodesById = vi.fn((updates: Map<string, DependencyNode>) => {
     const byId = new Map(nodes.value.map((node) => [node.id, node]));
-    for (const [id, node] of updates) byId.set(id, node);
-    nodes.value = [...byId.values()];
+    updates.forEach((node, id) => byId.set(id, node));
+    nodes.value = Array.from(byId.values());
   });
   const mergeManualOffsets = vi.fn();
   const reconcileSelectedNodeAfterStructuralChange = vi.fn();
@@ -177,6 +146,7 @@ function createHarness(initialNodes: DependencyNode[] = [makeNode('a', 0, 0)]) {
     updateNodesById,
     mergeManualOffsets,
     getVueFlowNodes,
+    isLayoutPending,
   };
 }
 
@@ -185,17 +155,6 @@ describe('useCollisionResolution', () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     vi.unstubAllGlobals();
-
-    capturedOnFrame = null;
-    capturedOnSettle = null;
-    springMock.getCurrentPositions.mockReturnValue(new Map());
-    springMock.getCurrentSizes.mockReturnValue(new Map());
-
-    vi.mocked(useSpringAnimation).mockImplementation((options) => {
-      capturedOnFrame = options.onFrame;
-      capturedOnSettle = options.onSettle;
-      return springMock;
-    });
 
     vi.mocked(filterNodeChangesForFolderMode).mockImplementation((changes) => changes);
 
@@ -217,7 +176,7 @@ describe('useCollisionResolution', () => {
     vi.unstubAllGlobals();
   });
 
-  it('feeds resolver results to spring targets during live drag', () => {
+  it('applies collision results immediately during live drag', () => {
     const { collision, updateNodesById } = createHarness([
       makeNode('a', 0, 0),
       makeNode('b', 220, 0),
@@ -230,11 +189,7 @@ describe('useCollisionResolution', () => {
 
     collision.handleNodesChange([makePositionChange('a', 40, 0, true)]);
 
-    expect(springMock.setTargets).toHaveBeenCalled();
-    const lastCall = springMock.setTargets.mock.calls.at(-1);
-    expect(lastCall?.[0]).toStrictEqual(result.updatedPositions);
-    expect(lastCall?.[1]).toStrictEqual(result.updatedSizes);
-    expect(updateNodesById).not.toHaveBeenCalled();
+    expect(updateNodesById).toHaveBeenCalled();
   });
 
   it('applies collision results immediately on drag end', () => {
@@ -249,16 +204,7 @@ describe('useCollisionResolution', () => {
 
     collision.handleNodesChange([makePositionChange('a', 20, 0, false)]);
 
-    expect(springMock.setTargets).not.toHaveBeenCalled();
     expect(updateNodesById).toHaveBeenCalledTimes(1);
-  });
-
-  it('removes a node from spring animation when dragging starts', () => {
-    const { collision } = createHarness([makeNode('a', 0, 0)]);
-
-    collision.handleNodesChange([makePositionChange('a', 15, 0, true)]);
-
-    expect(springMock.removeNode).toHaveBeenCalledWith('a');
   });
 
   it('pins a node after drag end', () => {
@@ -278,7 +224,6 @@ describe('useCollisionResolution', () => {
     collision.handleNodesChange([makePositionChange('n0', 5, 0, true)]);
 
     expect(resolveCollisions).not.toHaveBeenCalled();
-    expect(springMock.setTargets).not.toHaveBeenCalled();
   });
 
   it('debounces dimension-driven settling by sixty milliseconds', () => {
@@ -297,55 +242,6 @@ describe('useCollisionResolution', () => {
     expect(resolveCollisions).toHaveBeenCalledTimes(1);
   });
 
-  it('bypasses spring animation when reduced motion is enabled', () => {
-    vi.stubGlobal('window', {
-      matchMedia: vi.fn(() => ({
-        matches: true,
-        addEventListener: vi.fn(),
-      })),
-    });
-
-    const { collision, updateNodesById } = createHarness([
-      makeNode('a', 0, 0),
-      makeNode('b', 220, 0),
-    ]);
-    vi.mocked(resolveCollisions).mockReturnValue(
-      makeCollisionResult([['b', { x: 300, y: 0 }]])
-    );
-
-    collision.handleNodesChange([makePositionChange('a', 30, 0, true)]);
-
-    expect(springMock.setTargets).not.toHaveBeenCalled();
-    expect(updateNodesById).toHaveBeenCalledTimes(1);
-  });
-
-  it('re-runs collision resolution every fourth spring frame', () => {
-    createHarness([makeNode('a', 0, 0)]);
-    vi.mocked(resolveCollisions).mockReturnValue(
-      makeCollisionResult([['a', { x: 10, y: 10 }]])
-    );
-
-    for (let i = 0; i < 8; i++) {
-      invokeSpringFrame(new Map([['a', { x: i, y: 0 }]]), new Map());
-    }
-
-    expect(resolveCollisions).toHaveBeenCalledTimes(2);
-    expect(springMock.setTargets).toHaveBeenCalledTimes(2);
-  });
-
-  it('runs a final immediate settle after spring animation settles', () => {
-    const { updateNodesById } = createHarness([makeNode('a', 0, 0)]);
-    vi.mocked(resolveCollisions).mockReturnValue(
-      makeCollisionResult([['a', { x: 40, y: 0 }]])
-    );
-
-    invokeSpringSettle();
-
-    expect(resolveCollisions).toHaveBeenCalledTimes(1);
-    expect(springMock.setTargets).not.toHaveBeenCalled();
-    expect(updateNodesById).toHaveBeenCalledTimes(1);
-  });
-
   it('uses default collision config when no config inputs are provided', () => {
     const { collision } = createHarness([makeNode('a', 0, 0)]);
 
@@ -357,7 +253,7 @@ describe('useCollisionResolution', () => {
     expect(createCollisionConfig).not.toHaveBeenCalled();
   });
 
-  it('disposes spring animation and cancels pending dimension timers', () => {
+  it('disposes and cancels pending dimension timers', () => {
     vi.useFakeTimers();
     const { collision } = createHarness([makeNode('a', 0, 0)]);
 
@@ -365,9 +261,162 @@ describe('useCollisionResolution', () => {
     expect(resolveCollisions).not.toHaveBeenCalled();
 
     collision.dispose();
-    expect(springMock.dispose).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(200);
     expect(resolveCollisions).not.toHaveBeenCalled();
+  });
+
+  it('triggers settle when layout completes', async () => {
+    vi.useFakeTimers();
+    const { isLayoutPending } = createHarness([makeNode('a', 0, 0)]);
+
+    // Must await between state changes so Vue's watch callback fires for each
+    isLayoutPending.value = true;
+    await vi.advanceTimersByTimeAsync(0);
+    isLayoutPending.value = false;
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Should schedule a dimension settle (60ms debounce)
+    await vi.advanceTimersByTimeAsync(60);
+    expect(resolveCollisions).toHaveBeenCalled();
+  });
+
+  describe('folder contraction delay', () => {
+    it('applies folder expansion immediately', () => {
+      const { collision, updateNodesById } = createHarness([
+        makeGroupNode('folder', 0, 0, 300, 200),
+        makeNode('a', 50, 50),
+      ]);
+
+      // Resolver says folder should grow
+      vi.mocked(resolveCollisions).mockReturnValue(
+        makeCollisionResult(
+          [],
+          [['folder', { width: 400, height: 300 }]]
+        )
+      );
+
+      collision.handleNodesChange([makePositionChange('a', 60, 60, false)]);
+
+      // Expansion should be applied immediately (updateNodesById called for sizes)
+      expect(updateNodesById).toHaveBeenCalled();
+      const calls = updateNodesById.mock.calls;
+      const lastCall = calls[calls.length - 1]?.[0] as Map<string, DependencyNode> | undefined;
+      const folderUpdate = lastCall?.get('folder');
+      const style = folderUpdate?.style as Record<string, string> | undefined;
+      expect(style?.width).toBe('400px');
+      expect(style?.height).toBe('300px');
+    });
+
+    it('delays folder contraction by FOLDER_CONTRACTION_DELAY_MS', () => {
+      vi.useFakeTimers();
+      const { collision, updateNodesById } = createHarness([
+        makeGroupNode('folder', 0, 0, 400, 300),
+        makeNode('a', 50, 50),
+      ]);
+
+      // Resolver says folder should shrink
+      vi.mocked(resolveCollisions).mockReturnValue(
+        makeCollisionResult(
+          [],
+          [['folder', { width: 200, height: 150 }]]
+        )
+      );
+
+      collision.handleNodesChange([makePositionChange('a', 40, 40, false)]);
+
+      // Size update should NOT have been applied yet (contraction delayed)
+      const immediateCalls = updateNodesById.mock.calls;
+      const anyFolderSizeUpdate = immediateCalls.some((call) => {
+        const updates = call[0] as Map<string, DependencyNode>;
+        const folder = updates.get('folder');
+        const style = folder?.style as Record<string, string> | undefined;
+        return style?.width === '200px';
+      });
+      expect(anyFolderSizeUpdate).toBe(false);
+
+      // After delay, contraction should be applied
+      vi.advanceTimersByTime(400);
+      const delayedCalls = updateNodesById.mock.calls;
+      const folderContracted = delayedCalls.some((call) => {
+        const updates = call[0] as Map<string, DependencyNode>;
+        const folder = updates.get('folder');
+        const style = folder?.style as Record<string, string> | undefined;
+        return style?.width === '200px';
+      });
+      expect(folderContracted).toBe(true);
+    });
+
+    it('cancels pending contraction when expansion occurs', () => {
+      vi.useFakeTimers();
+      const { collision, updateNodesById, nodes } = createHarness([
+        makeGroupNode('folder', 0, 0, 400, 300),
+        makeNode('a', 50, 50),
+      ]);
+
+      // First: trigger contraction
+      vi.mocked(resolveCollisions).mockReturnValue(
+        makeCollisionResult([], [['folder', { width: 200, height: 150 }]])
+      );
+      collision.handleNodesChange([makePositionChange('a', 40, 40, false)]);
+
+      // Advance partway through the delay
+      vi.advanceTimersByTime(200);
+
+      // Now trigger expansion — should cancel the pending contraction
+      vi.mocked(resolveCollisions).mockReturnValue(
+        makeCollisionResult([], [['folder', { width: 500, height: 400 }]])
+      );
+
+      // Re-read nodes to get current state for expansion check
+      nodes.value = [makeGroupNode('folder', 0, 0, 400, 300), makeNode('a', 50, 50)];
+      collision.handleNodesChange([makePositionChange('a', 60, 60, false)]);
+
+      // The expansion should be applied immediately
+      const expansionApplied = updateNodesById.mock.calls.some((call) => {
+        const updates = call[0] as Map<string, DependencyNode>;
+        const folder = updates.get('folder');
+        const style = folder?.style as Record<string, string> | undefined;
+        return style?.width === '500px';
+      });
+      expect(expansionApplied).toBe(true);
+
+      // After the original delay expires, contraction should NOT fire
+      vi.advanceTimersByTime(200);
+      const contractionFired = updateNodesById.mock.calls.some((call) => {
+        const updates = call[0] as Map<string, DependencyNode>;
+        const folder = updates.get('folder');
+        const style = folder?.style as Record<string, string> | undefined;
+        return style?.width === '200px';
+      });
+      expect(contractionFired).toBe(false);
+    });
+
+    it('cleans up contraction timers on dispose', () => {
+      vi.useFakeTimers();
+      const { collision, updateNodesById } = createHarness([
+        makeGroupNode('folder', 0, 0, 400, 300),
+        makeNode('a', 50, 50),
+      ]);
+
+      // Trigger contraction
+      vi.mocked(resolveCollisions).mockReturnValue(
+        makeCollisionResult([], [['folder', { width: 200, height: 150 }]])
+      );
+      collision.handleNodesChange([makePositionChange('a', 40, 40, false)]);
+
+      // Dispose before contraction fires
+      collision.dispose();
+
+      // Advance past delay — contraction should NOT fire
+      vi.advanceTimersByTime(500);
+      const contractionFired = updateNodesById.mock.calls.some((call) => {
+        const updates = call[0] as Map<string, DependencyNode>;
+        const folder = updates.get('folder');
+        const style = folder?.style as Record<string, string> | undefined;
+        return style?.width === '200px';
+      });
+      expect(contractionFired).toBe(false);
+    });
   });
 });

@@ -59,7 +59,7 @@ export function createCollisionConfig(minimumDistancePx: number): CollisionConfi
   const d = Math.max(0, minimumDistancePx);
   return {
     ...DEFAULT_COLLISION_CONFIG,
-    overlapGap: d,
+    overlapGap: d * 2, // Each node gets a d-pixel collision box; total gap = 2d between nodes
     groupPadding: {
       horizontal: d,
       top: d,

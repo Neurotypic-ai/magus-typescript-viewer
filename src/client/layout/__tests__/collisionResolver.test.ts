@@ -51,9 +51,9 @@ function makeTypedNode(
 }
 
 describe('createCollisionConfig', () => {
-  it('sets overlapGap and groupPadding from minimumDistancePx', () => {
+  it('sets overlapGap to 2x minimumDistancePx (collision box model) and groupPadding to 1x', () => {
     const config = createCollisionConfig(50);
-    expect(config.overlapGap).toBe(50);
+    expect(config.overlapGap).toBe(100); // 50 * 2 — each node has a 50px collision box
     expect(config.groupPadding).toEqual({
       horizontal: 50,
       top: 50,
@@ -81,14 +81,14 @@ describe('createCollisionConfig', () => {
     expect(config.modulePadding).toEqual(DEFAULT_COLLISION_CONFIG.modulePadding);
   });
 
-  it('produces config that affects resolveCollisions gap', () => {
+  it('produces config that affects resolveCollisions gap (2x collision box)', () => {
     const nodes: BoundsNode[] = [
       makeNode('a', 0, 0, 200, 100),
       makeNode('b', 150, 50, 200, 100),
     ];
     const posMap = buildPositionMap(nodes, DEFAULTS);
-    const customGap = 60;
-    const config = createCollisionConfig(customGap);
+    const collisionBoxRadius = 60;
+    const config = createCollisionConfig(collisionBoxRadius);
     const result = resolveCollisions(nodes, posMap, new Set(['a']), config);
 
     expect(result.converged).toBe(true);
@@ -97,7 +97,8 @@ describe('createCollisionConfig', () => {
     if (aBox === undefined || bBox === undefined) {
       expect.fail('a and b should be in posMap');
     }
-    expect(bBox.x >= aBox.x + aBox.width + customGap || bBox.y >= aBox.y + aBox.height + customGap).toBe(true);
+    const totalGap = collisionBoxRadius * 2;
+    expect(bBox.x >= aBox.x + aBox.width + totalGap || bBox.y >= aBox.y + aBox.height + totalGap).toBe(true);
   });
 });
 
@@ -114,11 +115,11 @@ describe('getActiveCollisionConfig', () => {
     expect(config).toEqual(DEFAULT_COLLISION_CONFIG);
   });
 
-  it('uses minimumDistancePx from strategy options when present', () => {
+  it('uses minimumDistancePx from strategy options when present (2x collision box)', () => {
     const config = getActiveCollisionConfig('folderDistributor', {
       folderDistributor: { [COLLISION_MINIMUM_DISTANCE_OPTION_KEY]: 55 },
     });
-    expect(config.overlapGap).toBe(55);
+    expect(config.overlapGap).toBe(110); // 55 * 2
     expect(config.groupPadding).toEqual({ horizontal: 55, top: 55, bottom: 55 });
     expect(config.modulePadding).toEqual(DEFAULT_COLLISION_CONFIG.modulePadding);
   });
@@ -144,10 +145,10 @@ describe('getActiveCollisionConfig', () => {
     };
 
     const canvasConfig = getActiveCollisionConfig('canvas', optionsById);
-    expect(canvasConfig.overlapGap).toBe(25);
+    expect(canvasConfig.overlapGap).toBe(50); // 25 * 2
 
     const folderConfig = getActiveCollisionConfig('folderDistributor', optionsById);
-    expect(folderConfig.overlapGap).toBe(40);
+    expect(folderConfig.overlapGap).toBe(80); // 40 * 2
   });
 });
 
