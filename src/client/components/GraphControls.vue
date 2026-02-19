@@ -373,15 +373,24 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 </script>
 
 <template>
-  <Panel position="top-left">
-    <div class="graph-controls-shell bg-background-paper p-5 rounded-lg border border-border-default shadow-xl">
-      <div v-if="graphSearchContext" class="mb-4 border-b border-border-default pb-4">
-        <GraphSearch
-          :model-value="searchQueryValue"
-          :run-search="graphSearchContext.runSearch"
-          @update:model-value="onSearchQueryUpdate"
-        />
-      </div>
+  <Panel v-if="graphSearchContext" position="top-left" class="graph-search-panel">
+    <div class="graph-search-shell bg-background-paper rounded-lg border border-border-default shadow-xl">
+      <GraphSearch
+        :model-value="searchQueryValue"
+        :run-search="graphSearchContext.runSearch"
+        @update:model-value="onSearchQueryUpdate"
+      />
+    </div>
+  </Panel>
+  <Panel
+    position="top-left"
+    class="graph-controls-panel"
+    :class="{ 'graph-controls-panel-with-search': !!graphSearchContext }"
+  >
+    <div
+      class="graph-controls-shell bg-background-paper rounded-lg border border-border-default shadow-xl"
+      :class="{ 'graph-controls-shell-with-search': !!graphSearchContext }"
+    >
 
       <div class="section-collapse">
         <button
@@ -463,7 +472,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
           <p class="section-description">
             Choose a strategy for edge rendering and graph runtime behavior.
           </p>
-          <div role="radiogroup" aria-label="Rendering strategy" class="flex flex-col gap-2">
+          <div role="radiogroup" aria-label="Rendering strategy" class="flex flex-col gap-1.5">
             <button
               v-for="strategy in renderingStrategies"
               :key="strategy.id"
@@ -496,7 +505,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
           >
             Canvas strategy is unavailable in this browser session.
           </p>
-          <div v-if="activeRenderingOptions.length > 0" class="mt-3 space-y-2" aria-live="polite" aria-atomic="false">
+          <div v-if="activeRenderingOptions.length > 0" class="mt-2 space-y-1.5" aria-live="polite" aria-atomic="false">
             <h5 class="text-xs font-semibold text-text-primary">{{ activeRenderingStrategy.label }} options</h5>
             <div
               v-for="option in activeRenderingOptions"
@@ -551,7 +560,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
                   {{ selectOption.label }}
                 </option>
               </select>
-              <div v-else class="flex items-center gap-2">
+              <div v-else class="flex items-center gap-1.5">
                 <input
                   :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
                   type="range"
@@ -703,7 +712,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
           <p class="section-description">
             How properties and methods render within class/interface nodes.
           </p>
-          <div role="radiogroup" aria-label="Member display mode" class="grid grid-cols-2 gap-2">
+          <div role="radiogroup" aria-label="Member display mode" class="grid grid-cols-2 gap-1.5">
             <button
               type="button"
               role="radio"
@@ -884,12 +893,26 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 </template>
 
 <style scoped>
+.graph-search-shell {
+  width: min(24rem, calc(100vw - 1.5rem));
+  padding: 0.42rem 0.5rem;
+}
+
+.graph-controls-panel-with-search {
+  margin-top: 3.85rem;
+}
+
 .graph-controls-shell {
   width: min(24rem, calc(100vw - 1.5rem));
   max-height: calc(100vh - 1.5rem);
+  padding: 0.68rem 0.68rem 0.92rem;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable both-edges;
+}
+
+.graph-controls-shell-with-search {
+  max-height: calc(100vh - 5.35rem);
 }
 
 .graph-controls-shell::-webkit-scrollbar {
@@ -910,8 +933,8 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 }
 
 .section-divider {
-  margin-top: 1rem;
-  padding-top: 1rem;
+  margin-top: 0.62rem;
+  padding-top: 0.62rem;
   border-top: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.7);
 }
 
@@ -920,9 +943,9 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 2rem;
+  min-height: 1.8rem;
   margin: 0;
-  padding: 0.4rem 0.45rem;
+  padding: 0.28rem 0.34rem;
   background: none;
   border: none;
   border-radius: 0.4rem;
@@ -958,13 +981,13 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 }
 
 .section-content {
-  padding: 0.45rem 0.45rem 0;
+  padding: 0.3rem 0.34rem 0.14rem;
 }
 
 .section-description {
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.42rem;
   font-size: 0.72rem;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--color-text-secondary);
 }
 
@@ -983,16 +1006,16 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 .control-group {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.34rem;
 }
 
 .control-row {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  min-height: 1.65rem;
+  gap: 0.45rem;
+  min-height: 1.5rem;
   font-size: 0.75rem;
-  line-height: 1.3;
+  line-height: 1.25;
   color: var(--color-text-secondary);
   transition: color 150ms ease-out;
 }
@@ -1038,7 +1061,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   width: 100%;
   border-radius: 0.45rem;
   border: 1px solid var(--color-border-default);
-  padding: 0.58rem 0.65rem;
+  padding: 0.46rem 0.52rem;
   text-align: left;
   transition:
     border-color 150ms ease-out,
@@ -1086,11 +1109,11 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   border-radius: 0.45rem;
   border: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.72);
   background: rgba(255, 255, 255, 0.09);
-  padding: 0.55rem 0.6rem;
+  padding: 0.45rem 0.5rem;
 }
 
 .option-description {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   font-size: 0.72rem;
   line-height: 1.35;
   color: var(--color-text-secondary);
@@ -1104,7 +1127,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   color: var(--color-text-primary);
   font-size: 0.75rem;
   line-height: 1.3;
-  padding: 0.3rem 0.5rem;
+  padding: 0.24rem 0.45rem;
 }
 
 .option-select:focus-visible {
@@ -1132,7 +1155,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   border-radius: 0.45rem;
   border: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.72);
   background: rgba(255, 255, 255, 0.09);
-  padding: 0.5rem 0.6rem;
+  padding: 0.42rem 0.5rem;
   font-size: 0.72rem;
   line-height: 1.35;
   color: var(--color-text-secondary);

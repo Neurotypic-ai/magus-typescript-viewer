@@ -15,9 +15,6 @@ import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 
-/** Smoothstep routing options for intra-folder edges: offset pushes stubs away from nodes. */
-const INTRA_FOLDER_SMOOTHSTEP_OPTIONS = { offset: 20, borderRadius: 8 };
-
 export interface BuildFolderDistributorGraphOptions {
   data: DependencyPackageGraph;
   enabledNodeTypes: Iterable<string>;
@@ -152,8 +149,7 @@ export function buildFolderDistributorGraph(options: BuildFolderDistributorGraph
     const intraEdges = filterIntraFolderEdges(collapsedGraph.nodes, collapsedGraph.edges);
     const routedEdges = intraEdges.map((edge) => ({
       ...edge,
-      type: 'smoothstep' as const,
-      pathOptions: INTRA_FOLDER_SMOOTHSTEP_OPTIONS,
+      type: 'intraFolder' as const,
     }));
     const visibleEdges = applyEdgeVisibility(routedEdges, options.enabledRelationshipTypes);
     renderedEdges = bundleParallelEdges(visibleEdges);

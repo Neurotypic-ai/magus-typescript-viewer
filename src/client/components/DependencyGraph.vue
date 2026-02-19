@@ -12,6 +12,7 @@ import {
   ISOLATE_EXPAND_ALL_KEY,
   NODE_ACTIONS_KEY,
 } from './nodes/utils';
+import IntraFolderEdge from './edges/IntraFolderEdge.vue';
 import GroupNode from './nodes/GroupNode.vue';
 import ModuleNode from './nodes/ModuleNode.vue';
 import PackageNode from './nodes/PackageNode.vue';
@@ -167,6 +168,11 @@ const nodeTypes: Record<string, Component> = Object.freeze({
   method: SymbolNode,
 });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- used in template as :edge-types
+const edgeTypes: Record<string, Component> = Object.freeze({
+  intraFolder: IntraFolderEdge,
+});
+
 provide(NODE_ACTIONS_KEY, nodeActions);
 provide(ISOLATE_EXPAND_ALL_KEY, isolateExpandAll);
 provide(HIGHLIGHT_ORPHAN_GLOBAL_KEY, highlightOrphanGlobal);
@@ -237,6 +243,7 @@ onUnmounted(() => {
       :nodes="visualNodes"
       :edges="renderedEdges"
       :node-types="nodeTypes as any"
+      :edge-types="edgeTypes as any"
       :fit-view-on-init="false"
       :min-zoom="0.1"
       :max-zoom="2"
