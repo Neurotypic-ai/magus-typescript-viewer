@@ -1,46 +1,73 @@
-# Plan: Obstacle-Aware Intra-Folder Edge Routing
+# Plan: Obstacle-Aware Intra-Folder Edge Routing (Merged Canonical)
+
+## Goal
+
+Implement obstacle-aware intra-folder edge routing in Folder View so edges avoid unconnected sibling nodes while keeping runtime bounded, debuggable, and rollback-safe.
 
 ## Context
 
-The Folder View strategy (`folderDistributor`) now supports optional intra-folder edges — edges between nodes within the same folder group — gated by a `showIntraFolderEdges` boolean strategy option. These edges currently use Vue Flow's built-in `smoothstep` type with a 20px offset, which prevents clipping through source/target nodes but does **not** route around intermediate (unconnected) nodes that may lie between them. The requirement is that **edges should never visually intersect unconnected nodes**.
+The Folder View strategy (`folderDistributor`) supports optional intra-folder edges (gated by `showIntraFolderEdges`). These edges currently use Vue Flow `smoothstep` with a 20px offset, which avoids source/target clipping but does not route around intermediate unconnected nodes.
 
-This plan adds a custom Vue Flow edge component backed by a grid-based A\* pathfinder that computes orthogonal SVG paths around sibling node bounding boxes at render time.
+## Non-Negotiable Invariants
 
-## Approach: Custom Edge Component + Grid A\* Pathfinding
+1. Rendered path starts exactly at `sourceX/sourceY`.
+2. Rendered path ends exactly at `targetX/targetY`.
+3. Rendered path must not intersect unconnected sibling node rectangles.
+4. Routing compute must stay within explicit hard caps.
 
-### Architecture Overview
+## Coordinate System Contract
+
+All routing coordinates use Vue Flow absolute space:
+
+- `EdgeProps.sourceX/Y`, `targetX/Y`: absolute handle positions from Vue Flow
+- `GraphNode.computedPosition`: absolute node top-left
+- `GraphNode.dimensions`: `{ width, height }` measured by Vue Flow
+- Never use `node.position` for obstacle geometry (`node.position` is parent-relative)
+
+## Architecture Overview
 
 ```text
 EdgeProps (sourceX/Y, targetX/Y, sourceNode, targetNode)
-  │
-  ▼
+  |
+  v
+DependencyGraph.vue
+  | registers edgeTypes.intraFolder
+  | provides shared folder obstacle index + runtime options
+  |
+  v
 IntraFolderEdge.vue (custom edge component)
-  │  useVueFlow().getNodes → filter same-parentNode siblings
-  │  map → obstacle AABBs (computedPosition + dimensions)
-  │  guard: skip zero-dimension nodes (unmeasured first pass)
-  │
-  ▼
+  | resolve folder snapshot, exclude source/target obstacles
+  | cache key: edgeId + folderVersion + quantized endpoints + optionsVersion
+  |
+  v
 findObstacleAwarePath(source, target, obstacles, options)
-  │  returns SVG path string | null
-  │
-  ├─ path found → <BaseEdge :path="svgPath" ... />
-  └─ null       → getSmoothStepPath(props) fallback → <BaseEdge ... />
+  | returns { path|null, labelPoint|null, status, metrics }
+  |
+  +-- path safe -> <BaseEdge :path="..." />
+  +-- no safe path (obstacle-aware mode) -> do not render edge
+  +-- rollback mode -> smoothstep fallback
 ```
 
-### Coordinate System Contract
+## Runtime Policy
 
-All coordinates use **Vue Flow absolute space** (`computedPosition`, not `position`):
+### Obstacle-Aware Mode (default)
 
-- `EdgeProps.sourceX/Y`, `targetX/Y` — absolute handle positions computed by Vue Flow
-- `GraphNode.computedPosition` — absolute node top-left (parent offsets already resolved)
-- `GraphNode.dimensions` — `{ width, height }` from Vue Flow DOM tracking
-- **Never use `node.position`** — that is relative to `parentNode`
+1. Attempt bounded A* route.
+2. Render only when a safe route is available.
+3. If status is `no-route`, `grid-cap-exceeded`, or `not-measured`, do not render that edge.
 
-### File Changes
+### Emergency Rollback Mode
 
-#### 1. `src/client/layout/orthogonalPathfinder.ts` (New)
+When `VITE_OBSTACLE_AWARE_INTRA_FOLDER_EDGES=false`:
 
-Pure function with no Vue/reactive dependencies. Fully unit-testable.
+- use `smoothstep` behavior for operational recovery
+- this is best-effort and does not guarantee non-intersection
+
+## File Changes
+
+### 1. `src/client/layout/orthogonalPathfinder.ts` (New)
+
+Pure function utility with no Vue/reactive dependencies.
 
 ```typescript
 export interface ObstacleRect {
@@ -51,10 +78,29 @@ export interface ObstacleRect {
 }
 
 export interface PathfinderOptions {
-  gridResolution?: number;  // default: 10 (px per cell)
-  obstaclePadding?: number; // default: 8 (inflate obstacles by this many px)
-  gridMargin?: number;      // default: 30 (px around bounding box)
-  cornerRadius?: number;    // default: 8 (quadratic bezier arc radius at bends)
+  // Original defaults were: obstaclePadding 8, gridMargin 30, cornerRadius 8.
+  // Hardened defaults below reduce corner-overlap risk and add hard caps.
+  gridResolution?: number;   // default: 10 (px per cell)
+  obstaclePadding?: number;  // default: 10
+  gridMargin?: number;       // default: 36
+  cornerRadius?: number;     // default: 6
+  maxGridCells?: number;     // default: 12000
+  maxVisitedCells?: number;  // default: 30000
+}
+
+export type PathStatus =
+  | 'ok'
+  | 'invalid-input'
+  | 'not-measured'
+  | 'no-route'
+  | 'grid-cap-exceeded';
+
+export interface ObstacleAwarePathResult {
+  path: string | null;
+  labelPoint: { x: number; y: number } | null;
+  status: PathStatus;
+  visitedCells: number;
+  gridCellCount: number;
 }
 
 export function findObstacleAwarePath(
@@ -62,121 +108,149 @@ export function findObstacleAwarePath(
   target: { x: number; y: number },
   obstacles: ObstacleRect[],
   options?: PathfinderOptions
-): string | null;
+): ObstacleAwarePathResult;
 ```
 
-**Algorithm steps:**
+Algorithm steps:
 
-1. **Bounding box**: Compute the AABB encompassing source, target, and all obstacles. Expand by `gridMargin` (default 30px = `2 × obstaclePadding + gridResolution + buffer`). This ensures A\* has room to route around obstacles near the boundary.
+1. Validate finite inputs; reject invalid coordinates.
+2. Compute AABB containing source, target, and obstacles.
+3. Expand by `gridMargin`.
+4. Estimate grid size and enforce `maxGridCells` (single coarsening retry allowed).
+5. Build occupancy grid (`Uint8Array`) and inflate obstacles by `obstaclePadding`.
+6. Force-clear source/target cells.
+7. Run 4-directional A* with Manhattan heuristic and straight-direction tie-breaking.
+8. Simplify collinear points.
+9. Map to world points and force exact endpoint anchors.
+10. Round corners with `buildRoundedPolylinePath`.
+11. Validate rounded path against non-inflated obstacles; if intersection occurs, retry with `cornerRadius=0`.
+12. Return `ObstacleAwarePathResult` with status and metrics.
 
-2. **Grid construction**: Allocate a `Uint8Array` at `gridResolution` (10px). Mark cells overlapping any obstacle (inflated by `obstaclePadding` = 8px) as blocked. Source and target cells are always unblocked (force-cleared after obstacle marking).
+SVG serialization helper retained from original approach:
 
-3. **A\* search**: 4-directional movement (up/down/left/right). Manhattan distance heuristic. **Direction-preference tie-breaking**: when two cells have equal `f = g + h`, prefer the cell that continues the current movement direction. This naturally produces straighter paths with fewer bends.
+```typescript
+function roundedPolylineToSvg(rp: RoundedPolylinePath): string {
+  let d = `M ${rp.start.x} ${rp.start.y}`;
+  for (const seg of rp.segments) {
+    if (seg.kind === 'quadratic' && seg.control) {
+      d += ` Q ${seg.control.x} ${seg.control.y} ${seg.to.x} ${seg.to.y}`;
+    } else {
+      d += ` L ${seg.to.x} ${seg.to.y}`;
+    }
+  }
+  return d;
+}
+```
 
-4. **Path simplification**: Walk the raw grid-cell path and remove intermediate points that are collinear (same row or same column as their neighbors). Result: minimal waypoints where direction changes.
+A* implementation detail retained from original: use a binary min-heap priority queue keyed by `f = g + h`.
 
-5. **Grid-to-world conversion**: Map simplified cell coordinates back to world coordinates.
+### 2. `src/client/composables/useIntraFolderObstacleIndex.ts` (New)
 
-6. **Corner rounding**: Reuse the existing `buildRoundedPolylinePath()` from [edgeGeometryPolicy.ts](src/client/layout/edgeGeometryPolicy.ts) to convert the polyline into `RoundedPolylinePath` with quadratic bezier arcs at bends. Then serialize to SVG `d`-string:
+Shared folder obstacle snapshots to avoid per-edge full-node scans.
 
-   ```typescript
-   // Reuse from edgeGeometryPolicy.ts:
-   import {
-     buildRoundedPolylinePath,
-     type EdgeGeometryPoint,
-     type RoundedPolylinePath,
-   } from './edgeGeometryPolicy';
-   ```
+```typescript
+export interface FolderObstacleSnapshot {
+  folderId: string;
+  ready: boolean;
+  version: string; // deterministic hash from same-folder geometry only
+  obstacles: Array<ObstacleRect & { nodeId: string }>;
+}
 
-   SVG serialization (new helper in this file):
+export interface IntraFolderObstacleIndex {
+  getSnapshot(folderId: string): FolderObstacleSnapshot | null;
+}
+```
 
-   ```typescript
-   function roundedPolylineToSvg(rp: RoundedPolylinePath): string {
-     let d = `M ${rp.start.x} ${rp.start.y}`;
-     for (const seg of rp.segments) {
-       if (seg.kind === 'quadratic' && seg.control) {
-         d += ` Q ${seg.control.x} ${seg.control.y} ${seg.to.x} ${seg.to.y}`;
-       } else {
-         d += ` L ${seg.to.x} ${seg.to.y}`;
-       }
-     }
-     return d;
-   }
-   ```
+Behavior:
 
-7. **Return**: SVG path string, or `null` if A\* finds no route.
+- group nodes by `parentNode`
+- null-safe guards around `dimensions` and `computedPosition`
+- snapshot `ready=false` when relevant geometry is unmeasured
+- unrelated-folder updates do not change a folder snapshot version
 
-**A\* implementation detail — priority queue**: For grids this small (~6,000 cells max), use a binary min-heap keyed on `f`-cost. No need for a Fibonacci heap or external library.
+### 3. `src/client/components/edges/IntraFolderEdge.vue` (New)
 
-#### 2. `src/client/components/edges/IntraFolderEdge.vue` (New)
+Canonical merged responsibilities:
 
-Custom Vue Flow edge component.
+- guard `sourceNode`, `targetNode`, `parentNode`, `dimensions`, `computedPosition`
+- resolve folder snapshot from shared index
+- remove source/target nodes from obstacle set
+- use route cache key:
+  - `edgeId + folderVersion + quantized(source,target) + optionsVersion`
+- use path-derived label point (not straight midpoint)
+- enforce runtime policy:
+  - obstacle-aware mode: render only safe path
+  - rollback mode: use smoothstep fallback
+
+Design notes preserved from the original plan:
+
+- keep obstacle gathering and route computation as separate steps for clearer invalidation behavior
+- guard out unmeasured zero-dimension nodes on first pass to avoid unstable geometry
+- pass through `interactionWidth` for consistent hover/click targeting
+
+Reference merged snippet:
 
 ```vue
 <script setup lang="ts">
 import { computed } from 'vue';
-import { BaseEdge, getSmoothStepPath, useVueFlow, type EdgeProps } from '@vue-flow/core';
-import { findObstacleAwarePath, type ObstacleRect } from '../../layout/orthogonalPathfinder';
+import { BaseEdge, getSmoothStepPath, type EdgeProps } from '@vue-flow/core';
+import { findObstacleAwarePath } from '../../layout/orthogonalPathfinder';
+import { useIntraFolderObstacleIndex } from '../../composables/useIntraFolderObstacleIndex';
 
 const props = defineProps<EdgeProps>();
+const obstacleIndex = useIntraFolderObstacleIndex();
+const enableObstacleAware = true; // provided by graph runtime/env wiring
 
-const { getNodes } = useVueFlow();
+const routeResult = computed(() => {
+  const folderId = props.sourceNode?.parentNode ?? props.targetNode?.parentNode;
+  if (!folderId) return { path: null, labelX: undefined, labelY: undefined, status: 'not-measured' as const };
 
-const SMOOTHSTEP_FALLBACK_OPTIONS = { offset: 20, borderRadius: 8 };
-
-/** Filtered sibling obstacle AABBs — only changes when same-folder node positions/sizes change. */
-const siblingObstacles = computed<ObstacleRect[]>(() => {
-  const parentId = props.sourceNode.parentNode;
-  if (!parentId) return [];
-  return getNodes.value
-    .filter((n) =>
-      n.parentNode === parentId
-      && n.id !== props.source
-      && n.id !== props.target
-      && n.dimensions.width > 0   // skip unmeasured nodes
-      && n.dimensions.height > 0
-    )
-    .map((n) => ({
-      x: n.computedPosition.x,
-      y: n.computedPosition.y,
-      width: n.dimensions.width,
-      height: n.dimensions.height,
-    }));
-});
-
-const pathResult = computed(() => {
-  const source = { x: props.sourceX, y: props.sourceY };
-  const target = { x: props.targetX, y: props.targetY };
-  const obstacles = siblingObstacles.value;
-
-  const astarPath = findObstacleAwarePath(source, target, obstacles);
-  if (astarPath) {
-    // Estimate label position at midpoint
-    const midX = (props.sourceX + props.targetX) / 2;
-    const midY = (props.sourceY + props.targetY) / 2;
-    return { path: astarPath, labelX: midX, labelY: midY };
+  const snapshot = obstacleIndex.getSnapshot(folderId);
+  if (!snapshot || !snapshot.ready) {
+    return { path: null, labelX: undefined, labelY: undefined, status: 'not-measured' as const };
   }
 
-  // Fallback to smoothstep
-  const [path, labelX, labelY] = getSmoothStepPath({
-    sourceX: props.sourceX,
-    sourceY: props.sourceY,
-    targetX: props.targetX,
-    targetY: props.targetY,
-    sourcePosition: props.sourcePosition,
-    targetPosition: props.targetPosition,
-    ...SMOOTHSTEP_FALLBACK_OPTIONS,
-  });
-  return { path, labelX, labelY };
+  const source = { x: props.sourceX, y: props.sourceY };
+  const target = { x: props.targetX, y: props.targetY };
+  const obstacles = snapshot.obstacles
+    .filter((o) => o.nodeId !== props.source && o.nodeId !== props.target)
+    .map(({ nodeId: _nodeId, ...rect }) => rect);
+  const result = findObstacleAwarePath(source, target, obstacles);
+
+  if (result.path) {
+    return {
+      path: result.path,
+      labelX: result.labelPoint?.x,
+      labelY: result.labelPoint?.y,
+      status: result.status,
+    };
+  }
+
+  if (!enableObstacleAware) {
+    const [path, labelX, labelY] = getSmoothStepPath({
+      sourceX: props.sourceX,
+      sourceY: props.sourceY,
+      targetX: props.targetX,
+      targetY: props.targetY,
+      sourcePosition: props.sourcePosition,
+      targetPosition: props.targetPosition,
+      offset: 20,
+      borderRadius: 8,
+    });
+    return { path, labelX, labelY, status: 'no-route' as const };
+  }
+
+  return { path: null, labelX: undefined, labelY: undefined, status: result.status };
 });
 </script>
 
 <template>
   <BaseEdge
+    v-if="routeResult.path"
     :id="id"
-    :path="pathResult.path"
-    :label-x="pathResult.labelX"
-    :label-y="pathResult.labelY"
+    :path="routeResult.path"
+    :label-x="routeResult.labelX"
+    :label-y="routeResult.labelY"
     :marker-start="markerStart"
     :marker-end="markerEnd"
     :style="style"
@@ -185,16 +259,9 @@ const pathResult = computed(() => {
 </template>
 ```
 
-**Key design decisions:**
+### 4. `src/client/components/DependencyGraph.vue` (Modify)
 
-- **Two-layer computed**: `siblingObstacles` produces the AABB list, `pathResult` runs the pathfinder. Vue's reactivity tracks that `pathResult` depends on `siblingObstacles` plus `sourceX/Y, targetX/Y`. Changes to nodes in other folders modify `getNodes` but don't change `siblingObstacles` (the filter produces the same result), so Vue skips the pathfinder recomputation.
-- **Zero-dimension guard**: Nodes with `dimensions.width === 0` are filtered out of obstacles. During the first render pass before DOM measurement, these are unmeasured. The pathfinder runs with whatever obstacles are measured; the first render may clip but self-corrects after the two-pass measurement completes.
-- **Fallback**: Lives in the component, not the utility. The utility returns `string | null`. The component calls `getSmoothStepPath` with the existing `SMOOTHSTEP_FALLBACK_OPTIONS` when `null`.
-- **`interactionWidth`**: Passed through to `BaseEdge` for consistent hover/click targeting.
-
-#### 3. `src/client/components/DependencyGraph.vue` (Modify)
-
-Add edge type registration alongside the existing `nodeTypes`:
+Register edge type (retained from original) and wire runtime context.
 
 ```typescript
 import IntraFolderEdge from './edges/IntraFolderEdge.vue';
@@ -204,7 +271,7 @@ const edgeTypes: Record<string, Component> = Object.freeze({
 });
 ```
 
-In the `<VueFlow>` template, add the `:edge-types` prop (after the existing `:node-types`):
+Template wiring retained:
 
 ```vue
 <VueFlow
@@ -215,17 +282,22 @@ In the `<VueFlow>` template, add the `:edge-types` prop (after the existing `:no
   ...
 ```
 
-The `as any` cast follows the existing pattern for `nodeTypes` — required due to `exactOptionalPropertyTypes` incompatibility with Vue Flow's prop types.
+Additional runtime wiring:
 
-#### 4. `src/client/graph/buildFolderDistributorGraph.ts` (Modify)
+- provide shared obstacle index
+- read `VITE_OBSTACLE_AWARE_INTRA_FOLDER_EDGES` (default `true`)
+- pass routing options/caps through provider/composable context
+- preserve existing `as any` pattern for `edge-types` (same rationale as `node-types` under `exactOptionalPropertyTypes`)
 
-Replace the edge type annotation in the pipeline:
+### 5. `src/client/graph/buildFolderDistributorGraph.ts` (Modify)
 
-- Change `type: 'smoothstep' as const` → `type: 'intraFolder' as const`
-- Remove `pathOptions: INTRA_FOLDER_SMOOTHSTEP_OPTIONS` (pathfinding handles routing internally)
-- **Keep** `INTRA_FOLDER_SMOOTHSTEP_OPTIONS` as it's used in the component's smoothstep fallback — actually, move the constant into the edge component where it's consumed. Remove from the builder.
+Retained from original intent:
 
-Updated pipeline in `buildFolderDistributorGraph`:
+- change `type: 'smoothstep' as const` -> `type: 'intraFolder' as const`
+- remove builder-level `pathOptions` for intra-folder edges
+- keep `applyEdgeVisibility` and `bundleParallelEdges` flow
+
+Pipeline snippet retained:
 
 ```typescript
 const routedEdges = intraEdges.map((edge) => ({
@@ -234,64 +306,133 @@ const routedEdges = intraEdges.map((edge) => ({
 }));
 ```
 
-**Bundled edges**: `bundleParallelEdges` creates a representative edge by spreading the first edge in a group. Since we set `type: 'intraFolder'` before bundling, the representative inherits the type. No additional handling needed.
+Bundling note retained: representative edge inherits `type: 'intraFolder'`.
+
+### 6. `src/client/rendering/strategyRegistry.ts` (No Functional Change)
+
+- keep `showIntraFolderEdges` default `false` for safe rollout
+- rollback uses env kill switch (no new UI toggle required)
 
 ## Edge Cases
 
-| Scenario | Behavior |
-|----------|----------|
-| No obstacles in folder (2 nodes only) | A\* finds direct path, no bends needed |
-| Obstacle directly between source and target | A\* routes around it orthogonally |
-| All routes blocked (theoretically impossible in open folder) | Returns `null` → smoothstep fallback |
-| First render before DOM measurement | Zero-dimension nodes excluded from obstacles; first paint may clip, self-corrects after measurement |
-| User drags a node | `computedPosition` updates → `siblingObstacles` changes → pathfinder recomputes. No feedback loop — collision resolution and pathfinding are independent (collision repositions nodes, pathfinding reads final positions) |
-| Collapsed folder | `collapseFolders()` already removes children and drops intra-folder self-loops; no edges reach the component |
-| Nested folders | `filterIntraFolderEdges` uses `buildNodeToFolderMap` which maps to the nearest folder ancestor; edges only connect nodes in the same immediate folder |
-| Group label inset area | Not treated as an obstacle — folder labels are above node content area and don't overlap child positions |
+| Scenario | Behavior | Status / policy |
+|---|---|---|
+| No obstacles in folder | direct orthogonal route | `ok` |
+| Obstacle directly between source and target | route detours orthogonally | `ok` |
+| All routes blocked | no edge in obstacle-aware mode; smoothstep only in rollback mode | `no-route` |
+| First render before DOM measurement | defer route until snapshot ready | `not-measured` |
+| User drags a node | recompute from updated folder snapshot/version | `ok` or bounded fail status |
+| Collapsed folder | no intra-folder child edges reach component | n/a |
+| Nested folders | edges only for same immediate folder (`buildNodeToFolderMap`) | n/a |
+| Group label inset area | not treated as obstacle (labels above content) | n/a |
+| Source equals target | builder filters out; utility treats as invalid | `invalid-input` |
+| Grid exceeds cap | coarsen once, then fail bounded | `grid-cap-exceeded` |
+| Rounded path intersects obstacle | retry with `cornerRadius=0` | `ok` or `no-route` |
 
 ## Testing
 
 ### Unit Tests: `src/client/layout/__tests__/orthogonalPathfinder.test.ts` (New)
 
-Pure function tests — no Vue/DOM dependencies:
+1. no obstacles -> direct route
+2. single obstacle between source and target -> detour
+3. obstacle on source position -> source cell force-clear works
+4. multiple obstacles forming wall -> route around wall ends
+5. unreachable target enclosed by obstacles -> `no-route`
+6. source equals target -> invalid/trivial contract behavior is deterministic
+7. path simplification removes collinear points
+8. rounded path produces `Q` segments when applicable
+9. tie-breaking favors straighter equal-cost route
+10. endpoint anchoring is exact (`sourceX/Y`, `targetX/Y`)
+11. rounded intersection fallback to `cornerRadius=0`
+12. grid cap behavior returns `grid-cap-exceeded`
 
-1. **No obstacles** — direct orthogonal path from source to target
-2. **Single obstacle between source and target** — path detours around it
-3. **Obstacle on source position** — source cell force-cleared, path still found
-4. **Multiple obstacles forming a wall** — path routes around the wall ends
-5. **Unreachable target** (fully enclosed by obstacles) — returns `null`
-6. **Source equals target** — returns trivial `M x y` path or `null`
-7. **Path simplification** — verify collinear points removed (e.g., 50 grid cells in a straight line become 2 waypoints)
-8. **Corner rounding** — verify SVG string contains `Q` segments at bends
-9. **Direction tie-breaking** — verify path with equal-cost alternatives prefers fewer bends
+### Unit Tests: `src/client/composables/__tests__/useIntraFolderObstacleIndex.test.ts` (New)
 
-### Existing Tests
+1. missing `dimensions/computedPosition` does not throw
+2. same-folder version stability for unchanged geometry
+3. unrelated-folder updates do not invalidate folder version
+4. readiness transitions (`ready=false` -> `true`) after measurement
 
-`pnpm vitest run src/client/__tests__/buildFolderDistributorGraph.test.ts` — all 7 existing tests pass (the builder change is type-string only).
+### Existing Tests Retained
+
+`pnpm vitest run src/client/__tests__/buildFolderDistributorGraph.test.ts` baseline remains part of verification, with added coverage for `showIntraFolderEdges: true`.
+
+### E2E Extension (Recommended)
+
+`tests/e2e/graph-interaction.spec.ts`:
+
+1. switch to Folder View
+2. enable "Show intra-folder edges"
+3. verify intra-folder edges render for fixture graph
+4. move a sibling node and verify reroute behavior
 
 ### Manual Verification
 
-1. Switch to Folder View → enable "Show intra-folder edges"
-2. Find a folder with 3+ nodes where an edge skips over an intermediate node
-3. Verify the edge routes orthogonally around the intermediate node
-4. Collapse that folder → verify edges disappear
-5. Expand → verify edges return with correct routing
-6. Drag a node → verify edges recompute without visual glitches
-7. Toggle relationship type filters → verify edge visibility respects filters
+1. switch to Folder View and enable intra-folder edges
+2. verify detours around intermediate sibling nodes
+3. collapse/expand folder and verify edge lifecycle
+4. drag nodes and verify reroute stability
+5. toggle relationship filters and verify visibility semantics
+6. toggle rollback env switch and verify smoothstep recovery mode
+
+## Observability and Acceptance Criteria
+
+Telemetry:
+
+- route attempts by status (`ok`, `no-route`, `grid-cap-exceeded`, `not-measured`, `invalid-input`)
+- route compute duration histogram
+- throttled warnings for repeated failures by edge id
+
+Acceptance thresholds:
+
+- p95 route compute <= 6 ms for folders up to 25 sibling nodes
+- fallback statuses (`no-route` + `grid-cap-exceeded`) < 1% on representative projects
+
+## Accessibility (WCAG)
+
+- no new non-keyboard controls
+- non-rendered unsafe edges remain non-focusable/non-interactive
+- no flashing or animation regressions from routing logic
 
 ## Files Summary
 
 | File | Action | Purpose |
-|------|--------|---------|
-| [orthogonalPathfinder.ts](src/client/layout/orthogonalPathfinder.ts) | **New** | Grid A\* pathfinder — pure function, no Vue deps |
-| [IntraFolderEdge.vue](src/client/components/edges/IntraFolderEdge.vue) | **New** | Custom edge component — obstacle AABB collection + pathfinder call + fallback |
-| [DependencyGraph.vue](src/client/components/DependencyGraph.vue) | **Modify** | Register `edgeTypes` with `intraFolder` key |
-| [buildFolderDistributorGraph.ts](src/client/graph/buildFolderDistributorGraph.ts) | **Modify** | Set `type: 'intraFolder'`, remove `pathOptions` and smoothstep constant |
-| [orthogonalPathfinder.test.ts](src/client/layout/__tests__/orthogonalPathfinder.test.ts) | **New** | Unit tests for pathfinder |
+|---|---|---|
+| `src/client/layout/orthogonalPathfinder.ts` | New | bounded A* router + status/metrics |
+| `src/client/composables/useIntraFolderObstacleIndex.ts` | New | shared folder obstacle snapshots/versioning |
+| `src/client/components/edges/IntraFolderEdge.vue` | New | custom safe intra-folder edge renderer |
+| `src/client/components/DependencyGraph.vue` | Modify | register `edgeTypes` + provide routing context |
+| `src/client/graph/buildFolderDistributorGraph.ts` | Modify | mark intra-folder edges as `type: 'intraFolder'` |
+| `src/client/rendering/strategyRegistry.ts` | No functional change | keep feature default safe/off by UI |
+| `src/client/__tests__/buildFolderDistributorGraph.test.ts` | Modify | intra-folder edge pipeline coverage |
+| `src/client/layout/__tests__/orthogonalPathfinder.test.ts` | New | pathfinder correctness and bounded behavior |
+| `src/client/composables/__tests__/useIntraFolderObstacleIndex.test.ts` | New | obstacle index guard/versioning tests |
 
 ## Reused Existing Code
 
-- [buildRoundedPolylinePath()](src/client/layout/edgeGeometryPolicy.ts) — corner rounding for polyline → SVG conversion
-- [buildNodeToFolderMap()](src/client/graph/cluster/folderMembership.ts) — folder membership (used by existing `filterIntraFolderEdges`)
-- [applyEdgeVisibility()](src/client/graph/graphViewShared.ts) — relationship type filtering (already in pipeline)
-- [bundleParallelEdges()](src/client/graph/graphViewShared.ts) — parallel edge bundling (already in pipeline)
+- `buildRoundedPolylinePath()` in `src/client/layout/edgeGeometryPolicy.ts`
+- `buildNodeToFolderMap()` in `src/client/graph/cluster/folderMembership.ts`
+- `applyEdgeVisibility()` in `src/client/graph/graphViewShared.ts`
+- `bundleParallelEdges()` in `src/client/graph/graphViewShared.ts`
+
+## Stability and Maturity
+
+- Chosen approach: bounded grid A* + shared index + cache
+  - maturity: high (conventional)
+  - risk profile: low novelty, predictable rollout
+- Deferred alternative: visibility graph + funnel smoothing
+  - maturity in this codebase: medium/novel
+  - potential upside: cleaner routing for very dense folders
+  - deferred until profiling shows sustained bottleneck
+
+## Appendix: Superseded Details (Preserved for Traceability)
+
+1. Prior fallback policy:
+   - original proposal rendered `smoothstep` when no path was found
+   - superseded by safe-only rendering in obstacle-aware mode
+2. Prior obstacle collection approach:
+   - original proposal computed obstacles per edge via full `getNodes`
+   - superseded by shared folder obstacle index
+3. Prior default tuning:
+   - original defaults: `obstaclePadding=8`, `gridMargin=30`, `cornerRadius=8`
+   - hardened defaults adjust safety/performance envelope and add hard caps
