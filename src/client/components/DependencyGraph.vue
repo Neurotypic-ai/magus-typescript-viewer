@@ -305,7 +305,7 @@ onUnmounted(() => {
         <div class="layout-loading-indicator">Updating graph layout...</div>
       </Panel>
 
-      <Panel v-if="graphSettings.showFps" position="bottom-center" class="fps-panel">
+      <Panel v-if="graphSettings.showFps" position="top-right" class="fps-panel fps-panel-slot">
         <div class="fps-shell" :class="{ 'fps-shell-advanced': graphSettings.showFpsAdvanced }">
           <div
             class="fps-counter"
@@ -363,7 +363,7 @@ onUnmounted(() => {
         <div class="renderer-mode-copy">Hybrid canvas edge renderer active</div>
       </Panel>
 
-      <Panel position="top-right" class="graph-stats-panel">
+      <Panel position="top-right" class="graph-stats-panel graph-stats-panel-slot">
         <details class="graph-stats-shell">
           <summary class="graph-stats-summary">
             <span>Graph Stats</span>
@@ -380,6 +380,28 @@ onUnmounted(() => {
                 <dd>{{ renderedEdgeCount }}</dd>
               </div>
             </dl>
+
+            <section class="graph-stats-section">
+              <h4>Collision</h4>
+              <ul class="graph-stats-list">
+                <li class="graph-stats-list-row">
+                  <span class="graph-stats-type">Cycles</span>
+                  <span class="graph-stats-count">{{ lastCollisionResult?.cyclesUsed ?? '--' }}</span>
+                </li>
+                <li class="graph-stats-list-row">
+                  <span class="graph-stats-type">Converged</span>
+                  <span class="graph-stats-count">{{ lastCollisionResult ? (lastCollisionResult.converged ? 'yes' : 'no') : '--' }}</span>
+                </li>
+                <li class="graph-stats-list-row">
+                  <span class="graph-stats-type">Moved</span>
+                  <span class="graph-stats-count">{{ lastCollisionResult?.updatedPositions.size ?? 0 }}</span>
+                </li>
+                <li class="graph-stats-list-row">
+                  <span class="graph-stats-type">Resized</span>
+                  <span class="graph-stats-count">{{ lastCollisionResult?.updatedSizes.size ?? 0 }}</span>
+                </li>
+              </ul>
+            </section>
 
             <section class="graph-stats-section">
               <h4>Node Types</h4>
@@ -415,7 +437,7 @@ onUnmounted(() => {
         </button>
       </Panel>
 
-      <Panel position="bottom-left" class="insights-dashboard-panel">
+      <Panel position="top-right" class="insights-dashboard-panel insights-panel-slot">
         <InsightsDashboard />
       </Panel>
     </VueFlow>
@@ -438,7 +460,6 @@ onUnmounted(() => {
       :show-handles="graphSettings.showDebugHandles"
       :show-node-ids="graphSettings.showDebugNodeIds"
       :collision-config="activeCollisionConfig"
-      :last-collision-result="lastCollisionResult"
       class="absolute inset-0"
     />
     <NodeDetails
@@ -674,12 +695,18 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+.fps-panel-slot {
+  margin-top: 4.25rem;
+  margin-right: 0.5rem;
+}
+
 .fps-shell {
   min-width: 5rem;
 }
 
 .fps-shell-advanced {
   min-width: 17rem;
+  max-width: min(19rem, calc(100vw - 1.5rem));
 }
 
 .fps-counter {
@@ -780,8 +807,8 @@ onUnmounted(() => {
   color: #f87171;
 }
 
-.graph-stats-panel {
-  margin-top: 4.25rem;
+.graph-stats-panel-slot {
+  margin-top: 16.85rem;
   margin-right: 0.5rem;
 }
 
@@ -842,7 +869,7 @@ onUnmounted(() => {
 .graph-stats-content {
   border-top: 1px solid rgba(148, 163, 184, 0.25);
   padding: 0.55rem 0.65rem 0.6rem;
-  max-height: min(23rem, calc(100vh - 9.5rem));
+  max-height: min(12rem, calc(100vh - 17rem));
   overflow: auto;
 }
 
@@ -923,6 +950,23 @@ onUnmounted(() => {
 .graph-stats-empty {
   font-size: 0.67rem;
   color: rgba(148, 163, 184, 0.9);
+}
+
+.insights-panel-slot {
+  margin-top: 8.1rem;
+  margin-right: 0.5rem;
+}
+
+.insights-panel-slot :deep(.insights-dashboard) {
+  width: min(19rem, calc(100vw - 1.5rem));
+}
+
+.insights-panel-slot :deep(.insights-panel) {
+  max-height: min(7rem, calc(100vh - 18rem));
+}
+
+.renderer-mode-panel {
+  z-index: 21 !important;
 }
 
 .minimap-warning-panel,

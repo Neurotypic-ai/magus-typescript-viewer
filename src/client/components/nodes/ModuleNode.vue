@@ -119,14 +119,14 @@ const hiddenSubnodeSummary = computed(() => {
   const segments: string[] = [];
 
   if (hiddenClassCount > 0) {
-    segments.push(`${hiddenClassCount} class${hiddenClassCount === 1 ? '' : 'es'}`);
+    segments.push(`${String(hiddenClassCount)} class${hiddenClassCount === 1 ? '' : 'es'}`);
   }
   if (hiddenInterfaceCount > 0) {
-    segments.push(`${hiddenInterfaceCount} interface${hiddenInterfaceCount === 1 ? '' : 's'}`);
+    segments.push(`${String(hiddenInterfaceCount)} interface${hiddenInterfaceCount === 1 ? '' : 's'}`);
   }
 
   if (segments.length === 0) {
-    return `${subnodesResolved.value.hiddenCount} hidden`;
+    return `${String(subnodesResolved.value.hiddenCount)} hidden`;
   }
 
   return `Hidden: ${segments.join(', ')}`;

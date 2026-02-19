@@ -5,7 +5,7 @@ import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../layout/geometryB
 import { getHandleAnchor } from '../layout/handleAnchors';
 
 import type { Rect } from '../layout/geometryBounds';
-import type { CollisionConfig, CollisionResult } from '../layout/collisionResolver';
+import type { CollisionConfig } from '../layout/collisionResolver';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
@@ -23,7 +23,6 @@ interface DebugBoundsOverlayProps {
   showHandles?: boolean;
   showNodeIds?: boolean;
   collisionConfig: CollisionConfig;
-  lastCollisionResult?: CollisionResult | null;
 }
 
 interface ScreenRect {
@@ -53,7 +52,6 @@ const props = withDefaults(defineProps<DebugBoundsOverlayProps>(), {
   showBounds: false,
   showHandles: false,
   showNodeIds: false,
-  lastCollisionResult: null,
 });
 
 const DEFAULT_NODE_WIDTH = 240;
@@ -282,12 +280,6 @@ const nodeLabels = computed<ScreenLabel[]>(() => {
       </text>
     </svg>
 
-    <div v-if="debugEnabled && lastCollisionResult" class="debug-collision-badge">
-      <span>cycles: {{ lastCollisionResult.cyclesUsed }}</span>
-      <span>converged: {{ lastCollisionResult.converged ? 'yes' : 'no' }}</span>
-      <span>moved: {{ lastCollisionResult.updatedPositions.size }}</span>
-      <span>resized: {{ lastCollisionResult.updatedSizes.size }}</span>
-    </div>
   </div>
 </template>
 
@@ -315,18 +307,4 @@ const nodeLabels = computed<ScreenLabel[]>(() => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
-.debug-collision-badge {
-  position: absolute;
-  right: 0.75rem;
-  bottom: 0.75rem;
-  display: inline-flex;
-  gap: 0.5rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 0.35rem;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(15, 23, 42, 0.72);
-  color: rgba(226, 232, 240, 0.95);
-  font-size: 10px;
-  line-height: 1.1;
-}
 </style>

@@ -278,6 +278,8 @@ export class ApiServerResponder {
         name: string;
         created_at: Date;
         extends_id?: string;
+        methods?: TypeCollection<unknown>;
+        properties?: TypeCollection<unknown>;
         implemented_interfaces?: TypeCollection<{
           id: string;
           package_id: string;
@@ -300,8 +302,8 @@ export class ApiServerResponder {
         name: iface.name,
         created_at: iface.created_at,
       })),
-      methods: [],
-      properties: [],
+      methods: typeCollectionToArray(cls.methods),
+      properties: typeCollectionToArray(cls.properties),
     }));
 
     const summarizedInterfaces = typeCollectionToArray(
@@ -311,6 +313,8 @@ export class ApiServerResponder {
         module_id: string;
         name: string;
         created_at: Date;
+        methods?: TypeCollection<unknown>;
+        properties?: TypeCollection<unknown>;
         extended_interfaces?: TypeCollection<{
           id: string;
           package_id: string;
@@ -332,8 +336,8 @@ export class ApiServerResponder {
         name: extended.name,
         created_at: extended.created_at,
       })),
-      methods: [],
-      properties: [],
+      methods: typeCollectionToArray(iface.methods),
+      properties: typeCollectionToArray(iface.properties),
     }));
 
     const summarizedImports = typeCollectionToArray(
@@ -364,17 +368,17 @@ export class ApiServerResponder {
       name: module.name,
       source: module.source,
       created_at: module.created_at,
-      referencePaths: [],
+      referencePaths: module.referencePaths,
       classes: summarizedClasses,
       interfaces: summarizedInterfaces,
       imports: summarizedImports,
-      exports: [],
-      packages: [],
-      typeAliases: [],
-      enums: [],
-      functions: [],
-      variables: [],
-      symbol_references: [],
+      exports: typeCollectionToArray(module.exports),
+      packages: typeCollectionToArray(module.packages),
+      typeAliases: typeCollectionToArray(module.typeAliases),
+      enums: typeCollectionToArray(module.enums),
+      functions: typeCollectionToArray(module.functions),
+      variables: typeCollectionToArray(module.variables),
+      symbol_references: typeCollectionToArray(module.symbol_references),
     } as unknown as Module;
   }
 
