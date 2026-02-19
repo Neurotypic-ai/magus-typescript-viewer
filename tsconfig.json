@@ -7,6 +7,6 @@
     "rootDir": "./",
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["./scripts/**/*.ts", "eslint.config.ts", "prettier.config.ts", "./src/**/*.ts", "./src/**/*.tsx", "./src/**/*.mts", "./src/**/*.mtsx"],
+  "include": ["./scripts/**/*.ts", "eslint.config.ts", "prettier.config.ts", "./src/**/*.ts", "./src/**/*.tsx", "./src/**/*.mts", "./src/**/*.mtsx", "./src/**/*.vue"],
   "exclude": ["node_modules", "**/node_modules/**/*", "**/dist/**/*", "**/node_modules/.pnpm/**/*", "./src/**/__tests__/**/*.ts", "./src/**/__tests__/**/*.tsx", "./src/**/__tests__/**/*.mts", "./src/**/__tests__/**/*.mtsx"]
 }

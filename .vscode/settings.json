@@ -2,10 +2,7 @@
   "typescript.tsdk": "node_modules/typescript/lib",
   "javascript.format.enable": false,
   "typescript.tsserver.watchOptions": "vscode",
-  "typescript.tsserver.log": "verbose",
   "typescript.tsserver.experimental.enableProjectDiagnostics": true,
-  "typescript.tsserver.enableTracing": true,
-  "typescript.tsserver.maxTsServerMemory": 4096,
   "files.watcherExclude": {
     "node_modules": true,
     "**/node_modules/**/*": true

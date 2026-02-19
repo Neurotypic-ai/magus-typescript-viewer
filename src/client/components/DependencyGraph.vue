@@ -51,9 +51,7 @@ const env = {
   NODE_VISIBLE_RENDER_THRESHOLD: parseEnvInt('VITE_NODE_VISIBLE_RENDER_THRESHOLD', 320),
   EDGE_RENDERER_MODE: (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'hybrid-canvas',
   EDGE_VIRTUALIZATION_MODE:
-    ((import.meta.env['VITE_EDGE_VIRTUALIZATION_MODE'] as string | undefined) === 'main' ? 'main' : 'worker') as
-      | 'main'
-      | 'worker',
+    (import.meta.env['VITE_EDGE_VIRTUALIZATION_MODE'] as string | undefined) === 'main' ? 'main' : 'worker',
   USE_CSS_SELECTION_HOVER: parseEnvBoolean('VITE_USE_CSS_SELECTION_HOVER', true),
   PERF_MARKS_ENABLED: parseEnvBoolean('VITE_PERF_MARKS', false),
   EDGE_VIEWPORT_RECALC_THROTTLE_MS: parseEnvInt('VITE_EDGE_VIEWPORT_RECALC_THROTTLE_MS', 80),
@@ -168,7 +166,7 @@ const nodeTypes: Record<string, Component> = Object.freeze({
   method: SymbolNode,
 });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- used in template as :edge-types
+ 
 const edgeTypes: Record<string, Component> = Object.freeze({
   intraFolder: IntraFolderEdge,
 });
@@ -409,9 +407,9 @@ onUnmounted(() => {
 
       <Panel v-if="scopeMode !== 'overview'" position="bottom-left">
         <button
-          @click="handleReturnToOverview"
           class="px-4 py-2 bg-primary-main text-white rounded-md hover:bg-primary-dark transition-colors shadow-lg border border-primary-light"
           aria-label="Return to full graph view"
+          @click="handleReturnToOverview"
         >
           ← Back to Full Graph
         </button>

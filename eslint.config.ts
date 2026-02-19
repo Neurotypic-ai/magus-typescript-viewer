@@ -17,6 +17,7 @@ const config: TSESLint.FlatConfig.Config[] = createESLintConfig(
     },
   ],
   {
+    framework: 'vue',
     tsconfigRootDir: __dirname,
   }
 );
