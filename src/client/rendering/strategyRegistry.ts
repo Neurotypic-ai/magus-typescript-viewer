@@ -27,6 +27,14 @@ const MINIMUM_DISTANCE_PX_OPTION = {
   step: 5,
 };
 
+const SHOW_INTRA_FOLDER_EDGES_OPTION = {
+  id: 'showIntraFolderEdges',
+  type: 'boolean' as const,
+  label: 'Show intra-folder edges',
+  description: 'Display edges between nodes within the same folder group.',
+  defaultValue: false,
+};
+
 export const RENDERING_STRATEGY_IDS: readonly RenderingStrategyId[] = ['canvas', 'vueflow', 'folderDistributor'];
 
 export const RENDERING_STRATEGIES: Map<RenderingStrategyId, RenderingStrategy> =
@@ -70,8 +78,8 @@ export const RENDERING_STRATEGIES: Map<RenderingStrategyId, RenderingStrategy> =
     {
       id: 'folderDistributor',
       label: 'Folder View',
-      description: 'Prioritize folder grouping and node distribution with no rendered edges.',
-      options: [MINIMUM_DISTANCE_PX_OPTION],
+      description: 'Prioritize folder grouping and node distribution. Optionally show intra-folder edges.',
+      options: [MINIMUM_DISTANCE_PX_OPTION, SHOW_INTRA_FOLDER_EDGES_OPTION],
       runtime: {
         edgeMode: 'vueflow',
         supportsDirection: true,

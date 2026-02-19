@@ -1,17 +1,22 @@
 /**
- * Folder distributor graph builder: preserve semantic edges for analysis while
- * returning no rendered edges for the active viewport.
+ * Folder distributor graph builder: prioritize folder grouping and node
+ * distribution. Optionally renders intra-folder edges when the strategy
+ * option is enabled.
  */
 
 import { collapseFolders } from './cluster/collapseFolders';
+import { buildNodeToFolderMap } from './cluster/folderMembership';
 import { clusterByFolder } from './cluster/folders';
-import { filterEdgesByNodeSet, type GraphViewData } from './graphViewShared';
+import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet, type GraphViewData } from './graphViewShared';
 import { createGraphEdges } from '../utils/createGraphEdges';
 import { createGraphNodes } from '../utils/createGraphNodes';
 
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
+
+/** Smoothstep routing options for intra-folder edges: offset pushes stubs away from nodes. */
+const INTRA_FOLDER_SMOOTHSTEP_OPTIONS = { offset: 20, borderRadius: 8 };
 
 export interface BuildFolderDistributorGraphOptions {
   data: DependencyPackageGraph;
@@ -79,6 +84,18 @@ function annotateOrphanDiagnostics(
   });
 }
 
+/** Keep only edges where both endpoints belong to the same folder group. */
+function filterIntraFolderEdges(nodes: DependencyNode[], edges: GraphEdge[]): GraphEdge[] {
+  const nodeToFolder = buildNodeToFolderMap(nodes);
+  return edges.filter((edge) => {
+    if (edge.source === edge.target) return false;
+    const sourceFolder = nodeToFolder.get(edge.source);
+    const targetFolder = nodeToFolder.get(edge.target);
+    if (!sourceFolder || !targetFolder) return false;
+    return sourceFolder === targetFolder;
+  });
+}
+
 export function buildFolderDistributorGraph(options: BuildFolderDistributorGraphOptions): GraphViewData {
   const enabledNodeTypeSet = new Set(options.enabledNodeTypes);
   const includePackages = enabledNodeTypeSet.has('package');
@@ -125,13 +142,30 @@ export function buildFolderDistributorGraph(options: BuildFolderDistributorGraph
       ? collapseFolders(clusteredGraph.nodes, clusteredGraph.edges, options.collapsedFolderIds)
       : { nodes: clusteredGraph.nodes, edges: clusteredGraph.edges };
 
+  const showIntraFolderEdges =
+    typeof options.strategyOptions?.['showIntraFolderEdges'] === 'boolean'
+      ? options.strategyOptions['showIntraFolderEdges']
+      : false;
+
+  let renderedEdges: GraphEdge[] = [];
+  if (showIntraFolderEdges) {
+    const intraEdges = filterIntraFolderEdges(collapsedGraph.nodes, collapsedGraph.edges);
+    const routedEdges = intraEdges.map((edge) => ({
+      ...edge,
+      type: 'smoothstep' as const,
+      pathOptions: INTRA_FOLDER_SMOOTHSTEP_OPTIONS,
+    }));
+    const visibleEdges = applyEdgeVisibility(routedEdges, options.enabledRelationshipTypes);
+    renderedEdges = bundleParallelEdges(visibleEdges);
+  }
+
   const currentDegreeMap = buildDegreeMap(collapsedGraph.nodes, collapsedGraph.edges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
   const nodesWithDiagnostics = annotateOrphanDiagnostics(collapsedGraph.nodes, currentDegreeMap, globalDegreeMap);
 
   return {
     nodes: nodesWithDiagnostics,
-    edges: [],
+    edges: renderedEdges,
     semanticSnapshot,
   };
 }
