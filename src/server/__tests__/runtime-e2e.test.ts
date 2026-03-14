@@ -109,6 +109,9 @@ describe('server runtime e2e', () => {
       ),
       'src/main.ts': `
         // TODO: tighten validation
+        import type { Ref } from 'vue';
+        import { Position } from '@vue-flow/core';
+
         export type InputType = { id: string };
         export type ResultType = { ok: boolean };
         export type ConfigType = { retries: number };
@@ -119,6 +122,8 @@ describe('server runtime e2e', () => {
 
         export class Worker {
           config: ConfigType;
+          latestInput: Ref<InputType> | null = null;
+          sourcePosition: Position = Position.Bottom;
 
           constructor(config: ConfigType) {
             this.config = config;
@@ -184,6 +189,8 @@ describe('server runtime e2e', () => {
       expect(typeReferenceNames.has('ConfigType')).toBe(true);
       expect(typeReferenceNames.has('InputType')).toBe(true);
       expect(typeReferenceNames.has('ResultType')).toBe(true);
+      expect(typeReferenceNames.has('Ref')).toBe(false);
+      expect(typeReferenceNames.has('Position')).toBe(false);
 
       expect(
         techDebtMarkers.some((marker) => marker.marker_type === 'todo_comment' && marker.severity === 'info')

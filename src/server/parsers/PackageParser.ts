@@ -57,6 +57,33 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+function isProjectImportPath(importPath: string): boolean {
+  return (
+    importPath.startsWith('.')
+    || importPath.startsWith('/')
+    || importPath.startsWith('@/')
+    || importPath.startsWith('src/')
+  );
+}
+
+function getExternalImportedNames(imports: Import[]): Set<string> {
+  const names = new Set<string>();
+
+  for (const importRecord of imports) {
+    const importPath = importRecord.relativePath || importRecord.fullPath;
+    if (!importPath || isProjectImportPath(importPath)) {
+      continue;
+    }
+
+    importRecord.specifiers.forEach((specifier, localName) => {
+      names.add(localName);
+      specifier.aliases.forEach((alias) => names.add(alias));
+    });
+  }
+
+  return names;
+}
+
 export class PackageParser {
   private readonly fileDiscovery: FileDiscovery;
   private readonly vueExtractor: VueScriptExtractor;
@@ -265,7 +292,10 @@ export class PackageParser {
         moduleMetrics.push(moduleResult.moduleMetrics);
       }
       if (moduleResult.typeReferences && moduleResult.typeReferences.length > 0) {
-        typeReferences.push(...moduleResult.typeReferences);
+        const externalImportedTypeNames = getExternalImportedNames(moduleResult.imports);
+        typeReferences.push(
+          ...moduleResult.typeReferences.filter((reference) => !externalImportedTypeNames.has(reference.typeName))
+        );
       }
     }
 

@@ -225,13 +225,20 @@ describe('PackageParser aggregation behavior', () => {
         export type LocalType = { id: string };
       `,
       'src/main.ts': `
+        import type { Ref } from 'vue';
+        import { Position, type Edge } from '@vue-flow/core';
         import type { LocalType } from './types';
+        type SameFileType = { label: string };
 
         export interface Example<T> {
           signal: AbortSignal;
           keyboardEvent: KeyboardEvent;
+          vueRef: Ref<LocalType>;
+          flowEdge: Edge;
+          flowPosition: Position;
           value: T;
           local: LocalType;
+          sameFile: SameFileType;
         }
       `,
     });
@@ -241,8 +248,12 @@ describe('PackageParser aggregation behavior', () => {
     const referencedTypes = new Set((result.typeReferences ?? []).map((ref) => ref.typeName));
 
     expect(referencedTypes.has('LocalType')).toBe(true);
+    expect(referencedTypes.has('SameFileType')).toBe(true);
     expect(referencedTypes.has('AbortSignal')).toBe(false);
     expect(referencedTypes.has('KeyboardEvent')).toBe(false);
+    expect(referencedTypes.has('Ref')).toBe(false);
+    expect(referencedTypes.has('Edge')).toBe(false);
+    expect(referencedTypes.has('Position')).toBe(false);
     expect(referencedTypes.has('T')).toBe(false);
   });
 
