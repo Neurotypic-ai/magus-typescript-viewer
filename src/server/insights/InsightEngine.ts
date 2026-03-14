@@ -1,9 +1,12 @@
 import { createLogger } from '../../shared/utils/logger';
 import { buildImportGraph } from './import-graph';
 import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents, toUndirected } from './graph-algorithms';
+import { shouldSuppressInsight } from './insightignore';
+import { enrichWithSuggestions } from './refactoring-suggestions';
 
 import type { DatabaseRow, IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from './import-graph';
+import type { InsightIgnoreRules } from './insightignore';
 import type { InsightCategory, InsightEntity, InsightKind, InsightReport, InsightResult, InsightSeverity } from './types';
 
 // ── Thresholds ──────────────────────────────────────────────────────────────
@@ -25,6 +28,10 @@ const T = {
   EXTERNAL_DEPS: 8,
   INTERFACE_SEGREGATION_MIN: 7,
   INTERFACE_SEGREGATION_CRITICAL: 15,
+  DEPENDENCY_DEPTH_WARNING: 5,
+  DEPENDENCY_DEPTH_CRITICAL: 8,
+  RE_EXPORT_CHAIN_MIN: 3,
+  COMPLEXITY_HOTSPOT_MIN: 3,
 } as const;
 
 // ── Row types for SQL results ───────────────────────────────────────────────
@@ -98,6 +105,23 @@ interface ExternalImportRow extends DatabaseRow {
   source: string;
 }
 
+interface DuplicateExportRow extends DatabaseRow {
+  name: string;
+  module_count: number | string;
+}
+
+interface MethodNameRow extends DatabaseRow {
+  parent_id: string;
+  parent_name: string;
+  module_id: string;
+  method_name: string;
+}
+
+interface AbstractNoImplRow extends DatabaseRow {
+  name: string;
+  module_id: string;
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function num(v: number | string): number {
@@ -144,9 +168,11 @@ function inferExternalPackageName(source: string): string | undefined {
 export class InsightEngine {
   private readonly adapter: IDatabaseAdapter;
   private readonly logger = createLogger('InsightEngine');
+  private readonly ignoreRules: InsightIgnoreRules | undefined;
 
-  constructor(adapter: IDatabaseAdapter) {
+  constructor(adapter: IDatabaseAdapter, ignoreRules?: InsightIgnoreRules) {
     this.adapter = adapter;
+    this.ignoreRules = ignoreRules;
   }
 
   async compute(packageId?: string): Promise<InsightReport> {
@@ -174,9 +200,16 @@ export class InsightEngine {
       this.interfaceSegregationViolations(packageId),
       this.missingReturnTypes(packageId),
       this.asyncBoundaryMismatches(packageId),
+      Promise.resolve(this.layeringViolations(graph)),
+      Promise.resolve(this.dependencyDepth(graph)),
+      Promise.resolve(this.reExportChains(graph)),
+      this.duplicateExports(packageId),
+      this.namingInconsistency(packageId),
+      this.abstractNoImpl(packageId),
+      Promise.resolve(this.packageCoupling(graph)),
     ]);
 
-    const insights: InsightResult[] = [];
+    let insights: InsightResult[] = [];
     for (const r of results) {
       if (r.status === 'fulfilled') {
         insights.push(...r.value);
@@ -185,12 +218,25 @@ export class InsightEngine {
       }
     }
 
+    // Post-processing: complexity hotspots run on already-computed insights
+    const hotspots = this.complexityHotspots(insights);
+    insights.push(...hotspots);
+
+    // Filter out suppressed insights before scoring
+    const rules = this.ignoreRules;
+    if (rules) {
+      insights = insights.filter((i) => !shouldSuppressInsight(rules, i));
+    }
+
+    // Enrich insights with refactoring suggestions
+    const enrichedInsights = enrichWithSuggestions(insights, graph);
+
     const summary = { critical: 0, warning: 0, info: 0 };
-    for (const i of insights) summary[i.severity]++;
+    for (const i of enrichedInsights) summary[i.severity]++;
 
     const healthScore = Math.max(0, 100 - summary.critical * 5 - summary.warning * 2);
 
-    return { packageId, computedAt: new Date().toISOString(), healthScore, summary, insights };
+    return { packageId, computedAt: new Date().toISOString(), healthScore, summary, insights: enrichedInsights };
   }
 
   // ── 1. Circular Imports ─────────────────────────────────────────────────
@@ -1014,6 +1060,413 @@ export class InsightEngine {
         'Async Boundary Mismatches',
         `${s(entities.length)} sync methods call async methods (potential missing await)`,
         entities,
+      ),
+    ];
+  }
+
+  // ── 21. Layering Violations ──────────────────────────────────────────────
+
+  private layeringViolations(graph: ImportGraph): InsightResult[] {
+    const layerMap: Record<string, number> = {
+      shared: 0, utils: 0, types: 0, lib: 0,
+      services: 1, stores: 1, db: 1,
+      components: 2, composables: 2, views: 2,
+      pages: 3, app: 3,
+    };
+
+    function getLayer(moduleId: string): number | undefined {
+      const meta = graph.modules.get(moduleId);
+      if (!meta) return undefined;
+      const parts = meta.relativePath.split('/');
+      for (const part of parts) {
+        if (part in layerMap) return layerMap[part];
+      }
+      return undefined;
+    }
+
+    const entities: InsightEntity[] = [];
+    for (const [sourceId, targets] of graph.adjacency) {
+      const sourceLayer = getLayer(sourceId);
+      if (sourceLayer === undefined) continue;
+      for (const targetId of targets) {
+        const targetLayer = getLayer(targetId);
+        if (targetLayer === undefined) continue;
+        if (sourceLayer < targetLayer) {
+          entities.push({
+            id: sourceId,
+            kind: 'import',
+            name: graph.modules.get(sourceId)?.name ?? sourceId,
+            detail: `imports ${graph.modules.get(targetId)?.name ?? targetId} (layer ${s(sourceLayer)} → ${s(targetLayer)})`,
+          });
+        }
+      }
+    }
+
+    if (entities.length === 0) return [];
+    return [
+      this.make(
+        'layering-violations',
+        'dependency-health',
+        'warning',
+        'Layering Violations',
+        `${s(entities.length)} imports violate the layered architecture`,
+        entities,
+      ),
+    ];
+  }
+
+  // ── 22. Dependency Depth ────────────────────────────────────────────────
+
+  private dependencyDepth(graph: ImportGraph): InsightResult[] {
+    const entities: InsightEntity[] = [];
+    let maxDepth = 0;
+    let worstSeverity: InsightSeverity = 'info';
+
+    for (const startId of graph.nodeIds) {
+      const visited = new Map<string, number>();
+      const queue: [string, number][] = [[startId, 0]];
+      visited.set(startId, 0);
+      let deepest = 0;
+
+      while (queue.length > 0) {
+        const entry = queue.shift();
+        if (!entry) break;
+        const [currentId, depth] = entry;
+        const neighbors = graph.adjacency.get(currentId);
+        if (!neighbors) continue;
+        for (const neighborId of neighbors) {
+          if (!visited.has(neighborId)) {
+            const nextDepth = depth + 1;
+            visited.set(neighborId, nextDepth);
+            deepest = Math.max(deepest, nextDepth);
+            queue.push([neighborId, nextDepth]);
+          }
+        }
+      }
+
+      if (deepest > T.DEPENDENCY_DEPTH_WARNING) {
+        maxDepth = Math.max(maxDepth, deepest);
+        if (deepest > T.DEPENDENCY_DEPTH_CRITICAL) worstSeverity = 'warning';
+        entities.push({
+          id: startId,
+          kind: 'module',
+          name: graph.modules.get(startId)?.name ?? startId,
+          detail: `dependency depth ${s(deepest)}`,
+        });
+      }
+    }
+
+    if (entities.length === 0) return [];
+    return [
+      this.make(
+        'dependency-depth',
+        'dependency-health',
+        worstSeverity,
+        'Deep Dependency Chain',
+        `${s(entities.length)} modules have transitive dependency depth > ${s(T.DEPENDENCY_DEPTH_WARNING)}`,
+        entities,
+        maxDepth,
+        T.DEPENDENCY_DEPTH_WARNING,
+      ),
+    ];
+  }
+
+  // ── 23. Re-export Chains ──────────────────────────────────────────────
+
+  private reExportChains(graph: ImportGraph): InsightResult[] {
+    const results: InsightResult[] = [];
+
+    for (const startId of graph.nodeIds) {
+      const meta = graph.modules.get(startId);
+      if (!meta?.isBarrel) continue;
+
+      const chain: string[] = [startId];
+      let current = startId;
+      const visited = new Set<string>([startId]);
+
+      let barrelDep: string | undefined;
+      do {
+        const deps = graph.adjacency.get(current);
+        if (!deps) break;
+        barrelDep = Array.from(deps).find(
+          (depId) => graph.modules.get(depId)?.isBarrel && !visited.has(depId),
+        );
+        if (barrelDep) {
+          visited.add(barrelDep);
+          chain.push(barrelDep);
+          current = barrelDep;
+        }
+      } while (barrelDep);
+
+      if (chain.length >= T.RE_EXPORT_CHAIN_MIN) {
+        const entities: InsightEntity[] = chain.map((id) => ({
+          id,
+          kind: 'module' as const,
+          name: graph.modules.get(id)?.name ?? id,
+        }));
+        results.push(
+          this.make(
+            're-export-chains',
+            'api-surface',
+            'warning',
+            'Re-export Chain',
+            `${s(chain.length)} barrel files form a re-export chain: ${chain.map((id) => graph.modules.get(id)?.name ?? id).join(' → ')}`,
+            entities,
+            chain.length,
+            T.RE_EXPORT_CHAIN_MIN,
+          ),
+        );
+      }
+    }
+
+    return results;
+  }
+
+  // ── 24. Duplicate Exports ──────────────────────────────────────────────
+
+  private async duplicateExports(packageId?: string): Promise<InsightResult[]> {
+    const rows = await this.adapter.query<DuplicateExportRow>(
+      `SELECT name, COUNT(DISTINCT module_id) as module_count
+       FROM exports
+       WHERE 1=1 ${wherePackage('exports', packageId)}
+       GROUP BY name
+       HAVING COUNT(DISTINCT module_id) > 1`,
+      pkgParams(packageId),
+    );
+
+    const entities: InsightEntity[] = [];
+    for (const row of rows) {
+      const count = num(row.module_count);
+      entities.push({
+        id: row.name,
+        kind: 'module',
+        name: row.name,
+        detail: `exported from ${s(count)} modules`,
+      });
+    }
+
+    if (entities.length === 0) return [];
+    return [
+      this.make(
+        'duplicate-exports',
+        'maintenance',
+        'info',
+        'Duplicate Exports',
+        `${s(entities.length)} symbol${entities.length === 1 ? '' : 's'} exported from multiple modules`,
+        entities,
+      ),
+    ];
+  }
+
+  // ── 25. Naming Inconsistency ────────────────────────────────────────────
+
+  private async namingInconsistency(packageId?: string): Promise<InsightResult[]> {
+    const rows = await this.adapter.query<MethodNameRow>(
+      `SELECT m.parent_id as parent_id, c.name as parent_name, m.module_id as module_id, m.name as method_name
+       FROM methods m
+       JOIN classes c ON c.id = m.parent_id AND m.parent_type = 'class'
+       WHERE 1=1 ${wherePackage('m', packageId)}
+       UNION ALL
+       SELECT m.parent_id as parent_id, i.name as parent_name, m.module_id as module_id, m.name as method_name
+       FROM methods m
+       JOIN interfaces i ON i.id = m.parent_id AND m.parent_type = 'interface'
+       WHERE 1=1 ${wherePackage('m', packageId)}`,
+      [...pkgParams(packageId), ...pkgParams(packageId)],
+    );
+
+    const byParent = new Map<string, { name: string; moduleId: string; methods: string[] }>();
+    for (const row of rows) {
+      let entry = byParent.get(row.parent_id);
+      if (!entry) {
+        entry = { name: row.parent_name, moduleId: row.module_id, methods: [] };
+        byParent.set(row.parent_id, entry);
+      }
+      entry.methods.push(row.method_name);
+    }
+
+    const isSnakeCase = (n: string): boolean => n.includes('_') && n === n.toLowerCase();
+    const isCamelCase = (n: string): boolean => /^[a-z]/.test(n) && /[A-Z]/.test(n);
+
+    const entities: InsightEntity[] = [];
+    for (const [id, entry] of byParent) {
+      const hasSnake = entry.methods.some(isSnakeCase);
+      const hasCamel = entry.methods.some(isCamelCase);
+      if (hasSnake && hasCamel) {
+        entities.push({
+          id,
+          kind: 'class',
+          name: entry.name,
+          moduleId: entry.moduleId,
+          detail: 'mixes camelCase and snake_case method names',
+        });
+      }
+    }
+
+    if (entities.length === 0) return [];
+    return [
+      this.make(
+        'naming-inconsistency',
+        'maintenance',
+        'info',
+        'Naming Inconsistency',
+        `${s(entities.length)} classes/interfaces mix camelCase and snake_case method names`,
+        entities,
+      ),
+    ];
+  }
+
+  // ── 26. Abstract Class Without Implementors ─────────────────────────────
+
+  private async abstractNoImpl(packageId?: string): Promise<InsightResult[]> {
+    const rows = await this.adapter.query<AbstractNoImplRow>(
+      `SELECT DISTINCT c.id as id, c.name as name, c.module_id as module_id
+       FROM classes c
+       JOIN methods m ON m.parent_id = c.id AND m.parent_type = 'class' AND m.is_abstract = TRUE
+       WHERE NOT EXISTS (
+         SELECT 1 FROM class_extends ce WHERE ce.parent_id = c.id
+       ) ${wherePackage('c', packageId)}`,
+      pkgParams(packageId),
+    );
+
+    const entities: InsightEntity[] = rows.map((row) => ({
+      id: row.id,
+      kind: 'class' as const,
+      name: row.name,
+      moduleId: row.module_id,
+      detail: 'abstract class with no known subclasses',
+    }));
+
+    if (entities.length === 0) return [];
+    return [
+      this.make(
+        'abstract-no-impl',
+        'maintenance',
+        'warning',
+        'Abstract Class Without Implementors',
+        `${s(entities.length)} abstract classes have no known subclasses`,
+        entities,
+      ),
+    ];
+  }
+
+  // ── 27. Complexity Hotspots ─────────────────────────────────────────────
+
+  private complexityHotspots(insights: InsightResult[]): InsightResult[] {
+    // Count how many distinct insight types reference each module
+    const moduleKinds = new Map<string, Set<InsightKind>>();
+    const moduleNames = new Map<string, string>();
+
+    for (const insight of insights) {
+      for (const entity of insight.entities) {
+        const moduleId = entity.moduleId ?? (entity.kind === 'module' ? entity.id : undefined);
+        if (!moduleId) continue;
+        let kinds = moduleKinds.get(moduleId);
+        if (!kinds) {
+          kinds = new Set();
+          moduleKinds.set(moduleId, kinds);
+        }
+        kinds.add(insight.type);
+        if (!moduleNames.has(moduleId)) {
+          moduleNames.set(moduleId, entity.kind === 'module' ? entity.name : moduleId);
+        }
+      }
+    }
+
+    const entities: InsightEntity[] = [];
+    let maxCount = 0;
+    for (const [moduleId, kinds] of moduleKinds) {
+      if (kinds.size >= T.COMPLEXITY_HOTSPOT_MIN) {
+        maxCount = Math.max(maxCount, kinds.size);
+        entities.push({
+          id: moduleId,
+          kind: 'module',
+          name: moduleNames.get(moduleId) ?? moduleId,
+          detail: `appears in ${s(kinds.size)} distinct insight types`,
+        });
+      }
+    }
+
+    if (entities.length === 0) return [];
+    return [
+      this.make(
+        'complexity-hotspot',
+        'structural-complexity',
+        'warning',
+        'Complexity Hotspot',
+        `${s(entities.length)} modules appear in ${s(T.COMPLEXITY_HOTSPOT_MIN)}+ distinct insight types`,
+        entities,
+        maxCount,
+        T.COMPLEXITY_HOTSPOT_MIN,
+      ),
+    ];
+  }
+
+  // ── 28. Package Coupling ──────────────────────────────────────────────
+
+  private packageCoupling(graph: ImportGraph): InsightResult[] {
+    // Collect all unique package IDs
+    const packageIds = new Set<string>();
+    for (const meta of graph.modules.values()) {
+      packageIds.add(meta.packageId);
+    }
+    // Only relevant for multi-package codebases
+    if (packageIds.size < 2) return [];
+
+    // Count total imports per package and cross-package imports per pair
+    const pairKey = (a: string, b: string): string => a < b ? `${a}||${b}` : `${b}||${a}`;
+    const crossImports = new Map<string, number>();
+    const pkgTotalImports = new Map<string, number>();
+
+    for (const [sourceId, targets] of graph.adjacency) {
+      const sourcePkg = graph.modules.get(sourceId)?.packageId;
+      if (!sourcePkg) continue;
+
+      for (const targetId of targets) {
+        const targetPkg = graph.modules.get(targetId)?.packageId;
+        if (!targetPkg) continue;
+
+        pkgTotalImports.set(sourcePkg, (pkgTotalImports.get(sourcePkg) ?? 0) + 1);
+        if (sourcePkg !== targetPkg) {
+          const key = pairKey(sourcePkg, targetPkg);
+          crossImports.set(key, (crossImports.get(key) ?? 0) + 1);
+        }
+      }
+    }
+
+    const entities: InsightEntity[] = [];
+    let worstSeverity: InsightSeverity = 'info';
+    let maxRatio = 0;
+
+    for (const [key, crossCount] of crossImports) {
+      const parts = key.split('||');
+      const pkgA = parts[0] ?? key;
+      const pkgB = parts[1] ?? key;
+      const totalA = pkgTotalImports.get(pkgA) ?? 0;
+      const totalB = pkgTotalImports.get(pkgB) ?? 0;
+      const total = totalA + totalB;
+      if (total === 0) continue;
+      const ratio = crossCount / total;
+      maxRatio = Math.max(maxRatio, ratio);
+      if (ratio > 0.5) worstSeverity = 'warning';
+      const pct = Math.round(ratio * 100);
+      entities.push({
+        id: key,
+        kind: 'module',
+        name: `${pkgA} <-> ${pkgB}`,
+        detail: `${s(crossCount)} cross-package imports (${s(pct)}% of ${s(total)} total)`,
+      });
+    }
+
+    if (entities.length === 0) return [];
+    return [
+      this.make(
+        'package-coupling',
+        'connectivity',
+        worstSeverity,
+        'Package Coupling',
+        `${s(entities.length)} package pairs have cross-package imports`,
+        entities,
+        Math.round(maxRatio * 100),
       ),
     ];
   }

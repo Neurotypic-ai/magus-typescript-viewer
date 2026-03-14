@@ -90,10 +90,7 @@ export class ModuleParser {
 
       return result;
     } catch (error) {
-      console.warn(
-        `Warning: Failed to process ${relativePath}:`,
-        error instanceof Error ? error.message : String(error)
-      );
+      this.logParseError('parse module', relativePath, error);
 
       return {
         modules: [await this.createModuleDTO(moduleId, relativePath)],
@@ -115,6 +112,12 @@ export class ModuleParser {
         symbolReferences: [],
       };
     }
+  }
+
+  private logParseError(operation: string, relativePath: string, error: unknown): void {
+    this.logger.error(`Failed to ${operation} in ${relativePath}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   private async createModuleDTO(

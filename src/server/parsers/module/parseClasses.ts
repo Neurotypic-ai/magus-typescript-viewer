@@ -19,6 +19,13 @@ export function parseClasses(ctx: ModuleParserContext, result: ParseResult): voi
     if (node.id.type !== 'Identifier') {
       throw new Error('Invalid class declaration: missing identifier');
     }
+
+    // TODO: The classes schema does not have an `is_abstract` column yet.
+    // When added, detect via: const isAbstract = 'abstract' in node && node.abstract === true;
+
+    // TODO: Decorator extraction would go here — no schema field exists yet for decorators on classes.
+    // When a `decorators` column is added, use: extractDecoratorNames(node) from astUtils.ts
+
     result.classes.push({
       id: classId,
       package_id: ctx.packageId,

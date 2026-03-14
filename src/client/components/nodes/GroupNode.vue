@@ -85,10 +85,12 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   height: 100%;
   min-width: 220px;
   min-height: 80px;
-  border: 2px dashed rgba(148, 163, 184, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.15);
   border-radius: 10px;
-  background: rgba(30, 41, 59, 0.25);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+  background: rgba(15, 20, 40, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15);
   overflow: visible;
   padding: 8px 8px 8px 8px;
   transition:
@@ -167,6 +169,7 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 }
 
 .group-node-label {
+  font-family: var(--font-display);
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--text-secondary);

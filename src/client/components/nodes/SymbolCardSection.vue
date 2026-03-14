@@ -154,11 +154,13 @@ const isExpanded = (id: string) => props.expandedSymbols.has(id);
 .type-class {
   background-color: var(--badge-class-bg);
   color: var(--badge-class-text);
+  border: 1px solid rgba(59, 130, 246, 0.15);
 }
 
 .type-interface {
   background-color: var(--badge-interface-bg);
   color: var(--badge-interface-text);
+  border: 1px solid rgba(168, 85, 247, 0.15);
 }
 
 @media (prefers-reduced-motion: reduce) {

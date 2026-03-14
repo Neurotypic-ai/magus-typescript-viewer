@@ -52,7 +52,7 @@ function closePanel(): void {
 </script>
 
 <template>
-  <div class="issues-panel">
+  <div class="issues-panel glass-panel">
     <div class="issues-panel-header">
       <div class="issues-panel-title">
         <span>Issues</span>
@@ -120,8 +120,7 @@ function closePanel(): void {
 .issues-panel {
   width: 320px;
   height: 100%;
-  background-color: var(--background-node);
-  border-left: 1px solid var(--border-default);
+  /* background, border, border-radius, box-shadow handled by .glass-panel */
   display: flex;
   flex-direction: column;
   font-size: 0.8rem;

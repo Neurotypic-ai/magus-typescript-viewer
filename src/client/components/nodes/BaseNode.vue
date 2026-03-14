@@ -245,12 +245,18 @@ const containerStyle = computed(() => {
 .base-node-container {
   position: relative;
   border-radius: 0.5rem;
-  border: 1px solid var(--border-default);
-  background-color: var(--background-node);
+  border: 1px solid var(--glass-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
   contain: layout style;
   transition:
-    border-color 120ms linear,
-    opacity 120ms linear;
+    border-color 120ms ease-out,
+    opacity 120ms linear,
+    box-shadow 150ms ease-out,
+    transform 150ms ease-out;
   cursor: grab;
   font-size: 0.75rem;
   line-height: 1rem;
@@ -271,12 +277,17 @@ const containerStyle = computed(() => {
 @media (prefers-reduced-motion: reduce) {
   .base-node-container,
   .base-node-container--container {
-    transition: none;
+    transition: none !important;
+  }
+  .base-node-container:hover {
+    transform: none !important;
   }
 }
 
 .base-node-container:hover {
-  border-color: var(--border-hover);
+  box-shadow: var(--glass-shadow-hover);
+  border-color: rgba(148, 163, 184, 0.2);
+  transform: translateY(-1px);
 }
 
 .base-node-container.base-node-no-hover:not(.base-node-selected):hover {
@@ -328,6 +339,7 @@ const containerStyle = computed(() => {
 }
 
 .base-node-title {
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -341,6 +353,7 @@ const containerStyle = computed(() => {
   padding: 0.2rem 0.35rem;
   border-radius: 0.25rem;
   color: var(--text-secondary);
+  font-family: var(--font-display);
   font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -352,31 +365,37 @@ const containerStyle = computed(() => {
 .base-node-badge.type-module {
   background-color: var(--badge-module-bg);
   color: var(--badge-module-text);
+  border: 1px solid rgba(20, 184, 166, 0.15);
 }
 
 .base-node-badge.type-class {
   background-color: var(--badge-class-bg);
   color: var(--badge-class-text);
+  border: 1px solid rgba(59, 130, 246, 0.15);
 }
 
 .base-node-badge.type-interface {
   background-color: var(--badge-interface-bg);
   color: var(--badge-interface-text);
+  border: 1px solid rgba(168, 85, 247, 0.15);
 }
 
 .base-node-badge.type-property {
   background-color: var(--badge-property-bg);
   color: var(--badge-property-text);
+  border: 1px solid rgba(245, 158, 11, 0.15);
 }
 
 .base-node-badge.type-method {
   background-color: var(--badge-method-bg);
   color: var(--badge-method-text);
+  border: 1px solid rgba(139, 92, 246, 0.15);
 }
 
 .base-node-badge.type-default {
   background-color: rgba(255, 255, 255, 0.1);
   color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .base-node-badge.package-badge {
@@ -445,16 +464,19 @@ const containerStyle = computed(() => {
 .issue-indicator--warning {
   color: var(--severity-warning);
   border-color: var(--severity-warning-border);
+  box-shadow: 0 0 6px var(--severity-warning-border);
 }
 
 .issue-indicator--error {
   color: var(--severity-error);
   border-color: var(--severity-error-border);
+  box-shadow: 0 0 6px var(--severity-error-border);
 }
 
 .issue-indicator--info {
   color: var(--severity-info);
   border-color: var(--severity-info-border);
+  box-shadow: 0 0 6px var(--severity-info-border);
 }
 
 .issue-indicator:hover {

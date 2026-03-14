@@ -87,7 +87,7 @@ function severityIcon(severity: string): string {
 </script>
 
 <template>
-  <div v-if="hasInsights" class="insights-dashboard">
+  <div v-if="hasInsights" class="insights-dashboard glass-panel">
     <!-- Collapsed bar -->
     <button type="button" class="insights-summary-bar nodrag" @click="expanded = !expanded">
       <span class="insights-label">Insights</span>
@@ -139,9 +139,7 @@ function severityIcon(severity: string): string {
 
 <style scoped>
 .insights-dashboard {
-  background: var(--background-node, #1e293b);
-  border: 1px solid var(--border-default, #334155);
-  border-radius: 0.5rem;
+  /* background, border, border-radius, box-shadow handled by .glass-panel */
   font-size: 0.72rem;
   min-width: 200px;
   max-width: 320px;

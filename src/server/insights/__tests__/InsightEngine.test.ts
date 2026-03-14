@@ -1227,6 +1227,504 @@ describe('InsightEngine', () => {
     });
   });
 
+  // ── Layering Violations (graph-based) ─────────────────────────────────────
+
+  describe('layering violations', () => {
+    it('returns no insight when imports follow layer hierarchy', async () => {
+      // components importing from utils is fine (higher layer importing lower)
+      const adjacency = new Map<string, Set<string>>();
+      adjacency.set('mod-comp', new Set(['mod-util']));
+      adjacency.set('mod-util', new Set());
+
+      const reverseAdjacency = new Map<string, Set<string>>();
+      reverseAdjacency.set('mod-comp', new Set());
+      reverseAdjacency.set('mod-util', new Set(['mod-comp']));
+
+      const graph: ImportGraph = {
+        adjacency,
+        reverseAdjacency,
+        modules: new Map([
+          ['mod-comp', { name: 'Button.ts', directory: '/src/components', relativePath: 'src/components/Button.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+          ['mod-util', { name: 'format.ts', directory: '/src/utils', relativePath: 'src/utils/format.ts', isBarrel: false, lineCount: 30, packageId: 'pkg-1' }],
+        ]),
+        nodeIds: new Set(['mod-comp', 'mod-util']),
+      };
+
+      buildImportGraph.mockResolvedValue(graph);
+      const report = await engine.compute();
+      const violations = report.insights.filter((i) => i.type === 'layering-violations');
+
+      expect(violations).toHaveLength(0);
+    });
+
+    it('detects lower layer importing from higher layer', async () => {
+      // utils importing from components is a violation
+      const adjacency = new Map<string, Set<string>>();
+      adjacency.set('mod-util', new Set(['mod-comp']));
+      adjacency.set('mod-comp', new Set());
+
+      const reverseAdjacency = new Map<string, Set<string>>();
+      reverseAdjacency.set('mod-util', new Set());
+      reverseAdjacency.set('mod-comp', new Set(['mod-util']));
+
+      const graph: ImportGraph = {
+        adjacency,
+        reverseAdjacency,
+        modules: new Map([
+          ['mod-util', { name: 'format.ts', directory: '/src/utils', relativePath: 'src/utils/format.ts', isBarrel: false, lineCount: 30, packageId: 'pkg-1' }],
+          ['mod-comp', { name: 'Button.ts', directory: '/src/components', relativePath: 'src/components/Button.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+        ]),
+        nodeIds: new Set(['mod-util', 'mod-comp']),
+      };
+
+      buildImportGraph.mockResolvedValue(graph);
+      const report = await engine.compute();
+      const violations = report.insights.filter((i) => i.type === 'layering-violations');
+
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.severity).toBe('warning');
+      expect(violations[0]!.entities).toHaveLength(1);
+      expect(violations[0]!.entities[0]!.kind).toBe('import');
+    });
+  });
+
+  // ── Dependency Depth (graph-based) ──────────────────────────────────────
+
+  describe('dependency depth', () => {
+    it('returns no insight for shallow dependency chains', async () => {
+      // Chain of 3: A -> B -> C
+      const adjacency = new Map<string, Set<string>>();
+      adjacency.set('mod-a', new Set(['mod-b']));
+      adjacency.set('mod-b', new Set(['mod-c']));
+      adjacency.set('mod-c', new Set());
+
+      const reverseAdjacency = new Map<string, Set<string>>();
+      reverseAdjacency.set('mod-a', new Set());
+      reverseAdjacency.set('mod-b', new Set(['mod-a']));
+      reverseAdjacency.set('mod-c', new Set(['mod-b']));
+
+      const modules = new Map<string, ImportGraph['modules'] extends Map<string, infer V> ? V : never>();
+      modules.set('mod-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
+      modules.set('mod-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
+      modules.set('mod-c', { name: 'c.ts', directory: '/src', relativePath: 'src/c.ts', isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
+
+      const graph: ImportGraph = {
+        adjacency,
+        reverseAdjacency,
+        modules,
+        nodeIds: new Set(['mod-a', 'mod-b', 'mod-c']),
+      };
+
+      buildImportGraph.mockResolvedValue(graph);
+      const report = await engine.compute();
+      const depth = report.insights.filter((i) => i.type === 'dependency-depth');
+
+      expect(depth).toHaveLength(0);
+    });
+
+    it('detects modules with dependency depth > 5', async () => {
+      const adjacency = new Map<string, Set<string>>();
+      const reverseAdjacency = new Map<string, Set<string>>();
+      const modules = new Map<string, ImportGraph['modules'] extends Map<string, infer V> ? V : never>();
+      const nodeIds = new Set<string>();
+
+      // Chain of 7: mod-0 -> mod-1 -> ... -> mod-6
+      for (let i = 0; i < 7; i++) {
+        const id = `mod-${i}`;
+        nodeIds.add(id);
+        adjacency.set(id, i < 6 ? new Set([`mod-${i + 1}`]) : new Set());
+        reverseAdjacency.set(id, i > 0 ? new Set([`mod-${i - 1}`]) : new Set());
+        modules.set(id, { name: `mod${i}.ts`, directory: '/src', relativePath: `src/mod${i}.ts`, isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
+      }
+
+      const graph: ImportGraph = { adjacency, reverseAdjacency, modules, nodeIds };
+
+      buildImportGraph.mockResolvedValue(graph);
+      const report = await engine.compute();
+      const depth = report.insights.filter((i) => i.type === 'dependency-depth');
+
+      expect(depth).toHaveLength(1);
+      expect(depth[0]!.severity).toBe('info');
+      expect(depth[0]!.entities.length).toBeGreaterThan(0);
+    });
+
+    it('escalates to warning at depth > 8', async () => {
+      const adjacency = new Map<string, Set<string>>();
+      const reverseAdjacency = new Map<string, Set<string>>();
+      const modules = new Map<string, ImportGraph['modules'] extends Map<string, infer V> ? V : never>();
+      const nodeIds = new Set<string>();
+
+      // Chain of 10: mod-0 -> mod-1 -> ... -> mod-9
+      for (let i = 0; i < 10; i++) {
+        const id = `mod-${i}`;
+        nodeIds.add(id);
+        adjacency.set(id, i < 9 ? new Set([`mod-${i + 1}`]) : new Set());
+        reverseAdjacency.set(id, i > 0 ? new Set([`mod-${i - 1}`]) : new Set());
+        modules.set(id, { name: `mod${i}.ts`, directory: '/src', relativePath: `src/mod${i}.ts`, isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
+      }
+
+      const graph: ImportGraph = { adjacency, reverseAdjacency, modules, nodeIds };
+
+      buildImportGraph.mockResolvedValue(graph);
+      const report = await engine.compute();
+      const depth = report.insights.filter((i) => i.type === 'dependency-depth');
+
+      expect(depth).toHaveLength(1);
+      expect(depth[0]!.severity).toBe('warning');
+    });
+  });
+
+  // ── Re-export Chains (graph-based) ──────────────────────────────────────
+
+  describe('re-export chains', () => {
+    it('returns no insight when barrel chains are short', async () => {
+      // Two barrels: A -> B (chain of 2, below threshold of 3)
+      const adjacency = new Map<string, Set<string>>();
+      adjacency.set('mod-barrel-a', new Set(['mod-barrel-b']));
+      adjacency.set('mod-barrel-b', new Set());
+
+      const reverseAdjacency = new Map<string, Set<string>>();
+      reverseAdjacency.set('mod-barrel-a', new Set());
+      reverseAdjacency.set('mod-barrel-b', new Set(['mod-barrel-a']));
+
+      const graph: ImportGraph = {
+        adjacency,
+        reverseAdjacency,
+        modules: new Map([
+          ['mod-barrel-a', { name: 'index.ts', directory: '/src', relativePath: 'src/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
+          ['mod-barrel-b', { name: 'index.ts', directory: '/src/utils', relativePath: 'src/utils/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
+        ]),
+        nodeIds: new Set(['mod-barrel-a', 'mod-barrel-b']),
+      };
+
+      buildImportGraph.mockResolvedValue(graph);
+      const report = await engine.compute();
+      const chains = report.insights.filter((i) => i.type === 're-export-chains');
+
+      expect(chains).toHaveLength(0);
+    });
+
+    it('detects re-export chains of 3+ barrel files', async () => {
+      const adjacency = new Map<string, Set<string>>();
+      adjacency.set('mod-barrel-a', new Set(['mod-barrel-b']));
+      adjacency.set('mod-barrel-b', new Set(['mod-barrel-c']));
+      adjacency.set('mod-barrel-c', new Set());
+
+      const reverseAdjacency = new Map<string, Set<string>>();
+      reverseAdjacency.set('mod-barrel-a', new Set());
+      reverseAdjacency.set('mod-barrel-b', new Set(['mod-barrel-a']));
+      reverseAdjacency.set('mod-barrel-c', new Set(['mod-barrel-b']));
+
+      const graph: ImportGraph = {
+        adjacency,
+        reverseAdjacency,
+        modules: new Map([
+          ['mod-barrel-a', { name: 'index.ts', directory: '/src', relativePath: 'src/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
+          ['mod-barrel-b', { name: 'index.ts', directory: '/src/utils', relativePath: 'src/utils/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
+          ['mod-barrel-c', { name: 'index.ts', directory: '/src/utils/helpers', relativePath: 'src/utils/helpers/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
+        ]),
+        nodeIds: new Set(['mod-barrel-a', 'mod-barrel-b', 'mod-barrel-c']),
+      };
+
+      buildImportGraph.mockResolvedValue(graph);
+      const report = await engine.compute();
+      const chains = report.insights.filter((i) => i.type === 're-export-chains');
+
+      expect(chains.length).toBeGreaterThanOrEqual(1);
+      expect(chains[0]!.severity).toBe('warning');
+      expect(chains[0]!.entities.length).toBeGreaterThanOrEqual(3);
+      expect(chains[0]!.value).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  // ── Duplicate Exports (DB-based) ──────────────────────────────────────────
+
+  describe('duplicate exports', () => {
+    it('returns no insight when no duplicate export names exist', async () => {
+      const report = await engine.compute();
+
+      const dupes = report.insights.filter((i) => i.type === 'duplicate-exports');
+      expect(dupes).toHaveLength(0);
+    });
+
+    it('detects symbols exported from multiple modules', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('GROUP BY name', [
+        { id: 'dup-1', name: 'Logger', module_count: 3 },
+        { id: 'dup-2', name: 'Config', module_count: 2 },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const dupes = report.insights.filter((i) => i.type === 'duplicate-exports');
+
+      expect(dupes).toHaveLength(1);
+      expect(dupes[0]!.severity).toBe('info');
+      expect(dupes[0]!.category).toBe('maintenance');
+      expect(dupes[0]!.entities).toHaveLength(2);
+      expect(dupes[0]!.entities[0]!.detail).toBe('exported from 3 modules');
+      expect(dupes[0]!.entities[1]!.detail).toBe('exported from 2 modules');
+    });
+  });
+
+  // ── Naming Inconsistency (DB-based) ─────────────────────────────────────
+
+  describe('naming inconsistency', () => {
+    it('returns no insight when naming is consistent', async () => {
+      const report = await engine.compute();
+
+      const naming = report.insights.filter((i) => i.type === 'naming-inconsistency');
+      expect(naming).toHaveLength(0);
+    });
+
+    it('detects classes mixing camelCase and snake_case methods', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('JOIN classes c', [
+        { id: 'method-1', parent_id: 'class-1', parent_name: 'MixedClass', module_id: 'mod-1', method_name: 'getData' },
+        { id: 'method-2', parent_id: 'class-1', parent_name: 'MixedClass', module_id: 'mod-1', method_name: 'get_data' },
+        { id: 'method-3', parent_id: 'class-1', parent_name: 'MixedClass', module_id: 'mod-1', method_name: 'set_value' },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const naming = report.insights.filter((i) => i.type === 'naming-inconsistency');
+
+      expect(naming).toHaveLength(1);
+      expect(naming[0]!.severity).toBe('info');
+      expect(naming[0]!.category).toBe('maintenance');
+      expect(naming[0]!.entities).toHaveLength(1);
+      expect(naming[0]!.entities[0]!.name).toBe('MixedClass');
+      expect(naming[0]!.entities[0]!.detail).toBe('mixes camelCase and snake_case method names');
+    });
+
+    it('does not flag classes with only camelCase methods', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('JOIN classes c', [
+        { id: 'method-1', parent_id: 'class-1', parent_name: 'ConsistentClass', module_id: 'mod-1', method_name: 'getData' },
+        { id: 'method-2', parent_id: 'class-1', parent_name: 'ConsistentClass', module_id: 'mod-1', method_name: 'setValue' },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const naming = report.insights.filter((i) => i.type === 'naming-inconsistency');
+
+      expect(naming).toHaveLength(0);
+    });
+  });
+
+  // ── Abstract Class Without Implementors (DB-based) ──────────────────────
+
+  describe('abstract class without implementors', () => {
+    it('returns no insight when there are no orphan abstract classes', async () => {
+      const report = await engine.compute();
+
+      const abstracts = report.insights.filter((i) => i.type === 'abstract-no-impl');
+      expect(abstracts).toHaveLength(0);
+    });
+
+    it('detects abstract classes with no subclasses', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('is_abstract = TRUE', [
+        { id: 'class-1', name: 'AbstractBase', module_id: 'mod-1' },
+        { id: 'class-2', name: 'AbstractService', module_id: 'mod-2' },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const abstracts = report.insights.filter((i) => i.type === 'abstract-no-impl');
+
+      expect(abstracts).toHaveLength(1);
+      expect(abstracts[0]!.severity).toBe('warning');
+      expect(abstracts[0]!.category).toBe('maintenance');
+      expect(abstracts[0]!.entities).toHaveLength(2);
+      expect(abstracts[0]!.entities[0]!.name).toBe('AbstractBase');
+      expect(abstracts[0]!.entities[0]!.detail).toBe('abstract class with no known subclasses');
+    });
+  });
+
+  // ── Complexity Hotspots (meta insight) ───────────────────────────────────
+
+  describe('complexity hotspots', () => {
+    it('returns no insight when no module appears in 3+ insight types', async () => {
+      const report = await engine.compute();
+
+      const hotspots = report.insights.filter((i) => i.type === 'complexity-hotspot');
+      expect(hotspots).toHaveLength(0);
+    });
+
+    it('detects modules appearing in 3+ distinct insight types', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+
+      // god-class: mod-1
+      responses.set('FROM classes', [
+        { id: 'class-1', name: 'BigClass', module_id: 'mod-1', method_count: 12, property_count: 10 },
+      ]);
+      // missing-return-types: mod-1
+      responses.set('has_explicit_return_type', [
+        { id: 'func-1', name: 'doStuff', module_id: 'mod-1', entity_type: 'function' },
+      ]);
+      // leaky-encapsulation: mod-1
+      responses.set('FROM classes c', [
+        { id: 'class-1', name: 'BigClass', module_id: 'mod-1', public_count: 9, total_count: 10 },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const hotspots = report.insights.filter((i) => i.type === 'complexity-hotspot');
+
+      expect(hotspots).toHaveLength(1);
+      expect(hotspots[0]!.severity).toBe('warning');
+      expect(hotspots[0]!.category).toBe('structural-complexity');
+      expect(hotspots[0]!.entities.length).toBeGreaterThanOrEqual(1);
+      // mod-1 should appear in the entities
+      const mod1Entity = hotspots[0]!.entities.find((e) => e.id === 'mod-1');
+      expect(mod1Entity).toBeDefined();
+    });
+
+    it('does not report modules in fewer than 3 insight types', async () => {
+      // Only 2 insight types referencing mod-1: missing-return-types and async-boundary-mismatches
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('has_explicit_return_type', [
+        { id: 'func-1', name: 'noReturn', module_id: 'mod-1', entity_type: 'function' },
+      ]);
+      responses.set('symbol_references', [
+        { id: 'ref-1', source_symbol_name: 'syncHandler', target_symbol_name: 'fetchData', module_id: 'mod-1' },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const hotspots = report.insights.filter((i) => i.type === 'complexity-hotspot');
+
+      expect(hotspots).toHaveLength(0);
+    });
+  });
+
+  // ── Package Coupling (graph-based) ──────────────────────────────────────
+
+  describe('package coupling', () => {
+    it('returns no insight for single-package codebases', async () => {
+      // graphWithCycle has all modules in pkg-1
+      buildImportGraph.mockResolvedValue(graphWithCycle());
+
+      const report = await engine.compute();
+      const coupling = report.insights.filter((i) => i.type === 'package-coupling');
+
+      expect(coupling).toHaveLength(0);
+    });
+
+    it('detects cross-package imports between two packages', async () => {
+      const adjacency = new Map<string, Set<string>>();
+      adjacency.set('mod-a', new Set(['mod-b']));
+      adjacency.set('mod-b', new Set());
+
+      const reverseAdjacency = new Map<string, Set<string>>();
+      reverseAdjacency.set('mod-a', new Set());
+      reverseAdjacency.set('mod-b', new Set(['mod-a']));
+
+      const graph: ImportGraph = {
+        adjacency,
+        reverseAdjacency,
+        modules: new Map([
+          ['mod-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+          ['mod-b', { name: 'b.ts', directory: '/lib', relativePath: 'lib/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-2' }],
+        ]),
+        nodeIds: new Set(['mod-a', 'mod-b']),
+      };
+
+      buildImportGraph.mockResolvedValue(graph);
+
+      const report = await engine.compute();
+      const coupling = report.insights.filter((i) => i.type === 'package-coupling');
+
+      expect(coupling).toHaveLength(1);
+      expect(coupling[0]!.entities).toHaveLength(1);
+      expect(coupling[0]!.entities[0]!.detail).toContain('cross-package imports');
+    });
+
+    it('reports warning severity when coupling exceeds 50%', async () => {
+      // All imports are cross-package (100% coupling)
+      const adjacency = new Map<string, Set<string>>();
+      adjacency.set('mod-a', new Set(['mod-b']));
+      adjacency.set('mod-b', new Set(['mod-a']));
+
+      const reverseAdjacency = new Map<string, Set<string>>();
+      reverseAdjacency.set('mod-a', new Set(['mod-b']));
+      reverseAdjacency.set('mod-b', new Set(['mod-a']));
+
+      const graph: ImportGraph = {
+        adjacency,
+        reverseAdjacency,
+        modules: new Map([
+          ['mod-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+          ['mod-b', { name: 'b.ts', directory: '/lib', relativePath: 'lib/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-2' }],
+        ]),
+        nodeIds: new Set(['mod-a', 'mod-b']),
+      };
+
+      buildImportGraph.mockResolvedValue(graph);
+
+      const report = await engine.compute();
+      const coupling = report.insights.filter((i) => i.type === 'package-coupling');
+
+      expect(coupling).toHaveLength(1);
+      expect(coupling[0]!.severity).toBe('warning');
+    });
+
+    it('reports info severity when coupling is low', async () => {
+      // 1 cross-package import out of 3 total for the pair (~33%)
+      const adjacency = new Map<string, Set<string>>();
+      adjacency.set('mod-a1', new Set(['mod-b']));
+      adjacency.set('mod-a2', new Set(['mod-a1']));
+      adjacency.set('mod-a3', new Set(['mod-a1']));
+      adjacency.set('mod-b', new Set());
+      adjacency.set('mod-a1', new Set(['mod-b']));
+
+      const reverseAdjacency = new Map<string, Set<string>>();
+      reverseAdjacency.set('mod-a1', new Set(['mod-a2', 'mod-a3']));
+      reverseAdjacency.set('mod-a2', new Set());
+      reverseAdjacency.set('mod-a3', new Set());
+      reverseAdjacency.set('mod-b', new Set(['mod-a1']));
+
+      const graph: ImportGraph = {
+        adjacency,
+        reverseAdjacency,
+        modules: new Map([
+          ['mod-a1', { name: 'a1.ts', directory: '/src', relativePath: 'src/a1.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+          ['mod-a2', { name: 'a2.ts', directory: '/src', relativePath: 'src/a2.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+          ['mod-a3', { name: 'a3.ts', directory: '/src', relativePath: 'src/a3.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+          ['mod-b', { name: 'b.ts', directory: '/lib', relativePath: 'lib/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-2' }],
+        ]),
+        nodeIds: new Set(['mod-a1', 'mod-a2', 'mod-a3', 'mod-b']),
+      };
+
+      buildImportGraph.mockResolvedValue(graph);
+
+      const report = await engine.compute();
+      const coupling = report.insights.filter((i) => i.type === 'package-coupling');
+
+      expect(coupling).toHaveLength(1);
+      expect(coupling[0]!.severity).toBe('info');
+    });
+  });
+
   // ── Summary counting ─────────────────────────────────────────────────────
 
   describe('summary counting', () => {

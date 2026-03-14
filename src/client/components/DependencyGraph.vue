@@ -265,7 +265,7 @@ onUnmounted(() => {
       @move-start="onMoveStart"
       @move-end="onMoveEnd"
     >
-      <Background />
+      <Background variant="dots" :color="'rgba(148, 163, 184, 0.07)'" :gap="24" :size="1" />
       <GraphControls
         :relationship-availability="graphSettings.relationshipAvailability"
         :canvas-renderer-available="canvasRendererAvailable"
@@ -680,8 +680,10 @@ onUnmounted(() => {
 
 .layout-loading-indicator {
   padding: 0.45rem 0.75rem;
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(10, 14, 39, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: 0.5rem;
   color: rgba(226, 232, 240, 0.95);
   font-size: 0.72rem;
@@ -716,7 +718,9 @@ onUnmounted(() => {
   padding: 0.4rem 0.85rem;
   border-radius: 0.5rem;
   background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(148, 163, 184, 0.15);
   letter-spacing: 0.05em;
   min-width: 5rem;
   text-align: center;
@@ -814,9 +818,11 @@ onUnmounted(() => {
 
 .graph-stats-shell {
   width: min(19rem, calc(100vw - 1.5rem));
-  border-radius: 0.5rem;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.12);
   background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: rgba(226, 232, 240, 0.95);
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
 }
@@ -978,8 +984,10 @@ onUnmounted(() => {
 .renderer-mode-copy {
   padding: 0.35rem 0.6rem;
   border-radius: 0.4rem;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(10, 14, 39, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.12);
   color: rgba(226, 232, 240, 0.9);
   font-size: 0.68rem;
   letter-spacing: 0.02em;

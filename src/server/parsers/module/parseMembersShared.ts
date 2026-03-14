@@ -1,8 +1,8 @@
-import { getTypeFromAnnotation } from './astUtils';
+import { getTypeFromAnnotation, extractSymbolUsages } from './astUtils';
 import { generateMethodUUID, generateParameterUUID, generatePropertyUUID } from '../../utils/uuid';
 
 import type { ModuleParserContext } from './types';
-import type { ParseResult, SymbolUsageRef } from '../ParseResult';
+import type { ParseResult } from '../ParseResult';
 import type { IMethodCreateDTO } from '../../db/repositories/MethodRepository';
 import type { IPropertyCreateDTO } from '../../db/repositories/PropertyRepository';
 import type { IParameterCreateDTO } from '../../db/repositories/ParameterRepository';
@@ -12,7 +12,6 @@ import type {
   ClassDeclaration,
   ClassProperty,
   Collection,
-  JSCodeshift,
   MethodDefinition,
   TSInterfaceDeclaration,
   TSMethodSignature,
@@ -101,6 +100,17 @@ export function parseMethods(
         // Add static detection with type guard
         const isStatic = parentType === 'class' && 'static' in node && node.static;
 
+        // Detect abstract methods (e.g., abstract class members)
+        const isAbstract = 'abstract' in node && (node as unknown as Record<string, unknown>)['abstract'] === true;
+
+        // Detect visibility from jscodeshift's `accessibility` property
+        const visibility: string = (() => {
+          if ('accessibility' in node && typeof (node as unknown as Record<string, unknown>)['accessibility'] === 'string') {
+            return (node as unknown as Record<string, unknown>)['accessibility'] as string;
+          }
+          return 'public';
+        })();
+
         // Add async detection with type guard
         // Check for async on the node itself (MethodDefinition, TSMethodSignature)
         // and on the inner function value (FunctionExpression, ArrowFunctionExpression)
@@ -123,6 +133,9 @@ export function parseMethods(
           return false;
         })();
 
+        // TODO: Decorator extraction would go here — no schema field exists yet for decorators on methods.
+        // When a `decorators` column is added, use: extractDecoratorNames(node) from astUtils.ts
+
         methods.push({
           id: methodId,
           name: methodName,
@@ -132,8 +145,9 @@ export function parseMethods(
           parent_type: parentType,
           return_type: returnType,
           is_static: isStatic,
+          is_abstract: isAbstract,
           is_async: isAsync,
-          visibility: 'public', // Default visibility
+          visibility,
           has_explicit_return_type: hasExplicitReturnType,
         });
 
@@ -216,6 +230,19 @@ export function parseProperties(
         parentType
       );
 
+      // Detect static, readonly, and visibility from the AST node
+      const isStatic = 'static' in propertyNode && (propertyNode as unknown as Record<string, unknown>)['static'] === true;
+      const isReadonly = 'readonly' in propertyNode && (propertyNode as unknown as Record<string, unknown>)['readonly'] === true;
+      const visibility: string = (() => {
+        if ('accessibility' in propertyNode && typeof (propertyNode as unknown as Record<string, unknown>)['accessibility'] === 'string') {
+          return (propertyNode as unknown as Record<string, unknown>)['accessibility'] as string;
+        }
+        return 'public';
+      })();
+
+      // TODO: Decorator extraction would go here — no schema field exists yet for decorators on properties.
+      // When a `decorators` column is added, use: extractDecoratorNames(propertyNode) from astUtils.ts
+
       properties.push({
         id: propertyId,
         module_id: moduleId,
@@ -224,9 +251,9 @@ export function parseProperties(
         name: propertyName,
         type: propertyType,
         package_id: ctx.packageId,
-        is_static: false,
-        is_readonly: false,
-        visibility: 'public',
+        is_static: isStatic,
+        is_readonly: isReadonly,
+        visibility,
       });
     } catch (error: unknown) {
       ctx.logger.error(`Error parsing property: ${String(error)}`);
@@ -446,68 +473,3 @@ function isFunctionTypeProperty(node: ClassProperty | TSPropertySignature, logge
   }
 }
 
-/**
- * Extract symbol usages (member expressions) from an AST node.
- * Captures property accesses and method calls for later resolution.
- *
- * NOTE: The `context` parameter here is the source symbol info object
- * (moduleId, sourceSymbolId, etc.), NOT a ModuleParserContext.
- */
-function extractSymbolUsages(
-  j: JSCodeshift,
-  node: ASTNode,
-  context: {
-    moduleId: string;
-    sourceSymbolId?: string | undefined;
-    sourceSymbolType: 'method' | 'function';
-    sourceSymbolName?: string | undefined;
-    sourceParentName?: string | undefined;
-    sourceParentType?: 'class' | 'interface' | undefined;
-  }
-): SymbolUsageRef[] {
-  const usages: SymbolUsageRef[] = [];
-  const seen = new Set<string>();
-
-  j(node)
-    .find(j.MemberExpression)
-    .forEach((memberPath: ASTPath) => {
-      const member = memberPath.node;
-      if (member.type !== 'MemberExpression') return;
-
-      let targetName: string | undefined;
-      if (member.property.type === 'Identifier') {
-        targetName = member.property.name;
-      } else if ('value' in member.property && typeof member.property.value === 'string') {
-        targetName = member.property.value;
-      }
-      if (!targetName) return;
-
-      let qualifierName: string | undefined;
-      if (member.object.type === 'Identifier') {
-        qualifierName = member.object.name;
-      } else if (member.object.type === 'ThisExpression') {
-        qualifierName = 'this';
-      }
-
-      const isMethodCall = memberPath.name === 'callee';
-      const targetKind = isMethodCall ? 'method' : 'property';
-
-      const dedupeKey = `${targetKind}|${qualifierName ?? ''}|${targetName}`;
-      if (seen.has(dedupeKey)) return;
-      seen.add(dedupeKey);
-
-      usages.push({
-        moduleId: context.moduleId,
-        sourceSymbolId: context.sourceSymbolId,
-        sourceSymbolType: context.sourceSymbolType,
-        sourceSymbolName: context.sourceSymbolName,
-        sourceParentName: context.sourceParentName,
-        sourceParentType: context.sourceParentType,
-        targetName,
-        targetKind,
-        qualifierName,
-      });
-    });
-
-  return usages;
-}

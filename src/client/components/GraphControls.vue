@@ -388,7 +388,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
     :class="{ 'graph-controls-panel-with-search': !!graphSearchContext }"
   >
     <div
-      class="graph-controls-shell bg-background-paper rounded-lg border border-border-default shadow-xl"
+      class="graph-controls-shell"
       :class="{ 'graph-controls-shell-with-search': !!graphSearchContext }"
     >
 
@@ -909,6 +909,12 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable both-edges;
+  background: rgba(10, 14, 39, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .graph-controls-shell-with-search {
@@ -969,6 +975,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 }
 
 .section-label {
+  font-family: var(--font-display);
   font-size: 0.84rem;
   font-weight: 650;
   color: var(--color-text-primary, currentColor);
@@ -1045,7 +1052,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   min-height: 1rem;
   flex-shrink: 0;
   cursor: pointer;
-  accent-color: var(--color-primary-main);
+  accent-color: var(--accent-cyan, #22d3ee);
 }
 
 .control-checkbox:disabled {

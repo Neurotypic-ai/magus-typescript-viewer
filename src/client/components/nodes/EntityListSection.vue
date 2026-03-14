@@ -90,26 +90,31 @@ const visibleEntities = computed(() => props.entities);
 .entity-function {
   background-color: var(--badge-function-bg);
   color: var(--badge-function-text);
+  border: 1px solid rgba(16, 185, 129, 0.15);
 }
 
 .entity-type {
   background-color: var(--badge-type-bg);
   color: var(--badge-type-text);
+  border: 1px solid rgba(99, 102, 241, 0.15);
 }
 
 .entity-enum {
   background-color: var(--badge-enum-bg);
   color: var(--badge-enum-text);
+  border: 1px solid rgba(236, 72, 153, 0.15);
 }
 
 .entity-const {
   background-color: var(--badge-const-bg);
   color: var(--badge-const-text);
+  border: 1px solid rgba(20, 184, 166, 0.15);
 }
 
 .entity-var {
   background-color: var(--badge-var-bg);
   color: var(--badge-var-text);
+  border: 1px solid rgba(148, 163, 184, 0.15);
 }
 
 </style>

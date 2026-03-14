@@ -25,6 +25,9 @@ import { VariableRepository } from '../db/repositories/VariableRepository';
 import { PackageParser } from '../parsers/PackageParser';
 import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
 import { InsightEngine } from '../insights/InsightEngine';
+import { toSarif } from '../insights/sarif-output';
+import { diffInsights } from '../insights/insight-diff';
+import { getLatestReport, storeInsightReport } from '../insights/insight-store';
 import { RulesEngine } from '../rules/RulesEngine';
 import { generateRelationshipUUID } from '../utils/uuid';
 
@@ -209,7 +212,10 @@ program
   .argument('<dir>', 'Directory containing the TypeScript project')
   .option('-o, --output <file>', 'Output database file', 'typescript-viewer.duckdb')
   .option('--no-reset', 'Do not reset the database before analyzing (append mode)')
-  .action(async (dir: string, options: { output: string; reset?: boolean; readOnly?: boolean }) => {
+  .option('--format <format>', 'Output format for insights: text, json, markdown, sarif', 'text')
+  .option('--fail-under <score>', 'Exit with code 1 if health score is below this threshold (0-100)')
+  .option('--diff', 'Show delta against previous insight report')
+  .action(async (dir: string, options: { output: string; reset?: boolean; readOnly?: boolean; format: string; failUnder?: string; diff?: boolean }) => {
     const spinner = ora('Analyzing TypeScript project...').start();
 
     try {
@@ -581,39 +587,109 @@ program
       const insightSpinner = ora('Computing codebase insights...').start();
       try {
         const engine = new InsightEngine(adapter);
+
+        // Load previous report before computing new one (for --diff)
+        const previousReport = options.diff ? await getLatestReport(adapter) : null;
+
         const report = await engine.compute();
 
+        // Store the current report for future diffs
+        await storeInsightReport(adapter, report);
+
         insightSpinner.succeed(chalk.green('Insights computed!'));
-        console.log();
 
-        const scoreColor = report.healthScore >= 80 ? chalk.green : report.healthScore >= 50 ? chalk.yellow : chalk.red;
-        console.log(chalk.blue('Health Score:'), scoreColor(`${report.healthScore.toString()}/100`));
-        console.log();
+        const format = options.format;
 
-        if (report.summary.critical > 0) {
-          console.log(chalk.red(`  Critical: ${report.summary.critical.toString()}`));
-        }
-        if (report.summary.warning > 0) {
-          console.log(chalk.yellow(`  Warning:  ${report.summary.warning.toString()}`));
-        }
-        if (report.summary.info > 0) {
-          console.log(chalk.cyan(`  Info:     ${report.summary.info.toString()}`));
-        }
-
-        if (report.insights.length > 0) {
-          console.log();
-          console.log(chalk.blue('Top Insights:'));
-          const criticals = report.insights.filter((i) => i.severity === 'critical');
-          const warnings = report.insights.filter((i) => i.severity === 'warning');
-          const topInsights = [...criticals, ...warnings].slice(0, 10);
-          for (const insight of topInsights) {
-            const icon = insight.severity === 'critical' ? chalk.red('!') : chalk.yellow('~');
-            const entityCount = insight.entities.length.toString();
-            console.log(`  ${icon} ${insight.title} (${entityCount} entities)`);
+        if (format === 'json') {
+          console.log(JSON.stringify(report, null, 2));
+        } else if (format === 'sarif') {
+          console.log(JSON.stringify(toSarif(report), null, 2));
+        } else if (format === 'markdown') {
+          const lines: string[] = [];
+          lines.push('# Codebase Insights Report');
+          lines.push('');
+          lines.push(`**Health Score:** ${report.healthScore.toString()}/100`);
+          lines.push(`**Computed:** ${report.computedAt}`);
+          if (report.packageId) {
+            lines.push(`**Package:** ${report.packageId}`);
           }
-          if (report.insights.length > topInsights.length) {
-            const remaining = report.insights.length - topInsights.length;
-            console.log(chalk.gray(`  ... and ${remaining.toString()} more info-level insights`));
+          lines.push('');
+          lines.push(`| Severity | Count |`);
+          lines.push(`|----------|-------|`);
+          lines.push(`| Critical | ${report.summary.critical.toString()} |`);
+          lines.push(`| Warning  | ${report.summary.warning.toString()} |`);
+          lines.push(`| Info     | ${report.summary.info.toString()} |`);
+          lines.push('');
+          for (const insight of report.insights) {
+            const badge = insight.severity === 'critical' ? '**CRITICAL**' : insight.severity === 'warning' ? '*Warning*' : 'Info';
+            lines.push(`### ${insight.title} [${badge}]`);
+            lines.push('');
+            lines.push(insight.description);
+            lines.push('');
+          }
+          console.log(lines.join('\n'));
+        } else {
+          // Default: text output (original behavior)
+          console.log();
+
+          const scoreColor = report.healthScore >= 80 ? chalk.green : report.healthScore >= 50 ? chalk.yellow : chalk.red;
+          console.log(chalk.blue('Health Score:'), scoreColor(`${report.healthScore.toString()}/100`));
+
+          // Show diff if --diff flag was passed and a previous report exists
+          if (options.diff && previousReport) {
+            const diff = diffInsights(previousReport, report);
+            const deltaSign = diff.scoreDelta >= 0 ? '+' : '';
+            const deltaColor = diff.scoreDelta >= 0 ? chalk.green : chalk.red;
+            const deltaStr = deltaColor(`${deltaSign}${diff.scoreDelta.toString()}`);
+            console.log(
+              chalk.blue('Delta:'),
+              `${previousReport.healthScore.toString()} -> ${report.healthScore.toString()} (${deltaStr})`,
+              chalk.gray('|'),
+              `${diff.newInsights.length.toString()} new warnings, ${diff.resolvedInsights.length.toString()} resolved`,
+            );
+          } else if (options.diff && !previousReport) {
+            console.log(chalk.gray('  No previous report found for comparison'));
+          }
+
+          console.log();
+
+          if (report.summary.critical > 0) {
+            console.log(chalk.red(`  Critical: ${report.summary.critical.toString()}`));
+          }
+          if (report.summary.warning > 0) {
+            console.log(chalk.yellow(`  Warning:  ${report.summary.warning.toString()}`));
+          }
+          if (report.summary.info > 0) {
+            console.log(chalk.cyan(`  Info:     ${report.summary.info.toString()}`));
+          }
+
+          if (report.insights.length > 0) {
+            console.log();
+            console.log(chalk.blue('Top Insights:'));
+            const criticals = report.insights.filter((i) => i.severity === 'critical');
+            const warnings = report.insights.filter((i) => i.severity === 'warning');
+            const topInsights = [...criticals, ...warnings].slice(0, 10);
+            for (const insight of topInsights) {
+              const icon = insight.severity === 'critical' ? chalk.red('!') : chalk.yellow('~');
+              const entityCount = insight.entities.length.toString();
+              console.log(`  ${icon} ${insight.title} (${entityCount} entities)`);
+            }
+            if (report.insights.length > topInsights.length) {
+              const remaining = report.insights.length - topInsights.length;
+              console.log(chalk.gray(`  ... and ${remaining.toString()} more info-level insights`));
+            }
+          }
+        }
+
+        // Check --fail-under threshold
+        if (options.failUnder !== undefined) {
+          const threshold = parseInt(options.failUnder, 10);
+          if (!isNaN(threshold) && report.healthScore < threshold) {
+            console.error(
+              chalk.red(`\nHealth score ${report.healthScore.toString()} is below threshold ${threshold.toString()}`)
+            );
+            await db.close();
+            process.exit(1);
           }
         }
       } catch (insightError) {

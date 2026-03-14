@@ -80,7 +80,7 @@ onUnmounted(() => {
   >
     <div class="flex flex-col items-center gap-4">
       <div class="w-12 h-12 border-4 border-border-default border-t-primary-main rounded-full animate-spin"></div>
-      <p class="text-lg">Loading dependency graph...</p>
+      <p class="text-lg" style="font-family: var(--font-display)">Loading dependency graph...</p>
     </div>
   </div>
 
@@ -91,11 +91,14 @@ onUnmounted(() => {
     role="alert"
     aria-live="assertive"
   >
-    <h1 class="text-2xl font-bold mb-4 text-text-primary">Error Loading Graph</h1>
+    <h1 class="text-2xl font-bold mb-4 text-text-primary" style="font-family: var(--font-display)">Error Loading Graph</h1>
     <p class="mb-6 text-text-secondary">{{ error }}</p>
     <button
       @click="retryLoad"
       class="px-6 py-3 bg-white/10 text-text-primary rounded-lg hover:bg-white/20 transition-fast cursor-pointer border border-border-default font-semibold"
+      style="transition: background-color 150ms ease-out, transform 150ms ease-out;"
+      @mouseenter="($event.currentTarget as HTMLElement).style.transform = 'scale(1.02)'"
+      @mouseleave="($event.currentTarget as HTMLElement).style.transform = 'scale(1)'"
     >
       Retry
     </button>

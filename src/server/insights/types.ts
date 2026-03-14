@@ -21,7 +21,15 @@ export type InsightKind =
   | 'unused-exports'
   | 'interface-segregation-violations'
   | 'missing-return-types'
-  | 'async-boundary-mismatches';
+  | 'async-boundary-mismatches'
+  | 'layering-violations'
+  | 'dependency-depth'
+  | 're-export-chains'
+  | 'duplicate-exports'
+  | 'naming-inconsistency'
+  | 'abstract-no-impl'
+  | 'complexity-hotspot'
+  | 'package-coupling';
 
 export interface InsightEntity {
   id: string;
@@ -29,6 +37,12 @@ export interface InsightEntity {
   name: string;
   moduleId?: string | undefined;
   detail?: string | undefined;
+}
+
+export interface RefactoringSuggestion {
+  action: string;
+  description: string;
+  effort: 'low' | 'medium' | 'high';
 }
 
 export interface InsightResult {
@@ -40,6 +54,7 @@ export interface InsightResult {
   entities: InsightEntity[];
   value?: number | undefined;
   threshold?: number | undefined;
+  suggestions?: RefactoringSuggestion[] | undefined;
 }
 
 export interface InsightReport {

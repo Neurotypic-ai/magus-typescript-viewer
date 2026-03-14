@@ -154,7 +154,7 @@ export function getNodeStyle(type: DependencyKind): CSSProperties {
     case 'package':
       return {
         ...baseStyle,
-        backgroundColor: 'rgba(20, 184, 166, 0.08)',
+        backgroundColor: 'rgba(20, 184, 166, 0.12)',
         borderColor: 'rgba(20, 184, 166, 0.3)',
         borderRadius: defaultTheme.nodes.borderRadius * 2,
         minWidth: '200px',
@@ -163,7 +163,7 @@ export function getNodeStyle(type: DependencyKind): CSSProperties {
     case 'module':
       return {
         ...baseStyle,
-        backgroundColor: 'rgba(59, 130, 246, 0.06)',
+        backgroundColor: 'rgba(59, 130, 246, 0.10)',
         borderColor: 'rgba(59, 130, 246, 0.25)',
         minWidth: '180px',
         padding: '16px',
@@ -171,7 +171,7 @@ export function getNodeStyle(type: DependencyKind): CSSProperties {
     case 'class':
       return {
         ...baseStyle,
-        backgroundColor: 'rgba(59, 130, 246, 0.10)',
+        backgroundColor: 'rgba(59, 130, 246, 0.14)',
         borderColor: 'rgba(59, 130, 246, 0.35)',
         minWidth: '200px',
         padding: '12px',
@@ -179,7 +179,7 @@ export function getNodeStyle(type: DependencyKind): CSSProperties {
     case 'interface':
       return {
         ...baseStyle,
-        backgroundColor: 'rgba(168, 85, 247, 0.10)',
+        backgroundColor: 'rgba(168, 85, 247, 0.14)',
         borderColor: 'rgba(168, 85, 247, 0.35)',
         minWidth: '200px',
         padding: '12px',

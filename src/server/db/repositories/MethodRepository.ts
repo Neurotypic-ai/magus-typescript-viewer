@@ -64,6 +64,11 @@ export interface IMethodCreateDTO {
   visibility: string;
 
   /**
+   * Whether the method is abstract.
+   */
+  is_abstract?: boolean;
+
+  /**
    * Whether the method has an explicit return type annotation.
    */
   has_explicit_return_type?: boolean;
@@ -88,8 +93,8 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
    */
   async createBatch(items: IMethodCreateDTO[]): Promise<void> {
     await this.executeBatchInsert(
-      '(id, package_id, module_id, parent_id, parent_type, name, return_type, is_static, is_async, visibility, has_explicit_return_type)',
-      11,
+      '(id, package_id, module_id, parent_id, parent_type, name, return_type, is_static, is_abstract, is_async, visibility, has_explicit_return_type)',
+      12,
       items,
       (dto) => [
         dto.id,
@@ -100,6 +105,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
         dto.name,
         dto.return_type,
         dto.is_static,
+        dto.is_abstract ?? false,
         dto.is_async,
         dto.visibility,
         dto.has_explicit_return_type ?? false,
@@ -118,6 +124,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
         dto.name,
         dto.return_type,
         dto.is_static,
+        dto.is_abstract ?? false,
         dto.is_async,
         dto.visibility,
         dto.has_explicit_return_type ?? false,
@@ -125,7 +132,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
 
       await this.executeQuery<IMethodRow>(
         'create',
-        'INSERT INTO methods (id, package_id, module_id, parent_id, parent_type, name, return_type, is_static, is_async, visibility, has_explicit_return_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO methods (id, package_id, module_id, parent_id, parent_type, name, return_type, is_static, is_abstract, is_async, visibility, has_explicit_return_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         params
       );
 

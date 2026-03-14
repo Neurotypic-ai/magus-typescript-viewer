@@ -168,7 +168,7 @@ describe('MethodRepository', () => {
       const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(sql).toContain('INSERT INTO methods');
       // Should have two sets of placeholders
-      expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     });
 
     it('falls back to individual inserts on duplicate key error', async () => {

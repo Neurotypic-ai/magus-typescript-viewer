@@ -81,7 +81,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="node-context-menu" role="menu" :style="{ left: `${x}px`, top: `${y}px` }">
+  <div class="node-context-menu glass-panel" role="menu" :style="{ left: `${x}px`, top: `${y}px` }">
     <div class="context-menu-header">{{ nodeLabel }}</div>
     <button type="button" role="menuitem" class="context-menu-item" @click="handleFocusNode">
       <span class="context-menu-icon">&loz;</span> Focus Node
@@ -117,10 +117,7 @@ onUnmounted(() => {
   z-index: 1000;
   min-width: 200px;
   max-width: 340px;
-  background-color: var(--background-node);
-  border: 1px solid var(--border-default);
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  /* background, border, border-radius, box-shadow handled by .glass-panel */
   padding: 0.25rem 0;
   font-size: 0.8rem;
 }

@@ -1,5 +1,6 @@
-import type { ASTNode, Identifier, JSCodeshift, JSXIdentifier, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
+import type { ASTNode, ASTPath, Identifier, JSCodeshift, JSXIdentifier, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
 import type { Logger } from '../../../shared/utils/logger';
+import type { SymbolUsageRef } from '../ParseResult';
 
 /**
  * Safely get identifier name to work around type issues.
@@ -92,4 +93,98 @@ export function getReturnTypeFromNode(j: JSCodeshift, node: ASTNode, logger: Log
     logger.error('Error getting return type:', error);
   }
   return 'void';
+}
+
+/**
+ * Extract symbol usages (member expressions) from an AST node.
+ * Captures property accesses and method calls for later resolution.
+ *
+ * NOTE: The `context` parameter here is the source symbol info object
+ * (moduleId, sourceSymbolId, etc.), NOT a ModuleParserContext.
+ */
+export function extractSymbolUsages(
+  j: JSCodeshift,
+  node: ASTNode,
+  context: {
+    moduleId: string;
+    sourceSymbolId?: string | undefined;
+    sourceSymbolType: 'method' | 'function';
+    sourceSymbolName?: string | undefined;
+    sourceParentName?: string | undefined;
+    sourceParentType?: 'class' | 'interface' | undefined;
+  }
+): SymbolUsageRef[] {
+  const usages: SymbolUsageRef[] = [];
+  const seen = new Set<string>();
+
+  j(node)
+    .find(j.MemberExpression)
+    .forEach((memberPath: ASTPath) => {
+      const member = memberPath.node;
+      if (member.type !== 'MemberExpression') return;
+
+      let targetName: string | undefined;
+      if (member.property.type === 'Identifier') {
+        targetName = member.property.name;
+      } else if ('value' in member.property && typeof member.property.value === 'string') {
+        targetName = member.property.value;
+      }
+      if (!targetName) return;
+
+      let qualifierName: string | undefined;
+      if (member.object.type === 'Identifier') {
+        qualifierName = member.object.name;
+      } else if (member.object.type === 'ThisExpression') {
+        qualifierName = 'this';
+      }
+
+      const isMethodCall = memberPath.name === 'callee';
+      const targetKind = isMethodCall ? 'method' : 'property';
+
+      const dedupeKey = `${targetKind}|${qualifierName ?? ''}|${targetName}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+
+      usages.push({
+        moduleId: context.moduleId,
+        sourceSymbolId: context.sourceSymbolId,
+        sourceSymbolType: context.sourceSymbolType,
+        sourceSymbolName: context.sourceSymbolName,
+        sourceParentName: context.sourceParentName,
+        sourceParentType: context.sourceParentType,
+        targetName,
+        targetKind,
+        qualifierName,
+      });
+    });
+
+  return usages;
+}
+
+/**
+ * Extract decorator names from a node's `decorators` array.
+ * Decorators are typically `Identifier` nodes or `CallExpression` with `Identifier` callee.
+ * Returns an array of decorator name strings.
+ */
+export function extractDecoratorNames(node: ASTNode): string[] {
+  if (!('decorators' in node) || !Array.isArray(node.decorators)) {
+    return [];
+  }
+
+  const names: string[] = [];
+  for (const decorator of node.decorators as ASTNode[]) {
+    if (!('expression' in decorator)) continue;
+    const expr = decorator.expression as ASTNode;
+
+    if (expr.type === 'Identifier' && 'name' in expr) {
+      names.push(expr.name);
+    } else if (expr.type === 'CallExpression' && 'callee' in expr) {
+      const callee = expr.callee as ASTNode;
+      if (callee.type === 'Identifier' && 'name' in callee) {
+        names.push(callee.name);
+      }
+    }
+  }
+
+  return names;
 }
