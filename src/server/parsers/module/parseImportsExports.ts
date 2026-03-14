@@ -136,11 +136,12 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
     }
   });
 
-  // Handle export default declarations (e.g. `export default class Foo {}`)
-  // Only captures named defaults; anonymous defaults are handled by parseClasses.ts etc.
+  // Handle export default declarations
   ctx.root.find(ctx.j.ExportDefaultDeclaration).forEach((path) => {
     const decl = path.node.declaration;
-    if ('id' in decl && decl.id && typeof decl.id === 'object' && 'type' in decl.id && (decl.id.type === 'Identifier' || decl.id.type === 'JSXIdentifier')) {
+    if (decl.type === 'Identifier') {
+      exports.add(decl.name);
+    } else if ('id' in decl && decl.id && typeof decl.id === 'object' && 'type' in decl.id && (decl.id.type === 'Identifier' || decl.id.type === 'JSXIdentifier')) {
       const name = getIdentifierName(decl.id);
       if (name) exports.add(name);
     }

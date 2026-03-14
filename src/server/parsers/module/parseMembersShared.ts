@@ -17,13 +17,14 @@ import type {
   ClassProperty,
   Collection,
   MethodDefinition,
+  TSDeclareMethod,
   TSInterfaceDeclaration,
   TSMethodSignature,
   TSPropertySignature,
   TSTypeAnnotation,
 } from 'jscodeshift';
 
-type MethodLikeNode = MethodDefinition | ClassMethod | TSMethodSignature | ClassProperty | TSPropertySignature;
+type MethodLikeNode = MethodDefinition | ClassMethod | TSDeclareMethod | TSMethodSignature | ClassProperty | TSPropertySignature;
 import type { Logger } from '../../../shared/utils/logger';
 
 // ---------------------------------------------------------------------------
@@ -117,8 +118,10 @@ export function parseMethods(
     let methodNodes: Collection;
 
     if (parentType === 'class') {
-      // Babel/tsx parser produces ClassMethod; ESTree uses MethodDefinition
+      // Babel/tsx parser produces ClassMethod; ESTree uses MethodDefinition.
+      // Abstract methods are TSDeclareMethod (no body).
       const classMethodPaths = collection.find(ctx.j.ClassMethod).paths();
+      const declareMethodPaths = collection.find(ctx.j.TSDeclareMethod).paths();
       const methodDefPaths = collection.find(ctx.j.MethodDefinition).paths();
 
       const propertyMethods = collection
@@ -134,7 +137,7 @@ export function parseMethods(
           return hasArrowFunction || hasFunctionType;
         });
 
-      methodNodes = ctx.j([...classMethodPaths, ...methodDefPaths, ...propertyMethods.paths()]);
+      methodNodes = ctx.j([...classMethodPaths, ...declareMethodPaths, ...methodDefPaths, ...propertyMethods.paths()]);
     } else {
       // Interface methods - include both method signatures and function-typed properties
       const interfaceMethods = collection.find(ctx.j.TSMethodSignature);
