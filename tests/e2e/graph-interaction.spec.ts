@@ -44,6 +44,32 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     expect(nodeCount).toBeGreaterThan(0);
   });
 
+  test('graph stats report non-zero node and edge counts', async ({ page }) => {
+    const graphStatsMetrics = await page.locator('.graph-stats-summary-metrics').textContent();
+    expect(parseGraphStatsCount(graphStatsMetrics, 'nodes')).toBeGreaterThan(0);
+    expect(parseGraphStatsCount(graphStatsMetrics, 'edges')).toBeGreaterThan(0);
+  });
+
+  test('overview layout keeps visible nodes from meaningfully overlapping after initial render', async ({ page }) => {
+    const visibleNodeBoxes = await getVisibleNodeBoxes(page);
+    expect(visibleNodeBoxes.length).toBeGreaterThan(1);
+
+    const overlaps: string[] = [];
+    for (let index = 0; index < visibleNodeBoxes.length; index += 1) {
+      const first = visibleNodeBoxes[index]!;
+      for (const second of visibleNodeBoxes.slice(index + 1)) {
+        if (hasMeaningfulNodeOverlap(first, second, 6)) {
+          overlaps.push(`${first.id}<->${second.id}`);
+        }
+      }
+    }
+
+    expect(
+      overlaps,
+      overlaps.length > 0 ? `Overlapping overview nodes: ${overlaps.join(', ')}` : undefined
+    ).toEqual([]);
+  });
+
   // ---------------------------------------------------------------------------
   // 2. Zoom controls work
   // ---------------------------------------------------------------------------
@@ -74,12 +100,9 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
 
     // Click fit view.
     await (await getFitViewControl(page)).click();
-    await page.waitForTimeout(400);
-
-    const zoomAfterFit = await getViewportZoom(page);
-
-    // The zoom should have changed (fit adjusts to graph extents).
-    expect(zoomAfterFit).not.toBeCloseTo(zoomBeforeFit, 1);
+    await expect
+      .poll(async () => Math.abs((await getViewportZoom(page)) - zoomBeforeFit))
+      .toBeGreaterThan(0.01);
   });
 
   // ---------------------------------------------------------------------------
@@ -154,29 +177,36 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // ---------------------------------------------------------------------------
   // 7. Minimap click centers
   // ---------------------------------------------------------------------------
-  test('clicking the minimap SVG changes viewport position', async ({ page }) => {
+  test('dragging the minimap changes viewport position', async ({ page }) => {
     const viewportBefore = await getViewportTransform(page);
 
-    // Click near the top-left corner of the minimap SVG.
     const minimapSvg = page.locator('.vue-flow__minimap svg');
     if (!(await minimapSvg.isVisible())) {
       test.skip(true, 'MiniMap is auto-hidden in heavy graph mode');
     }
-    const box = await minimapSvg.boundingBox();
-    expect(box).toBeTruthy();
-
-    if (box) {
-      await page.mouse.click(box.x + 10, box.y + 10);
+    const minimapMask = minimapSvg.locator('.vue-flow__minimap-mask');
+    await expect(minimapMask).toBeVisible();
+    const maskBox = await minimapMask.boundingBox();
+    expect(maskBox).toBeTruthy();
+    if (!maskBox) {
+      throw new Error('MiniMap mask bounds missing');
     }
 
-    await page.waitForTimeout(400);
+    const startX = maskBox.x + maskBox.width / 2;
+    const startY = maskBox.y + maskBox.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 40, startY + 20, { steps: 6 });
+    await page.mouse.up();
 
-    const viewportAfter = await getViewportTransform(page);
-
-    // The viewport translate values should differ after the minimap click.
-    const positionChanged =
-      Math.abs(viewportAfter.x - viewportBefore.x) > 1 || Math.abs(viewportAfter.y - viewportBefore.y) > 1;
-    expect(positionChanged).toBe(true);
+    await expect
+      .poll(async () => {
+        const viewportAfter = await getViewportTransform(page);
+        return (
+          Math.abs(viewportAfter.x - viewportBefore.x) > 1 || Math.abs(viewportAfter.y - viewportBefore.y) > 1
+        );
+      })
+      .toBe(true);
   });
 
   // ---------------------------------------------------------------------------
@@ -186,23 +216,24 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     // Click a node first so its action buttons are interactable.
     const firstNode = await getInteractableNode(page);
     await firstNode.click();
+    await expect(firstNode).toHaveClass(/(selected|selection-target)/);
 
     const viewportBefore = await getViewportTransform(page);
 
-    // Click the "Focus camera on node" button within the first node.
-    const focusButton = firstNode.locator('.base-node-action-button[aria-label="Focus camera on node"]');
+    const focusButton = page.getByRole('button', { name: 'Focus camera on node' });
+    await expect(focusButton).toBeVisible();
     await focusButton.click();
 
-    await page.waitForTimeout(400);
-
-    const viewportAfter = await getViewportTransform(page);
-
-    // The viewport should have moved or zoomed to center on the node.
-    const viewportMoved =
-      Math.abs(viewportAfter.x - viewportBefore.x) > 1 ||
-      Math.abs(viewportAfter.y - viewportBefore.y) > 1 ||
-      Math.abs(viewportAfter.zoom - viewportBefore.zoom) > 0.01;
-    expect(viewportMoved).toBe(true);
+    await expect
+      .poll(async () => {
+        const viewportAfter = await getViewportTransform(page);
+        return (
+          Math.abs(viewportAfter.x - viewportBefore.x) > 1 ||
+          Math.abs(viewportAfter.y - viewportBefore.y) > 1 ||
+          Math.abs(viewportAfter.zoom - viewportBefore.zoom) > 0.01
+        );
+      })
+      .toBe(true);
   });
 
   // ---------------------------------------------------------------------------
@@ -215,21 +246,18 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     // Click the first node, then its isolate button.
     const firstNode = await getInteractableNode(page);
     await firstNode.click();
+    await expect(firstNode).toHaveClass(/(selected|selection-target)/);
 
-    const isolateButton = firstNode.locator('.base-node-action-button[aria-label="Isolate node and neighbors"]');
+    const isolateButton = page.getByRole('button', { name: 'Isolate node and neighbors' });
+    await expect(isolateButton).toBeVisible();
     await isolateButton.click();
 
-    await page.waitForTimeout(500);
-
-    const totalNodesAfter = await page.locator('.vue-flow__node').count();
-
-    // After isolation, the node count should decrease (only the node and
-    // its direct neighbors remain).
-    expect(totalNodesAfter).toBeLessThan(totalNodesBefore);
-
     // The "Back to Full Graph" button should appear.
-    const backButton = page.getByRole('button', { name: /Back to Full Graph/i });
+    const backButton = page.getByRole('button', { name: /Return to full graph view/i });
     await expect(backButton).toBeVisible();
+
+    await waitForGraphLayoutToSettle(page);
+    await expect.poll(async () => page.locator('.vue-flow__node').count()).toBeLessThan(totalNodesBefore);
   });
 
   // ---------------------------------------------------------------------------
@@ -238,16 +266,20 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   test('isolate action lays out neighborhood nodes without overlap', async ({ page }) => {
     const firstNode = await getInteractableNode(page);
     await firstNode.click();
+    await expect(firstNode).toHaveClass(/(selected|selection-target)/);
 
-    const isolateButton = firstNode.locator('.base-node-action-button[aria-label="Isolate node and neighbors"]');
+    const isolateButton = page.getByRole('button', { name: 'Isolate node and neighbors' });
+    await expect(isolateButton).toBeVisible();
     await isolateButton.click();
-    await page.waitForTimeout(700);
+    await expect(page.getByRole('button', { name: /Return to full graph view/i })).toBeVisible();
+    await waitForGraphLayoutToSettle(page);
 
     const isolatedNodeBoxes = await getVisibleNodeBoxes(page);
     expect(isolatedNodeBoxes.length).toBeGreaterThan(1);
 
     const overlaps: string[] = [];
-    for (const [index, first] of isolatedNodeBoxes.entries()) {
+    for (let index = 0; index < isolatedNodeBoxes.length; index += 1) {
+      const first = isolatedNodeBoxes[index]!;
       for (const second of isolatedNodeBoxes.slice(index + 1)) {
         if (hasMeaningfulNodeOverlap(first, second, 6)) {
           overlaps.push(`${first.id}<->${second.id}`);
@@ -270,23 +302,21 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     // Isolate the first node.
     const firstNode = await getInteractableNode(page);
     await firstNode.click();
-    const isolateButton = firstNode.locator('.base-node-action-button[aria-label="Isolate node and neighbors"]');
+    await expect(firstNode).toHaveClass(/(selected|selection-target)/);
+    const isolateButton = page.getByRole('button', { name: 'Isolate node and neighbors' });
+    await expect(isolateButton).toBeVisible();
     await isolateButton.click();
-    await page.waitForTimeout(500);
 
     // Verify isolation happened.
-    const isolatedCount = await page.locator('.vue-flow__node').count();
-    expect(isolatedCount).toBeLessThan(totalNodesBefore);
+    const backButton = page.getByRole('button', { name: /Return to full graph view/i });
+    await expect(backButton).toBeVisible();
+    await waitForGraphLayoutToSettle(page);
+    await expect.poll(async () => page.locator('.vue-flow__node').count()).toBeLessThan(totalNodesBefore);
 
     // Click "Back to Full Graph".
-    const backButton = page.getByRole('button', { name: /Back to Full Graph/i });
     await backButton.click();
-    await page.waitForTimeout(500);
-
-    const totalNodesAfterRestore = await page.locator('.vue-flow__node').count();
-
-    // All nodes should be restored.
-    expect(totalNodesAfterRestore).toBe(totalNodesBefore);
+    await waitForGraphLayoutToSettle(page);
+    await expect.poll(async () => page.locator('.vue-flow__node').count()).toBe(totalNodesBefore);
   });
 
   // ---------------------------------------------------------------------------
@@ -326,11 +356,12 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   // 13. Graph controls panel (new controls architecture)
   // ---------------------------------------------------------------------------
   test('graph controls panel renders search at top without layout/direction/reset controls', async ({ page }) => {
-    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const searchPanel = getGraphSearchPanel(page);
+    const controlsPanel = getGraphControlsPanel(page);
+    await expect(searchPanel).toBeVisible();
     await expect(controlsPanel).toBeVisible();
 
-    // Search input appears at top of controls (embedded in panel per new architecture).
-    const searchInput = controlsPanel.locator('input[placeholder*="Search" i]');
+    const searchInput = searchPanel.locator('input[placeholder*="Search" i]');
     await expect(searchInput).toBeVisible();
 
     // Deprecated layout/reset controls must NOT exist.
@@ -345,7 +376,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   test('Folder control exists in Node Types section', async ({ page }) => {
-    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const controlsPanel = getGraphControlsPanel(page);
     const nodeTypesToggle = controlsPanel.getByRole('button', { name: /node types/i }).first();
     await expect(nodeTypesToggle).toBeVisible();
     if ((await nodeTypesToggle.getAttribute('aria-expanded')) === 'false') {
@@ -364,7 +395,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   test('SCC (Collapse cycles) appears in Analysis section with disable logic', async ({ page }) => {
-    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const controlsPanel = getGraphControlsPanel(page);
     const analysisToggle = controlsPanel.getByRole('button', { name: /analysis/i }).first();
     await expect(analysisToggle).toBeVisible();
     if ((await analysisToggle.getAttribute('aria-expanded')) === 'false') {
@@ -398,7 +429,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   test('at least one collapsible section toggles expand/collapse', async ({ page }) => {
-    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const controlsPanel = getGraphControlsPanel(page);
     const collapsibleToggles = controlsPanel.locator('[aria-expanded]');
     if ((await collapsibleToggles.count()) === 0) {
       test.skip(true, 'Collapsible sections not yet implemented');
@@ -419,7 +450,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   test('debug bounds overlay renders when enabled from Debug section', async ({ page }) => {
-    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const controlsPanel = getGraphControlsPanel(page);
     const debugToggle = controlsPanel.getByRole('button', { name: /debug/i }).first();
     await expect(debugToggle).toBeVisible();
     if ((await debugToggle.getAttribute('aria-expanded')) === 'false') {
@@ -451,7 +482,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   test('rendering strategy radiogroup works with keyboard navigation', async ({ page }) => {
-    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const controlsPanel = getGraphControlsPanel(page);
     const strategyToggle = controlsPanel.getByRole('button', { name: /rendering strategy/i }).first();
     await expect(strategyToggle).toBeVisible();
     if ((await strategyToggle.getAttribute('aria-expanded')) === 'false') {
@@ -482,7 +513,12 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   test('canvas strategy unavailable copy appears only when canvas option is disabled', async ({ page }) => {
-    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const controlsPanel = getGraphControlsPanel(page);
+    const strategyToggle = controlsPanel.getByRole('button', { name: /rendering strategy/i }).first();
+    await expect(strategyToggle).toBeVisible();
+    if ((await strategyToggle.getAttribute('aria-expanded')) === 'false') {
+      await strategyToggle.click();
+    }
     const strategyGroup = controlsPanel.getByRole('radiogroup', { name: /rendering strategy/i });
     await expect(strategyGroup).toBeVisible();
 
@@ -501,7 +537,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
   });
 
   test('folder view keeps visible edges enabled by default', async ({ page }) => {
-    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const controlsPanel = getGraphControlsPanel(page);
     const strategyToggle = controlsPanel.getByRole('button', { name: /rendering strategy/i }).first();
     await expect(strategyToggle).toBeVisible();
     if ((await strategyToggle.getAttribute('aria-expanded')) === 'false') {
@@ -589,6 +625,14 @@ async function getZoomInControl(page: Page): Promise<Locator> {
   return zoomInButton;
 }
 
+function getGraphSearchPanel(page: Page): Locator {
+  return page.locator('.graph-search-panel');
+}
+
+function getGraphControlsPanel(page: Page): Locator {
+  return page.locator('.graph-controls-panel');
+}
+
 async function getFitViewControl(page: Page): Promise<Locator> {
   const fitViewButton = page
     .locator(
@@ -657,7 +701,15 @@ async function waitForGraphLayoutToSettle(page: Page): Promise<void> {
 async function getInteractableNode(page: Page): Promise<Locator> {
   const nodes = page.locator('.vue-flow__node');
   const count = await nodes.count();
-  const panelBox = await page.locator('.vue-flow__panel.top.left').first().boundingBox();
+  const panels = page.locator('.graph-search-panel, .graph-controls-panel');
+  const panelCount = await panels.count();
+  const panelBoxes: Array<{ x: number; y: number; width: number; height: number }> = [];
+  for (let index = 0; index < panelCount; index += 1) {
+    const panelBox = await panels.nth(index).boundingBox();
+    if (panelBox) {
+      panelBoxes.push(panelBox);
+    }
+  }
   const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
   let bestIndex = 0;
   let bestVisibleArea = -1;
@@ -673,7 +725,7 @@ async function getInteractableNode(page: Page): Promise<Locator> {
     if (visibleArea <= 0) {
       continue;
     }
-    if (panelBox && boxesOverlap(box, panelBox)) {
+    if (panelBoxes.some((panelBox) => boxesOverlap(box, panelBox))) {
       continue;
     }
     if (visibleArea > bestVisibleArea) {

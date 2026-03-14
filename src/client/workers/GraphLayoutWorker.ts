@@ -750,11 +750,15 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // Iteratively resolve overlaps with correct expansion order:
     // 1. expandParentsBottomUp: compute correct sizes (leaf parents first)
     // 2. sweepResolveSiblings: fix overlaps using those correct sizes
-    // Only exit when sweep confirms 0 overlaps with up-to-date sizes.
+    // 3. expandParentsBottomUp again: re-expand parents after nodes were pushed outward
+    // 4. enforceMinPositions: clamp children within the freshly-expanded parent bounds
+    // Without step 3, enforceMinPositions uses stale (pre-sweep) parent bounds and
+    // clamps pushed nodes back into overlap — causing an oscillation that never converges.
     for (let cycle = 0; cycle < 20; cycle += 1) {
       expandParentsBottomUp();
       const hadOverlaps = sweepResolveSiblings();
       if (!hadOverlaps) break;
+      expandParentsBottomUp(); // re-expand with post-sweep positions before clamping
       enforceMinPositions();
     }
 

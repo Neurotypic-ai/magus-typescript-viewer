@@ -168,7 +168,7 @@ describe('buildOverviewGraph', () => {
 });
 
 describe('buildFolderDistributorGraph export', () => {
-  it('returns empty rendered edges while preserving semantic edges', () => {
+  it('returns rendered intra-folder edges while preserving semantic edges', () => {
     const data: DependencyPackageGraph = {
       packages: [
         {
@@ -214,7 +214,7 @@ describe('buildFolderDistributorGraph export', () => {
       highlightOrphanGlobal: false,
     });
 
-    expect(result.edges).toEqual([]);
+    expect(result.edges.length).toBeGreaterThan(0);
     expect(result.semanticSnapshot?.edges.length).toBeGreaterThan(0);
   });
 });

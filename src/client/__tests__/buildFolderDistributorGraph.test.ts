@@ -62,13 +62,31 @@ function createOptions(overrides: Partial<Parameters<typeof buildFolderDistribut
 }
 
 describe('buildFolderDistributorGraph', () => {
-  it('always returns an empty rendered edge list', () => {
+  it('returns rendered intra-folder edges by default', () => {
     const result = buildFolderDistributorGraph(createOptions());
-    expect(result.edges).toEqual([]);
+    expect(result.edges.length).toBeGreaterThan(0);
   });
 
   it('keeps semantic snapshot edges populated when imports exist', () => {
     const result = buildFolderDistributorGraph(createOptions());
+    expect(result.semanticSnapshot?.edges.length).toBeGreaterThan(0);
+  });
+
+  it('can suppress intra-folder rendered edges when the option is disabled', () => {
+    const data = createFixtureGraph();
+    data.packages[0]!.modules.b!.source.relativePath = 'src/a/b.ts';
+    data.packages[0]!.modules.a!.imports.i1!.path = './b';
+
+    const result = buildFolderDistributorGraph(
+      createOptions({
+        data,
+        strategyOptions: {
+          showIntraFolderEdges: false,
+        },
+      })
+    );
+
+    expect(result.edges).toEqual([]);
     expect(result.semanticSnapshot?.edges.length).toBeGreaterThan(0);
   });
 
@@ -104,13 +122,13 @@ describe('buildFolderDistributorGraph', () => {
     expect(result.nodes.some((node) => node.id === 'module-a')).toBe(false);
   });
 
-  it('computes orphan diagnostics from semantic edges even when rendered edges are empty', () => {
+  it('computes orphan diagnostics from semantic edges while rendered edges stay available by default', () => {
     const result = buildFolderDistributorGraph(createOptions());
 
     const moduleA = result.nodes.find((node) => node.id === 'module-a');
     const moduleB = result.nodes.find((node) => node.id === 'module-b');
 
-    expect(result.edges).toEqual([]);
+    expect(result.edges.length).toBeGreaterThan(0);
     expect(result.semanticSnapshot?.edges.length).toBeGreaterThan(0);
     expect(moduleA?.data?.diagnostics?.orphanCurrent).toBe(false);
     expect(moduleB?.data?.diagnostics?.orphanCurrent).toBe(false);
