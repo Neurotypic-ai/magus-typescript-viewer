@@ -61,6 +61,11 @@ export interface IPropertyCreateDTO {
    * The visibility of the property (public, private, protected).
    */
   visibility: string;
+
+  /**
+   * JSDoc description extracted from the source.
+   */
+  description?: string | undefined;
 }
 
 /**

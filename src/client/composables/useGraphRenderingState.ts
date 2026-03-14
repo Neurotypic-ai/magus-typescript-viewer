@@ -82,7 +82,7 @@ export function useGraphRenderingState(options: UseGraphRenderingStateOptions): 
 
   const isHeavyEdgeMode = computed(() => edges.value.length >= env.HEAVY_EDGE_STYLE_THRESHOLD);
   const minimapAutoHidden = computed(() => edges.value.length >= env.MINIMAP_AUTO_HIDE_EDGE_THRESHOLD);
-  const showMiniMap = computed(() => !isFirefox.value && !isHybridCanvasMode.value && !minimapAutoHidden.value);
+  const showMiniMap = computed(() => !isFirefox.value && !minimapAutoHidden.value);
 
   const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => {
     const lowDetailEdges =

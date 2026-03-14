@@ -1,5 +1,7 @@
 import * as path from 'path';
 
+import { toUndirected } from './graph-algorithms';
+
 import type { DatabaseRow, IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
 
 interface ModuleRow extends DatabaseRow {
@@ -31,6 +33,8 @@ export interface ImportGraph {
   adjacency: Map<string, Set<string>>;
   /** module_id -> set of module_ids that import it */
   reverseAdjacency: Map<string, Set<string>>;
+  /** undirected version of the adjacency graph */
+  undirected: Map<string, Set<string>>;
   /** module_id -> metadata */
   modules: Map<string, ModuleMeta>;
   /** all module IDs */
@@ -119,5 +123,6 @@ export async function buildImportGraph(adapter: IDatabaseAdapter, packageId?: st
     }
   }
 
-  return { adjacency, reverseAdjacency, modules, nodeIds };
+  const undirected = toUndirected(adjacency);
+  return { adjacency, reverseAdjacency, undirected, modules, nodeIds };
 }

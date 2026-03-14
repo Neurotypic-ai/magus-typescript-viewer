@@ -454,11 +454,11 @@ describe('resolveCollisions', () => {
     it('only resolves sibling scopes affected by anchored nodes', () => {
       const nodes: BoundsNode[] = [
         makeTypedNode('p1', 0, 0, 500, 400, undefined, 'module'),
-        makeNode('a1', 20, 42, 200, 100, 'p1'),
-        makeNode('a2', 100, 60, 200, 100, 'p1'),
+        makeNode('a1', 48, 120, 200, 100, 'p1'),
+        makeNode('a2', 100, 130, 200, 100, 'p1'),
         makeTypedNode('p2', 600, 0, 500, 400, undefined, 'module'),
-        makeNode('b1', 20, 42, 200, 100, 'p2'),
-        makeNode('b2', 100, 60, 200, 100, 'p2'),
+        makeNode('b1', 48, 120, 200, 100, 'p2'),
+        makeNode('b2', 100, 130, 200, 100, 'p2'),
       ];
 
       const posMap = buildPositionMap(nodes, DEFAULTS);

@@ -1,23 +1,20 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { INSIGHT_KINDS } from './types';
+
 import type { InsightKind, InsightResult } from './types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface InsightIgnoreRules {
   suppressedKinds: Set<InsightKind>;
-  filePatterns: string[];
-  kindFilePatterns: Map<InsightKind, string[]>;
+  filePatterns: RegExp[];
+  kindFilePatterns: Map<InsightKind, RegExp[]>;
 }
 
 // ── Glob-to-Regex conversion ─────────────────────────────────────────────────
 
-/**
- * Convert a simple glob pattern to a RegExp.
- * Supports `**` (match anything including `/`), `*` (match anything except `/`),
- * and `?` (match a single character except `/`). Dots are escaped.
- */
 function globToRegex(pattern: string): RegExp {
   let regex = '';
   let i = 0;
@@ -27,7 +24,6 @@ function globToRegex(pattern: string): RegExp {
     if (ch === '*' && pattern[i + 1] === '*') {
       regex += '.*';
       i += 2;
-      // skip trailing slash after **
       if (pattern[i] === '/') i++;
     } else if (ch === '*') {
       regex += '[^/]*';
@@ -46,89 +42,47 @@ function globToRegex(pattern: string): RegExp {
   return new RegExp(`^${regex}$`);
 }
 
-function matchesAnyPattern(value: string, patterns: string[]): boolean {
-  return patterns.some((p) => globToRegex(p).test(value));
-}
+// ── Validation ───────────────────────────────────────────────────────────────
 
-// ── Known InsightKind values (for validation) ────────────────────────────────
-
-const KNOWN_KINDS = new Set<string>([
-  'circular-imports',
-  'import-fan-in',
-  'import-fan-out',
-  'heavy-external-dependency',
-  'god-class',
-  'long-parameter-lists',
-  'module-size',
-  'deep-inheritance',
-  'leaky-encapsulation',
-  'barrel-file-depth',
-  'unexported-entities',
-  'type-only-dependencies',
-  'orphaned-modules',
-  'hub-modules',
-  'bridge-modules',
-  'cluster-detection',
-  'unused-exports',
-  'interface-segregation-violations',
-  'missing-return-types',
-  'async-boundary-mismatches',
-  'layering-violations',
-  'dependency-depth',
-  're-export-chains',
-  'duplicate-exports',
-  'naming-inconsistency',
-  'abstract-no-impl',
-  'complexity-hotspot',
-  'package-coupling',
-]);
+const KNOWN_KINDS_SET: ReadonlySet<string> = new Set(INSIGHT_KINDS);
 
 function isInsightKind(value: string): value is InsightKind {
-  return KNOWN_KINDS.has(value);
+  return KNOWN_KINDS_SET.has(value);
 }
 
 // ── Parser ───────────────────────────────────────────────────────────────────
 
 export function parseInsightIgnore(content: string): InsightIgnoreRules {
   const suppressedKinds = new Set<InsightKind>();
-  const filePatterns: string[] = [];
-  const kindFilePatterns = new Map<InsightKind, string[]>();
+  const filePatterns: RegExp[] = [];
+  const kindFilePatterns = new Map<InsightKind, RegExp[]>();
 
-  const lines = content.split('\n');
-
-  for (const rawLine of lines) {
+  for (const rawLine of content.split('\n')) {
     const line = rawLine.trim();
-
-    // Skip empty lines and comments
     if (line === '' || line.startsWith('#')) continue;
 
-    // Global kind suppression: !kind-name
     if (line.startsWith('!')) {
       const kind = line.slice(1).trim();
-      if (isInsightKind(kind)) {
-        suppressedKinds.add(kind);
-      }
+      if (isInsightKind(kind)) suppressedKinds.add(kind);
       continue;
     }
 
-    // Kind-specific file pattern: kind:pattern
     const colonIndex = line.indexOf(':');
     if (colonIndex > 0) {
-      const maybKind = line.slice(0, colonIndex).trim();
+      const maybeKind = line.slice(0, colonIndex).trim();
       const pattern = line.slice(colonIndex + 1).trim();
-      if (isInsightKind(maybKind) && pattern.length > 0) {
-        let patterns = kindFilePatterns.get(maybKind);
+      if (isInsightKind(maybeKind) && pattern.length > 0) {
+        let patterns = kindFilePatterns.get(maybeKind);
         if (!patterns) {
           patterns = [];
-          kindFilePatterns.set(maybKind, patterns);
+          kindFilePatterns.set(maybeKind, patterns);
         }
-        patterns.push(pattern);
+        patterns.push(globToRegex(pattern));
         continue;
       }
     }
 
-    // Bare file pattern: suppress all insights for matching files
-    filePatterns.push(line);
+    filePatterns.push(globToRegex(line));
   }
 
   return { suppressedKinds, filePatterns, kindFilePatterns };
@@ -136,13 +90,13 @@ export function parseInsightIgnore(content: string): InsightIgnoreRules {
 
 // ── Suppression check ────────────────────────────────────────────────────────
 
-export function shouldSuppressInsight(rules: InsightIgnoreRules, insight: InsightResult): boolean {
-  // Check global kind suppression
-  if (rules.suppressedKinds.has(insight.type)) {
-    return true;
-  }
+function matchesAnyPattern(value: string, patterns: RegExp[]): boolean {
+  return patterns.some((re) => re.test(value));
+}
 
-  // Check if all entities match file patterns (suppress all insights for these files)
+export function shouldSuppressInsight(rules: InsightIgnoreRules, insight: InsightResult): boolean {
+  if (rules.suppressedKinds.has(insight.type)) return true;
+
   if (rules.filePatterns.length > 0 && insight.entities.length > 0) {
     const allMatch = insight.entities.every((entity) => {
       const nameToCheck = entity.moduleId ?? entity.name;
@@ -151,7 +105,6 @@ export function shouldSuppressInsight(rules: InsightIgnoreRules, insight: Insigh
     if (allMatch) return true;
   }
 
-  // Check kind-specific file patterns
   const kindPatterns = rules.kindFilePatterns.get(insight.type);
   if (kindPatterns && kindPatterns.length > 0 && insight.entities.length > 0) {
     const allMatch = insight.entities.every((entity) => {

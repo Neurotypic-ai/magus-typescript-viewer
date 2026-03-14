@@ -21,12 +21,14 @@ interface CanvasEdgeLayerProps {
   viewport: ViewportState;
   maxEdges?: number;
   highlightedEdgeIds?: string[];
+  hoveredEdgeIds?: string[];
   dimNonHighlighted?: boolean;
 }
 
 const props = withDefaults(defineProps<CanvasEdgeLayerProps>(), {
-  maxEdges: 2400,
+  maxEdges: 4000,
   highlightedEdgeIds: () => [],
+  hoveredEdgeIds: () => [],
   dimNonHighlighted: true,
 });
 const emit = defineEmits<{
@@ -151,6 +153,7 @@ const renderCanvas = (): void => {
   const nodeCenters = nodeGeometry.centerById;
   const nodeById = new Map(props.nodes.map((node) => [node.id, node]));
   const highlightedEdgeIdSet = new Set(props.highlightedEdgeIds);
+  const hoveredEdgeIdSet = new Set(props.hoveredEdgeIds);
   const visibleEdges = props.edges
     .filter((edge) => !edge.hidden && !highlightedEdgeIdSet.has(edge.id))
     .slice(0, props.maxEdges);
@@ -190,19 +193,23 @@ const renderCanvas = (): void => {
     const stroke = typeof edgeStyle['stroke'] === 'string' ? edgeStyle['stroke'] : 'rgba(148, 163, 184, 0.5)';
     const opacity = typeof edgeStyle['opacity'] === 'number'
       ? edgeStyle['opacity']
-      : Number.parseFloat(String(edgeStyle['opacity'] ?? '0.85'));
+      : Number.parseFloat(String(edgeStyle['opacity'] ?? '0.55'));
     const strokeWidth = typeof edgeStyle['strokeWidth'] === 'number'
       ? edgeStyle['strokeWidth']
       : Number.parseFloat(String(edgeStyle['strokeWidth'] ?? '1.4'));
+    const isHovered = hoveredEdgeIdSet.has(edge.id);
     const dimFactor = props.dimNonHighlighted && highlightedEdgeIdSet.size > 0 ? 0.65 : 1;
 
     context.strokeStyle = stroke;
-    context.globalAlpha = Number.isFinite(opacity)
-      ? Math.max(0.04, Math.min(1, opacity * dimFactor))
-      : 0.85 * dimFactor;
-    context.lineWidth = Number.isFinite(strokeWidth)
+    context.globalAlpha = isHovered
+      ? 1.0
+      : Number.isFinite(opacity)
+        ? Math.max(0.04, Math.min(1, opacity * dimFactor))
+        : 0.55 * dimFactor;
+    const baseLineWidth = Number.isFinite(strokeWidth)
       ? Math.max(0.8, strokeWidth * Math.max(0.55, Math.min(1.1, props.viewport.zoom)))
       : 1.2;
+    context.lineWidth = isHovered ? baseLineWidth * 1.5 : baseLineWidth;
     const edgePathOptions = typeof edge.pathOptions === 'object'
       ? edge.pathOptions as { borderRadius?: number }
       : undefined;
@@ -215,15 +222,29 @@ const renderCanvas = (): void => {
       continue;
     }
 
-    context.beginPath();
-    context.moveTo(roundedPath.start.x, roundedPath.start.y);
-    for (const segment of roundedPath.segments) {
-      if (segment.kind === 'quadratic' && segment.control) {
-        context.quadraticCurveTo(segment.control.x, segment.control.y, segment.to.x, segment.to.y);
-      } else {
-        context.lineTo(segment.to.x, segment.to.y);
+    const traceRoundedPath = () => {
+      context.beginPath();
+      context.moveTo(roundedPath.start.x, roundedPath.start.y);
+      for (const segment of roundedPath.segments) {
+        if (segment.kind === 'quadratic' && segment.control) {
+          context.quadraticCurveTo(segment.control.x, segment.control.y, segment.to.x, segment.to.y);
+        } else {
+          context.lineTo(segment.to.x, segment.to.y);
+        }
       }
+    };
+
+    // Draw glow pass for hovered edges (behind the main stroke)
+    if (isHovered) {
+      context.save();
+      context.globalAlpha = 0.25;
+      context.lineWidth = baseLineWidth * 2.5;
+      traceRoundedPath();
+      context.stroke();
+      context.restore();
     }
+
+    traceRoundedPath();
     context.stroke();
   }
 
@@ -255,7 +276,7 @@ onUnmounted(() => {
 });
 
 watch(
-  () => [props.edges, props.nodes, props.viewport.x, props.viewport.y, props.viewport.zoom, props.highlightedEdgeIds],
+  () => [props.edges, props.nodes, props.viewport.x, props.viewport.y, props.viewport.zoom, props.highlightedEdgeIds, props.hoveredEdgeIds],
   () => {
     scheduleRender();
   },

@@ -9,6 +9,7 @@ import { getHandlePositions } from '../handleRouting';
 import { mapTypeCollection } from '../../utils/collections';
 
 import type { DependencyEdgeKind } from '../../types/DependencyEdgeKind';
+import type { DependencyKind } from '../../types/DependencyKind';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
 import type { GraphEdge } from '../../types/GraphEdge';
@@ -68,6 +69,30 @@ export function createSymbolEdge(source: string, target: string, type: Dependenc
     style: { ...getEdgeStyle(type), strokeWidth: 3 },
     markerEnd: createEdgeMarker(),
   } as GraphEdge;
+}
+
+export function createExternalCallerNode(
+  module: { id: string; name?: string },
+  nodeId: string,
+  direction: 'LR' | 'RL' | 'TB' | 'BT'
+): DependencyNode {
+  const { sourcePosition, targetPosition } = getHandlePositions(direction);
+  return {
+    id: nodeId,
+    type: 'module' as DependencyKind,
+    position: { x: 0, y: 0 },
+    sourcePosition,
+    targetPosition,
+    data: {
+      label: module.name ?? module.id,
+      isExternalCaller: true,
+    },
+    style: {
+      ...getNodeStyle('module'),
+      borderStyle: 'dashed',
+      opacity: 0.7,
+    },
+  } as DependencyNode;
 }
 
 export function createDetailedSymbolNode(

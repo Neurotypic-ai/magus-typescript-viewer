@@ -1,35 +1,38 @@
 export type InsightCategory = 'dependency-health' | 'structural-complexity' | 'api-surface' | 'connectivity' | 'maintenance';
 export type InsightSeverity = 'info' | 'warning' | 'critical';
 
-export type InsightKind =
-  | 'circular-imports'
-  | 'import-fan-in'
-  | 'import-fan-out'
-  | 'heavy-external-dependency'
-  | 'god-class'
-  | 'long-parameter-lists'
-  | 'module-size'
-  | 'deep-inheritance'
-  | 'leaky-encapsulation'
-  | 'barrel-file-depth'
-  | 'unexported-entities'
-  | 'type-only-dependencies'
-  | 'orphaned-modules'
-  | 'hub-modules'
-  | 'bridge-modules'
-  | 'cluster-detection'
-  | 'unused-exports'
-  | 'interface-segregation-violations'
-  | 'missing-return-types'
-  | 'async-boundary-mismatches'
-  | 'layering-violations'
-  | 'dependency-depth'
-  | 're-export-chains'
-  | 'duplicate-exports'
-  | 'naming-inconsistency'
-  | 'abstract-no-impl'
-  | 'complexity-hotspot'
-  | 'package-coupling';
+export const INSIGHT_KINDS = [
+  'circular-imports',
+  'import-fan-in',
+  'import-fan-out',
+  'heavy-external-dependency',
+  'god-class',
+  'long-parameter-lists',
+  'module-size',
+  'deep-inheritance',
+  'leaky-encapsulation',
+  'barrel-file-depth',
+  'unexported-entities',
+  'type-only-dependencies',
+  'orphaned-modules',
+  'hub-modules',
+  'bridge-modules',
+  'cluster-detection',
+  'unused-exports',
+  'interface-segregation-violations',
+  'missing-return-types',
+  'async-boundary-mismatches',
+  'layering-violations',
+  'dependency-depth',
+  're-export-chains',
+  'duplicate-exports',
+  'naming-inconsistency',
+  'abstract-no-impl',
+  'complexity-hotspot',
+  'package-coupling',
+] as const;
+
+export type InsightKind = (typeof INSIGHT_KINDS)[number];
 
 export interface InsightEntity {
   id: string;

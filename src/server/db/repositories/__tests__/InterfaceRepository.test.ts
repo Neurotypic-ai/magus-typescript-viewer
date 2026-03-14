@@ -426,32 +426,65 @@ describe('InterfaceRepository', () => {
   // delete
   // --------------------------------------------------------------------------
   describe('delete', () => {
-    it('should delete related methods, properties, then the interface itself', async () => {
+    it('should delete all related records then the interface itself', async () => {
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await repo.delete(SAMPLE_DTO.id);
 
-      expect(mockAdapter.query).toHaveBeenCalledTimes(3);
+      expect(mockAdapter.query).toHaveBeenCalledTimes(6);
     });
 
-    it('should delete methods first with the correct SQL', async () => {
+    it('should delete parameters for interface methods first', async () => {
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await repo.delete(SAMPLE_DTO.id);
 
       const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain('DELETE FROM parameters');
+      expect(sql).toContain('method_id IN (SELECT id FROM methods WHERE parent_id = ? AND parent_type = ?)');
+      expect(params).toEqual([SAMPLE_DTO.id, 'interface']);
+    });
+
+    it('should delete interface_extends second', async () => {
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await repo.delete(SAMPLE_DTO.id);
+
+      const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[1] as [string, unknown[]];
+      expect(sql).toContain('DELETE FROM interface_extends');
+      expect(sql).toContain('WHERE interface_id = ?');
+      expect(params).toEqual([SAMPLE_DTO.id]);
+    });
+
+    it('should delete class_implements third', async () => {
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await repo.delete(SAMPLE_DTO.id);
+
+      const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[2] as [string, unknown[]];
+      expect(sql).toContain('DELETE FROM class_implements');
+      expect(sql).toContain('WHERE interface_id = ?');
+      expect(params).toEqual([SAMPLE_DTO.id]);
+    });
+
+    it('should delete methods fourth with the correct SQL', async () => {
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await repo.delete(SAMPLE_DTO.id);
+
+      const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[3] as [string, unknown[]];
       expect(sql).toContain('DELETE FROM methods');
       expect(sql).toContain('parent_id = ?');
       expect(sql).toContain('parent_type = ?');
       expect(params).toEqual([SAMPLE_DTO.id, 'interface']);
     });
 
-    it('should delete properties second with the correct SQL', async () => {
+    it('should delete properties fifth with the correct SQL', async () => {
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await repo.delete(SAMPLE_DTO.id);
 
-      const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[1] as [string, unknown[]];
+      const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[4] as [string, unknown[]];
       expect(sql).toContain('DELETE FROM properties');
       expect(sql).toContain('parent_id = ?');
       expect(sql).toContain('parent_type = ?');
@@ -463,13 +496,13 @@ describe('InterfaceRepository', () => {
 
       await repo.delete(SAMPLE_DTO.id);
 
-      const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[2] as [string, unknown[]];
+      const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[5] as [string, unknown[]];
       expect(sql).toContain('DELETE FROM interfaces');
       expect(sql).toContain('WHERE id = ?');
       expect(params).toEqual([SAMPLE_DTO.id]);
     });
 
-    it('should throw RepositoryError when deleting methods fails', async () => {
+    it('should throw RepositoryError when deleting parameters fails', async () => {
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('FK violation'));
 
       await expect(repo.delete(SAMPLE_DTO.id)).rejects.toThrow(RepositoryError);
@@ -477,6 +510,9 @@ describe('InterfaceRepository', () => {
 
     it('should throw RepositoryError when deleting the interface fails', async () => {
       (mockAdapter.query as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([]) // parameters deleted OK
+        .mockResolvedValueOnce([]) // interface_extends deleted OK
+        .mockResolvedValueOnce([]) // class_implements deleted OK
         .mockResolvedValueOnce([]) // methods deleted OK
         .mockResolvedValueOnce([]) // properties deleted OK
         .mockRejectedValueOnce(new Error('delete failed')); // interface delete fails

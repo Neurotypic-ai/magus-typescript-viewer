@@ -508,13 +508,20 @@ describe('ModuleRepository', () => {
       });
 
       expect(deletedTables).toEqual([
+        'parameters',
+        'class_implements',
+        'class_extends',
+        'interface_extends',
+        'methods',
+        'properties',
+        'symbol_references',
+        'code_issues',
         'module_tests',
         'classes',
         'interfaces',
-        'methods',
-        'properties',
-        'parameters',
+        'functions',
         'imports',
+        'exports',
         'type_aliases',
         'enums',
         'variables',
@@ -585,7 +592,7 @@ describe('ModuleRepository', () => {
       const result = await repo.retrieveById(dto.id);
 
       expect(result?.source.directory).toBe(dto.source.directory);
-      expect(result?.source.name).toBe(dto.name);
+      expect(result?.source.name).toBe(dto.source.filename);
     });
 
     it('should fall back to denormalized fields when source is "null" string', async () => {

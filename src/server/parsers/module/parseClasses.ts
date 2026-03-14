@@ -4,6 +4,7 @@ import type { ModuleParserContext } from './types';
 import { getIdentifierName, getHeritageClauseName } from './astUtils';
 import { parseMethods, parseProperties } from './parseMembersShared';
 import { generateClassUUID } from '../../utils/uuid';
+import { extractJsDoc } from '../utils/extractJsDoc';
 
 export function parseClasses(ctx: ModuleParserContext, result: ParseResult): void {
   ctx.root.find(ctx.j.ClassDeclaration).forEach((path) => {
@@ -26,11 +27,14 @@ export function parseClasses(ctx: ModuleParserContext, result: ParseResult): voi
     // TODO: Decorator extraction would go here — no schema field exists yet for decorators on classes.
     // When a `decorators` column is added, use: extractDecoratorNames(node) from astUtils.ts
 
+    const description = extractJsDoc(node);
+
     result.classes.push({
       id: classId,
       package_id: ctx.packageId,
       module_id: ctx.moduleId,
       name: node.id.name,
+      description,
     });
 
     // Extract extends relationship (deferred name-based resolution)

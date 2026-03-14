@@ -72,6 +72,11 @@ export interface IMethodCreateDTO {
    * Whether the method has an explicit return type annotation.
    */
   has_explicit_return_type?: boolean;
+
+  /**
+   * JSDoc description extracted from the source.
+   */
+  description?: string | undefined;
 }
 
 export interface IMethodUpdateDTO {
@@ -332,7 +337,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
           method.module_id,
           method.parent_id,
           method.name,
-          new Date((method as unknown as { created_at?: string }).created_at ?? new Date().toISOString()),
+          new Date(method.created_at),
           methodParameters,
           method.return_type,
           method.is_static,
@@ -426,7 +431,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
             method.module_id,
             method.parent_id,
             method.name,
-            new Date((method as unknown as { created_at?: string }).created_at ?? new Date().toISOString()),
+            new Date(method.created_at),
             methodParameters,
             method.return_type,
             method.is_static,

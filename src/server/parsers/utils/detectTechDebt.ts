@@ -34,13 +34,53 @@ export interface TechDebtReport {
   score: number;
 }
 
+// ── Hoisted regex patterns ──────────────────────────────────────────
+
+const RE_STRING_CONTENT = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
+const RE_TS_IGNORE = /\/\/\s*@ts-ignore\b/;
+const RE_TS_EXPECT_ERROR = /\/\/\s*@ts-expect-error\b/;
+const RE_ANY_TYPE = /:\s*any\b/;
+const RE_AS_ANY = /\bas\s+any\b/;
+const RE_DOUBLE_ASSERT = /\bas\s+unknown\s+as\b/;
+const RE_NON_NULL = /\w!(?:\.|,|\)|\[)/;
+
+// ── Data-driven comment marker detection ────────────────────────────
+
+const COMMENT_MARKERS: { keyword: string; type: TechDebtMarker['type']; severity: TechDebtMarker['severity'] }[] = [
+  { keyword: 'todo', type: 'todo_comment', severity: 'info' },
+  { keyword: 'fixme', type: 'fixme_comment', severity: 'warning' },
+  { keyword: 'hack', type: 'hack_comment', severity: 'warning' },
+];
+
+/** Pre-compiled regex pairs [lineComment, blockComment] for each comment marker. */
+const COMMENT_REGEXES = COMMENT_MARKERS.map(({ keyword }) => ({
+  line: new RegExp(`\\/\\/\\s*${keyword}\\b`, 'i'),
+  block: new RegExp(`\\/\\*.*\\b${keyword}\\b`, 'i'),
+}));
+
+// ── Directive patterns (non-comment, non-data-driven) ───────────────
+
+interface DirectivePattern {
+  regex: RegExp;
+  type: TechDebtMarker['type'];
+  severity: TechDebtMarker['severity'];
+}
+
+const DIRECTIVE_PATTERNS: DirectivePattern[] = [
+  { regex: RE_TS_IGNORE, type: 'ts_ignore', severity: 'error' },
+  { regex: RE_TS_EXPECT_ERROR, type: 'ts_expect_error', severity: 'warning' },
+  { regex: RE_ANY_TYPE, type: 'any_type', severity: 'error' },
+  { regex: RE_AS_ANY, type: 'type_assertion', severity: 'error' },
+  { regex: RE_DOUBLE_ASSERT, type: 'type_assertion', severity: 'error' },
+  { regex: RE_NON_NULL, type: 'non_null_assertion', severity: 'warning' },
+];
+
 /**
  * Strip the content of string literals from a line, preserving quotes and length.
  * This prevents false-positive pattern matches inside strings.
  */
 function stripStringContent(line: string): string {
-  return line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g, (match) => {
-    // Preserve the quotes but replace content with spaces to maintain length
+  return line.replace(RE_STRING_CONTENT, (match) => {
     if (match.length <= 2) return match;
     return match[0] + ' '.repeat(match.length - 2) + match[match.length - 1];
   });
@@ -83,94 +123,30 @@ export function detectTechDebt(source: string): TechDebtReport {
     const strippedLine = stripStringContent(line);
     const lineNumber = i + 1;
 
-    // Detect ts-ignore directives
-    if (/\/\/\s*@ts-ignore\b/.test(strippedLine)) {
-      markers.push({
-        type: 'ts_ignore',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'error',
-      });
+    // Check directive / type patterns
+    for (const pattern of DIRECTIVE_PATTERNS) {
+      if (pattern.regex.test(strippedLine)) {
+        markers.push({
+          type: pattern.type,
+          line: lineNumber,
+          snippet: truncateSnippet(line),
+          severity: pattern.severity,
+        });
+      }
     }
 
-    // Detect ts-expect-error directives
-    if (/\/\/\s*@ts-expect-error\b/.test(strippedLine)) {
-      markers.push({
-        type: 'ts_expect_error',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'warning',
-      });
-    }
-
-    // TODO comments (case insensitive)
-    if (/\/\/\s*todo\b/i.test(strippedLine) || /\/\*.*\btodo\b/i.test(strippedLine)) {
-      markers.push({
-        type: 'todo_comment',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'info',
-      });
-    }
-
-    // FIXME comments (case insensitive)
-    if (/\/\/\s*fixme\b/i.test(strippedLine) || /\/\*.*\bfixme\b/i.test(strippedLine)) {
-      markers.push({
-        type: 'fixme_comment',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'warning',
-      });
-    }
-
-    // HACK comments (case insensitive)
-    if (/\/\/\s*hack\b/i.test(strippedLine) || /\/\*.*\bhack\b/i.test(strippedLine)) {
-      markers.push({
-        type: 'hack_comment',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'warning',
-      });
-    }
-
-    // `: any` type annotations — match colon followed by `any` as a word
-    if (/:\s*any\b/.test(strippedLine)) {
-      markers.push({
-        type: 'any_type',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'error',
-      });
-    }
-
-    // `as any` type assertions
-    if (/\bas\s+any\b/.test(strippedLine)) {
-      markers.push({
-        type: 'type_assertion',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'error',
-      });
-    }
-
-    // `as unknown as` double type assertions
-    if (/\bas\s+unknown\s+as\b/.test(strippedLine)) {
-      markers.push({
-        type: 'type_assertion',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'error',
-      });
-    }
-
-    // Non-null assertions: identifier followed by `!` then `.` or `,` or `)` or `[`
-    if (/\w!(?:\.|,|\)|\[)/.test(strippedLine)) {
-      markers.push({
-        type: 'non_null_assertion',
-        line: lineNumber,
-        snippet: truncateSnippet(line),
-        severity: 'warning',
-      });
+    // Check comment markers (TODO, FIXME, HACK)
+    for (let j = 0; j < COMMENT_MARKERS.length; j++) {
+      const marker = COMMENT_MARKERS[j] as (typeof COMMENT_MARKERS)[number];
+      const regexes = COMMENT_REGEXES[j] as (typeof COMMENT_REGEXES)[number];
+      if (regexes.line.test(strippedLine) || regexes.block.test(strippedLine)) {
+        markers.push({
+          type: marker.type,
+          line: lineNumber,
+          snippet: truncateSnippet(line),
+          severity: marker.severity,
+        });
+      }
     }
   }
 

@@ -55,6 +55,22 @@ export const stripNodeClass = (node: DependencyNode): DependencyNode => {
   return { ...node, class: '' } as DependencyNode;
 };
 
+/** Selection class tokens that should be preserved when other systems strip classes. */
+const SELECTION_CLASS_TOKENS = new Set(['selection-target', 'selection-connected', 'selection-dimmed']);
+
+export const stripNodeClassExcluding = (node: DependencyNode, preserveTokens: Set<string> = SELECTION_CLASS_TOKENS): DependencyNode => {
+  if (node.class === undefined || node.class === '') {
+    return node;
+  }
+  const tokens = getClassTokens(node.class);
+  const preserved = [...tokens].filter((t) => preserveTokens.has(t));
+  const newClass = preserved.join(' ');
+  if (newClass === normalizeClassValue(node.class)) {
+    return node;
+  }
+  return { ...node, class: newClass } as DependencyNode;
+};
+
 export const stripEdgeClass = (edge: GraphEdge): GraphEdge => {
   if (edge.class === undefined || edge.class === '') {
     return edge;

@@ -90,8 +90,8 @@ describe('ParameterRepository', () => {
 
       // Boolean fields are stored as 0/1
       expect(params).toContain(0); // is_optional = false => 0
-      // default_value undefined => ''
-      expect(params).toContain('');
+      // default_value undefined => null
+      expect(params).toContain(null);
 
       // Return value should be a Parameter
       expect(result).toBeInstanceOf(Parameter);

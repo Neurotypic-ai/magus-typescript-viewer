@@ -16,7 +16,7 @@
  */
 
 import type { BoundsNode } from './geometryBounds';
-import { GROUP_EXCLUSION_ZONE_PX } from './edgeGeometryPolicy';
+import { GROUP_PADDING, MODULE_PADDING, OVERLAP_GAP } from './collisionConfig';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -36,14 +36,14 @@ export interface CollisionConfig {
 }
 
 export const DEFAULT_COLLISION_CONFIG: CollisionConfig = {
-  overlapGap: 40,
+  overlapGap: OVERLAP_GAP,
   maxCycles: 50,
   maxDisplacementPerCycle: 0, // unlimited — bounded by cycle count
-  modulePadding: { horizontal: 20, top: 42, bottom: 20 },
+  modulePadding: { horizontal: MODULE_PADDING.horizontal, top: MODULE_PADDING.top, bottom: MODULE_PADDING.bottom },
   groupPadding: {
-    horizontal: GROUP_EXCLUSION_ZONE_PX,
-    top: GROUP_EXCLUSION_ZONE_PX,
-    bottom: GROUP_EXCLUSION_ZONE_PX,
+    horizontal: GROUP_PADDING.horizontal,
+    top: GROUP_PADDING.top,
+    bottom: GROUP_PADDING.bottom,
   },
 };
 

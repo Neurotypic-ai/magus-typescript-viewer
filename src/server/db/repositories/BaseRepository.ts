@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { createLogger } from '../../../shared/utils/logger';
 import { RepositoryError } from '../errors/RepositoryError';
 
@@ -106,7 +107,7 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
       }
 
       // For all other errors, wrap them in a RepositoryError with context
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       throw new RepositoryError(
         `Database operation '${operation}' failed in ${this.tableName}: ${errorMessage}`,
         operation,

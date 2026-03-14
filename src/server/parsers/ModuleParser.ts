@@ -4,6 +4,7 @@ import { dirname, join, relative } from 'path';
 import jscodeshift from 'jscodeshift';
 
 import { Export } from '../../shared/types/Export';
+import { getErrorMessage } from '../../shared/utils/errorUtils';
 import { createLogger } from '../../shared/utils/logger';
 import { generateExportUUID, generateModuleUUID } from '../utils/uuid';
 
@@ -12,6 +13,8 @@ import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
 import type { ParseResult } from './ParseResult';
 import type { ModuleParserContext } from './module/types';
 
+import { detectTechDebt } from './utils/detectTechDebt';
+import { computeModuleMetrics } from './utils/moduleAnalysis';
 import { isBarrelFile, parseImportsAndExports } from './module/parseImportsExports';
 import { parseClasses } from './module/parseClasses';
 import { parseInterfaces } from './module/parseInterfaces';
@@ -33,7 +36,10 @@ export class ModuleParser {
 
     try {
       const content = this.sourceOverride ?? (await readFile(this.filePath, 'utf-8'));
-      const lineCount = content.split('\n').length;
+      let lineCount = 1;
+      for (let i = 0; i < content.length; i++) {
+        if (content.charCodeAt(i) === 10) lineCount++;
+      }
       const root = this.j(content);
 
       const ctx: ModuleParserContext = {
@@ -48,6 +54,11 @@ export class ModuleParser {
       // 1. Parse imports/exports first (ordering constraint: exports set
       //    is consumed by all module-level symbol parsers below)
       const { imports, exports, reExports } = parseImportsAndExports(ctx);
+
+      // 1b. Detect tech debt markers and compute module metrics
+      const techDebt = detectTechDebt(content);
+      const importSources = new Set(Array.from(imports.keys()));
+      const moduleMetrics = computeModuleMetrics(exports, reExports, imports, importSources);
 
       // 2. Build module DTO (needs exports/reExports for barrel detection)
       const moduleDTO = await this.createModuleDTO(moduleId, relativePath, lineCount, exports, reExports);
@@ -72,6 +83,11 @@ export class ModuleParser {
         interfaceExtends: [],
         symbolUsages: [],
         symbolReferences: [],
+        techDebtMarkers: techDebt.markers,
+        moduleMetrics,
+        circularDependencies: [],
+        callEdges: [],
+        typeReferences: [],
       };
 
       // 4. Parse declarations
@@ -110,13 +126,17 @@ export class ModuleParser {
         interfaceExtends: [],
         symbolUsages: [],
         symbolReferences: [],
+        techDebtMarkers: [],
+        typeReferences: [],
+        circularDependencies: [],
+        callEdges: [],
       };
     }
   }
 
   private logParseError(operation: string, relativePath: string, error: unknown): void {
     this.logger.error(`Failed to ${operation} in ${relativePath}`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: getErrorMessage(error),
     });
   }
 

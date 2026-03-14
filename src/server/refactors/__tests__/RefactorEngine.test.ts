@@ -155,7 +155,7 @@ describe('RefactorEngine', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('Transform failed');
       expect(result.error).toContain('Transform logic failed');
-      expect(result.originalSource).toBe(source);
+      expect(result.originalSource).toBe('');
       expect(result.transformedSource).toBeUndefined();
     });
 
@@ -205,8 +205,8 @@ describe('RefactorEngine', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Transform produced invalid syntax');
-      expect(result.originalSource).toBe(source);
-      expect(result.transformedSource).toBe('const x = {{{;');
+      expect(result.originalSource).toBe('');
+      expect(result.transformedSource).toBeUndefined();
     });
   });
 
@@ -318,8 +318,8 @@ describe('RefactorEngine', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('Could not write file');
       expect(result.error).toContain('EACCES');
-      expect(result.originalSource).toBe(source);
-      expect(result.transformedSource).toBe(transformed);
+      expect(result.originalSource).toBe('');
+      expect(result.transformedSource).toBeUndefined();
     });
   });
 

@@ -12,6 +12,11 @@ import type { ISymbolReferenceCreateDTO } from '../db/repositories/SymbolReferen
 import type { ITypeAliasCreateDTO } from '../db/repositories/TypeAliasRepository';
 import type { IEnumCreateDTO } from '../db/repositories/EnumRepository';
 import type { IVariableCreateDTO } from '../db/repositories/VariableRepository';
+import type { TechDebtMarker } from './utils/detectTechDebt';
+import type { TypeReference } from './utils/extractTypeReferences';
+import type { CallEdge } from './utils/extractCallGraph';
+import type { CircularDependency } from './utils/detectCircularDependencies';
+import type { ModuleComplexityMetrics } from './utils/moduleAnalysis';
 
 /**
  * Represents a deferred relationship between a class and its parent class.
@@ -80,4 +85,17 @@ export interface ParseResult {
   symbolUsages: SymbolUsageRef[];
   /** Resolved symbol references to persist */
   symbolReferences: ISymbolReferenceCreateDTO[];
+
+  /** Technical debt markers detected in source code */
+  techDebtMarkers?: TechDebtMarker[] | undefined;
+  /** Module complexity metrics (exports, imports, fan-out, etc.) */
+  moduleMetrics?: ModuleComplexityMetrics | undefined;
+
+  /** Circular dependency cycles detected among modules (package-level only) */
+  circularDependencies?: CircularDependency[] | undefined;
+  /** Call edges extracted from function/method bodies (populated during AST parsing) */
+  callEdges?: CallEdge[] | undefined;
+
+  /** Type references extracted from type annotations (property types, return types, parameter types) */
+  typeReferences?: TypeReference[] | undefined;
 }

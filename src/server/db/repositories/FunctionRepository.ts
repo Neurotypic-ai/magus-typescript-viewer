@@ -34,6 +34,7 @@ export interface IFunctionCreateDTO {
   is_async?: boolean;
   is_exported?: boolean;
   has_explicit_return_type?: boolean;
+  description?: string | undefined;
 }
 
 interface IFunctionUpdateDTO {

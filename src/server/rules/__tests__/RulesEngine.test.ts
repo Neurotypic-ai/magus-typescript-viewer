@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 
 import { RulesEngine } from '../RulesEngine';
 import { defaultRulesConfig } from '../RulesConfig';
+import { emptyParseResult } from '../../__tests__/testHelpers';
 
 import type { ParseResult } from '../../parsers/ParseResult';
 import type { CodeIssue, Rule, RuleContext } from '../Rule';
@@ -14,32 +15,20 @@ vi.mock('fs/promises', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock VueScriptExtractor so analyze() never hits the filesystem for .vue files.
+// By default getSourceOverride returns undefined, meaning .vue files are skipped.
+// ---------------------------------------------------------------------------
+const mockGetSourceOverride = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('../../parsers/VueScriptExtractor', () => ({
+  VueScriptExtractor: class MockVueScriptExtractor {
+    getSourceOverride = mockGetSourceOverride;
+  },
+}));
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Minimal empty ParseResult for tests that don't need real data. */
-function emptyParseResult(overrides?: Partial<ParseResult>): ParseResult {
-  return {
-    modules: [],
-    classes: [],
-    interfaces: [],
-    functions: [],
-    typeAliases: [],
-    enums: [],
-    variables: [],
-    methods: [],
-    properties: [],
-    parameters: [],
-    imports: [],
-    exports: [],
-    classExtends: [],
-    classImplements: [],
-    interfaceExtends: [],
-    symbolUsages: [],
-    symbolReferences: [],
-    ...overrides,
-  };
-}
 
 /** Creates a ParseResult with a single module pointing at the given file path. */
 function parseResultWithModule(filePath: string, moduleId = 'mod-1', packageId = 'pkg-1'): ParseResult {
@@ -275,10 +264,12 @@ describe('RulesEngine', () => {
   });
 
   // -------------------------------------------------------------------------
-  // analyze() — .vue file skipping
+  // analyze() — .vue file handling via VueScriptExtractor
   // -------------------------------------------------------------------------
-  describe('Vue SFC skipping', () => {
-    it('skips .vue files entirely', async () => {
+  describe('Vue SFC handling', () => {
+    it('skips .vue files when VueScriptExtractor returns no content', async () => {
+      // The default mock returns undefined from getSourceOverride,
+      // so the .vue file is skipped (no extracted script content).
       const rule = createMockRule('vue-rule');
       const parseResult = parseResultWithModule('/fake/Component.vue');
       const engine = new RulesEngine([rule]);
@@ -314,10 +305,26 @@ describe('RulesEngine', () => {
       const engine = new RulesEngine([rule]);
       await engine.analyze(parseResult);
 
-      // Only the .ts module should be processed
+      // Only the .ts module should be processed; .vue is skipped because
+      // VueScriptExtractor mock returns undefined.
       expect(readFileMock).toHaveBeenCalledTimes(1);
       expect(readFileMock).toHaveBeenCalledWith('/fake/util.ts', 'utf-8');
       expect(rule.check).toHaveBeenCalledTimes(1);
+    });
+
+    it('processes .vue files when VueScriptExtractor returns content', async () => {
+      // Override the default mock to return extracted script content
+      mockGetSourceOverride.mockResolvedValueOnce('const x: number = 1;');
+
+      const rule = createMockRule('vue-rule');
+      const parseResult = parseResultWithModule('/fake/Component.vue');
+      const engine = new RulesEngine([rule]);
+
+      await engine.analyze(parseResult);
+
+      expect(rule.check).toHaveBeenCalledTimes(1);
+      // readFile should NOT be called — .vue files go through the extractor
+      expect(readFileMock).not.toHaveBeenCalled();
     });
   });
 

@@ -80,7 +80,7 @@ export class DuckDBAdapter implements IDatabaseAdapter {
 
   constructor(
     private readonly dbPath: string,
-    private readonly config?: { allowWrite?: boolean; threads?: number; poolSize?: number }
+    private readonly config?: { allowWrite?: boolean; threads?: number; poolSize?: number; poolTimeoutMs?: number }
   ) {
     this.poolSize = config?.poolSize ?? 4;
   }
@@ -114,7 +114,25 @@ export class DuckDBAdapter implements IDatabaseAdapter {
       return Promise.resolve(available);
     }
     return new Promise<DuckDBConnection>((resolve, reject) => {
-      this.waitingForConnection.push({ resolve, reject });
+      const timeoutMs = this.config?.poolTimeoutMs ?? 30_000;
+      const waiter = {
+        resolve: (conn: DuckDBConnection) => {
+          clearTimeout(timer);
+          resolve(conn);
+        },
+        reject: (err: Error) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      };
+      const timer = setTimeout(() => {
+        const index = this.waitingForConnection.indexOf(waiter);
+        if (index !== -1) {
+          this.waitingForConnection.splice(index, 1);
+        }
+        reject(new Error(`Connection pool timeout: no connection available after ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.waitingForConnection.push(waiter);
     });
   }
 

@@ -2,6 +2,7 @@
 
 import { Export } from '../../../shared/types/Export';
 import { Import, ImportSpecifier } from '../../../shared/types/Import';
+import { emptyParseResult } from '../../__tests__/testHelpers';
 
 import type { IClassCreateDTO } from '../../db/repositories/ClassRepository';
 import type { IEnumCreateDTO } from '../../db/repositories/EnumRepository';
@@ -26,29 +27,6 @@ import type {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createEmptyParseResult(): ParseResult {
-  return {
-    package: undefined,
-    modules: [],
-    classes: [],
-    interfaces: [],
-    functions: [],
-    typeAliases: [],
-    enums: [],
-    variables: [],
-    methods: [],
-    properties: [],
-    parameters: [],
-    imports: [],
-    exports: [],
-    classExtends: [],
-    classImplements: [],
-    interfaceExtends: [],
-    symbolUsages: [],
-    symbolReferences: [],
-  };
-}
 
 function createSampleModule(overrides?: Partial<IModuleCreateDTO>): IModuleCreateDTO {
   return {
@@ -160,7 +138,7 @@ function createSamplePackage(overrides?: Partial<IPackageCreateDTO>): IPackageCr
 describe('ParseResult interface', () => {
   describe('empty ParseResult', () => {
     it('should have all required array fields initialized as empty', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
 
       expect(result.modules).toEqual([]);
       expect(result.classes).toEqual([]);
@@ -182,19 +160,19 @@ describe('ParseResult interface', () => {
     });
 
     it('should have package as undefined', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       expect(result.package).toBeUndefined();
     });
 
     it('should have importsWithModules as undefined when not set', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       expect(result.importsWithModules).toBeUndefined();
     });
   });
 
   describe('ParseResult with package', () => {
     it('should accept a package DTO', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const pkg = createSamplePackage();
       result.package = pkg;
 
@@ -210,7 +188,7 @@ describe('ParseResult interface', () => {
       const devDeps = new Map([['vitest', '^1.0.0']]);
       const peerDeps = new Map([['react', '>=18']]);
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const pkg = createSamplePackage({
         dependencies: deps,
         devDependencies: devDeps,
@@ -227,7 +205,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with modules', () => {
     it('should store a single module', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.modules.push(createSampleModule());
 
       expect(result.modules).toHaveLength(1);
@@ -237,7 +215,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store multiple modules', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.modules.push(
         createSampleModule({ id: 'mod-1', name: 'ModuleA' }),
         createSampleModule({ id: 'mod-2', name: 'ModuleB' }),
@@ -249,7 +227,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store a module with optional line_count', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const moduleWithoutLineCount = createSampleModule();
       delete moduleWithoutLineCount.line_count;
       result.modules.push(moduleWithoutLineCount);
@@ -260,7 +238,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with classes', () => {
     it('should store classes', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classes.push(createSampleClass());
 
       expect(result.classes).toHaveLength(1);
@@ -268,14 +246,14 @@ describe('ParseResult interface', () => {
     });
 
     it('should store a class with an extends_id', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classes.push(createSampleClass({ extends_id: 'parent-cls-1' }));
 
       expect(result.classes[0].extends_id).toBe('parent-cls-1');
     });
 
     it('should store a class without extends_id', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classes.push(createSampleClass());
 
       expect(result.classes[0].extends_id).toBeUndefined();
@@ -284,7 +262,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with interfaces', () => {
     it('should store interfaces', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.interfaces.push(createSampleInterface());
 
       expect(result.interfaces).toHaveLength(1);
@@ -295,7 +273,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with functions', () => {
     it('should store functions with all optional fields', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.functions.push(
         createSampleFunction({
           return_type: 'Promise<void>',
@@ -314,7 +292,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store functions without optional fields', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.functions.push(createSampleFunction());
 
       expect(result.functions[0].return_type).toBeUndefined();
@@ -332,7 +310,7 @@ describe('ParseResult interface', () => {
         name: 'StringOrNumber',
         type: 'string | number',
       };
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.typeAliases.push(alias);
 
       expect(result.typeAliases).toHaveLength(1);
@@ -349,7 +327,7 @@ describe('ParseResult interface', () => {
         type: 'T | null',
         type_parameters_json: JSON.stringify([{ name: 'T' }]),
       };
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.typeAliases.push(alias);
 
       const json = result.typeAliases[0].type_parameters_json;
@@ -368,7 +346,7 @@ describe('ParseResult interface', () => {
         name: 'Direction',
         members_json: JSON.stringify(['North', 'South', 'East', 'West']),
       };
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.enums.push(enumDTO);
 
       expect(result.enums).toHaveLength(1);
@@ -383,7 +361,7 @@ describe('ParseResult interface', () => {
         module_id: 'mod-1',
         name: 'Empty',
       };
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.enums.push(enumDTO);
 
       expect(result.enums[0].members_json).toBeUndefined();
@@ -401,7 +379,7 @@ describe('ParseResult interface', () => {
         type: 'number',
         initializer: '100',
       };
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.variables.push(variable);
 
       expect(result.variables).toHaveLength(1);
@@ -411,7 +389,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store let and var declarations', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.variables.push(
         { id: 'var-1', package_id: 'pkg-1', module_id: 'mod-1', name: 'x', kind: 'let' },
         { id: 'var-2', package_id: 'pkg-1', module_id: 'mod-1', name: 'y', kind: 'var' }
@@ -425,7 +403,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with methods', () => {
     it('should store class methods', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.methods.push(createSampleMethod());
 
       expect(result.methods).toHaveLength(1);
@@ -434,7 +412,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store interface methods', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.methods.push(
         createSampleMethod({
           id: 'meth-2',
@@ -449,7 +427,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store async static methods', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.methods.push(
         createSampleMethod({
           is_async: true,
@@ -465,7 +443,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with properties', () => {
     it('should store class properties', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.properties.push(createSampleProperty());
 
       expect(result.properties).toHaveLength(1);
@@ -474,7 +452,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store optional readonly properties', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.properties.push(
         createSampleProperty({
           is_optional: true,
@@ -491,7 +469,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with parameters', () => {
     it('should store method parameters', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.parameters.push(createSampleParameter());
 
       expect(result.parameters).toHaveLength(1);
@@ -502,7 +480,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store optional and rest parameters', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.parameters.push(
         createSampleParameter({ id: 'param-1', name: 'optional', is_optional: true, default_value: "'default'" }),
         createSampleParameter({ id: 'param-2', name: 'rest', type: 'string[]', is_rest: true })
@@ -517,7 +495,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with imports and exports', () => {
     it('should store imports', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const importObj = new Import('imp-uuid-1', 'react', './node_modules/react', 'react');
       result.imports.push(importObj);
 
@@ -527,7 +505,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store imports with specifiers', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const specifiers = new Map<string, ImportSpecifier>();
       specifiers.set('useState', new ImportSpecifier('spec-1', 'useState', 'value'));
       specifiers.set('useEffect', new ImportSpecifier('spec-2', 'useEffect', 'value'));
@@ -540,7 +518,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store exports', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const exportObj = new Export('exp-uuid-1', 'mod-1', 'MyComponent', false);
       result.exports.push(exportObj);
 
@@ -551,7 +529,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store default exports', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const exportObj = new Export('exp-uuid-2', 'mod-1', 'default', true);
       result.exports.push(exportObj);
 
@@ -559,7 +537,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should store re-exports with exportedFrom', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const exportObj = new Export('exp-uuid-3', 'mod-1', 'SomeType', false, 'SomeType', 'mod-2');
       result.exports.push(exportObj);
 
@@ -570,7 +548,7 @@ describe('ParseResult interface', () => {
 
   describe('ParseResult with importsWithModules', () => {
     it('should store importsWithModules when provided', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const importObj = new Import('imp-uuid-1', 'lodash', './node_modules/lodash', 'lodash');
       const entry = { import: importObj, moduleId: 'mod-1' };
       result.importsWithModules = [entry];
@@ -581,7 +559,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should allow multiple entries in importsWithModules', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       const imp1 = new Import('imp-1', 'react', './node_modules/react', 'react');
       const imp2 = new Import('imp-2', 'vue', './node_modules/vue', 'vue');
       result.importsWithModules = [
@@ -600,7 +578,7 @@ describe('ParseResult interface', () => {
         parentName: 'BaseClass',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classExtends.push(ref);
 
       expect(result.classExtends).toHaveLength(1);
@@ -616,14 +594,14 @@ describe('ParseResult interface', () => {
         parentId: 'cls-base',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classExtends.push(ref);
 
       expect(result.classExtends[0].parentId).toBe('cls-base');
     });
 
     it('should store multiple class extends references', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classExtends.push(
         { classId: 'cls-1', parentName: 'BaseA' },
         { classId: 'cls-2', parentName: 'BaseB' },
@@ -642,7 +620,7 @@ describe('ParseResult interface', () => {
         interfaceName: 'Serializable',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classImplements.push(ref);
 
       expect(result.classImplements).toHaveLength(1);
@@ -658,14 +636,14 @@ describe('ParseResult interface', () => {
         interfaceId: 'iface-ser',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classImplements.push(ref);
 
       expect(result.classImplements[0].interfaceId).toBe('iface-ser');
     });
 
     it('should store multiple implements for the same class', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classImplements.push(
         { classId: 'cls-1', interfaceName: 'Serializable' },
         { classId: 'cls-1', interfaceName: 'Disposable' },
@@ -684,7 +662,7 @@ describe('ParseResult interface', () => {
         parentName: 'BaseInterface',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.interfaceExtends.push(ref);
 
       expect(result.interfaceExtends).toHaveLength(1);
@@ -700,14 +678,14 @@ describe('ParseResult interface', () => {
         parentId: 'iface-base',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.interfaceExtends.push(ref);
 
       expect(result.interfaceExtends[0].parentId).toBe('iface-base');
     });
 
     it('should store multiple interface extends (multiple inheritance)', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.interfaceExtends.push(
         { interfaceId: 'iface-1', parentName: 'Readable' },
         { interfaceId: 'iface-1', parentName: 'Writable' }
@@ -730,7 +708,7 @@ describe('ParseResult interface', () => {
         targetKind: 'method',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.symbolUsages.push(usage);
 
       expect(result.symbolUsages).toHaveLength(1);
@@ -748,7 +726,7 @@ describe('ParseResult interface', () => {
         targetKind: 'property',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.symbolUsages.push(usage);
 
       expect(result.symbolUsages[0].sourceSymbolType).toBe('function');
@@ -766,7 +744,7 @@ describe('ParseResult interface', () => {
         qualifierName: 'Array',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.symbolUsages.push(usage);
 
       expect(result.symbolUsages[0].qualifierName).toBe('Array');
@@ -781,7 +759,7 @@ describe('ParseResult interface', () => {
         targetKind: 'method',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.symbolUsages.push(usage);
 
       expect(result.symbolUsages[0].sourceSymbolId).toBe('meth-1');
@@ -803,7 +781,7 @@ describe('ParseResult interface', () => {
         access_kind: 'property',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.symbolReferences.push(ref);
 
       expect(result.symbolReferences).toHaveLength(1);
@@ -823,7 +801,7 @@ describe('ParseResult interface', () => {
         access_kind: 'method',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.symbolReferences.push(ref);
 
       expect(result.symbolReferences[0].source_symbol_id).toBeUndefined();
@@ -844,7 +822,7 @@ describe('ParseResult interface', () => {
         qualifier_name: 'Array',
       };
 
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.symbolReferences.push(ref);
 
       expect(result.symbolReferences[0].qualifier_name).toBe('Array');
@@ -936,7 +914,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should hold large numbers of entities', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
 
       for (let i = 0; i < 100; i++) {
         const idx = String(i);
@@ -959,16 +937,16 @@ describe('ParseResult interface', () => {
 
   describe('merging two ParseResult objects', () => {
     it('should allow concatenation of arrays from two results', () => {
-      const result1 = createEmptyParseResult();
+      const result1 = emptyParseResult();
       result1.classes.push(createSampleClass({ id: 'cls-1', name: 'ClassA' }));
       result1.modules.push(createSampleModule({ id: 'mod-1', name: 'ModuleA' }));
 
-      const result2 = createEmptyParseResult();
+      const result2 = emptyParseResult();
       result2.classes.push(createSampleClass({ id: 'cls-2', name: 'ClassB' }));
       result2.modules.push(createSampleModule({ id: 'mod-2', name: 'ModuleB' }));
 
       const merged: ParseResult = {
-        ...createEmptyParseResult(),
+        ...emptyParseResult(),
         modules: [...result1.modules, ...result2.modules],
         classes: [...result1.classes, ...result2.classes],
         interfaces: [...result1.interfaces, ...result2.interfaces],
@@ -998,7 +976,7 @@ describe('ParseResult interface', () => {
   describe('deferred resolution pattern', () => {
     it('should support the deferred name-to-UUID resolution workflow', () => {
       // Step 1: Parser creates refs with names only (no IDs yet)
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classes.push(
         createSampleClass({ id: 'cls-child', name: 'ChildClass' }),
         createSampleClass({ id: 'cls-parent', name: 'ParentClass' })
@@ -1021,7 +999,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should support resolving class implements references', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classes.push(createSampleClass({ id: 'cls-impl', name: 'MyService' }));
       result.interfaces.push(createSampleInterface({ id: 'iface-svc', name: 'IService' }));
       result.classImplements.push({
@@ -1039,7 +1017,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should support resolving interface extends references', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.interfaces.push(
         createSampleInterface({ id: 'iface-child', name: 'ReadWriteStream' }),
         createSampleInterface({ id: 'iface-parent', name: 'ReadableStream' })
@@ -1061,14 +1039,14 @@ describe('ParseResult interface', () => {
 
   describe('edge cases', () => {
     it('should handle classes with empty string names', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.classes.push(createSampleClass({ name: '' }));
 
       expect(result.classes[0].name).toBe('');
     });
 
     it('should handle modules with minimal source information', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       result.modules.push({
         id: 'mod-min',
         package_id: 'pkg-1',
@@ -1100,7 +1078,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should allow mutating arrays in place (push pattern used by parser)', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
 
       // This mirrors how ModuleParser builds up the result
       result.classes.push(createSampleClass());
@@ -1115,7 +1093,7 @@ describe('ParseResult interface', () => {
     });
 
     it('should allow reassigning the package field', () => {
-      const result = createEmptyParseResult();
+      const result = emptyParseResult();
       expect(result.package).toBeUndefined();
 
       result.package = createSamplePackage();

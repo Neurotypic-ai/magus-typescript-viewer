@@ -441,8 +441,8 @@ describe('generateRelationshipUUID', () => {
     expect(first).toBe(second);
   });
 
-  it('constructs key as rel:type:sourceId:targetId using class namespace', () => {
-    const direct = generateUUID('class', 'rel:extends:source-id:target-id');
+  it('constructs key as rel:type:sourceId:targetId using relationship namespace', () => {
+    const direct = generateUUID('relationship', 'rel:extends:source-id:target-id');
     const helper = generateRelationshipUUID('source-id', 'target-id', 'extends');
     expect(helper).toBe(direct);
   });

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
@@ -119,7 +120,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
       return dto;
     } catch (error) {
       throw new RepositoryError(
-        `Failed to create import: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to create import: ${getErrorMessage(error)}`,
         'create',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -158,7 +159,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
         throw error;
       }
       throw new RepositoryError(
-        `Failed to update import: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to update import: ${getErrorMessage(error)}`,
         'update',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -182,7 +183,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
       return this.mapToEntity(row);
     } catch (error) {
       throw new RepositoryError(
-        `Failed to retrieve import by id: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to retrieve import by id: ${getErrorMessage(error)}`,
         'retrieveById',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -211,7 +212,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
       return results.map((row) => this.mapToEntity(row));
     } catch (error) {
       throw new RepositoryError(
-        `Failed to retrieve imports: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to retrieve imports: ${getErrorMessage(error)}`,
         'retrieve',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -224,7 +225,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
       await this.executeQuery('delete', 'DELETE FROM imports WHERE id = ?', [id]);
     } catch (error) {
       throw new RepositoryError(
-        `Failed to delete import: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to delete import: ${getErrorMessage(error)}`,
         'delete',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -251,7 +252,7 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
       return results.map((row) => this.mapToEntity(row));
     } catch (error) {
       throw new RepositoryError(
-        `Failed to retrieve imports by module IDs: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to retrieve imports by module IDs: ${getErrorMessage(error)}`,
         'retrieveByModuleIds',
         this.errorTag,
         error instanceof Error ? error : undefined

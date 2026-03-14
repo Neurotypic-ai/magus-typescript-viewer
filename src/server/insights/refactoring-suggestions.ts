@@ -218,10 +218,12 @@ const suggestionGenerators: Partial<Record<InsightResult['type'], SuggestionGene
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
+export function enrichSingle(insight: InsightResult, graph: ImportGraph): EnrichedInsight {
+  const generator = suggestionGenerators[insight.type];
+  const suggestions = generator ? generator(insight, graph) : [];
+  return { ...insight, suggestions };
+}
+
 export function enrichWithSuggestions(insights: InsightResult[], graph: ImportGraph): EnrichedInsight[] {
-  return insights.map((insight) => {
-    const generator = suggestionGenerators[insight.type];
-    const suggestions = generator ? generator(insight, graph) : [];
-    return { ...insight, suggestions };
-  });
+  return insights.map((insight) => enrichSingle(insight, graph));
 }

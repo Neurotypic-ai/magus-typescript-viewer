@@ -22,6 +22,7 @@ export interface ITypeAliasCreateDTO {
   name: string;
   type: string;
   type_parameters_json?: string | undefined;
+  description?: string | undefined;
 }
 
 interface ITypeAliasUpdateDTO {

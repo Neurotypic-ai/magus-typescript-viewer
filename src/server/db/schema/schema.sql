@@ -23,6 +23,10 @@ CREATE TABLE dependencies (
   CHECK (source_id != target_id)
 );
 
+-- Indexes for dependency lookups
+CREATE INDEX idx_dependencies_source_id ON dependencies (source_id);
+CREATE INDEX idx_dependencies_target_id ON dependencies (target_id);
+
 -- Modules table with enhanced file location tracking
 CREATE TABLE modules (
   id CHAR(36) PRIMARY KEY,
@@ -48,6 +52,9 @@ CREATE TABLE module_tests (
   test_path TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
+
+-- Index for module_tests lookups
+CREATE INDEX idx_module_tests_module_id ON module_tests (module_id);
 
 -- Classes table with denormalized package_id and module_id
 CREATE TABLE classes (

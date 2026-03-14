@@ -23,7 +23,7 @@ const DRAG_END_ONLY_THRESHOLD = 700;
 const DRAG_POSITION_EPSILON = 0.01;
 
 /** Delay before applying folder contraction (ms). Expansion is always instant. */
-const FOLDER_CONTRACTION_DELAY_MS = 400;
+const FOLDER_CONTRACTION_DELAY_MS = 200;
 
 /** Map of strategyId -> { optionKey -> value }. Matches StrategyOptionsById from collisionResolver. */
 export type CollisionStrategyOptionsById = Record<string, Record<string, unknown>>;
@@ -159,6 +159,7 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
   const userPinnedNodeIds = ref<Set<string>>(new Set());
   const lastCollisionResult = ref<CollisionResult | null>(null);
   let collisionDimensionTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastLiveDragSettleTimestamp = 0;
 
   // Pending folder contraction timers — instant expand, delayed contract
   const contractionTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -477,6 +478,13 @@ export function useCollisionResolution(options: UseCollisionResolutionOptions): 
       // For very large graphs, only resolve on drag-end
       if (nodeCount > DRAG_END_ONLY_THRESHOLD && hasLiveDrag && !hasDragEnd) {
         return;
+      }
+
+      // Throttle live-drag settling to ~30fps; drag-end always fires immediately
+      if (hasLiveDrag && !hasDragEnd) {
+        const now = performance.now();
+        if (now - lastLiveDragSettleTimestamp < 33) return; // 30fps cap
+        lastLiveDragSettleTimestamp = now;
       }
 
       const settleAnchors = dragLifecycleIds.size > 0 ? dragLifecycleIds : dragPositionIds;

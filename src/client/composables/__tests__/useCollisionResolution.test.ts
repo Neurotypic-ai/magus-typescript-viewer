@@ -335,8 +335,8 @@ describe('useCollisionResolution', () => {
       });
       expect(anyFolderSizeUpdate).toBe(false);
 
-      // After delay, contraction should be applied
-      vi.advanceTimersByTime(400);
+      // After delay (200ms), contraction should be applied
+      vi.advanceTimersByTime(200);
       const delayedCalls = updateNodesById.mock.calls;
       const folderContracted = delayedCalls.some((call) => {
         const updates = call[0] as Map<string, DependencyNode>;
@@ -360,8 +360,8 @@ describe('useCollisionResolution', () => {
       );
       collision.handleNodesChange([makePositionChange('a', 40, 40, false)]);
 
-      // Advance partway through the delay
-      vi.advanceTimersByTime(200);
+      // Advance partway through the delay (contraction delay is 200ms)
+      vi.advanceTimersByTime(100);
 
       // Now trigger expansion — should cancel the pending contraction
       vi.mocked(resolveCollisions).mockReturnValue(

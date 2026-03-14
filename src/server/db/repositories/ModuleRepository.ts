@@ -170,7 +170,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
         this.logger.warn(`Failed to parse source JSON for module ${mod.id}, creating fallback`, error);
         source = {
           directory: String(mod['directory'] ?? ''),
-          name: String(mod.name),
+          name: String(mod['filename'] ?? ''),
           filename: String(mod['filename'] ?? ''),
           relativePath: String(mod['relative_path'] ?? ''),
         };
@@ -179,7 +179,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
       // Create fallback FileLocation from denormalized fields
       source = {
         directory: String(mod['directory'] ?? ''),
-        name: String(mod.name),
+        name: String(mod['filename'] ?? ''),
         filename: String(mod['filename'] ?? ''),
         relativePath: String(mod['relative_path'] ?? ''),
       };
@@ -204,7 +204,9 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
     );
   }
 
-  async retrieve(id?: string, module_id?: string): Promise<Module[]> {
+  // NOTE: The second parameter is named `_module_id` to match the BaseRepository signature,
+  // but it is actually used as `package_id` to filter modules by their parent package.
+  async retrieve(id?: string, _module_id?: string): Promise<Module[]> {
     try {
       let query = 'SELECT * FROM modules';
       const params: DuckDBValue[] = [];
@@ -215,9 +217,9 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
         params.push(id);
       }
 
-      if (module_id !== undefined) {
+      if (_module_id !== undefined) {
         conditions.push('package_id = ?');
-        params.push(module_id);
+        params.push(_module_id);
       }
 
       if (conditions.length > 0) {

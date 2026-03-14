@@ -6,7 +6,7 @@ import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
 import { traverseGraph } from '../graph/traversal';
 import { getEdgeStyle } from '../theme/graphTheme';
 import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../graph/buildGraphView';
-import { mergeNodeInteractionStyle, stripNodeClass } from '../theme/graphClasses';
+import { mergeNodeInteractionStyle, stripNodeClassExcluding } from '../theme/graphClasses';
 import { waitForNextPaint } from '../utils/dom';
 
 import type { Ref } from 'vue';
@@ -183,7 +183,8 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
 
     const centerDims = resolveNodeDims(centerNode);
     const GAP = 150;
-    const STACK_GAP = 40;
+    const maxNodeHeight = Math.max(40, ...allNodes.map(n => resolveNodeDims(n).h));
+    const STACK_GAP = Math.max(40, Math.round(maxNodeHeight * 0.15));
     const isHorizontal = direction === 'LR' || direction === 'RL';
     const isReversed = direction === 'RL' || direction === 'BT';
 
@@ -347,7 +348,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
       node: DependencyNode,
       layoutPositions?: NodePositionMap
     ) => {
-      const baseNode = stripNodeClass(node);
+      const baseNode = stripNodeClassExcluding(node);
       const layoutPos = layoutPositions?.get(node.id);
       return {
         ...baseNode,

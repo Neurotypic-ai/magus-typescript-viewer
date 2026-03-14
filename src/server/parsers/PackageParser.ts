@@ -1,12 +1,17 @@
+import { createLogger } from '../../shared/utils/logger';
 import { generatePackageUUID } from '../utils/uuid';
 import { DependencyParser } from './DependencyParser';
 import { FileDiscovery, DEFAULT_FILE_DISCOVERY_CONFIG } from './FileDiscovery';
 import { ModuleParser } from './ModuleParser';
 import { RelationshipResolver } from './RelationshipResolver';
 import { VueScriptExtractor } from './VueScriptExtractor';
+import { detectCircularDependencies } from './utils/detectCircularDependencies';
 
 import type { Export } from '../../shared/types/Export';
 import type { Import } from '../../shared/types/Import';
+import type { CallEdge } from './utils/extractCallGraph';
+import type { CircularDependency } from './utils/detectCircularDependencies';
+import type { ModuleDescriptor } from './utils/detectCircularDependencies';
 import type { IClassCreateDTO } from '../db/repositories/ClassRepository';
 import type { IEnumCreateDTO } from '../db/repositories/EnumRepository';
 import type { IFunctionCreateDTO } from '../db/repositories/FunctionRepository';
@@ -56,6 +61,7 @@ export class PackageParser {
   private readonly dependencyParser: DependencyParser;
   private readonly relationshipResolver: RelationshipResolver;
   private readonly config: FileDiscoveryConfig;
+  private readonly logger = createLogger('PackageParser');
 
   constructor(
     private readonly packagePath: string,
@@ -99,6 +105,25 @@ export class PackageParser {
 
     // 5. Collect results from all modules
     const collected = this.collectModuleResults(parseResults);
+
+    // 5a. Detect circular dependencies among parsed modules
+    const moduleDescriptors: ModuleDescriptor[] = collected.modules.map((m) => {
+      const modulePath = m.source.relativePath;
+      const moduleImports = collected.importsWithModules
+        .filter((entry) => entry.moduleId === m.id)
+        .map((entry) => ({ source: entry.import.relativePath }));
+      return { path: modulePath, imports: moduleImports };
+    });
+    const circularDependencies: CircularDependency[] = detectCircularDependencies(moduleDescriptors);
+    if (circularDependencies.length > 0) {
+      this.logger.info(`Found ${circularDependencies.length} circular dependencies`);
+    }
+
+    // 5b. Collect call edges from per-module results
+    // TODO: Call graph extraction (extractCallEdges) needs to happen during AST parsing
+    // in ModuleParser where function body AST nodes are available. Once ModuleParser
+    // populates callEdges on each module's ParseResult, they will be aggregated here.
+    const callEdges: CallEdge[] = collected.callEdges;
 
     // 6. Build name lookup maps
     const classNameToIds = new Map<string, Set<string>>();
@@ -152,6 +177,8 @@ export class PackageParser {
       interfaceExtends: resolved.interfaceExtends,
       symbolUsages: collected.symbolUsages,
       symbolReferences: uniqueById(symbolReferences),
+      circularDependencies,
+      callEdges,
     };
   }
 
@@ -173,6 +200,7 @@ export class PackageParser {
     const rawClassImplements: ClassImplementsRef[] = [];
     const rawInterfaceExtends: InterfaceExtendsRef[] = [];
     const symbolUsages: SymbolUsageRef[] = [];
+    const callEdges: CallEdge[] = [];
 
     for (const moduleResult of parseResults) {
       const moduleId = moduleResult.modules[0]?.id ?? '';
@@ -185,18 +213,21 @@ export class PackageParser {
       enums.push(...moduleResult.enums);
       variables.push(...moduleResult.variables);
       methods.push(...moduleResult.methods);
-      moduleResult.properties.forEach((property) => properties.push(property));
-      moduleResult.parameters.forEach((parameter) => parameters.push(parameter));
-      moduleResult.imports.forEach((imp) => {
+      properties.push(...moduleResult.properties);
+      parameters.push(...moduleResult.parameters);
+      moduleExports.push(...moduleResult.exports);
+      for (const imp of moduleResult.imports) {
         moduleImports.push(imp);
         importsWithModules.push({ import: imp, moduleId });
-      });
-      moduleResult.exports.forEach((exp) => moduleExports.push(exp));
+      }
 
       rawClassExtends.push(...moduleResult.classExtends);
       rawClassImplements.push(...moduleResult.classImplements);
       rawInterfaceExtends.push(...moduleResult.interfaceExtends);
       symbolUsages.push(...moduleResult.symbolUsages);
+      if (moduleResult.callEdges && moduleResult.callEdges.length > 0) {
+        callEdges.push(...moduleResult.callEdges);
+      }
     }
 
     return {
@@ -217,6 +248,7 @@ export class PackageParser {
       rawClassImplements,
       rawInterfaceExtends,
       symbolUsages,
+      callEdges,
     };
   }
 }
@@ -239,6 +271,7 @@ interface CollectedModuleData {
   rawClassImplements: ClassImplementsRef[];
   rawInterfaceExtends: InterfaceExtendsRef[];
   symbolUsages: SymbolUsageRef[];
+  callEdges: CallEdge[];
 }
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {

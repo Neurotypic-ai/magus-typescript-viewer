@@ -179,28 +179,20 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
 
   async update(id: string, dto: IPackageUpdateDTO): Promise<Package> {
     try {
-      const updates: string[] = [];
-      const values: string[] = [];
+      const updates = [
+        { field: 'name', value: (dto.name as DuckDBValue) ?? undefined },
+        { field: 'version', value: (dto.version as DuckDBValue) ?? undefined },
+        { field: 'path', value: (dto.path as DuckDBValue) ?? undefined },
+      ] satisfies { field: string; value: DuckDBValue | undefined }[];
 
-      if (dto.name !== undefined) {
-        updates.push('name = ?');
-        values.push(dto.name);
-      }
-      if (dto.version !== undefined) {
-        updates.push('version = ?');
-        values.push(dto.version);
-      }
-      if (dto.path !== undefined) {
-        updates.push('path = ?');
-        values.push(dto.path);
-      }
+      const { query, values } = this.buildUpdateQuery(updates);
 
-      if (updates.length === 0) {
+      if (!query) {
         throw new NoFieldsToUpdateError('Package', this.errorTag);
       }
 
       values.push(id);
-      await this.executeQuery<IPackageRow>('update', `UPDATE packages SET ${updates.join(', ')} WHERE id = ?`, values);
+      await this.executeQuery<IPackageRow>('update', `UPDATE packages SET ${query} WHERE id = ?`, values);
 
       const result = await this.retrieveById(id);
       if (!result) {
@@ -252,18 +244,23 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         new Map()
       );
     } catch (error) {
-      this.logger.error('Dependency hydration failed, returning package without dependencies', error as Error);
-      return new Package(
-        String(pkg.id),
-        String(pkg.name),
-        String(pkg.version),
-        String(pkg.path),
-        new Date(String(pkg.created_at)),
-        new Map(),
-        new Map(),
-        new Map(),
-        new Map()
-      );
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.includes('does not exist') || msg.includes('Table') || msg.includes('not found')) {
+        this.logger.warn('Dependency hydration failed (table may not exist), returning package without dependencies', error as Error);
+        return new Package(
+          String(pkg.id),
+          String(pkg.name),
+          String(pkg.version),
+          String(pkg.path),
+          new Date(String(pkg.created_at)),
+          new Map(),
+          new Map(),
+          new Map(),
+          new Map()
+        );
+      }
+      this.logger.error('Dependency hydration failed', error as Error);
+      throw new RepositoryError('Failed to hydrate package dependencies', 'createPackageWithDependencies', this.errorTag, error as Error);
     }
   }
 

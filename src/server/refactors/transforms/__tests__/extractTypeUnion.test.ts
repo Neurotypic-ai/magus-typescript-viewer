@@ -47,7 +47,6 @@ describe('extractTypeUnion context validation', () => {
         parentName: 'Foo',
         parentType: 'interface',
         propertyName: 'bar',
-        unionMembers: ['string', 'number'],
       }),
     ).toThrow('Invalid context');
   });
@@ -58,7 +57,6 @@ describe('extractTypeUnion context validation', () => {
         suggestedName: 'BarType',
         parentType: 'interface',
         propertyName: 'bar',
-        unionMembers: ['string', 'number'],
       }),
     ).toThrow('Invalid context');
   });
@@ -69,7 +67,6 @@ describe('extractTypeUnion context validation', () => {
         suggestedName: 'BarType',
         parentName: 'Foo',
         propertyName: 'bar',
-        unionMembers: ['string', 'number'],
       }),
     ).toThrow('Invalid context');
   });
@@ -80,30 +77,6 @@ describe('extractTypeUnion context validation', () => {
         suggestedName: 'BarType',
         parentName: 'Foo',
         parentType: 'interface',
-        unionMembers: ['string', 'number'],
-      }),
-    ).toThrow('Invalid context');
-  });
-
-  it('throws when unionMembers is missing', () => {
-    expect(() =>
-      run(source, {
-        suggestedName: 'BarType',
-        parentName: 'Foo',
-        parentType: 'interface',
-        propertyName: 'bar',
-      }),
-    ).toThrow('Invalid context');
-  });
-
-  it('throws when unionMembers is not an array', () => {
-    expect(() =>
-      run(source, {
-        suggestedName: 'BarType',
-        parentName: 'Foo',
-        parentType: 'interface',
-        propertyName: 'bar',
-        unionMembers: 'string | number',
       }),
     ).toThrow('Invalid context');
   });
@@ -124,7 +97,6 @@ describe('extractTypeUnion on interfaces', () => {
       parentName: 'Config',
       parentType: 'interface',
       propertyName: 'mode',
-      unionMembers: ['development', 'production', 'test'],
     });
 
     // The new type alias should appear before the interface
@@ -149,7 +121,6 @@ describe('extractTypeUnion on interfaces', () => {
       parentName: 'Value',
       parentType: 'interface',
       propertyName: 'data',
-      unionMembers: ['string', 'number', 'boolean'],
     });
 
     expect(result).toContain('type DataType');
@@ -165,7 +136,6 @@ describe('extractTypeUnion on interfaces', () => {
         parentName: 'Missing',
         parentType: 'interface',
         propertyName: 'x',
-        unionMembers: ['number'],
       }),
     ).toThrow("Interface 'Missing' not found");
   });
@@ -179,7 +149,6 @@ describe('extractTypeUnion on interfaces', () => {
         parentName: 'Config',
         parentType: 'interface',
         propertyName: 'nonexistent',
-        unionMembers: ['string', 'number'],
       }),
     ).toThrow("Property 'nonexistent' not found on interface 'Config'");
   });
@@ -193,7 +162,6 @@ describe('extractTypeUnion on interfaces', () => {
         parentName: 'Config',
         parentType: 'interface',
         propertyName: 'mode',
-        unionMembers: ['string'],
       }),
     ).toThrow("does not have a union type annotation");
   });
@@ -208,7 +176,6 @@ describe('extractTypeUnion on interfaces', () => {
       parentName: 'Settings',
       parentType: 'interface',
       propertyName: 'theme',
-      unionMembers: ['light', 'dark'],
     });
 
     // The type alias should also be exported
@@ -227,7 +194,6 @@ describe('extractTypeUnion on interfaces', () => {
       parentName: 'Internal',
       parentType: 'interface',
       propertyName: 'status',
-      unionMembers: ['active', 'inactive'],
     });
 
     expect(result).toContain('type Status');
@@ -250,12 +216,56 @@ describe('extractTypeUnion on interfaces', () => {
       parentName: 'Config',
       parentType: 'interface',
       propertyName: 'level',
-      unionMembers: ['info', 'warn', 'error'],
     });
 
     expect(result).toContain('name: string');
     expect(result).toContain('level: LogLevel');
     expect(result).toContain('count: number');
+  });
+
+  it('throws when multiple interfaces share the same name', () => {
+    const source = `interface Foo { bar: string | number; }\ninterface Foo { baz: boolean | string; }`;
+    expect(() =>
+      run(source, {
+        suggestedName: 'BarType',
+        parentName: 'Foo',
+        parentType: 'interface',
+        propertyName: 'bar',
+      }),
+    ).toThrow('Multiple declarations');
+  });
+
+  it('handles export default interface without exporting the type alias', () => {
+    const source = `export default interface Settings { theme: "light" | "dark"; }`;
+    const result = run(source, {
+      suggestedName: 'Theme',
+      parentName: 'Settings',
+      parentType: 'interface',
+      propertyName: 'theme',
+    });
+    expect(result).toContain('type Theme');
+    expect(result).toContain('theme: Theme');
+    // The type alias should NOT be default-exported
+    expect(result).not.toContain('export type Theme');
+    expect(result).not.toContain('export default type');
+  });
+
+  it('handles multiline union types', () => {
+    const source = `interface Config {
+  level:
+    | "debug"
+    | "info"
+    | "warn"
+    | "error";
+}`;
+    const result = run(source, {
+      suggestedName: 'LogLevel',
+      parentName: 'Config',
+      parentType: 'interface',
+      propertyName: 'level',
+    });
+    expect(result).toContain('type LogLevel');
+    expect(result).toContain('level: LogLevel');
   });
 });
 
@@ -274,7 +284,6 @@ describe('extractTypeUnion on classes', () => {
       parentName: 'Widget',
       parentType: 'class',
       propertyName: 'variant',
-      unionMembers: ['primary', 'secondary', 'danger'],
     });
 
     expect(result).toContain('type Variant');
@@ -291,7 +300,6 @@ describe('extractTypeUnion on classes', () => {
         parentName: 'Missing',
         parentType: 'class',
         propertyName: 'x',
-        unionMembers: ['string', 'number'],
       }),
     ).toThrow("Class 'Missing' not found");
   });
@@ -305,7 +313,6 @@ describe('extractTypeUnion on classes', () => {
         parentName: 'Widget',
         parentType: 'class',
         propertyName: 'nonexistent',
-        unionMembers: ['a', 'b'],
       }),
     ).toThrow("Property 'nonexistent' not found on class 'Widget'");
   });
@@ -319,7 +326,6 @@ describe('extractTypeUnion on classes', () => {
         parentName: 'Widget',
         parentType: 'class',
         propertyName: 'variant',
-        unionMembers: ['string'],
       }),
     ).toThrow("does not have a union type annotation");
   });
@@ -334,7 +340,6 @@ describe('extractTypeUnion on classes', () => {
       parentName: 'AppState',
       parentType: 'class',
       propertyName: 'phase',
-      unionMembers: ['loading', 'ready', 'error'],
     });
 
     expect(result).toContain('export type Phase');
@@ -351,7 +356,6 @@ describe('extractTypeUnion on classes', () => {
       parentName: 'InternalState',
       parentType: 'class',
       propertyName: 'phase',
-      unionMembers: ['loading', 'ready'],
     });
 
     expect(result).toContain('type Phase');
@@ -359,6 +363,49 @@ describe('extractTypeUnion on classes', () => {
     const typeAliasLine = lines.find((l) => l.includes('type Phase'));
     expect(typeAliasLine).toBeDefined();
     expect(typeAliasLine).not.toMatch(/^export\s/);
+  });
+
+  it('throws when multiple classes share the same name (parser rejects duplicate identifiers)', () => {
+    // Unlike interfaces, duplicate class names are a parse error in JS/TS,
+    // so the jscodeshift parser itself rejects this before our transform runs.
+    const source = `class Foo { bar: string | number; }\nclass Foo { baz: boolean | string; }`;
+    expect(() =>
+      run(source, {
+        suggestedName: 'BarType',
+        parentName: 'Foo',
+        parentType: 'class',
+        propertyName: 'bar',
+      }),
+    ).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Name conflict detection
+// ---------------------------------------------------------------------------
+describe('extractTypeUnion name conflict detection', () => {
+  it('throws when suggested name conflicts with existing type alias', () => {
+    const source = `type Mode = "a";\ninterface Config { mode: "dev" | "prod"; }`;
+    expect(() =>
+      run(source, {
+        suggestedName: 'Mode',
+        parentName: 'Config',
+        parentType: 'interface',
+        propertyName: 'mode',
+      }),
+    ).toThrow('already exists');
+  });
+
+  it('throws when suggested name conflicts with existing type alias for class', () => {
+    const source = `type Variant = "x";\nclass Widget { variant: "a" | "b"; }`;
+    expect(() =>
+      run(source, {
+        suggestedName: 'Variant',
+        parentName: 'Widget',
+        parentType: 'class',
+        propertyName: 'variant',
+      }),
+    ).toThrow('already exists');
   });
 });
 
@@ -376,7 +423,6 @@ describe('extractTypeUnion output validity', () => {
       parentName: 'Options',
       parentType: 'interface',
       propertyName: 'format',
-      unionMembers: ['json', 'csv', 'xml'],
     });
 
     // Should not throw when re-parsed
@@ -393,7 +439,6 @@ describe('extractTypeUnion output validity', () => {
       parentName: 'Logger',
       parentType: 'class',
       propertyName: 'level',
-      unionMembers: ['debug', 'info', 'warn', 'error'],
     });
 
     expect(() => j(result)).not.toThrow();
@@ -409,7 +454,6 @@ describe('extractTypeUnion output validity', () => {
       parentName: 'Foo',
       parentType: 'interface',
       propertyName: 'bar',
-      unionMembers: ['a', 'b'],
     });
 
     const typeAliasIndex = result.indexOf('type BarType');
@@ -428,7 +472,6 @@ describe('extractTypeUnion output validity', () => {
       parentName: 'Foo',
       parentType: 'class',
       propertyName: 'bar',
-      unionMembers: ['a', 'b'],
     });
 
     const typeAliasIndex = result.indexOf('type BarType');

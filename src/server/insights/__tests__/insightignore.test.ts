@@ -55,23 +55,27 @@ describe('parseInsightIgnore', () => {
     const rules = parseInsightIgnore(
       'circular-imports:src/legacy/**\nmodule-size:src/generated/**',
     );
-    expect(rules.kindFilePatterns.get('circular-imports')).toEqual(['src/legacy/**']);
-    expect(rules.kindFilePatterns.get('module-size')).toEqual(['src/generated/**']);
+    expect(rules.kindFilePatterns.get('circular-imports')).toHaveLength(1);
+    expect(rules.kindFilePatterns.get('circular-imports')![0]!.test('src/legacy/foo.ts')).toBe(true);
+    expect(rules.kindFilePatterns.get('module-size')).toHaveLength(1);
+    expect(rules.kindFilePatterns.get('module-size')![0]!.test('src/generated/types.ts')).toBe(true);
   });
 
   it('should accumulate multiple patterns for the same kind', () => {
     const rules = parseInsightIgnore(
       'god-class:src/legacy/**\ngod-class:src/vendor/**',
     );
-    expect(rules.kindFilePatterns.get('god-class')).toEqual([
-      'src/legacy/**',
-      'src/vendor/**',
-    ]);
+    const patterns = rules.kindFilePatterns.get('god-class');
+    expect(patterns).toHaveLength(2);
+    expect(patterns![0]!.test('src/legacy/foo.ts')).toBe(true);
+    expect(patterns![1]!.test('src/vendor/bar.ts')).toBe(true);
   });
 
   it('should parse bare file patterns', () => {
     const rules = parseInsightIgnore('*.test.ts\n*.spec.ts');
-    expect(rules.filePatterns).toEqual(['*.test.ts', '*.spec.ts']);
+    expect(rules.filePatterns).toHaveLength(2);
+    expect(rules.filePatterns[0]!.test('utils.test.ts')).toBe(true);
+    expect(rules.filePatterns[1]!.test('utils.spec.ts')).toBe(true);
   });
 
   it('should handle a mixed file correctly', () => {
@@ -87,15 +91,18 @@ describe('parseInsightIgnore', () => {
     ].join('\n');
 
     const rules = parseInsightIgnore(content);
-    expect(rules.filePatterns).toEqual(['*.test.ts']);
+    expect(rules.filePatterns).toHaveLength(1);
+    expect(rules.filePatterns[0]!.test('foo.test.ts')).toBe(true);
     expect(rules.suppressedKinds.has('god-class')).toBe(true);
-    expect(rules.kindFilePatterns.get('module-size')).toEqual(['src/generated/**']);
+    expect(rules.kindFilePatterns.get('module-size')).toHaveLength(1);
+    expect(rules.kindFilePatterns.get('module-size')![0]!.test('src/generated/types.ts')).toBe(true);
   });
 
   it('should trim whitespace from lines', () => {
     const rules = parseInsightIgnore('  !god-class  \n  *.test.ts  ');
     expect(rules.suppressedKinds.has('god-class')).toBe(true);
-    expect(rules.filePatterns).toEqual(['*.test.ts']);
+    expect(rules.filePatterns).toHaveLength(1);
+    expect(rules.filePatterns[0]!.test('foo.test.ts')).toBe(true);
   });
 });
 
@@ -220,7 +227,8 @@ describe('loadInsightIgnore', () => {
       const result = await loadInsightIgnore(tmpDir);
       expect(result).not.toBeNull();
       expect(result!.suppressedKinds.has('god-class')).toBe(true);
-      expect(result!.filePatterns).toEqual(['*.test.ts']);
+      expect(result!.filePatterns).toHaveLength(1);
+      expect(result!.filePatterns[0]!.test('foo.test.ts')).toBe(true);
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }

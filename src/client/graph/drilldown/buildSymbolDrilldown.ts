@@ -12,6 +12,7 @@ import {
   toNodeProperty,
   toNodeMethod,
   createSymbolEdge,
+  createExternalCallerNode,
 } from './symbolHelpers';
 
 import type { ClassStructure } from '../../types/ClassStructure';
@@ -200,6 +201,60 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
       if (!includeAllSymbols && sourceId !== context.focusId && !includedSymbolIds.has(sourceId)) return;
       graphEdges.push(createUsageEdge(sourceId, targetId, accessKind));
     });
+  }
+
+  // Cross-module usage: find external modules that reference symbols in this drilldown
+  const drilledSymbolIds = new Set(nodeById.keys());
+  const externalRefCounts = new Map<string, number>();
+  const externalEdges: GraphEdge[] = [];
+
+  for (const pkg of options.data.packages) {
+    const allModules = typeCollectionToArray(pkg.modules);
+    for (const otherModule of allModules) {
+      if (otherModule.id === moduleId) continue;
+
+      if (otherModule.symbol_references) {
+        mapTypeCollection(otherModule.symbol_references, (ref: SymbolReferenceRef) => {
+          if (ref.target_symbol_id && drilledSymbolIds.has(ref.target_symbol_id)) {
+            const externalNodeId = `external:${otherModule.id}`;
+            externalRefCounts.set(externalNodeId, (externalRefCounts.get(externalNodeId) ?? 0) + 1);
+
+            if (!nodeById.has(externalNodeId)) {
+              const ghostNode = createExternalCallerNode(otherModule, externalNodeId, options.direction);
+              graphNodes.push(ghostNode);
+              nodeById.set(externalNodeId, ghostNode);
+            }
+            externalEdges.push(createSymbolEdge(externalNodeId, ref.target_symbol_id, 'uses'));
+          }
+        });
+      }
+    }
+  }
+
+  // Limit to top 10 external callers by reference count
+  if (externalRefCounts.size > 10) {
+    const topExternal = new Set(
+      [...externalRefCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([id]) => id)
+    );
+    // Remove nodes not in top 10
+    for (let i = graphNodes.length - 1; i >= 0; i--) {
+      const node = graphNodes[i];
+      if (node && node.id.startsWith('external:') && !topExternal.has(node.id)) {
+        graphNodes.splice(i, 1);
+        nodeById.delete(node.id);
+      }
+    }
+    // Only keep edges from top 10 external callers
+    for (const edge of externalEdges) {
+      if (topExternal.has(edge.source)) {
+        graphEdges.push(edge);
+      }
+    }
+  } else {
+    graphEdges.push(...externalEdges);
   }
 
   const filteredEdges = filterEdgesByNodeSet(graphNodes, graphEdges);

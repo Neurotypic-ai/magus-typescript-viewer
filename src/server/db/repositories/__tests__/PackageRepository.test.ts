@@ -376,22 +376,22 @@ describe('PackageRepository', () => {
       expect(selectCall![1]).toContain('pkg-1');
     });
 
-    it('filters by module_id when module_id is provided', async () => {
+    it('ignores module_id parameter (no module_id column in packages table)', async () => {
       vi.mocked(adapter.query)
-        .mockResolvedValueOnce([]) // SELECT with WHERE module_id = ?
+        .mockResolvedValueOnce([]) // SELECT with no WHERE clause
         ;
 
       await repo.retrieve(undefined, 'mod-1');
 
       const selectCall = vi.mocked(adapter.query).mock.calls[0];
       const sql = selectCall![0] as string;
-      expect(sql).toContain('module_id = ?');
-      expect(selectCall![1]).toContain('mod-1');
+      expect(sql).toBe('SELECT * FROM packages');
+      expect(selectCall![1]).toEqual([]);
     });
 
-    it('filters by both id and module_id when both are provided', async () => {
+    it('filters only by id when both id and module_id are provided (module_id is ignored)', async () => {
       vi.mocked(adapter.query)
-        .mockResolvedValueOnce([]) // SELECT with WHERE id = ? AND module_id = ?
+        .mockResolvedValueOnce([]) // SELECT with WHERE id = ?
         ;
 
       await repo.retrieve('pkg-1', 'mod-1');
@@ -399,8 +399,8 @@ describe('PackageRepository', () => {
       const selectCall = vi.mocked(adapter.query).mock.calls[0];
       const sql = selectCall![0] as string;
       expect(sql).toContain('id = ?');
-      expect(sql).toContain('AND');
-      expect(sql).toContain('module_id = ?');
+      expect(sql).not.toContain('AND');
+      expect(sql).not.toContain('module_id');
     });
 
     it('returns an empty array when no packages match', async () => {
@@ -435,7 +435,7 @@ describe('PackageRepository', () => {
       const row = makePackageRow();
       vi.mocked(adapter.query)
         .mockResolvedValueOnce([row]) // SELECT packages
-        .mockRejectedValueOnce(new Error('dependency table missing')); // findBySourceId fails
+        .mockRejectedValueOnce(new Error('Table dependencies does not exist')); // findBySourceId fails
 
       const results = await repo.retrieve('pkg-1');
 
@@ -485,14 +485,16 @@ describe('PackageRepository', () => {
   // =========================================================================
 
   describe('retrieveByModuleId', () => {
-    it('delegates to retrieve with module_id parameter', async () => {
+    it('delegates to retrieve but module_id is ignored (no module_id column)', async () => {
       vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.retrieveByModuleId('mod-1');
 
       const selectCall = vi.mocked(adapter.query).mock.calls[0];
       const sql = selectCall![0] as string;
-      expect(sql).toContain('module_id = ?');
+      // module_id is ignored — query should have no WHERE clause
+      expect(sql).toBe('SELECT * FROM packages');
+      expect(selectCall![1]).toEqual([]);
     });
 
     it('returns matching packages', async () => {
@@ -513,25 +515,31 @@ describe('PackageRepository', () => {
   // =========================================================================
 
   describe('delete', () => {
-    it('deletes dependencies first, then the package', async () => {
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([]) // DELETE dependencies
-        .mockResolvedValueOnce([]); // DELETE package
+    it('cascades deletes across all related tables, then deletes the package', async () => {
+      // 20 DELETE queries: 18 cascading tables + dependencies + package
+      for (let i = 0; i < 20; i++) {
+        vi.mocked(adapter.query).mockResolvedValueOnce([]);
+      }
 
       await repo.delete('pkg-1');
 
-      expect(adapter.query).toHaveBeenCalledTimes(2);
+      expect(adapter.query).toHaveBeenCalledTimes(20);
 
-      // First call: delete dependencies
-      const depDeleteCall = vi.mocked(adapter.query).mock.calls[0];
+      // First call: delete parameters
+      const firstCall = vi.mocked(adapter.query).mock.calls[0];
+      const firstSql = firstCall![0] as string;
+      expect(firstSql).toContain('DELETE FROM parameters');
+
+      // Second-to-last call: delete dependencies
+      const depDeleteCall = vi.mocked(adapter.query).mock.calls[18];
       const depSql = depDeleteCall![0] as string;
       expect(depSql).toContain('DELETE FROM dependencies');
       expect(depSql).toContain('source_id = ?');
       expect(depSql).toContain('target_id = ?');
       expect(depDeleteCall![1]).toEqual(['pkg-1', 'pkg-1']);
 
-      // Second call: delete the package
-      const pkgDeleteCall = vi.mocked(adapter.query).mock.calls[1];
+      // Last call: delete the package itself
+      const pkgDeleteCall = vi.mocked(adapter.query).mock.calls[19];
       const pkgSql = pkgDeleteCall![0] as string;
       expect(pkgSql).toContain('DELETE FROM packages');
       expect(pkgDeleteCall![1]).toEqual(['pkg-1']);

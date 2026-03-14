@@ -509,22 +509,42 @@ describe('ClassRepository', () => {
   // ---------------------------------------------------------------------------
   describe('delete', () => {
     it('should delete related records before deleting the class', async () => {
-      // 4 queries total: class_implements, methods, properties, then the class itself
+      // 6 queries total: parameters, class_implements, class_extends, methods, properties, then the class itself
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await repository.delete('cls-to-delete');
 
-      expect(mockAdapter.query).toHaveBeenCalledTimes(4);
+      expect(mockAdapter.query).toHaveBeenCalledTimes(6);
     });
 
-    it('should delete class_implements first', async () => {
+    it('should delete parameters for class methods first', async () => {
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await repository.delete('cls-to-delete');
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(firstCall[0]).toBe('DELETE FROM class_implements WHERE class_id = ?');
-      expect(firstCall[1]).toEqual(['cls-to-delete']);
+      expect(firstCall[0]).toBe('DELETE FROM parameters WHERE method_id IN (SELECT id FROM methods WHERE parent_id = ? AND parent_type = ?)');
+      expect(firstCall[1]).toEqual(['cls-to-delete', 'class']);
+    });
+
+    it('should delete class_implements second', async () => {
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await repository.delete('cls-to-delete');
+
+      const secondCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[1];
+      expect(secondCall[0]).toBe('DELETE FROM class_implements WHERE class_id = ?');
+      expect(secondCall[1]).toEqual(['cls-to-delete']);
+    });
+
+    it('should delete class_extends third', async () => {
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await repository.delete('cls-to-delete');
+
+      const thirdCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[2];
+      expect(thirdCall[0]).toBe('DELETE FROM class_extends WHERE class_id = ?');
+      expect(thirdCall[1]).toEqual(['cls-to-delete']);
     });
 
     it('should delete methods with parent_type class', async () => {
@@ -532,9 +552,9 @@ describe('ClassRepository', () => {
 
       await repository.delete('cls-to-delete');
 
-      const secondCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[1];
-      expect(secondCall[0]).toBe('DELETE FROM methods WHERE parent_id = ? AND parent_type = ?');
-      expect(secondCall[1]).toEqual(['cls-to-delete', 'class']);
+      const fourthCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[3];
+      expect(fourthCall[0]).toBe('DELETE FROM methods WHERE parent_id = ? AND parent_type = ?');
+      expect(fourthCall[1]).toEqual(['cls-to-delete', 'class']);
     });
 
     it('should delete properties with parent_type class', async () => {
@@ -542,9 +562,9 @@ describe('ClassRepository', () => {
 
       await repository.delete('cls-to-delete');
 
-      const thirdCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[2];
-      expect(thirdCall[0]).toBe('DELETE FROM properties WHERE parent_id = ? AND parent_type = ?');
-      expect(thirdCall[1]).toEqual(['cls-to-delete', 'class']);
+      const fifthCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[4];
+      expect(fifthCall[0]).toBe('DELETE FROM properties WHERE parent_id = ? AND parent_type = ?');
+      expect(fifthCall[1]).toEqual(['cls-to-delete', 'class']);
     });
 
     it('should delete the class itself last', async () => {
@@ -552,7 +572,7 @@ describe('ClassRepository', () => {
 
       await repository.delete('cls-to-delete');
 
-      const lastCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[3];
+      const lastCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[5];
       expect(lastCall[0]).toBe('DELETE FROM classes WHERE id = ?');
       expect(lastCall[1]).toEqual(['cls-to-delete']);
     });
@@ -566,10 +586,11 @@ describe('ClassRepository', () => {
     });
 
     it('should throw RepositoryError if a later deletion step fails', async () => {
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]); // parameters ok
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]); // class_implements ok
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('methods delete failed'),
-      ); // methods fails
+        new Error('class_extends delete failed'),
+      ); // class_extends fails
 
       await expect(repository.delete('cls-to-delete')).rejects.toThrow(RepositoryError);
     });

@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 
 import jscodeshift from 'jscodeshift';
 
+import { getErrorMessage } from '../../shared/utils/errorUtils';
 import { createLogger } from '../../shared/utils/logger';
 import { VueScriptExtractor } from '../parsers/VueScriptExtractor';
 import { defaultRulesConfig } from './RulesConfig';
@@ -54,7 +55,7 @@ export class RulesEngine {
         } catch (error) {
           this.logger.warn(
             `Could not read file for rules analysis: ${filePath}`,
-            error instanceof Error ? error.message : String(error)
+            getErrorMessage(error)
           );
           continue;
         }
@@ -66,7 +67,7 @@ export class RulesEngine {
       } catch (error) {
         this.logger.warn(
           `Could not parse file for rules analysis: ${filePath}`,
-          error instanceof Error ? error.message : String(error)
+          getErrorMessage(error)
         );
         continue;
       }
@@ -87,7 +88,7 @@ export class RulesEngine {
         } catch (error) {
           this.logger.error(
             `Rule '${rule.code}' failed on ${filePath}:`,
-            error instanceof Error ? error.message : String(error)
+            getErrorMessage(error)
           );
         }
       }

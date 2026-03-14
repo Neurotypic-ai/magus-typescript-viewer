@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
@@ -64,7 +65,7 @@ export class DependencyRepository extends BaseRepository<
       };
     } catch (error) {
       // Don't log foreign key constraint errors - they're expected for external packages
-      const errorMsg = error instanceof Error ? error.message : String(error);
+      const errorMsg = getErrorMessage(error);
       if (!errorMsg.includes('foreign key constraint')) {
         this.logger.error('Failed to create dependency', error);
       }

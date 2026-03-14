@@ -1,4 +1,6 @@
+import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { getTypeFromAnnotation, extractSymbolUsages } from './astUtils';
+import { getNodeProp } from '../utils/astNodeAccess';
 import { generateMethodUUID, generateParameterUUID, generatePropertyUUID } from '../../utils/uuid';
 
 import type { ModuleParserContext } from './types';
@@ -19,6 +21,49 @@ import type {
   TSTypeAnnotation,
 } from 'jscodeshift';
 import type { Logger } from '../../../shared/utils/logger';
+
+// ---------------------------------------------------------------------------
+// Shared property-access helpers (reduce repeated `as unknown as Record`)
+// ---------------------------------------------------------------------------
+
+/** Read a boolean-valued property from an AST node. */
+function getBooleanProp(node: ASTNode, prop: string): boolean {
+  return getNodeProp(node, prop) === true;
+}
+
+/** Read the `accessibility` property, defaulting to `'public'`. */
+function getVisibility(node: ASTNode): string {
+  const accessibility = getNodeProp(node, 'accessibility');
+  return typeof accessibility === 'string' ? accessibility : 'public';
+}
+
+/** Detect whether a method node (or its inner function value) is async. */
+function isAsyncMethod(node: ASTNode): boolean {
+  if (getNodeProp(node, 'async') === true) return true;
+  const value = getNodeProp(node, 'value');
+  if (value !== null && typeof value === 'object') {
+    return (getNodeProp(value, 'type') === 'FunctionExpression' || getNodeProp(value, 'type') === 'ArrowFunctionExpression') && getNodeProp(value, 'async') === true;
+  }
+  return false;
+}
+
+/** Extract a name from a node's `key` (Identifier, StringLiteral, NumericLiteral, Literal). */
+function getNodeKeyName(node: { key: ASTNode }, logger: Logger): string | undefined {
+  try {
+    if (node.key.type === 'Identifier') return node.key.name;
+    const keyValue = getNodeProp(node.key, 'value');
+    if (node.key.type === 'StringLiteral' || (node.key.type === 'Literal' && typeof keyValue === 'string')) {
+      return keyValue as string;
+    }
+    if (node.key.type === 'NumericLiteral' || (node.key.type === 'Literal' && typeof keyValue === 'number')) {
+      return String(keyValue);
+    }
+    return undefined;
+  } catch (error) {
+    logger.error('Error getting node key name:', { error: getErrorMessage(error) });
+    return undefined;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Exported functions
@@ -58,7 +103,7 @@ export function parseMethods(
           );
 
           // Also check for function type annotations
-          const hasFunctionType = isFunctionTypeProperty(path.value, ctx.logger);
+          const hasFunctionType = isFunctionTypeProperty(path.value);
 
           return hasArrowFunction || hasFunctionType;
         });
@@ -70,7 +115,7 @@ export function parseMethods(
       const interfaceMethods = collection.find(ctx.j.TSMethodSignature);
 
       const functionTypedProps = collection.find(ctx.j.TSPropertySignature).filter((path): boolean => {
-        return isFunctionTypeProperty(path.value, ctx.logger);
+        return isFunctionTypeProperty(path.value);
       });
 
       // Combine both collections
@@ -80,7 +125,7 @@ export function parseMethods(
     methodNodes.forEach((path) => {
       try {
         const node = path.value as MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature;
-        const methodName = getMethodName(node, ctx.logger);
+        const methodName = getNodeKeyName(node, ctx.logger);
 
         if (!methodName) {
           ctx.logger.info('Skipping method with invalid name', {
@@ -97,41 +142,10 @@ export function parseMethods(
         // Parse parameters and store them in the result object
         const parameters = parseParameters(ctx, node, methodId, moduleId);
 
-        // Add static detection with type guard
-        const isStatic = parentType === 'class' && 'static' in node && node.static;
-
-        // Detect abstract methods (e.g., abstract class members)
-        const isAbstract = 'abstract' in node && (node as unknown as Record<string, unknown>)['abstract'] === true;
-
-        // Detect visibility from jscodeshift's `accessibility` property
-        const visibility: string = (() => {
-          if ('accessibility' in node && typeof (node as unknown as Record<string, unknown>)['accessibility'] === 'string') {
-            return (node as unknown as Record<string, unknown>)['accessibility'] as string;
-          }
-          return 'public';
-        })();
-
-        // Add async detection with type guard
-        // Check for async on the node itself (MethodDefinition, TSMethodSignature)
-        // and on the inner function value (FunctionExpression, ArrowFunctionExpression)
-        const isAsync = (() => {
-          const nodeRec = node as unknown as Record<string, unknown>;
-          // Check async property directly on the node (e.g., MethodDefinition.async)
-          if ('async' in node && nodeRec['async'] === true) {
-            return true;
-          }
-          // Check async on the inner function value (FunctionExpression or ArrowFunctionExpression)
-          if ('value' in node && node.value !== null && typeof node.value === 'object') {
-            const value = node.value as unknown as Record<string, unknown>;
-            if (
-              (value['type'] === 'FunctionExpression' || value['type'] === 'ArrowFunctionExpression') &&
-              value['async'] === true
-            ) {
-              return true;
-            }
-          }
-          return false;
-        })();
+        const isStatic = parentType === 'class' && getBooleanProp(node, 'static');
+        const isAbstract = getBooleanProp(node, 'abstract');
+        const visibility = getVisibility(node);
+        const isAsync = isAsyncMethod(node);
 
         // TODO: Decorator extraction would go here — no schema field exists yet for decorators on methods.
         // When a `decorators` column is added, use: extractDecoratorNames(node) from astUtils.ts
@@ -200,14 +214,14 @@ export function parseProperties(
   propertyNodes.forEach((path) => {
     try {
       const propertyNode = path.node;
-      const propertyName = getPropertyName(propertyNode, ctx.logger);
+      const propertyName = getNodeKeyName(propertyNode, ctx.logger);
       if (!propertyName) {
         ctx.logger.error('Invalid property name');
         return;
       }
 
       // Check if this property has a function type annotation
-      const isFnType = isFunctionTypeProperty(propertyNode, ctx.logger);
+      const isFnType = isFunctionTypeProperty(propertyNode);
       if (isFnType) {
         // Skip function-typed properties - they should be handled as methods
         ctx.logger.debug(`Skipping function-typed property: ${propertyName}`);
@@ -230,15 +244,9 @@ export function parseProperties(
         parentType
       );
 
-      // Detect static, readonly, and visibility from the AST node
-      const isStatic = 'static' in propertyNode && (propertyNode as unknown as Record<string, unknown>)['static'] === true;
-      const isReadonly = 'readonly' in propertyNode && (propertyNode as unknown as Record<string, unknown>)['readonly'] === true;
-      const visibility: string = (() => {
-        if ('accessibility' in propertyNode && typeof (propertyNode as unknown as Record<string, unknown>)['accessibility'] === 'string') {
-          return (propertyNode as unknown as Record<string, unknown>)['accessibility'] as string;
-        }
-        return 'public';
-      })();
+      const isStatic = getBooleanProp(propertyNode, 'static');
+      const isReadonly = getBooleanProp(propertyNode, 'readonly');
+      const visibility = getVisibility(propertyNode);
 
       // TODO: Decorator extraction would go here — no schema field exists yet for decorators on properties.
       // When a `decorators` column is added, use: extractDecoratorNames(propertyNode) from astUtils.ts
@@ -280,9 +288,6 @@ function parseParameters(
 
   try {
     const params = getParametersList(node);
-    if (!Array.isArray(params)) {
-      return parameters;
-    }
 
     for (const param of params) {
       let paramName: string;
@@ -322,8 +327,7 @@ function parseParameters(
         // [a, b]: number[]
         paramName = '[destructured]';
         // ArrayPattern may not have typeAnnotation directly; access via index signature
-        const arrayParam = param as unknown as Record<string, unknown>;
-        paramTypeAnnotation = (arrayParam['typeAnnotation'] as TSTypeAnnotation | undefined) ?? undefined;
+        paramTypeAnnotation = (getNodeProp(param, 'typeAnnotation') as TSTypeAnnotation | undefined) ?? undefined;
       } else {
         ctx.logger.debug(`Skipping unsupported parameter type: ${param.type}`);
         continue;
@@ -344,8 +348,7 @@ function parseParameters(
       });
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    ctx.logger.error(`Error parsing parameters: ${errorMessage}`);
+    ctx.logger.error(`Error parsing parameters: ${getErrorMessage(error)}`);
   }
 
   return parameters;
@@ -391,8 +394,7 @@ function getReturnType(
     const returnTypeNode = getReturnTypeNode(node);
     return getTypeFromAnnotation(ctx.j, returnTypeNode, ctx.logger) || 'void';
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    ctx.logger.error(`Error getting return type: ${errorMessage}`);
+    ctx.logger.error(`Error getting return type: ${getErrorMessage(error)}`);
     return 'void';
   }
 }
@@ -417,80 +419,21 @@ function getReturnTypeNode(
 }
 
 /**
- * Get the name of a method-like node from its key.
- */
-function getMethodName(
-  node: MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature,
-  logger: Logger
-): string | undefined {
-  try {
-    if (node.key.type === 'Identifier') {
-      return node.key.name;
-    }
-    const key = node.key as unknown as Record<string, unknown>;
-    // String literal keys: 'method-name' or "method-name"
-    if (node.key.type === 'StringLiteral' || (node.key.type === 'Literal' && typeof key['value'] === 'string')) {
-      return key['value'] as string;
-    }
-    // Numeric literal keys: 0, 1, etc.
-    if (node.key.type === 'NumericLiteral' || (node.key.type === 'Literal' && typeof key['value'] === 'number')) {
-      return String(key['value']);
-    }
-    return undefined;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Error getting method name:', { error: errorMessage });
-    return undefined;
-  }
-}
-
-/**
- * Get the name of a property node from its key.
- */
-function getPropertyName(node: ClassProperty | TSPropertySignature, logger: Logger): string | undefined {
-  try {
-    if (node.key.type === 'Identifier') {
-      return node.key.name;
-    }
-    const key = node.key as unknown as Record<string, unknown>;
-    // String literal keys: 'prop-name' or "prop-name"
-    if (node.key.type === 'StringLiteral' || (node.key.type === 'Literal' && typeof key['value'] === 'string')) {
-      return key['value'] as string;
-    }
-    // Numeric literal keys: 0, 1, etc.
-    if (node.key.type === 'NumericLiteral' || (node.key.type === 'Literal' && typeof key['value'] === 'number')) {
-      return String(key['value']);
-    }
-    return undefined;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Error getting property name:', { error: errorMessage });
-    return undefined;
-  }
-}
-
-/**
  * Check if a property has a function type annotation (TSFunctionType,
  * TSConstructorType, or is an arrow function expression).
  */
-function isFunctionTypeProperty(node: ClassProperty | TSPropertySignature, logger: Logger): boolean {
-  try {
-    if (node.typeAnnotation?.type !== 'TSTypeAnnotation') {
-      return false;
-    }
-
-    const typeAnnotation = node.typeAnnotation.typeAnnotation;
-
-    // Check for function type annotation
-    return (
-      typeAnnotation.type === 'TSFunctionType' ||
-      typeAnnotation.type === 'TSConstructorType' ||
-      // Also check for arrow function values
-      ('value' in node && node.value?.type === 'ArrowFunctionExpression')
-    );
-  } catch (error) {
-    logger.error('Error checking function type:', { error });
+function isFunctionTypeProperty(node: ClassProperty | TSPropertySignature): boolean {
+  if (node.typeAnnotation?.type !== 'TSTypeAnnotation') {
     return false;
   }
-}
 
+  const typeAnnotation = node.typeAnnotation.typeAnnotation;
+
+  // Check for function type annotation
+  return (
+    typeAnnotation.type === 'TSFunctionType' ||
+    typeAnnotation.type === 'TSConstructorType' ||
+    // Also check for arrow function values
+    ('value' in node && node.value?.type === 'ArrowFunctionExpression')
+  );
+}

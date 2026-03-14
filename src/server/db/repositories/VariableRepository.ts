@@ -24,6 +24,7 @@ export interface IVariableCreateDTO {
   kind: 'const' | 'let' | 'var';
   type?: string | undefined;
   initializer?: string | undefined;
+  description?: string | undefined;
 }
 
 interface IVariableUpdateDTO {

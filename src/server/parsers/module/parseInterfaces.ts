@@ -4,6 +4,7 @@ import type { ModuleParserContext } from './types';
 import { getHeritageClauseName } from './astUtils';
 import { parseMethods, parseProperties } from './parseMembersShared';
 import { generateInterfaceUUID } from '../../utils/uuid';
+import { extractJsDoc } from '../utils/extractJsDoc';
 
 export function parseInterfaces(ctx: ModuleParserContext, result: ParseResult): void {
   ctx.root.find(ctx.j.TSInterfaceDeclaration).forEach((path) => {
@@ -12,11 +13,14 @@ export function parseInterfaces(ctx: ModuleParserContext, result: ParseResult): 
 
     const interfaceId = generateInterfaceUUID(ctx.packageId, ctx.moduleId, node.id.name);
 
+    const description = extractJsDoc(node);
+
     result.interfaces.push({
       id: interfaceId,
       package_id: ctx.packageId,
       module_id: ctx.moduleId,
       name: node.id.name,
+      description,
     });
 
     // Extract extends relationships (deferred name-based resolution)

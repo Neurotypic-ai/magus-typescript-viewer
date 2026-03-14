@@ -2,6 +2,8 @@ import http from 'node:http';
 
 import { ApiServerResponder } from './server/ApiServerResponder';
 import { RepositoryError } from './server/db/errors/RepositoryError';
+import { RefactorEngine } from './server/refactors/RefactorEngine';
+import { getErrorMessage } from './shared/utils/errorUtils';
 import { createLogger } from './shared/utils/logger';
 
 const corsHeaders = {
@@ -91,7 +93,7 @@ void apiServerResponder.initialize().catch((error: unknown) => {
   } else {
     logger.error(
       'Unexpected error during database initialization:',
-      error instanceof Error ? error.message : String(error)
+      getErrorMessage(error)
     );
   }
   process.exit(1);
@@ -113,7 +115,7 @@ function handleServerError(error: unknown, res: http.ServerResponse): void {
   }
 
   // Handle other types of errors
-  logger.error('Unexpected server error:', error instanceof Error ? error.message : String(error));
+  logger.error('Unexpected server error:', getErrorMessage(error));
   sendError(res, 500, error instanceof Error ? error.message : 'Internal server error');
 }
 
@@ -160,7 +162,7 @@ const server = http.createServer((req, res) => {
           const params = new URLSearchParams(urlString);
           packageId = params.get('packageId') ?? undefined;
         } catch (error) {
-          logger.error('Failed to parse URL parameters:', error instanceof Error ? error.message : String(error));
+          logger.error('Failed to parse URL parameters:', getErrorMessage(error));
           sendError(res, 400, 'Invalid URL parameters');
           return;
         }
@@ -185,7 +187,7 @@ const server = http.createServer((req, res) => {
           const params = new URLSearchParams(urlString);
           moduleId = params.get('moduleId') ?? undefined;
         } catch (error) {
-          logger.error('Failed to parse URL parameters:', error instanceof Error ? error.message : String(error));
+          logger.error('Failed to parse URL parameters:', getErrorMessage(error));
           sendError(res, 400, 'Invalid URL parameters');
           return;
         }
@@ -250,7 +252,6 @@ const server = http.createServer((req, res) => {
             return;
           }
 
-          const { RefactorEngine } = await import('./server/refactors/RefactorEngine');
           const engine = new RefactorEngine();
           const request = {
             filePath: issue.file_path,

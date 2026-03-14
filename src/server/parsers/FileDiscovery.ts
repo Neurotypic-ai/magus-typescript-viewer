@@ -59,16 +59,7 @@ export class FileDiscovery {
   }
 
   isAnalyzableSourceFile(fileName: string): boolean {
-    if (!this.config.sourceFilePattern.test(fileName)) {
-      return false;
-    }
-
-    // Skip declaration files (e.g. .d.ts)
-    if (/\.d\.[cm]?tsx?$/i.test(fileName)) {
-      return false;
-    }
-
-    return true;
+    return this.config.sourceFilePattern.test(fileName) && !/\.d\.[cm]?tsx?$/i.test(fileName);
   }
 
   private normalizePath(path: string): string {
@@ -96,38 +87,39 @@ export class FileDiscovery {
       return [];
     }
 
-    const files: string[] = [];
     let entries;
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {
-      return files;
+      return [];
     }
+
+    const subDirPromises: Promise<string[]>[] = [];
+    const fileResults: string[] = [];
 
     for (const entry of entries) {
       const fullPath = join(dir, entry.name);
-
       if (entry.isDirectory()) {
-        if (this.shouldSkipDirectory(entry.name)) {
-          continue;
+        if (!this.shouldSkipDirectory(entry.name)) {
+          subDirPromises.push(this.traverseDirectory(fullPath));
         }
-        const subFiles = await this.traverseDirectory(fullPath);
-        files.push(...subFiles);
-      } else if (entry.isFile() && this.isAnalyzableSourceFile(entry.name) && !this.isExcludedPath(fullPath)) {
-        files.push(fullPath);
+      } else if (entry.isFile() && this.isAnalyzableSourceFile(entry.name)) {
+        fileResults.push(fullPath);
       }
     }
 
-    return files;
+    const subResults = await Promise.all(subDirPromises);
+    for (const sub of subResults) fileResults.push(...sub);
+    return fileResults;
   }
 
   private getIncludeRoots(tsConfig: Record<string, unknown>, configDir: string): string[] {
     const include = Array.isArray(tsConfig['include']) ? tsConfig['include'] : [];
     const roots = new Set<string>();
 
-    include.forEach((pattern) => {
+    for (const pattern of include) {
       if (typeof pattern !== 'string' || pattern.trim().length === 0) {
-        return;
+        continue;
       }
 
       const normalizedPattern = this.normalizePath(pattern.trim());
@@ -136,7 +128,7 @@ export class FileDiscovery {
       const cleanedBase = base.endsWith('/') ? base.slice(0, -1) : base;
       const candidate = resolve(configDir, cleanedBase.length > 0 ? cleanedBase : '.');
       roots.add(candidate);
-    });
+    }
 
     if (roots.size === 0) {
       roots.add(this.packagePath);
@@ -165,16 +157,16 @@ export class FileDiscovery {
 
     const fileSet = new Set<string>();
 
-    parsedConfig.fileNames.forEach((fileName) => {
+    for (const fileName of parsedConfig.fileNames) {
       const absolutePath = resolve(fileName);
       if (!this.isAnalyzableSourceFile(absolutePath)) {
-        return;
+        continue;
       }
       if (this.isExcludedPath(absolutePath)) {
-        return;
+        continue;
       }
       fileSet.add(absolutePath);
-    });
+    }
 
     const includeRoots = this.getIncludeRoots(configResult.config as Record<string, unknown>, configDir);
     for (const root of includeRoots) {
@@ -182,11 +174,11 @@ export class FileDiscovery {
         continue;
       }
       const rootedFiles = await this.traverseDirectory(root);
-      rootedFiles.forEach((filePath) => {
+      for (const filePath of rootedFiles) {
         if (filePath.endsWith('.vue')) {
           fileSet.add(resolve(filePath));
         }
-      });
+      }
     }
 
     return Array.from(fileSet).sort((a, b) => a.localeCompare(b));

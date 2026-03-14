@@ -83,7 +83,7 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
         dto.type,
         dto.is_optional ? 1 : 0,
         dto.is_rest ? 1 : 0,
-        dto.default_value ?? '',
+        dto.default_value ?? null,
         now,
       ]
     );
@@ -115,7 +115,7 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
           dto.type,
           dto.is_optional ? 1 : 0,
           dto.is_rest ? 1 : 0,
-          dto.default_value ?? '',
+          dto.default_value ?? null,
           now,
         ]
       );

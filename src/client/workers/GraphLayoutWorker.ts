@@ -5,7 +5,7 @@
 
 import type { Edge } from '@vue-flow/core';
 
-import { GROUP_EXCLUSION_ZONE_PX } from '../layout/edgeGeometryPolicy';
+import { GROUP_PADDING, MODULE_PADDING, OVERLAP_GAP } from '../layout/collisionConfig';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphTheme } from '../theme/graphTheme';
 
@@ -111,7 +111,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
      * Uses conservative estimates (monospace ~7.5px/char, proportional ~6.5px/char at ~11px font).
      */
     function estimateTextWidth(text: string, padding = 32): number {
-      return Math.ceil(text.length * 7) + padding;
+      return Math.ceil(text.length * 8) + padding;
     }
 
     /**
@@ -123,7 +123,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // more space per node.  offsetWidth/offsetHeight capture the border-box but
     // not box-shadows, selection rings, or handle protrusions — the buffer
     // prevents these visual elements from causing apparent overlaps.
-    const MEASURED_LAYOUT_BUFFER = 12;
+    const MEASURED_LAYOUT_BUFFER = 16;
 
     function estimateNodeSize(node: DependencyNode): { width: number; height: number } {
       // Prefer actual DOM measurements if available (subsequent layout passes)
@@ -146,7 +146,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       if (node.type === 'module') {
         // Module node layout: header(42) + body content + subnodes(44) + padding(16)
         let estHeight = 42 + 16 + 44 + 16; // ~118px base
-        let maxContentWidth = 280; // BaseNode default minWidth
+        let maxContentWidth = 300; // BaseNode default minWidth
 
         // Estimate width from label text
         const label = data?.['label'];
@@ -198,6 +198,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
             if (methods.length > 0) {
               estHeight += 28 + methods.length * 24; // Section header + per-method
             }
+            // Additional buffer for CollapsibleSection chrome (padding, borders, margins)
+            const sectionCount = (props.length > 0 ? 1 : 0) + (methods.length > 0 ? 1 : 0);
+            estHeight += sectionCount * 32;
             // Width from symbol name and member text
             if (typeof s.name === 'string') {
               maxContentWidth = Math.max(maxContentWidth, estimateTextWidth(s.name, 100));
@@ -324,9 +327,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         const sourceNode = inputNodeById.get(elkNode.id);
         const isGroupNode = sourceNode?.type === 'group';
         const layoutInsets = sourceNode?.data?.layoutInsets as { top?: number } | undefined;
-        const defaultTopInset = isGroupNode ? GROUP_EXCLUSION_ZONE_PX : 120;
+        const defaultTopInset = isGroupNode ? GROUP_PADDING.top : MODULE_PADDING.top;
         const topInset = typeof layoutInsets?.top === 'number' && layoutInsets.top > 0 ? layoutInsets.top : defaultTopInset;
-        const sidePadding = isGroupNode ? GROUP_EXCLUSION_ZONE_PX : 24;
+        const sidePadding = isGroupNode ? GROUP_PADDING.horizontal : MODULE_PADDING.horizontal;
         const spacing = isGroupNode ? '16' : '24';
 
         elkNode.layoutOptions = {
@@ -563,21 +566,10 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     // Post-processing: ensure children don't overlap and parents contain all children.
     // ELK should handle this, but we add a safety net.
     // Group (folder) nodes use tighter padding than module containers.
-    const MODULE_HORIZONTAL_PADDING = 48;
-    const MODULE_TOP_PADDING = 120; // space for header/body content
-    const MODULE_BOTTOM_PADDING = 48;
-    const GROUP_HORIZONTAL_PADDING = GROUP_EXCLUSION_ZONE_PX;
-    const GROUP_TOP_PADDING = GROUP_EXCLUSION_ZONE_PX;
-    const GROUP_BOTTOM_PADDING = GROUP_EXCLUSION_ZONE_PX;
-
     function getContainerPadding(parentId: string) {
       const parentNode = inputNodeById.get(parentId);
       const isGroup = parentNode?.type === 'group';
-      return {
-        horizontal: isGroup ? GROUP_HORIZONTAL_PADDING : MODULE_HORIZONTAL_PADDING,
-        top: isGroup ? GROUP_TOP_PADDING : MODULE_TOP_PADDING,
-        bottom: isGroup ? GROUP_BOTTOM_PADDING : MODULE_BOTTOM_PADDING,
-      };
+      return isGroup ? GROUP_PADDING : MODULE_PADDING;
     }
 
     // Group nodes by parent so we only compare siblings in the sweep.
@@ -588,10 +580,6 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       siblings.push(node.id);
       nodesByParent.set(parentId, siblings);
     });
-
-    // Vue Flow uses box-sizing: border-box, so the rendered size matches the
-    // CSS width/height exactly. A 40px gap provides comfortable visual spacing.
-    const OVERLAP_GAP = 40;
 
     // Compute depth for each parent so we can expand bottom-up.
     // Depth 0 = leaf parent (children have no sub-children).

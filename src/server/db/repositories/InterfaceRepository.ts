@@ -35,6 +35,11 @@ export interface IInterfaceCreateDTO {
    * The name of the interface.
    */
   name: string;
+
+  /**
+   * JSDoc description extracted from the source.
+   */
+  description?: string | undefined;
 }
 
 interface IInterfaceUpdateDTO {

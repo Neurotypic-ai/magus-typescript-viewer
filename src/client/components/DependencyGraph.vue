@@ -146,6 +146,7 @@ const {
   renderedEdgeTypeCounts,
   scopeMode,
   highlightedEdgeIdList,
+  hoveredConnectedEdgeIdList,
   startFps,
   stopFps,
   dispose,
@@ -447,6 +448,7 @@ onUnmounted(() => {
       :nodes="nodes"
       :viewport="viewportState"
       :highlighted-edge-ids="highlightedEdgeIdList"
+      :hovered-edge-ids="hoveredConnectedEdgeIdList"
       :dim-non-highlighted="true"
       class="absolute inset-0"
       @canvas-unavailable="handleCanvasUnavailable"

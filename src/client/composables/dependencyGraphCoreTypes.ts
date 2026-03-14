@@ -72,6 +72,7 @@ export interface DependencyGraphCoreReturn {
   visualEdges: Ref<GraphEdge[]>;
   highlightedEdgeIds: Ref<Set<string>>;
   highlightedEdgeIdList: Ref<string[]>;
+  hoveredConnectedEdgeIdList: Ref<string[]>;
   renderedEdges: ComputedRef<GraphEdge[]>;
   activeCollisionConfig: ComputedRef<CollisionConfig>;
   lastCollisionResult: Ref<CollisionResult | null>;

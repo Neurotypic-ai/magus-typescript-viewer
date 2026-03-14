@@ -20,6 +20,7 @@ export interface IEnumCreateDTO {
   module_id: string;
   name: string;
   members_json?: string | undefined;
+  description?: string | undefined;
 }
 
 interface IEnumUpdateDTO {

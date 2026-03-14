@@ -4,7 +4,7 @@ import { getEdgeStyle } from '../theme/graphTheme';
 import { measurePerformance } from '../utils/performanceMonitoring';
 import { applyEdgeVisibility, toDependencyEdgeKind } from '../graph/buildGraphView';
 import { parseDimension } from '../layout/geometryBounds';
-import { mergeNodeInteractionStyle, stripEdgeClass, stripNodeClass } from '../theme/graphClasses';
+import { mergeNodeInteractionStyle, stripEdgeClass, stripNodeClassExcluding } from '../theme/graphClasses';
 import { addSetDiff } from '../utils/sets';
 
 import type { Ref } from 'vue';
@@ -129,7 +129,7 @@ export function useSearchHighlighting(options: UseSearchHighlightingOptions): Se
         return;
       }
 
-      const baseNode = stripNodeClass(node);
+      const baseNode = stripNodeClassExcluding(node);
       const updatedNode = {
         ...baseNode,
         style: mergeNodeInteractionStyle(baseNode, {

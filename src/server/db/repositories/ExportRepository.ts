@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
@@ -106,7 +107,7 @@ export class ExportRepository extends BaseRepository<IExportCreateDTO, IExportCr
       return dto;
     } catch (error) {
       throw new RepositoryError(
-        `Failed to create export: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to create export: ${getErrorMessage(error)}`,
         'create',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -145,7 +146,7 @@ export class ExportRepository extends BaseRepository<IExportCreateDTO, IExportCr
         throw error;
       }
       throw new RepositoryError(
-        `Failed to update export: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to update export: ${getErrorMessage(error)}`,
         'update',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -169,7 +170,7 @@ export class ExportRepository extends BaseRepository<IExportCreateDTO, IExportCr
       return this.mapToEntity(row);
     } catch (error) {
       throw new RepositoryError(
-        `Failed to retrieve export by id: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to retrieve export by id: ${getErrorMessage(error)}`,
         'retrieveById',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -198,7 +199,7 @@ export class ExportRepository extends BaseRepository<IExportCreateDTO, IExportCr
       return results.map((row) => this.mapToEntity(row));
     } catch (error) {
       throw new RepositoryError(
-        `Failed to retrieve exports: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to retrieve exports: ${getErrorMessage(error)}`,
         'retrieve',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -211,7 +212,7 @@ export class ExportRepository extends BaseRepository<IExportCreateDTO, IExportCr
       await this.executeQuery('delete', 'DELETE FROM exports WHERE id = ?', [id]);
     } catch (error) {
       throw new RepositoryError(
-        `Failed to delete export: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to delete export: ${getErrorMessage(error)}`,
         'delete',
         this.errorTag,
         error instanceof Error ? error : undefined

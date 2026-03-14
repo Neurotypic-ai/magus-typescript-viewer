@@ -1,13 +1,17 @@
 import * as fs from 'fs/promises';
 import { join } from 'path';
 
+import { getErrorMessage } from '../../shared/utils/errorUtils';
+import { createLogger } from '../../shared/utils/logger';
 import { loadSchema } from './schema/schema-loader';
 
+import type { Logger } from '../../shared/utils/logger';
 import type { IDatabaseAdapter } from './adapter/IDatabaseAdapter';
 
 export class Database {
   private adapter: IDatabaseAdapter;
   private dbPath: string;
+  private readonly logger: Logger = createLogger('[Database]');
 
   constructor(adapter: IDatabaseAdapter, dbPath = ':memory:') {
     this.adapter = adapter;
@@ -143,7 +147,7 @@ export class Database {
         // Check if table exists by selecting 1 row
         await this.adapter.query(`SELECT 1 FROM ${table} LIMIT 1`);
       } catch {
-        console.log(`Schema verification missing table: ${table}`);
+        this.logger.debug(`Schema verification missing table: ${table}`);
         return false;
       }
     }
@@ -160,9 +164,9 @@ export class Database {
   }
 
   public async initializeDatabase(reset = false, allowSchemaChanges = true): Promise<void> {
-    console.log('this.dbPath', this.dbPath);
+    this.logger.debug('Initializing database', { dbPath: this.dbPath });
     if (this.dbPath === ':memory:') {
-      console.log('initializing in-memory database');
+      this.logger.debug('Initializing in-memory database');
       if (!allowSchemaChanges) {
         throw new Error('Cannot initialize in-memory database in read-only mode without schema changes');
       }
@@ -172,14 +176,14 @@ export class Database {
       return;
     }
 
-    console.log('initializing file-based database');
+    this.logger.debug('Initializing file-based database');
     const path = join(process.cwd(), this.dbPath);
-    console.log('Absolute path being checked:', path);
+    this.logger.debug('Absolute path being checked:', path);
 
     let exists = false;
     try {
       const stats = await fs.stat(path);
-      console.log('File stats:', {
+      this.logger.debug('File stats:', {
         size: stats.size,
         isFile: stats.isFile(),
         created: stats.birthtime,
@@ -187,16 +191,15 @@ export class Database {
       });
       exists = true;
     } catch (error) {
-      console.log('Error checking file:', error);
+      this.logger.debug('Database file does not exist yet', error);
       exists = false;
     }
 
-    console.log('exists:', exists);
-    console.log('reset', reset);
+    this.logger.debug('Database state:', { exists, reset });
 
     // For file-based databases, remove the file BEFORE initializing if it exists and reset is true
     if (exists && reset) {
-      console.log('Resetting database: removing existing file...');
+      this.logger.debug('Resetting database: removing existing file...');
       await fs.unlink(path);
       exists = false;
     }
@@ -217,7 +220,7 @@ export class Database {
     // If the file doesn't exist, or if reset is true, or if schema verification fails,
     // we need to execute the schema.
     if (requiresSchemaInitialization) {
-      console.log('Loading and executing schema...');
+      this.logger.debug('Loading and executing schema...');
       await this.executeSchema(loadSchema());
       await this.migrateSchemaIfNeeded();
     } else if (allowSchemaChanges) {
@@ -247,7 +250,7 @@ export class Database {
       try {
         await this.adapter.query(stmt);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = getErrorMessage(error);
         // Ignore idempotent errors when tables or indexes already exist
         if (/already exists/i.test(message)) {
           continue;

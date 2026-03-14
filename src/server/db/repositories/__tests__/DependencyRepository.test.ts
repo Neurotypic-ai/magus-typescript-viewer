@@ -274,27 +274,27 @@ describe('DependencyRepository', () => {
       expect(queryCall[1]).toContain('source-1_target-1');
     });
 
-    it('filters by module_id when module_id argument is provided', async () => {
+    it('ignores module_id parameter (no module_id column in dependencies table)', async () => {
       vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.retrieve(undefined, 'mod-1');
 
       const queryCall = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
-      expect(queryCall[0]).toContain('WHERE');
-      expect(queryCall[0]).toContain('module_id = ?');
-      expect(queryCall[1]).toContain('mod-1');
+      // module_id is ignored — query should have no WHERE clause
+      expect(queryCall[0]).toBe('SELECT * FROM dependencies');
+      expect(queryCall[1]).toEqual([]);
     });
 
-    it('filters by both id and module_id when both are provided', async () => {
+    it('filters only by id when both id and module_id are provided (module_id is ignored)', async () => {
       vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.retrieve('some-id', 'mod-1');
 
       const queryCall = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(queryCall[0]).toContain('id = ?');
-      expect(queryCall[0]).toContain('module_id = ?');
-      expect(queryCall[0]).toContain('AND');
-      expect(queryCall[1]).toEqual(['some-id', 'mod-1']);
+      expect(queryCall[0]).not.toContain('module_id');
+      expect(queryCall[0]).not.toContain('AND');
+      expect(queryCall[1]).toEqual(['some-id']);
     });
 
     it('correctly maps row data to entity objects', async () => {
@@ -431,11 +431,17 @@ describe('DependencyRepository', () => {
       expect(results).toEqual([]);
     });
 
-    it('returns an empty array on query failure (permissive behavior)', async () => {
-      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('connection refused'));
+    it('returns an empty array on table-not-found errors (permissive behavior)', async () => {
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('Table dependencies does not exist'));
 
       const results = await repo.findByTargetId('tgt');
       expect(results).toEqual([]);
+    });
+
+    it('throws RepositoryError on non-table-related errors', async () => {
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('connection refused'));
+
+      await expect(repo.findByTargetId('tgt')).rejects.toThrow(RepositoryError);
     });
 
     it('correctly maps row data to entity objects', async () => {
@@ -487,7 +493,7 @@ describe('DependencyRepository', () => {
   });
 
   describe('retrieveByModuleId', () => {
-    it('returns dependencies for the given module_id', async () => {
+    it('delegates to retrieve but module_id is ignored (no module_id column)', async () => {
       const rows = [
         makeDependencyRow({ id: 'dep-1' }),
         makeDependencyRow({ id: 'dep-2' }),
@@ -500,8 +506,9 @@ describe('DependencyRepository', () => {
       expect(results).toHaveLength(2);
 
       const queryCall = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
-      expect(queryCall[0]).toContain('module_id = ?');
-      expect(queryCall[1]).toContain('mod-123');
+      // module_id is ignored — query should have no WHERE clause
+      expect(queryCall[0]).toBe('SELECT * FROM dependencies');
+      expect(queryCall[1]).toEqual([]);
     });
 
     it('returns an empty array when no dependencies exist for the module', async () => {

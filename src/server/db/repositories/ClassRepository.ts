@@ -41,6 +41,11 @@ export interface IClassCreateDTO {
    * The ID of the parent class (if this class extends another).
    */
   extends_id?: string | undefined;
+
+  /**
+   * JSDoc description extracted from the source.
+   */
+  description?: string | undefined;
 }
 
 interface IClassUpdateDTO {

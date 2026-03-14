@@ -62,6 +62,7 @@ export interface SelectionHighlighting {
   selectedConnectedEdgeIds: Ref<Set<string>>;
   highlightedEdgeIds: Ref<Set<string>>;
   highlightedEdgeIdList: Ref<string[]>;
+  hoveredConnectedEdgeIdList: Ref<string[]>;
   setSelectedNode: (node: DependencyNode | null) => void;
   reconcileSelectedNodeAfterStructuralChange: (updatedNodes: DependencyNode[]) => void;
   clearHoverState: () => void;
@@ -197,6 +198,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
   });
 
   const highlightedEdgeIdList = computed(() => [...highlightedEdgeIds.value]);
+  const hoveredConnectedEdgeIdList = computed(() => [...hoveredConnectedEdgeIds.value]);
 
   // ── Node selection class resolution ──
 
@@ -549,6 +551,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     selectedConnectedEdgeIds,
     highlightedEdgeIds,
     highlightedEdgeIdList,
+    hoveredConnectedEdgeIdList,
     setSelectedNode,
     reconcileSelectedNodeAfterStructuralChange,
     clearHoverState,

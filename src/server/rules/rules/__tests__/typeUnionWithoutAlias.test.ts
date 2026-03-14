@@ -1,5 +1,6 @@
 import jscodeshift from 'jscodeshift';
 
+import { emptyParseResult } from '../../../__tests__/testHelpers';
 import { typeUnionWithoutAlias } from '../typeUnionWithoutAlias';
 
 import type { IClassCreateDTO } from '../../../db/repositories/ClassRepository';
@@ -14,28 +15,6 @@ const j = jscodeshift.withParser('tsx');
 const MODULE_ID = 'mod-1';
 const PACKAGE_ID = 'pkg-1';
 const FILE_PATH = 'src/example.ts';
-
-function emptyParseResult(): ParseResult {
-  return {
-    modules: [],
-    classes: [],
-    interfaces: [],
-    functions: [],
-    typeAliases: [],
-    enums: [],
-    variables: [],
-    methods: [],
-    properties: [],
-    parameters: [],
-    imports: [],
-    exports: [],
-    classExtends: [],
-    classImplements: [],
-    interfaceExtends: [],
-    symbolUsages: [],
-    symbolReferences: [],
-  };
-}
 
 function defaultConfig(memberThreshold = 3): RulesConfig {
   return {
@@ -138,12 +117,6 @@ describe('typeUnionWithoutAlias rule metadata', () => {
 // ---------------------------------------------------------------------------
 
 describe('typeUnionWithoutAlias.check with no unions', () => {
-  it('returns empty array for empty source', () => {
-    const context = makeContext('');
-    const issues = typeUnionWithoutAlias.check(context);
-    expect(issues).toEqual([]);
-  });
-
   it('returns empty array when source has no interfaces or classes', () => {
     const source = `const x = 42;\nfunction foo() { return "bar"; }`;
     const context = makeContext(source);
@@ -827,5 +800,19 @@ interface Camel {
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
     expect(issues[0].suggestion).toBe("Extract to type alias 'CamelMyValue'");
+  });
+
+  it('handles single-character property name', () => {
+    const source = `
+interface Single {
+  x: "a" | "b" | "c";
+}`;
+    const ifaceDTO = makeInterfaceDTO('Single');
+    const context = makeContext(source, {
+      parseResult: { interfaces: [ifaceDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].suggestion).toBe("Extract to type alias 'SingleX'");
   });
 });

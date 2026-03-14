@@ -1,8 +1,8 @@
 import { createLogger } from '../../shared/utils/logger';
 import { buildImportGraph } from './import-graph';
-import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents, toUndirected } from './graph-algorithms';
+import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents } from './graph-algorithms';
 import { shouldSuppressInsight } from './insightignore';
-import { enrichWithSuggestions } from './refactoring-suggestions';
+import { enrichSingle } from './refactoring-suggestions';
 
 import type { DatabaseRow, IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from './import-graph';
@@ -128,10 +128,6 @@ function num(v: number | string): number {
   return typeof v === 'string' ? Number(v) : v;
 }
 
-function s(v: number): string {
-  return v.toString();
-}
-
 function wherePackage(alias: string, packageId?: string): string {
   return packageId ? `AND ${alias}.package_id = ?` : '';
 }
@@ -140,27 +136,17 @@ function pkgParams(packageId?: string): string[] {
   return packageId ? [packageId] : [];
 }
 
-const externalPackageNameCache = new Map<string, string | undefined>();
-
 function inferExternalPackageName(source: string): string | undefined {
-  const cached = externalPackageNameCache.get(source);
-  if (cached !== undefined) return cached;
-  if (externalPackageNameCache.has(source)) return undefined;
-
-  let result: string | undefined;
   if (!source || source.startsWith('.') || source.startsWith('/') || source.startsWith('@/') || source.startsWith('src/')) {
-    result = undefined;
-  } else if (source.startsWith('@')) {
+    return undefined;
+  }
+  if (source.startsWith('@')) {
     const parts = source.split('/');
     const scope = parts[0];
     const name = parts[1];
-    result = scope && name ? `${scope}/${name}` : undefined;
-  } else {
-    result = source.split('/')[0] ?? undefined;
+    return scope && name ? `${scope}/${name}` : undefined;
   }
-
-  externalPackageNameCache.set(source, result);
-  return result;
+  return source.split('/')[0] ?? undefined;
 }
 
 // ── InsightEngine ───────────────────────────────────────────────────────────
@@ -177,12 +163,13 @@ export class InsightEngine {
 
   async compute(packageId?: string): Promise<InsightReport> {
     const graph = await buildImportGraph(this.adapter, packageId);
-    const undirected = toUndirected(graph.adjacency);
 
     const results = await Promise.allSettled([
       Promise.resolve(this.circularImports(graph)),
-      Promise.resolve(this.importFanIn(graph)),
-      Promise.resolve(this.importFanOut(graph)),
+      Promise.resolve(this.degreeInsight(graph, 'in', T.FAN_IN, 'import-fan-in', 'dependency-health', 'warning', 'High Import Fan-in',
+        (n, t) => `${String(n)} modules are imported by ${String(t)}+ other modules`, (inD) => `imported by ${String(inD)} modules`)),
+      Promise.resolve(this.degreeInsight(graph, 'out', T.FAN_OUT, 'import-fan-out', 'dependency-health', 'warning', 'High Import Fan-out',
+        (n, t) => `${String(n)} modules import ${String(t)}+ other modules`, (_i, outD) => `imports ${String(outD)} modules`)),
       this.heavyExternalDependencies(packageId),
       this.godClasses(packageId),
       this.longParameterLists(packageId),
@@ -193,9 +180,10 @@ export class InsightEngine {
       this.unexportedEntities(packageId),
       this.typeOnlyDependencies(packageId),
       Promise.resolve(this.orphanedModules(graph)),
-      Promise.resolve(this.hubModules(graph)),
-      Promise.resolve(this.bridgeModules(graph, undirected)),
-      Promise.resolve(this.clusterDetection(graph, undirected)),
+      Promise.resolve(this.degreeInsight(graph, 'combined', T.HUB_DEGREE, 'hub-modules', 'connectivity', 'info', 'Hub Modules',
+        (n, t) => `${String(n)} modules have combined degree >= ${String(t)}`, (inD, outD) => `degree ${String(inD + outD)} (in: ${String(inD)}, out: ${String(outD)})`)),
+      Promise.resolve(this.bridgeModules(graph)),
+      Promise.resolve(this.clusterDetection(graph)),
       this.unusedExports(graph, packageId),
       this.interfaceSegregationViolations(packageId),
       this.missingReturnTypes(packageId),
@@ -219,24 +207,22 @@ export class InsightEngine {
     }
 
     // Post-processing: complexity hotspots run on already-computed insights
-    const hotspots = this.complexityHotspots(insights);
-    insights.push(...hotspots);
+    insights.push(...this.complexityHotspots(insights));
 
-    // Filter out suppressed insights before scoring
+    // Single pass: filter suppressed, enrich with suggestions, count summary
     const rules = this.ignoreRules;
-    if (rules) {
-      insights = insights.filter((i) => !shouldSuppressInsight(rules, i));
-    }
-
-    // Enrich insights with refactoring suggestions
-    const enrichedInsights = enrichWithSuggestions(insights, graph);
-
     const summary = { critical: 0, warning: 0, info: 0 };
-    for (const i of enrichedInsights) summary[i.severity]++;
+    const finalInsights: InsightResult[] = [];
+    for (const insight of insights) {
+      if (rules && shouldSuppressInsight(rules, insight)) continue;
+      const enriched = enrichSingle(insight, graph);
+      finalInsights.push(enriched);
+      summary[enriched.severity]++;
+    }
 
     const healthScore = Math.max(0, 100 - summary.critical * 5 - summary.warning * 2);
 
-    return { packageId, computedAt: new Date().toISOString(), healthScore, summary, insights: enrichedInsights };
+    return { packageId, computedAt: new Date().toISOString(), healthScore, summary, insights: finalInsights };
   }
 
   // ── 1. Circular Imports ─────────────────────────────────────────────────
@@ -254,73 +240,44 @@ export class InsightEngine {
         'dependency-health',
         'critical',
         'Circular Import Detected',
-        `${s(cycle.length)} modules form an import cycle`,
+        `${String(cycle.length)} modules form an import cycle`,
         entities,
         cycle.length,
       );
     });
   }
 
-  // ── 2. Import Fan-in ────────────────────────────────────────────────────
+  // ── 2–3, 14. Degree-based insights (fan-in, fan-out, hub) ──────────────
 
-  private importFanIn(graph: ImportGraph): InsightResult[] {
+  private degreeInsight(
+    graph: ImportGraph,
+    mode: 'in' | 'out' | 'combined',
+    threshold: number,
+    type: InsightKind,
+    category: InsightCategory,
+    severity: InsightSeverity,
+    title: string,
+    descFn: (count: number, threshold: number) => string,
+    detailFn: (inDeg: number, outDeg: number) => string,
+  ): InsightResult[] {
     const entities: InsightEntity[] = [];
-    let maxFanIn = 0;
-    for (const [id, importers] of graph.reverseAdjacency) {
-      if (importers.size >= T.FAN_IN) {
-        maxFanIn = Math.max(maxFanIn, importers.size);
+    let maxDegree = 0;
+    for (const id of graph.nodeIds) {
+      const outDeg = graph.adjacency.get(id)?.size ?? 0;
+      const inDeg = graph.reverseAdjacency.get(id)?.size ?? 0;
+      const deg = mode === 'in' ? inDeg : mode === 'out' ? outDeg : outDeg + inDeg;
+      if (deg >= threshold) {
+        maxDegree = Math.max(maxDegree, deg);
         entities.push({
           id,
           kind: 'module',
           name: graph.modules.get(id)?.name ?? id,
-          detail: `imported by ${s(importers.size)} modules`,
+          detail: detailFn(inDeg, outDeg),
         });
       }
     }
     if (entities.length === 0) return [];
-    return [
-      this.make(
-        'import-fan-in',
-        'dependency-health',
-        'warning',
-        'High Import Fan-in',
-        `${s(entities.length)} modules are imported by ${s(T.FAN_IN)}+ other modules`,
-        entities,
-        maxFanIn,
-        T.FAN_IN,
-      ),
-    ];
-  }
-
-  // ── 3. Import Fan-out ───────────────────────────────────────────────────
-
-  private importFanOut(graph: ImportGraph): InsightResult[] {
-    const entities: InsightEntity[] = [];
-    let maxFanOut = 0;
-    for (const [id, deps] of graph.adjacency) {
-      if (deps.size >= T.FAN_OUT) {
-        maxFanOut = Math.max(maxFanOut, deps.size);
-        entities.push({
-          id,
-          kind: 'module',
-          name: graph.modules.get(id)?.name ?? id,
-          detail: `imports ${s(deps.size)} modules`,
-        });
-      }
-    }
-    if (entities.length === 0) return [];
-    return [
-      this.make(
-        'import-fan-out',
-        'dependency-health',
-        'warning',
-        'High Import Fan-out',
-        `${s(entities.length)} modules import ${s(T.FAN_OUT)}+ other modules`,
-        entities,
-        maxFanOut,
-        T.FAN_OUT,
-      ),
-    ];
+    return [this.make(type, category, severity, title, descFn(entities.length, threshold), entities, maxDegree, threshold)];
   }
 
   // ── 4. Heavy External Dependencies ──────────────────────────────────────
@@ -359,7 +316,7 @@ export class InsightEngine {
           id,
           kind: 'module',
           name: entry.name,
-          detail: `${s(entry.packages.size)} external packages`,
+          detail: `${String(entry.packages.size)} external packages`,
         });
       }
     }
@@ -371,7 +328,7 @@ export class InsightEngine {
         'dependency-health',
         'warning',
         'Heavy External Dependencies',
-        `${s(entities.length)} modules depend on ${s(T.EXTERNAL_DEPS)}+ external packages`,
+        `${String(entities.length)} modules depend on ${String(T.EXTERNAL_DEPS)}+ external packages`,
         entities,
         maxCount,
         T.EXTERNAL_DEPS,
@@ -406,7 +363,7 @@ export class InsightEngine {
           kind: 'class',
           name: row.name,
           moduleId: row.module_id,
-          detail: `${s(methods)} methods, ${s(props)} properties`,
+          detail: `${String(methods)} methods, ${String(props)} properties`,
         });
       }
     }
@@ -418,7 +375,7 @@ export class InsightEngine {
         'structural-complexity',
         worstSeverity,
         'God Class Detected',
-        `${s(entities.length)} classes have ${s(T.GOD_CLASS_WARNING)}+ members`,
+        `${String(entities.length)} classes have ${String(T.GOD_CLASS_WARNING)}+ members`,
         entities,
         maxTotal,
         T.GOD_CLASS_WARNING,
@@ -435,7 +392,7 @@ export class InsightEngine {
        JOIN parameters p ON p.method_id = m.id
        WHERE 1=1 ${wherePackage('m', packageId)}
        GROUP BY m.id, m.name, m.module_id
-       HAVING COUNT(p.id) >= ${s(T.LONG_PARAMS_WARNING)}`,
+       HAVING COUNT(p.id) >= ${String(T.LONG_PARAMS_WARNING)}`,
       pkgParams(packageId),
     );
 
@@ -451,7 +408,7 @@ export class InsightEngine {
         kind: 'method',
         name: row.name,
         moduleId: row.module_id,
-        detail: `${s(count)} parameters`,
+        detail: `${String(count)} parameters`,
       });
     }
 
@@ -462,7 +419,7 @@ export class InsightEngine {
         'structural-complexity',
         worstSeverity,
         'Long Parameter Lists',
-        `${s(entities.length)} methods have ${s(T.LONG_PARAMS_WARNING)}+ parameters`,
+        `${String(entities.length)} methods have ${String(T.LONG_PARAMS_WARNING)}+ parameters`,
         entities,
         maxCount,
         T.LONG_PARAMS_WARNING,
@@ -476,7 +433,7 @@ export class InsightEngine {
     const rows = await this.adapter.query<CountRow>(
       `SELECT id, name, '' as module_id, line_count as cnt
        FROM modules
-       WHERE line_count > ${s(T.MODULE_SIZE_WARNING)}
+       WHERE line_count > ${T.MODULE_SIZE_WARNING}
          ${wherePackage('modules', packageId)}
        ORDER BY line_count DESC`,
       pkgParams(packageId),
@@ -493,7 +450,7 @@ export class InsightEngine {
         id: row.id,
         kind: 'module',
         name: row.name,
-        detail: `${s(lines)} lines`,
+        detail: `${String(lines)} lines`,
       });
     }
 
@@ -504,7 +461,7 @@ export class InsightEngine {
         'structural-complexity',
         worstSeverity,
         'Large Module',
-        `${s(entities.length)} modules exceed ${s(T.MODULE_SIZE_WARNING)} lines`,
+        `${String(entities.length)} modules exceed ${String(T.MODULE_SIZE_WARNING)} lines`,
         entities,
         maxSize,
         T.MODULE_SIZE_WARNING,
@@ -529,7 +486,7 @@ export class InsightEngine {
        JOIN classes c ON c.id = ch.class_id
        WHERE 1=1 ${wherePackage('c', packageId)}
        GROUP BY c.id, c.name, c.module_id
-       HAVING MAX(ch.depth) >= ${s(T.DEEP_INHERITANCE_WARNING)}
+       HAVING MAX(ch.depth) >= ${T.DEEP_INHERITANCE_WARNING}
        ORDER BY max_depth DESC`,
       pkgParams(packageId),
     );
@@ -546,7 +503,7 @@ export class InsightEngine {
         kind: 'class',
         name: row.name,
         moduleId: row.module_id,
-        detail: `inheritance depth ${s(depth)}`,
+        detail: `inheritance depth ${String(depth)}`,
       });
     }
 
@@ -557,7 +514,7 @@ export class InsightEngine {
         'structural-complexity',
         worstSeverity,
         'Deep Inheritance Chain',
-        `${s(entities.length)} classes have inheritance depth >= ${s(T.DEEP_INHERITANCE_WARNING)}`,
+        `${String(entities.length)} classes have inheritance depth >= ${String(T.DEEP_INHERITANCE_WARNING)}`,
         entities,
         maxDepth,
         T.DEEP_INHERITANCE_WARNING,
@@ -580,7 +537,7 @@ export class InsightEngine {
        ) sub ON sub.parent_id = c.id
        WHERE 1=1 ${wherePackage('c', packageId)}
        GROUP BY c.id, c.name, c.module_id
-       HAVING COUNT(*) >= ${s(T.LEAKY_MIN_MEMBERS)}
+       HAVING COUNT(*) >= ${T.LEAKY_MIN_MEMBERS}
          AND CAST(SUM(CASE WHEN sub.visibility = 'public' THEN 1 ELSE 0 END) AS DOUBLE) / COUNT(*) > ${T.LEAKY_RATIO.toString()}`,
       pkgParams(packageId),
     );
@@ -596,7 +553,7 @@ export class InsightEngine {
         kind: 'class',
         name: row.name,
         moduleId: row.module_id,
-        detail: `${s(pct)}% public (${s(pub)}/${s(total)} members)`,
+        detail: `${String(pct)}% public (${String(pub)}/${String(total)} members)`,
       });
     }
 
@@ -608,7 +565,7 @@ export class InsightEngine {
         'api-surface',
         'warning',
         'Leaky Encapsulation',
-        `${s(entities.length)} classes expose > ${s(pctThreshold)}% public members`,
+        `${String(entities.length)} classes expose > ${String(pctThreshold)}% public members`,
         entities,
       ),
     ];
@@ -627,7 +584,7 @@ export class InsightEngine {
           id,
           kind: 'module',
           name: meta.name,
-          detail: `re-exports through ${s(barrelDeps.length)} other barrel files`,
+          detail: `re-exports through ${String(barrelDeps.length)} other barrel files`,
         });
       }
     }
@@ -639,7 +596,7 @@ export class InsightEngine {
         'api-surface',
         'info',
         'Nested Barrel Files',
-        `${s(entities.length)} barrel files re-export through other barrel files`,
+        `${String(entities.length)} barrel files re-export through other barrel files`,
         entities,
       ),
     ];
@@ -679,7 +636,7 @@ export class InsightEngine {
         'api-surface',
         'info',
         'Unexported Entities',
-        `${s(entities.length)} classes or functions are not exported from their modules`,
+        `${String(entities.length)} classes or functions are not exported from their modules`,
         entities,
       ),
     ];
@@ -712,8 +669,8 @@ export class InsightEngine {
         kind: 'module',
         name: row.name,
         detail: allTypeOnly
-          ? `all ${s(total)} imports are type-only — consider using \`import type\``
-          : `${s(typeOnly)}/${s(total)} imports are type-only`,
+          ? `all ${String(total)} imports are type-only — consider using \`import type\``
+          : `${String(typeOnly)}/${String(total)} imports are type-only`,
       });
     }
 
@@ -726,8 +683,8 @@ export class InsightEngine {
         severity,
         'Type-Only Dependencies',
         allTypeOnlyCount > 0
-          ? `${s(allTypeOnlyCount)} modules have only type imports (should use \`import type\`), ${s(entities.length - allTypeOnlyCount)} have a mix`
-          : `${s(entities.length)} modules have type-only imports (candidates for import type)`,
+          ? `${String(allTypeOnlyCount)} modules have only type imports (should use \`import type\`), ${String(entities.length - allTypeOnlyCount)} have a mix`
+          : `${String(entities.length)} modules have type-only imports (candidates for import type)`,
         entities,
       ),
     ];
@@ -765,51 +722,16 @@ export class InsightEngine {
         'connectivity',
         'warning',
         'Orphaned Modules',
-        `${s(entities.length)} modules have no import connections`,
+        `${String(entities.length)} modules have no import connections`,
         entities,
-      ),
-    ];
-  }
-
-  // ── 14. Hub Modules ─────────────────────────────────────────────────────
-
-  private hubModules(graph: ImportGraph): InsightResult[] {
-    const entities: InsightEntity[] = [];
-    let maxDegree = 0;
-    for (const id of graph.nodeIds) {
-      const outDeg = graph.adjacency.get(id)?.size ?? 0;
-      const inDeg = graph.reverseAdjacency.get(id)?.size ?? 0;
-      const total = outDeg + inDeg;
-      if (total >= T.HUB_DEGREE) {
-        maxDegree = Math.max(maxDegree, total);
-        entities.push({
-          id,
-          kind: 'module',
-          name: graph.modules.get(id)?.name ?? id,
-          detail: `degree ${s(total)} (in: ${s(inDeg)}, out: ${s(outDeg)})`,
-        });
-      }
-    }
-
-    if (entities.length === 0) return [];
-    return [
-      this.make(
-        'hub-modules',
-        'connectivity',
-        'info',
-        'Hub Modules',
-        `${s(entities.length)} modules have combined degree >= ${s(T.HUB_DEGREE)}`,
-        entities,
-        maxDegree,
-        T.HUB_DEGREE,
       ),
     ];
   }
 
   // ── 15. Bridge Modules ──────────────────────────────────────────────────
 
-  private bridgeModules(graph: ImportGraph, undirected: Map<string, Set<string>>): InsightResult[] {
-    const points = findArticulationPoints(graph.adjacency, undirected);
+  private bridgeModules(graph: ImportGraph): InsightResult[] {
+    const points = findArticulationPoints(graph.adjacency, graph.undirected);
     const entities: InsightEntity[] = Array.from(points).map((id) => ({
       id,
       kind: 'module' as const,
@@ -824,7 +746,7 @@ export class InsightEngine {
         'connectivity',
         'warning',
         'Bridge Modules',
-        `${s(entities.length)} modules are articulation points in the import graph`,
+        `${String(entities.length)} modules are articulation points in the import graph`,
         entities,
       ),
     ];
@@ -832,10 +754,10 @@ export class InsightEngine {
 
   // ── 16. Cluster Detection ───────────────────────────────────────────────
 
-  private clusterDetection(graph: ImportGraph, undirected: Map<string, Set<string>>): InsightResult[] {
+  private clusterDetection(graph: ImportGraph): InsightResult[] {
     if (graph.nodeIds.size < 3) return [];
 
-    const labels = detectCommunities(graph.adjacency, 10, undirected);
+    const labels = detectCommunities(graph.adjacency, 10, graph.undirected);
 
     // Group by community label
     const communities = new Map<number, string[]>();
@@ -864,8 +786,8 @@ export class InsightEngine {
           'cluster-detection',
           'connectivity',
           'info',
-          `Module Cluster #${s(clusterIndex)}`,
-          `${s(members.length)} modules form a tightly connected cluster`,
+          `Module Cluster #${String(clusterIndex)}`,
+          `${String(members.length)} modules form a tightly connected cluster`,
           entities,
           members.length,
         ),
@@ -940,7 +862,7 @@ export class InsightEngine {
         'maintenance',
         'warning',
         'Unused Exports',
-        `${s(entities.length)} exported symbols are not imported by any module`,
+        `${String(entities.length)} exported symbols are not imported by any module`,
         entities,
       ),
     ];
@@ -958,7 +880,7 @@ export class InsightEngine {
          FROM interfaces i
          WHERE 1=1 ${wherePackage('i', packageId)}
        ) sub
-       WHERE member_count >= ${s(T.INTERFACE_SEGREGATION_MIN)} AND implementor_count > 0`,
+       WHERE member_count >= ${String(T.INTERFACE_SEGREGATION_MIN)} AND implementor_count > 0`,
       pkgParams(packageId),
     );
 
@@ -975,7 +897,7 @@ export class InsightEngine {
         kind: 'interface',
         name: row.name,
         moduleId: row.module_id,
-        detail: `${s(members)} members, implemented by ${s(implementors)} classes`,
+        detail: `${String(members)} members, implemented by ${String(implementors)} classes`,
       });
     }
 
@@ -986,7 +908,7 @@ export class InsightEngine {
         'maintenance',
         worstSeverity,
         'Large Interfaces',
-        `${s(entities.length)} interfaces have ${s(T.INTERFACE_SEGREGATION_MIN)}+ members (potential ISP violation)`,
+        `${String(entities.length)} interfaces have ${String(T.INTERFACE_SEGREGATION_MIN)}+ members (potential ISP violation)`,
         entities,
         maxMembers,
         T.INTERFACE_SEGREGATION_MIN,
@@ -1023,7 +945,7 @@ export class InsightEngine {
         'maintenance',
         'info',
         'Missing Return Types',
-        `${s(entities.length)} functions/methods lack explicit return type annotations`,
+        `${String(entities.length)} functions/methods lack explicit return type annotations`,
         entities,
       ),
     ];
@@ -1058,7 +980,7 @@ export class InsightEngine {
         'maintenance',
         'info',
         'Async Boundary Mismatches',
-        `${s(entities.length)} sync methods call async methods (potential missing await)`,
+        `${String(entities.length)} sync methods call async methods (potential missing await)`,
         entities,
       ),
     ];
@@ -1096,7 +1018,7 @@ export class InsightEngine {
             id: sourceId,
             kind: 'import',
             name: graph.modules.get(sourceId)?.name ?? sourceId,
-            detail: `imports ${graph.modules.get(targetId)?.name ?? targetId} (layer ${s(sourceLayer)} → ${s(targetLayer)})`,
+            detail: `imports ${graph.modules.get(targetId)?.name ?? targetId} (layer ${String(sourceLayer)} → ${String(targetLayer)})`,
           });
         }
       }
@@ -1109,7 +1031,7 @@ export class InsightEngine {
         'dependency-health',
         'warning',
         'Layering Violations',
-        `${s(entities.length)} imports violate the layered architecture`,
+        `${String(entities.length)} imports violate the layered architecture`,
         entities,
       ),
     ];
@@ -1118,40 +1040,47 @@ export class InsightEngine {
   // ── 22. Dependency Depth ────────────────────────────────────────────────
 
   private dependencyDepth(graph: ImportGraph): InsightResult[] {
+    // Multi-source reverse BFS from leaf nodes (out-degree 0) — O(V+E)
+    const depth = new Map<string, number>();
+    const queue: [string, number][] = [];
+
+    for (const id of graph.nodeIds) {
+      const outDeg = graph.adjacency.get(id)?.size ?? 0;
+      if (outDeg === 0) {
+        depth.set(id, 0);
+        queue.push([id, 0]);
+      }
+    }
+
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (!entry) break;
+      const [currentId, currentDepth] = entry;
+      const importers = graph.reverseAdjacency.get(currentId);
+      if (!importers) continue;
+      for (const importerId of importers) {
+        const newDepth = currentDepth + 1;
+        const existing = depth.get(importerId);
+        if (existing === undefined || newDepth > existing) {
+          depth.set(importerId, newDepth);
+          queue.push([importerId, newDepth]);
+        }
+      }
+    }
+
     const entities: InsightEntity[] = [];
     let maxDepth = 0;
     let worstSeverity: InsightSeverity = 'info';
 
-    for (const startId of graph.nodeIds) {
-      const visited = new Map<string, number>();
-      const queue: [string, number][] = [[startId, 0]];
-      visited.set(startId, 0);
-      let deepest = 0;
-
-      while (queue.length > 0) {
-        const entry = queue.shift();
-        if (!entry) break;
-        const [currentId, depth] = entry;
-        const neighbors = graph.adjacency.get(currentId);
-        if (!neighbors) continue;
-        for (const neighborId of neighbors) {
-          if (!visited.has(neighborId)) {
-            const nextDepth = depth + 1;
-            visited.set(neighborId, nextDepth);
-            deepest = Math.max(deepest, nextDepth);
-            queue.push([neighborId, nextDepth]);
-          }
-        }
-      }
-
-      if (deepest > T.DEPENDENCY_DEPTH_WARNING) {
-        maxDepth = Math.max(maxDepth, deepest);
-        if (deepest > T.DEPENDENCY_DEPTH_CRITICAL) worstSeverity = 'warning';
+    for (const [id, d] of depth) {
+      if (d > T.DEPENDENCY_DEPTH_WARNING) {
+        maxDepth = Math.max(maxDepth, d);
+        if (d > T.DEPENDENCY_DEPTH_CRITICAL) worstSeverity = 'warning';
         entities.push({
-          id: startId,
+          id,
           kind: 'module',
-          name: graph.modules.get(startId)?.name ?? startId,
-          detail: `dependency depth ${s(deepest)}`,
+          name: graph.modules.get(id)?.name ?? id,
+          detail: `dependency depth ${String(d)}`,
         });
       }
     }
@@ -1163,7 +1092,7 @@ export class InsightEngine {
         'dependency-health',
         worstSeverity,
         'Deep Dependency Chain',
-        `${s(entities.length)} modules have transitive dependency depth > ${s(T.DEPENDENCY_DEPTH_WARNING)}`,
+        `${String(entities.length)} modules have transitive dependency depth > ${String(T.DEPENDENCY_DEPTH_WARNING)}`,
         entities,
         maxDepth,
         T.DEPENDENCY_DEPTH_WARNING,
@@ -1188,9 +1117,13 @@ export class InsightEngine {
       do {
         const deps = graph.adjacency.get(current);
         if (!deps) break;
-        barrelDep = Array.from(deps).find(
-          (depId) => graph.modules.get(depId)?.isBarrel && !visited.has(depId),
-        );
+        barrelDep = undefined;
+        for (const depId of deps) {
+          if (graph.modules.get(depId)?.isBarrel && !visited.has(depId)) {
+            barrelDep = depId;
+            break;
+          }
+        }
         if (barrelDep) {
           visited.add(barrelDep);
           chain.push(barrelDep);
@@ -1210,7 +1143,7 @@ export class InsightEngine {
             'api-surface',
             'warning',
             'Re-export Chain',
-            `${s(chain.length)} barrel files form a re-export chain: ${chain.map((id) => graph.modules.get(id)?.name ?? id).join(' → ')}`,
+            `${String(chain.length)} barrel files form a re-export chain: ${chain.map((id) => graph.modules.get(id)?.name ?? id).join(' → ')}`,
             entities,
             chain.length,
             T.RE_EXPORT_CHAIN_MIN,
@@ -1241,7 +1174,7 @@ export class InsightEngine {
         id: row.name,
         kind: 'module',
         name: row.name,
-        detail: `exported from ${s(count)} modules`,
+        detail: `exported from ${String(count)} modules`,
       });
     }
 
@@ -1252,7 +1185,7 @@ export class InsightEngine {
         'maintenance',
         'info',
         'Duplicate Exports',
-        `${s(entities.length)} symbol${entities.length === 1 ? '' : 's'} exported from multiple modules`,
+        `${String(entities.length)} symbol${entities.length === 1 ? '' : 's'} exported from multiple modules`,
         entities,
       ),
     ];
@@ -1309,7 +1242,7 @@ export class InsightEngine {
         'maintenance',
         'info',
         'Naming Inconsistency',
-        `${s(entities.length)} classes/interfaces mix camelCase and snake_case method names`,
+        `${String(entities.length)} classes/interfaces mix camelCase and snake_case method names`,
         entities,
       ),
     ];
@@ -1343,7 +1276,7 @@ export class InsightEngine {
         'maintenance',
         'warning',
         'Abstract Class Without Implementors',
-        `${s(entities.length)} abstract classes have no known subclasses`,
+        `${String(entities.length)} abstract classes have no known subclasses`,
         entities,
       ),
     ];
@@ -1381,7 +1314,7 @@ export class InsightEngine {
           id: moduleId,
           kind: 'module',
           name: moduleNames.get(moduleId) ?? moduleId,
-          detail: `appears in ${s(kinds.size)} distinct insight types`,
+          detail: `appears in ${String(kinds.size)} distinct insight types`,
         });
       }
     }
@@ -1393,7 +1326,7 @@ export class InsightEngine {
         'structural-complexity',
         'warning',
         'Complexity Hotspot',
-        `${s(entities.length)} modules appear in ${s(T.COMPLEXITY_HOTSPOT_MIN)}+ distinct insight types`,
+        `${String(entities.length)} modules appear in ${String(T.COMPLEXITY_HOTSPOT_MIN)}+ distinct insight types`,
         entities,
         maxCount,
         T.COMPLEXITY_HOTSPOT_MIN,
@@ -1413,7 +1346,7 @@ export class InsightEngine {
     if (packageIds.size < 2) return [];
 
     // Count total imports per package and cross-package imports per pair
-    const pairKey = (a: string, b: string): string => a < b ? `${a}||${b}` : `${b}||${a}`;
+    const pairKey = (a: string, b: string): string => a < b ? `${String(a)}||${String(b)}` : `${String(b)}||${String(a)}`;
     const crossImports = new Map<string, number>();
     const pkgTotalImports = new Map<string, number>();
 
@@ -1453,7 +1386,7 @@ export class InsightEngine {
         id: key,
         kind: 'module',
         name: `${pkgA} <-> ${pkgB}`,
-        detail: `${s(crossCount)} cross-package imports (${s(pct)}% of ${s(total)} total)`,
+        detail: `${String(crossCount)} cross-package imports (${String(pct)}% of ${String(total)} total)`,
       });
     }
 
@@ -1464,7 +1397,7 @@ export class InsightEngine {
         'connectivity',
         worstSeverity,
         'Package Coupling',
-        `${s(entities.length)} package pairs have cross-package imports`,
+        `${String(entities.length)} package pairs have cross-package imports`,
         entities,
         Math.round(maxRatio * 100),
       ),

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { EntityNotFoundError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
@@ -112,7 +113,7 @@ export class SymbolReferenceRepository extends BaseRepository<
       return dto;
     } catch (error) {
       throw new RepositoryError(
-        `Failed to create symbol reference: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to create symbol reference: ${getErrorMessage(error)}`,
         'create',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -151,7 +152,7 @@ export class SymbolReferenceRepository extends BaseRepository<
         throw error;
       }
       throw new RepositoryError(
-        `Failed to update symbol reference: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to update symbol reference: ${getErrorMessage(error)}`,
         'update',
         this.errorTag,
         error instanceof Error ? error : undefined
@@ -214,7 +215,7 @@ export class SymbolReferenceRepository extends BaseRepository<
         throw error;
       }
       throw new RepositoryError(
-        `Failed to retrieve symbol references by module IDs: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to retrieve symbol references by module IDs: ${getErrorMessage(error)}`,
         'retrieveByModuleIds',
         this.errorTag,
         error instanceof Error ? error : undefined

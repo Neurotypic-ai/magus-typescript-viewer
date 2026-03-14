@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { BaseRepository } from './BaseRepository';
 
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
@@ -170,8 +171,8 @@ export class CodeIssueRepository extends BaseRepository<CodeIssueEntity, ICodeIs
     if (row.refactor_context_json) {
       try {
         refactorContext = JSON.parse(row.refactor_context_json) as Record<string, unknown>;
-      } catch {
-        // Invalid JSON — leave as undefined
+      } catch (error) {
+        this.logger.warn(`Failed to parse refactor_context_json for issue ${row.id}: ${getErrorMessage(error)}`);
       }
     }
 
