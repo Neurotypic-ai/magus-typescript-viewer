@@ -1,7 +1,6 @@
-import { defineStore, type SetupStoreDefinition } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, shallowRef, watch } from 'vue';
 
-import type { Ref, ShallowRef } from 'vue';
 
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
@@ -17,37 +16,6 @@ const CACHE_DEBOUNCE_MS = 500;
 const MAX_CACHEABLE_NODE_COUNT = 1200;
 const MAX_CACHEABLE_EDGE_COUNT = 5000;
 
-interface GraphStore {
-  nodes: Ref<DependencyNode[]>;
-  edges: Ref<GraphEdge[]>;
-  selectedNode: Ref<DependencyNode | null>;
-  cacheKey: Ref<string | null>;
-  viewMode: Ref<GraphViewMode>;
-  overviewSnapshot: Ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
-  semanticSnapshot: ShallowRef<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>;
-  /** Manual offsets from collision-resolution pushes, keyed by node ID. */
-  manualOffsets: Ref<Map<string, ManualOffset>>;
-  setNodes: (newNodes: DependencyNode[]) => void;
-  setEdges: (newEdges: GraphEdge[]) => void;
-  updateNodesById: (updates: Map<string, DependencyNode>) => void;
-  updateEdgesById: (updates: Map<string, GraphEdge>) => void;
-  setEdgeVisibility: (visibilityMap: Map<string, boolean>) => void;
-  setSelectedNode: (node: DependencyNode | null) => void;
-  setCacheKey: (key: string | null) => void;
-  setViewMode: (mode: GraphViewMode) => void;
-  setOverviewSnapshot: (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => void;
-  setSemanticSnapshot: (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => void;
-  restoreOverviewSnapshot: () => boolean;
-  clearCache: () => void;
-  suspendCacheWrites: () => void;
-  resumeCacheWrites: () => void;
-  /** Merge collision-resolution offsets into the overlay map. */
-  mergeManualOffsets: (offsets: Map<string, ManualOffset>) => void;
-  /** Apply stored manual offsets to a list of nodes (mutates positions in-place). */
-  applyManualOffsets: (nodeList: DependencyNode[]) => DependencyNode[];
-  /** Clear all manual offsets (e.g. on explicit layout reset or graph identity change). */
-  clearManualOffsets: () => void;
-}
 
 function debounce<P extends unknown[]>(func: (...args: P) => void, wait: number): (...args: P) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -64,7 +32,7 @@ function debounce<P extends unknown[]>(func: (...args: P) => void, wait: number)
 /**
  * Pinia store for graph state management
  */
-export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineStore('graph', (): GraphStore => {
+export const useGraphStore = defineStore('graph', () => {
   // State
   const nodes = ref<DependencyNode[]>([]);
   const edges = ref<GraphEdge[]>([]);

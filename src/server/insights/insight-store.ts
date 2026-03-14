@@ -66,7 +66,9 @@ export async function getLatestReport(adapter: IDatabaseAdapter, packageId?: str
     return null;
   }
 
-  return JSON.parse(rows[0].report_json) as InsightReport;
+  const row = rows[0];
+  if (!row) return null;
+  return JSON.parse(row.report_json) as InsightReport;
 }
 
 /**

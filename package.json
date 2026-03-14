@@ -4,7 +4,7 @@
     "typescript-viewer": "dist/bin/typescript-viewer.js"
   },
   "dependencies": {
-    "@dagrejs/dagre": "^2.0.3",
+    "@dagrejs/dagre": "^2.0.4",
     "@dagrejs/graphlib": "^4.0.1",
     "@duckdb/node-api": "1.5.0-r.1",
     "@duckdb/node-bindings": "1.5.0-r.1",
@@ -47,10 +47,11 @@
     "@typescript-eslint/utils": "^8.57.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.0",
+    "@vue/shared": "^3.5.30",
     "@vue/tsconfig": "^0.9.0",
     "autoprefixer": "^10.4.27",
     "esbuild": "^0.27.4",
-    "eslint": "^9.39.2",
+    "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.4.0",
     "jsdom": "^28.1.0",
