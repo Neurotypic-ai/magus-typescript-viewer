@@ -43,5 +43,5 @@ export interface Rule {
   name: string;
   description: string;
   severity: IssueSeverity;
-  check(context: RuleContext): CodeIssue[];
+  check(context: RuleContext): CodeIssue[] | Promise<CodeIssue[]>;
 }

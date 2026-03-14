@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import type { DuckDBConnection, DuckDBInstance, DuckDBValue } from '@duckdb/node-api';
 
 import type { DatabaseRow, IDatabaseAdapter, QueryParams, QueryResult } from './IDatabaseAdapter';
@@ -70,9 +72,11 @@ function convertToRow(duckDBRow: unknown, columnNames: string[]): DatabaseRow {
 export class DuckDBAdapter implements IDatabaseAdapter {
   private db!: DuckDBInstance;
   private availableConnections: DuckDBConnection[] = [];
-  private waitingForConnection: ((conn: DuckDBConnection) => void)[] = [];
+  private waitingForConnection: { resolve: (conn: DuckDBConnection) => void; reject: (err: Error) => void }[] = [];
   private isInitialized = false;
+  private isClosing = false;
   private readonly poolSize: number;
+  private readonly transactionConnection = new AsyncLocalStorage<DuckDBConnection>();
 
   constructor(
     private readonly dbPath: string,
@@ -102,22 +106,46 @@ export class DuckDBAdapter implements IDatabaseAdapter {
   }
 
   private acquireConnection(): Promise<DuckDBConnection> {
+    if (this.isClosing) {
+      return Promise.reject(new Error('Database is closing'));
+    }
     const available = this.availableConnections.pop();
     if (available) {
       return Promise.resolve(available);
     }
-    return new Promise<DuckDBConnection>((resolve) => {
-      this.waitingForConnection.push(resolve);
+    return new Promise<DuckDBConnection>((resolve, reject) => {
+      this.waitingForConnection.push({ resolve, reject });
     });
   }
 
   private releaseConnection(connection: DuckDBConnection): void {
     const waiter = this.waitingForConnection.shift();
     if (waiter) {
-      waiter(connection);
+      waiter.resolve(connection);
     } else {
       this.availableConnections.push(connection);
     }
+  }
+
+  private async executeOnConnection<T extends DatabaseRow>(
+    connection: DuckDBConnection,
+    sql: string,
+    params?: QueryParams
+  ): Promise<QueryResult<T>> {
+    const queryParams = (params ?? []) as DuckDBValue[];
+    const result = await connection.runAndReadAll(sql, queryParams);
+
+    if (typeof result.columnNames !== 'function' || typeof result.getRows !== 'function') {
+      throw new Error('Invalid result from DuckDB query');
+    }
+
+    const columnNames = result.columnNames();
+    const rows = result.getRows();
+    if (!Array.isArray(rows)) {
+      throw new Error('Invalid rows format from DuckDB query');
+    }
+
+    return rows.map((row: unknown) => convertToRow(row, columnNames)) as T[];
   }
 
   getDbPath(): string {
@@ -129,22 +157,20 @@ export class DuckDBAdapter implements IDatabaseAdapter {
       throw new Error('Database not initialized. Call init() first.');
     }
 
+    // If we're inside a transaction, use its dedicated connection
+    const txnConnection = this.transactionConnection.getStore();
+    if (txnConnection) {
+      try {
+        return await this.executeOnConnection<T>(txnConnection, sql, params);
+      } catch (error) {
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    // Otherwise acquire from pool
     const connection = await this.acquireConnection();
     try {
-      const queryParams = (params ?? []) as DuckDBValue[];
-      const result = await connection.runAndReadAll(sql, queryParams);
-
-      if (typeof result.columnNames !== 'function' || typeof result.getRows !== 'function') {
-        throw new Error('Invalid result from DuckDB query');
-      }
-
-      const columnNames = result.columnNames();
-      const rows = result.getRows();
-      if (!Array.isArray(rows)) {
-        throw new Error('Invalid rows format from DuckDB query');
-      }
-
-      return rows.map((row: unknown) => convertToRow(row, columnNames)) as T[];
+      return await this.executeOnConnection<T>(connection, sql, params);
     } catch (error) {
       throw error instanceof Error ? error : new Error(String(error));
     } finally {
@@ -157,9 +183,11 @@ export class DuckDBAdapter implements IDatabaseAdapter {
       return;
     }
 
-    // Reject any waiting connection requests
+    this.isClosing = true;
+
+    // Reject any waiting connection requests with a proper error
     for (const waiter of this.waitingForConnection) {
-      waiter(null as unknown as DuckDBConnection);
+      waiter.reject(new Error('Database is closing'));
     }
     this.waitingForConnection.length = 0;
 
@@ -170,6 +198,7 @@ export class DuckDBAdapter implements IDatabaseAdapter {
     this.availableConnections.length = 0;
 
     this.isInitialized = false;
+    this.isClosing = false;
   }
 
   async transaction<T>(callback: () => Promise<T>): Promise<T> {
@@ -180,7 +209,9 @@ export class DuckDBAdapter implements IDatabaseAdapter {
     const connection = await this.acquireConnection();
     try {
       await connection.run('BEGIN TRANSACTION');
-      const result = await callback();
+      // Run the callback with this connection bound via AsyncLocalStorage
+      // so all query() calls inside route through the transaction's connection
+      const result = await this.transactionConnection.run(connection, callback);
       await connection.run('COMMIT');
       return result;
     } catch (error) {

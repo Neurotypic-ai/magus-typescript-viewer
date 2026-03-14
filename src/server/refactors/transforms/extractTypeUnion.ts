@@ -1,10 +1,16 @@
 import type {
   ASTPath,
+  ClassBody,
   ClassDeclaration,
   ClassProperty,
+  Collection,
+  ExportDefaultDeclaration,
   ExportNamedDeclaration,
+  JSCodeshift,
+  TSInterfaceBody,
   TSInterfaceDeclaration,
   TSPropertySignature,
+  TSUnionType,
 } from 'jscodeshift';
 import type { Transform } from '../Transform';
 
@@ -14,7 +20,6 @@ interface ExtractTypeUnionContext {
   parentName: string;
   parentType: 'class' | 'interface';
   propertyName: string;
-  unionMembers: string[];
 }
 
 function isExtractContext(context: Record<string, unknown>): context is ExtractTypeUnionContext {
@@ -22,23 +27,107 @@ function isExtractContext(context: Record<string, unknown>): context is ExtractT
     typeof context['suggestedName'] === 'string' &&
     typeof context['parentName'] === 'string' &&
     typeof context['parentType'] === 'string' &&
-    typeof context['propertyName'] === 'string' &&
-    Array.isArray(context['unionMembers'])
+    typeof context['propertyName'] === 'string'
   );
 }
 
-function isExportedDeclaration(path: ASTPath): boolean {
+type ExportDeclaration = ExportNamedDeclaration | ExportDefaultDeclaration;
+
+function isExportedDeclaration(path: ASTPath): { exported: boolean; kind: 'named' | 'default' | null } {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const parentPath = path.parentPath;
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-  return parentPath?.value?.type === 'ExportNamedDeclaration';
+  const parentType = parentPath?.value?.type as string | undefined;
+
+  if (parentType === 'ExportNamedDeclaration') {
+    return { exported: true, kind: 'named' };
+  }
+  if (parentType === 'ExportDefaultDeclaration') {
+    return { exported: true, kind: 'default' };
+  }
+  return { exported: false, kind: null };
 }
 
-function getInsertTarget(path: ASTPath, isExported: boolean): ASTPath {
-  if (isExported) {
-    return path.parentPath as ASTPath<ExportNamedDeclaration>;
+function getInsertTarget(path: ASTPath, exported: boolean): ASTPath {
+  if (exported) {
+    return path.parentPath as ASTPath<ExportDeclaration>;
   }
   return path;
+}
+
+function extractUnionFromAnnotation(
+  typeAnnotation: { typeAnnotation?: { type?: string } | undefined } | null | undefined,
+  propertyName: string,
+  parentName: string,
+  parentLabel: string,
+): TSUnionType {
+  const innerType = typeAnnotation?.typeAnnotation;
+  if (innerType?.type !== 'TSUnionType') {
+    throw new Error(`Property '${propertyName}' does not have a union type annotation on ${parentLabel} '${parentName}'`);
+  }
+  return innerType as TSUnionType;
+}
+
+function findProperty<T extends TSPropertySignature | ClassProperty>(
+  body: TSInterfaceBody | ClassBody,
+  memberType: string,
+  propertyName: string,
+  parentName: string,
+  parentLabel: string,
+): T {
+  for (const member of body.body) {
+    if (member.type !== memberType) continue;
+    const key = (member as TSPropertySignature | ClassProperty).key;
+    if (key.type === 'Identifier' && key.name === propertyName) {
+      return member as T;
+    }
+  }
+  throw new Error(`Property '${propertyName}' not found on ${parentLabel} '${parentName}'`);
+}
+
+function findSingleDeclaration<T>(
+  results: Collection<T>,
+  parentName: string,
+  parentLabel: string,
+): ASTPath<T> {
+  if (results.length === 0) {
+    throw new Error(`${parentLabel} '${parentName}' not found`);
+  }
+  if (results.length > 1) {
+    throw new Error(`Multiple declarations of ${parentLabel} '${parentName}' found — cannot determine which to transform`);
+  }
+  return results.paths()[0] as ASTPath<T>;
+}
+
+function checkNameConflict(j: JSCodeshift, root: Collection, suggestedName: string): void {
+  const existingAliases = root.find(j.TSTypeAliasDeclaration, { id: { name: suggestedName } });
+  if (existingAliases.length > 0) {
+    throw new Error(`Type alias '${suggestedName}' already exists in this file — choose a different name`);
+  }
+}
+
+function insertTypeAlias(
+  j: JSCodeshift,
+  path: ASTPath,
+  suggestedName: string,
+  unionType: TSUnionType,
+): void {
+  const { exported, kind } = isExportedDeclaration(path);
+
+  const typeAlias = j.tsTypeAliasDeclaration(
+    j.identifier(suggestedName),
+    unionType,
+  );
+
+  const insertTarget = getInsertTarget(path, exported);
+
+  // For named exports, also export the type alias. For default exports,
+  // the type alias is a separate declaration and should not be default-exported.
+  if (exported && kind === 'named') {
+    insertTarget.insertBefore(j.exportNamedDeclaration(typeAlias));
+  } else {
+    insertTarget.insertBefore(typeAlias);
+  }
 }
 
 export const extractTypeUnion: Transform = {
@@ -53,111 +142,45 @@ export const extractTypeUnion: Transform = {
 
     const { suggestedName, parentName, parentType, propertyName } = context;
 
+    checkNameConflict(j, root, suggestedName);
+
     if (parentType === 'interface') {
-      const interfaces = root.find(j.TSInterfaceDeclaration, { id: { name: parentName } });
-      if (interfaces.length === 0) {
-        throw new Error(`Interface '${parentName}' not found`);
-      }
+      const results = root.find(j.TSInterfaceDeclaration, { id: { name: parentName } });
+      const ifacePath = findSingleDeclaration<TSInterfaceDeclaration>(results, parentName, 'Interface');
+      const body = ifacePath.value.body;
 
-      const ifacePath = interfaces.paths()[0] as ASTPath<TSInterfaceDeclaration>;
-      const ifaceNode = ifacePath.value;
-      const body = ifaceNode.body;
+      const targetProp = findProperty<TSPropertySignature>(
+        body, 'TSPropertySignature', propertyName, parentName, 'interface',
+      );
 
-      // Find the target property
-      let targetProp: TSPropertySignature | undefined;
-      for (const member of body.body) {
-        if (member.type !== 'TSPropertySignature') continue;
-        if (member.key.type === 'Identifier' && member.key.name === propertyName) {
-          targetProp = member;
-          break;
-        }
-      }
+      const unionType = extractUnionFromAnnotation(
+        targetProp.typeAnnotation, propertyName, parentName, 'interface',
+      );
 
-      if (!targetProp) {
-        throw new Error(`Property '${propertyName}' not found on interface '${parentName}'`);
-      }
-
-      const typeAnnotation = targetProp.typeAnnotation;
-      const innerType = typeAnnotation?.typeAnnotation;
-      if (innerType?.type !== 'TSUnionType') {
-        throw new Error(`Property '${propertyName}' does not have a union type annotation`);
-      }
-
-      // Capture the union type before replacing (innerType is narrowed to TSUnionType)
-      const unionType = innerType;
-
-      // Replace property type with reference to new type alias
       targetProp.typeAnnotation = j.tsTypeAnnotation(
-        j.tsTypeReference(j.identifier(suggestedName))
+        j.tsTypeReference(j.identifier(suggestedName)),
       );
 
-      // Determine if the parent is exported
-      const isExported = isExportedDeclaration(ifacePath);
-
-      // Build the type alias declaration
-      const typeAlias = j.tsTypeAliasDeclaration(
-        j.identifier(suggestedName),
-        unionType
-      );
-
-      // Insert before the parent declaration (or its export wrapper)
-      const insertTarget = getInsertTarget(ifacePath, isExported);
-      if (isExported) {
-        const exportDecl = j.exportNamedDeclaration(typeAlias);
-        insertTarget.insertBefore(exportDecl);
-      } else {
-        insertTarget.insertBefore(typeAlias);
-      }
+      insertTypeAlias(j, ifacePath, suggestedName, unionType);
     } else {
-      // Class property
-      const classes = root.find(j.ClassDeclaration, { id: { name: parentName } });
-      if (classes.length === 0) {
-        throw new Error(`Class '${parentName}' not found`);
-      }
+      const results = root.find(j.ClassDeclaration, { id: { name: parentName } });
+      const classPath = findSingleDeclaration<ClassDeclaration>(results, parentName, 'Class');
+      const body = classPath.value.body;
 
-      const classPath = classes.paths()[0] as ASTPath<ClassDeclaration>;
-      const classNode = classPath.value;
-      const body = classNode.body;
+      const targetProp = findProperty<ClassProperty>(
+        body, 'ClassProperty', propertyName, parentName, 'class',
+      );
 
-      let targetProp: ClassProperty | undefined;
-      for (const member of body.body) {
-        if (member.type !== 'ClassProperty') continue;
-        if (member.key.type === 'Identifier' && member.key.name === propertyName) {
-          targetProp = member;
-          break;
-        }
-      }
-
-      if (!targetProp) {
-        throw new Error(`Property '${propertyName}' not found on class '${parentName}'`);
-      }
-
-      const typeAnnotation = targetProp.typeAnnotation;
-      if (!typeAnnotation || (typeAnnotation as { typeAnnotation?: { type?: string } }).typeAnnotation?.type !== 'TSUnionType') {
-        throw new Error(`Property '${propertyName}' does not have a union type annotation`);
-      }
-
-      const fullAnnotation = typeAnnotation as { typeAnnotation: { type: string } };
-      const unionType = fullAnnotation.typeAnnotation;
+      const unionType = extractUnionFromAnnotation(
+        targetProp.typeAnnotation as { typeAnnotation?: { type?: string } | undefined } | null | undefined,
+        propertyName, parentName, 'class',
+      );
 
       targetProp.typeAnnotation = j.tsTypeAnnotation(
-        j.tsTypeReference(j.identifier(suggestedName))
+        j.tsTypeReference(j.identifier(suggestedName)),
       );
 
-      const isExported = isExportedDeclaration(classPath);
-
-      const typeAlias = j.tsTypeAliasDeclaration(
-        j.identifier(suggestedName),
-        unionType as Parameters<typeof j.tsTypeAliasDeclaration>[1]
-      );
-
-      const insertTarget = getInsertTarget(classPath, isExported);
-      if (isExported) {
-        const exportDecl = j.exportNamedDeclaration(typeAlias);
-        insertTarget.insertBefore(exportDecl);
-      } else {
-        insertTarget.insertBefore(typeAlias);
-      }
+      insertTypeAlias(j, classPath, suggestedName, unionType);
     }
 
     return root.toSource();

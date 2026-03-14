@@ -256,14 +256,23 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
 
   async delete(id: string): Promise<void> {
     try {
-      // Delete related records first
+      // Delete leaf records first (parameters depend on methods)
+      await this.executeQuery('delete parameters', 'DELETE FROM parameters WHERE module_id = ?', [id]);
+      // Delete junction table records (depend on classes/interfaces)
+      await this.executeQuery('delete class_implements', 'DELETE FROM class_implements WHERE class_id IN (SELECT id FROM classes WHERE module_id = ?)', [id]);
+      await this.executeQuery('delete class_extends', 'DELETE FROM class_extends WHERE class_id IN (SELECT id FROM classes WHERE module_id = ?)', [id]);
+      await this.executeQuery('delete interface_extends', 'DELETE FROM interface_extends WHERE interface_id IN (SELECT id FROM interfaces WHERE module_id = ?)', [id]);
+      // Delete child entity records
+      await this.executeQuery('delete methods', 'DELETE FROM methods WHERE module_id = ?', [id]);
+      await this.executeQuery('delete properties', 'DELETE FROM properties WHERE module_id = ?', [id]);
+      await this.executeQuery('delete symbol_references', 'DELETE FROM symbol_references WHERE module_id = ?', [id]);
+      await this.executeQuery('delete code_issues', 'DELETE FROM code_issues WHERE module_id = ?', [id]);
       await this.executeQuery('delete module tests', 'DELETE FROM module_tests WHERE module_id = ?', [id]);
       await this.executeQuery('delete classes', 'DELETE FROM classes WHERE module_id = ?', [id]);
       await this.executeQuery('delete interfaces', 'DELETE FROM interfaces WHERE module_id = ?', [id]);
-      await this.executeQuery('delete methods', 'DELETE FROM methods WHERE module_id = ?', [id]);
-      await this.executeQuery('delete properties', 'DELETE FROM properties WHERE module_id = ?', [id]);
-      await this.executeQuery('delete parameters', 'DELETE FROM parameters WHERE module_id = ?', [id]);
+      await this.executeQuery('delete functions', 'DELETE FROM functions WHERE module_id = ?', [id]);
       await this.executeQuery('delete imports', 'DELETE FROM imports WHERE module_id = ?', [id]);
+      await this.executeQuery('delete exports', 'DELETE FROM exports WHERE module_id = ?', [id]);
       await this.executeQuery('delete type_aliases', 'DELETE FROM type_aliases WHERE module_id = ?', [id]);
       await this.executeQuery('delete enums', 'DELETE FROM enums WHERE module_id = ?', [id]);
       await this.executeQuery('delete variables', 'DELETE FROM variables WHERE module_id = ?', [id]);

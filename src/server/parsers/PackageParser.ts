@@ -120,7 +120,7 @@ export class PackageParser {
     );
 
     // 8. Resolve symbol references
-    const symbolReferences = this.relationshipResolver.resolveSymbolReferences(
+    const { resolved: symbolReferences } = this.relationshipResolver.resolveSymbolReferences(
       packageId,
       collected.symbolUsages,
       classNameToIds,
@@ -193,9 +193,9 @@ export class PackageParser {
       });
       moduleResult.exports.forEach((exp) => moduleExports.push(exp));
 
-      rawClassExtends.push(...parseRefArray(moduleResult.classExtends));
-      rawClassImplements.push(...parseRefArray(moduleResult.classImplements));
-      rawInterfaceExtends.push(...parseRefArray(moduleResult.interfaceExtends));
+      rawClassExtends.push(...moduleResult.classExtends);
+      rawClassImplements.push(...moduleResult.classImplements);
+      rawInterfaceExtends.push(...moduleResult.interfaceExtends);
       symbolUsages.push(...moduleResult.symbolUsages);
     }
 
@@ -239,11 +239,6 @@ interface CollectedModuleData {
   rawClassImplements: ClassImplementsRef[];
   rawInterfaceExtends: InterfaceExtendsRef[];
   symbolUsages: SymbolUsageRef[];
-}
-
-/** Type-safe passthrough for ref arrays (already typed from ParseResult) */
-function parseRefArray<T>(refs: T[]): T[] {
-  return refs;
 }
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {

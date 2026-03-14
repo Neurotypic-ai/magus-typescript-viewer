@@ -34,6 +34,18 @@ export interface TechDebtReport {
   score: number;
 }
 
+/**
+ * Strip the content of string literals from a line, preserving quotes and length.
+ * This prevents false-positive pattern matches inside strings.
+ */
+function stripStringContent(line: string): string {
+  return line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g, (match) => {
+    // Preserve the quotes but replace content with spaces to maintain length
+    if (match.length <= 2) return match;
+    return match[0] + ' '.repeat(match.length - 2) + match[match.length - 1];
+  });
+}
+
 /** Maximum length of a snippet included in a marker. */
 const MAX_SNIPPET_LENGTH = 80;
 
@@ -64,14 +76,15 @@ function truncateSnippet(text: string): string {
  */
 export function detectTechDebt(source: string): TechDebtReport {
   const markers: TechDebtMarker[] = [];
-  const lines = source.split('\n');
+  const lines = source.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
+    const strippedLine = stripStringContent(line);
     const lineNumber = i + 1;
 
     // Detect ts-ignore directives
-    if (/\/\/\s*@ts-ignore\b/.test(line)) {
+    if (/\/\/\s*@ts-ignore\b/.test(strippedLine)) {
       markers.push({
         type: 'ts_ignore',
         line: lineNumber,
@@ -81,7 +94,7 @@ export function detectTechDebt(source: string): TechDebtReport {
     }
 
     // Detect ts-expect-error directives
-    if (/\/\/\s*@ts-expect-error\b/.test(line)) {
+    if (/\/\/\s*@ts-expect-error\b/.test(strippedLine)) {
       markers.push({
         type: 'ts_expect_error',
         line: lineNumber,
@@ -91,7 +104,7 @@ export function detectTechDebt(source: string): TechDebtReport {
     }
 
     // TODO comments (case insensitive)
-    if (/\/\/\s*todo\b/i.test(line) || /\/\*.*\btodo\b/i.test(line)) {
+    if (/\/\/\s*todo\b/i.test(strippedLine) || /\/\*.*\btodo\b/i.test(strippedLine)) {
       markers.push({
         type: 'todo_comment',
         line: lineNumber,
@@ -101,7 +114,7 @@ export function detectTechDebt(source: string): TechDebtReport {
     }
 
     // FIXME comments (case insensitive)
-    if (/\/\/\s*fixme\b/i.test(line) || /\/\*.*\bfixme\b/i.test(line)) {
+    if (/\/\/\s*fixme\b/i.test(strippedLine) || /\/\*.*\bfixme\b/i.test(strippedLine)) {
       markers.push({
         type: 'fixme_comment',
         line: lineNumber,
@@ -111,7 +124,7 @@ export function detectTechDebt(source: string): TechDebtReport {
     }
 
     // HACK comments (case insensitive)
-    if (/\/\/\s*hack\b/i.test(line) || /\/\*.*\bhack\b/i.test(line)) {
+    if (/\/\/\s*hack\b/i.test(strippedLine) || /\/\*.*\bhack\b/i.test(strippedLine)) {
       markers.push({
         type: 'hack_comment',
         line: lineNumber,
@@ -121,7 +134,7 @@ export function detectTechDebt(source: string): TechDebtReport {
     }
 
     // `: any` type annotations — match colon followed by `any` as a word
-    if (/:\s*any\b/.test(line)) {
+    if (/:\s*any\b/.test(strippedLine)) {
       markers.push({
         type: 'any_type',
         line: lineNumber,
@@ -131,7 +144,7 @@ export function detectTechDebt(source: string): TechDebtReport {
     }
 
     // `as any` type assertions
-    if (/\bas\s+any\b/.test(line)) {
+    if (/\bas\s+any\b/.test(strippedLine)) {
       markers.push({
         type: 'type_assertion',
         line: lineNumber,
@@ -141,7 +154,7 @@ export function detectTechDebt(source: string): TechDebtReport {
     }
 
     // `as unknown as` double type assertions
-    if (/\bas\s+unknown\s+as\b/.test(line)) {
+    if (/\bas\s+unknown\s+as\b/.test(strippedLine)) {
       markers.push({
         type: 'type_assertion',
         line: lineNumber,
@@ -151,8 +164,7 @@ export function detectTechDebt(source: string): TechDebtReport {
     }
 
     // Non-null assertions: identifier followed by `!` then `.` or `,` or `)` or `[`
-    // Avoid matching `!==` and `!=`
-    if (/\w!(?:\.|,|\)|\[)/.test(line) && !/!==?/.test(line.replace(/\w!(?:\.|,|\)|\[)/g, ''))) {
+    if (/\w!(?:\.|,|\)|\[)/.test(strippedLine)) {
       markers.push({
         type: 'non_null_assertion',
         line: lineNumber,

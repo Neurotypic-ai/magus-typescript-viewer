@@ -1,7 +1,5 @@
 import { readFile } from 'fs/promises';
 
-const VUE_SCRIPT_BLOCK_PATTERN = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
-
 export class VueScriptExtractor {
   async getSourceOverride(filePath: string): Promise<string | undefined> {
     if (!filePath.endsWith('.vue')) {
@@ -16,10 +14,11 @@ export class VueScriptExtractor {
     const scriptBlocks: string[] = [];
     let match: RegExpExecArray | null;
 
-    // Reset lastIndex since we reuse the global regex
-    VUE_SCRIPT_BLOCK_PATTERN.lastIndex = 0;
+    // Create regex locally to avoid global lastIndex state issues across calls
+    const scriptBlockPattern =
+      /<script\b((?:[^>=]|=\s*"[^"]*"|=\s*'[^']*'|=[^\s>]*)*)>([\s\S]*?)<\/script>/gi;
 
-    while ((match = VUE_SCRIPT_BLOCK_PATTERN.exec(source)) !== null) {
+    while ((match = scriptBlockPattern.exec(source)) !== null) {
       const attributes = match[1] ?? '';
       const scriptBody = match[2] ?? '';
 
@@ -28,8 +27,9 @@ export class VueScriptExtractor {
         continue;
       }
 
-      const languageMatch = /\blang\s*=\s*['"]?([a-z0-9]+)['"]?/i.exec(attributes);
-      const language = languageMatch?.[1]?.toLowerCase();
+      const languageMatch =
+        /\blang\s*=\s*(?:['"]([a-z0-9]+)['"]|([a-z0-9]+)(?:\s|$))/i.exec(attributes);
+      const language = (languageMatch?.[1] ?? languageMatch?.[2])?.toLowerCase();
       if (language && !['ts', 'tsx', 'js', 'jsx'].includes(language)) {
         continue;
       }

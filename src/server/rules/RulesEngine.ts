@@ -3,8 +3,9 @@ import { readFile } from 'fs/promises';
 import jscodeshift from 'jscodeshift';
 
 import { createLogger } from '../../shared/utils/logger';
+import { VueScriptExtractor } from '../parsers/VueScriptExtractor';
 import { defaultRulesConfig } from './RulesConfig';
-import { allRules } from './rules/index';
+import { typeUnionWithoutAlias } from './rules/typeUnionWithoutAlias';
 
 import type { ParseResult } from '../parsers/ParseResult';
 import type { CodeIssue, Rule } from './Rule';
@@ -15,10 +16,16 @@ export class RulesEngine {
   private readonly config: RulesConfig;
   private readonly logger = createLogger('RulesEngine');
   private readonly j = jscodeshift.withParser('tsx');
+  private readonly vueExtractor = new VueScriptExtractor();
 
   constructor(rules?: Rule[], config?: Partial<RulesConfig>) {
-    this.rules = rules ?? allRules;
-    this.config = { ...defaultRulesConfig, ...config };
+    this.rules = rules ?? [typeUnionWithoutAlias];
+    this.config = {
+      typeUnionWithoutAlias: {
+        ...defaultRulesConfig.typeUnionWithoutAlias,
+        ...config?.typeUnionWithoutAlias,
+      },
+    };
   }
 
   async analyze(parseResult: ParseResult): Promise<CodeIssue[]> {
@@ -28,19 +35,29 @@ export class RulesEngine {
     for (const mod of parseResult.modules) {
       const filePath = mod.source.filename;
 
-      // Skip Vue SFCs — jscodeshift's TSX parser cannot handle <template>/<style> blocks
-      if (filePath.endsWith('.vue')) continue;
+      if (!filePath) {
+        this.logger.warn('Module has empty file path, skipping');
+        continue;
+      }
 
       let sourceContent: string;
 
-      try {
-        sourceContent = await readFile(filePath, 'utf-8');
-      } catch (error) {
-        this.logger.warn(
-          `Could not read file for rules analysis: ${filePath}`,
-          error instanceof Error ? error.message : String(error)
-        );
-        continue;
+      if (filePath.endsWith('.vue')) {
+        const extracted = await this.vueExtractor.getSourceOverride(filePath);
+        if (!extracted) {
+          continue;
+        }
+        sourceContent = extracted;
+      } else {
+        try {
+          sourceContent = await readFile(filePath, 'utf-8');
+        } catch (error) {
+          this.logger.warn(
+            `Could not read file for rules analysis: ${filePath}`,
+            error instanceof Error ? error.message : String(error)
+          );
+          continue;
+        }
       }
 
       let root;
@@ -56,7 +73,7 @@ export class RulesEngine {
 
       for (const rule of this.rules) {
         try {
-          const ruleIssues = rule.check({
+          const ruleIssues = await rule.check({
             j: this.j,
             root,
             parseResult,

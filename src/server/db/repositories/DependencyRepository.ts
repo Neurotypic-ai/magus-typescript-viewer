@@ -102,7 +102,7 @@ export class DependencyRepository extends BaseRepository<
     }
   }
 
-  async retrieve(id?: string, module_id?: string): Promise<IDependencyEntity[]> {
+  async retrieve(id?: string, _module_id?: string): Promise<IDependencyEntity[]> {
     try {
       let query = 'SELECT * FROM dependencies';
       const params: DuckDBValue[] = [];
@@ -113,10 +113,8 @@ export class DependencyRepository extends BaseRepository<
         params.push(id);
       }
 
-      if (module_id) {
-        conditions.push('module_id = ?');
-        params.push(module_id);
-      }
+      // Note: dependencies table has no module_id column.
+      // The _module_id parameter exists only to satisfy the BaseRepository interface.
 
       if (conditions.length > 0) {
         query += ' WHERE ' + conditions.join(' AND ');
@@ -167,9 +165,14 @@ export class DependencyRepository extends BaseRepository<
         created_at: new Date(String(dep.created_at)),
       }));
     } catch (error) {
-      // Be permissive: if dependency table is absent or query fails, return empty list
-      this.logger.error('Failed to find dependencies by source (returning empty set)', error);
-      return [];
+      const msg = error instanceof Error ? error.message : '';
+      // Only swallow "table not found" errors for graceful degradation
+      if (msg.includes('does not exist') || msg.includes('Table') || msg.includes('not found')) {
+        this.logger.warn('Dependencies table may not exist, returning empty set', error);
+        return [];
+      }
+      this.logger.error('Failed to find dependencies by source', error);
+      throw new RepositoryError('Failed to find dependencies by source', 'findBySourceId', this.errorTag, error as Error);
     }
   }
 
@@ -189,8 +192,14 @@ export class DependencyRepository extends BaseRepository<
         created_at: new Date(String(dep.created_at)),
       }));
     } catch (error) {
-      this.logger.error('Failed to find dependencies by target (returning empty set)', error);
-      return [];
+      const msg = error instanceof Error ? error.message : '';
+      // Only swallow "table not found" errors for graceful degradation
+      if (msg.includes('does not exist') || msg.includes('Table') || msg.includes('not found')) {
+        this.logger.warn('Dependencies table may not exist, returning empty set', error);
+        return [];
+      }
+      this.logger.error('Failed to find dependencies by target', error);
+      throw new RepositoryError('Failed to find dependencies by target', 'findByTargetId', this.errorTag, error as Error);
     }
   }
 

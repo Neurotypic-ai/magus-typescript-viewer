@@ -424,7 +424,19 @@ function getMethodName(
   logger: Logger
 ): string | undefined {
   try {
-    return node.key.type === 'Identifier' ? node.key.name : undefined;
+    if (node.key.type === 'Identifier') {
+      return node.key.name;
+    }
+    const key = node.key as unknown as Record<string, unknown>;
+    // String literal keys: 'method-name' or "method-name"
+    if (node.key.type === 'StringLiteral' || (node.key.type === 'Literal' && typeof key['value'] === 'string')) {
+      return key['value'] as string;
+    }
+    // Numeric literal keys: 0, 1, etc.
+    if (node.key.type === 'NumericLiteral' || (node.key.type === 'Literal' && typeof key['value'] === 'number')) {
+      return String(key['value']);
+    }
+    return undefined;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Error getting method name:', { error: errorMessage });
@@ -439,6 +451,15 @@ function getPropertyName(node: ClassProperty | TSPropertySignature, logger: Logg
   try {
     if (node.key.type === 'Identifier') {
       return node.key.name;
+    }
+    const key = node.key as unknown as Record<string, unknown>;
+    // String literal keys: 'prop-name' or "prop-name"
+    if (node.key.type === 'StringLiteral' || (node.key.type === 'Literal' && typeof key['value'] === 'string')) {
+      return key['value'] as string;
+    }
+    // Numeric literal keys: 0, 1, etc.
+    if (node.key.type === 'NumericLiteral' || (node.key.type === 'Literal' && typeof key['value'] === 'number')) {
+      return String(key['value']);
     }
     return undefined;
   } catch (error) {

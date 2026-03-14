@@ -132,6 +132,42 @@ const y = brokenCode();
     });
   });
 
+  describe('non-null assertion with !== on same line', () => {
+    it('detects non-null assertion even when line also contains !==', () => {
+      const source = `if (obj!.value !== undefined) {}`;
+      const report = detectTechDebt(source);
+      expect(report.markers.some((m) => m.type === 'non_null_assertion')).toBe(true);
+    });
+  });
+
+  describe('patterns inside string literals', () => {
+    it('does not detect ": any" inside a string literal', () => {
+      const source = `const msg = "type: any is bad";`;
+      const report = detectTechDebt(source);
+      expect(report.markers.filter((m) => m.type === 'any_type')).toHaveLength(0);
+    });
+
+    it('does not detect // TODO inside a string literal', () => {
+      const source = `const msg = "// TODO: fix this";`;
+      const report = detectTechDebt(source);
+      expect(report.markers.filter((m) => m.type === 'todo_comment')).toHaveLength(0);
+    });
+  });
+
+  describe('CRLF line endings', () => {
+    it('handles Windows CRLF line endings correctly', () => {
+      const source = "// TODO: first\r\n// FIXME: second\r\nconst x: any = 1;\r\n";
+      const report = detectTechDebt(source);
+      expect(report.markers).toHaveLength(3);
+      expect(report.markers[0].type).toBe('todo_comment');
+      expect(report.markers[0].line).toBe(1);
+      expect(report.markers[1].type).toBe('fixme_comment');
+      expect(report.markers[1].line).toBe(2);
+      expect(report.markers[2].type).toBe('any_type');
+      expect(report.markers[2].line).toBe(3);
+    });
+  });
+
   describe('scoring', () => {
     it('returns score of 100 for clean code', () => {
       const source = `

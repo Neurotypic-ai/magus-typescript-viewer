@@ -272,29 +272,14 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
 
   async delete(id: string): Promise<void> {
     try {
-      // Group related deletions
-      const relatedDeletions = [
-        {
-          operation: 'delete implements',
-          query: 'DELETE FROM class_implements WHERE class_id = ?',
-        },
-        {
-          operation: 'delete methods',
-          query: 'DELETE FROM methods WHERE parent_id = ? AND parent_type = ?',
-          additionalParams: ['class'],
-        },
-        {
-          operation: 'delete properties',
-          query: 'DELETE FROM properties WHERE parent_id = ? AND parent_type = ?',
-          additionalParams: ['class'],
-        },
-      ];
-
-      // Execute deletions in order
-      for (const deletion of relatedDeletions) {
-        const params = [id, ...(deletion.additionalParams ?? [])];
-        await this.executeQuery<IClassOrInterfaceRow>(deletion.operation, deletion.query, params);
-      }
+      // Delete leaf records first (parameters depend on methods)
+      await this.executeQuery('delete parameters', 'DELETE FROM parameters WHERE method_id IN (SELECT id FROM methods WHERE parent_id = ? AND parent_type = ?)', [id, 'class']);
+      // Delete junction/relationship records
+      await this.executeQuery('delete implements', 'DELETE FROM class_implements WHERE class_id = ?', [id]);
+      await this.executeQuery('delete extends', 'DELETE FROM class_extends WHERE class_id = ?', [id]);
+      // Delete child entities
+      await this.executeQuery('delete methods', 'DELETE FROM methods WHERE parent_id = ? AND parent_type = ?', [id, 'class']);
+      await this.executeQuery('delete properties', 'DELETE FROM properties WHERE parent_id = ? AND parent_type = ?', [id, 'class']);
 
       // Delete the main entity
       await this.executeQuery<IClassOrInterfaceRow>('delete class', `DELETE FROM ${this.tableName} WHERE id = ?`, [id]);

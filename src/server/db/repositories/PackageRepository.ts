@@ -276,7 +276,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
     return this.retrieve(undefined, module_id);
   }
 
-  async retrieve(id?: string, module_id?: string): Promise<Package[]> {
+  async retrieve(id?: string, _module_id?: string): Promise<Package[]> {
     try {
       let query = 'SELECT * FROM packages';
       const params: DuckDBValue[] = [];
@@ -287,10 +287,8 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         params.push(id);
       }
 
-      if (module_id) {
-        conditions.push('module_id = ?');
-        params.push(module_id);
-      }
+      // Note: packages table has no module_id column.
+      // The _module_id parameter exists only to satisfy the BaseRepository interface.
 
       if (conditions.length > 0) {
         query += ' WHERE ' + conditions.join(' AND ');
@@ -314,14 +312,122 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
 
   async delete(id: string): Promise<void> {
     try {
-      // First delete dependencies
+      // Delete parameters
+      await this.executeQuery<IPackageRow>(
+        'delete parameters',
+        'DELETE FROM parameters WHERE package_id = ?',
+        [id]
+      );
+
+      // Delete junction tables for classes
+      await this.executeQuery<IPackageRow>(
+        'delete class_implements',
+        'DELETE FROM class_implements WHERE class_id IN (SELECT id FROM classes WHERE package_id = ?)',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete class_extends',
+        'DELETE FROM class_extends WHERE class_id IN (SELECT id FROM classes WHERE package_id = ?)',
+        [id]
+      );
+
+      // Delete junction tables for interfaces
+      await this.executeQuery<IPackageRow>(
+        'delete interface_extends',
+        'DELETE FROM interface_extends WHERE interface_id IN (SELECT id FROM interfaces WHERE package_id = ?)',
+        [id]
+      );
+
+      // Delete symbol references and code issues
+      await this.executeQuery<IPackageRow>(
+        'delete symbol_references',
+        'DELETE FROM symbol_references WHERE package_id = ?',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete code_issues',
+        'DELETE FROM code_issues WHERE package_id = ?',
+        [id]
+      );
+
+      // Delete methods and properties
+      await this.executeQuery<IPackageRow>(
+        'delete methods',
+        'DELETE FROM methods WHERE package_id = ?',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete properties',
+        'DELETE FROM properties WHERE package_id = ?',
+        [id]
+      );
+
+      // Delete module tests
+      await this.executeQuery<IPackageRow>(
+        'delete module_tests',
+        'DELETE FROM module_tests WHERE module_id IN (SELECT id FROM modules WHERE package_id = ?)',
+        [id]
+      );
+
+      // Delete functions, imports, exports
+      await this.executeQuery<IPackageRow>(
+        'delete functions',
+        'DELETE FROM functions WHERE package_id = ?',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete imports',
+        'DELETE FROM imports WHERE package_id = ?',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete exports',
+        'DELETE FROM exports WHERE package_id = ?',
+        [id]
+      );
+
+      // Delete type aliases, enums, variables
+      await this.executeQuery<IPackageRow>(
+        'delete type_aliases',
+        'DELETE FROM type_aliases WHERE package_id = ?',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete enums',
+        'DELETE FROM enums WHERE package_id = ?',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete variables',
+        'DELETE FROM variables WHERE package_id = ?',
+        [id]
+      );
+
+      // Delete classes, interfaces, modules
+      await this.executeQuery<IPackageRow>(
+        'delete classes',
+        'DELETE FROM classes WHERE package_id = ?',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete interfaces',
+        'DELETE FROM interfaces WHERE package_id = ?',
+        [id]
+      );
+      await this.executeQuery<IPackageRow>(
+        'delete modules',
+        'DELETE FROM modules WHERE package_id = ?',
+        [id]
+      );
+
+      // Delete dependencies
       await this.executeQuery<IPackageRow>(
         'delete dependencies',
         'DELETE FROM dependencies WHERE source_id = ? OR target_id = ?',
         [id, id]
       );
 
-      // Then delete the package
+      // Delete the package itself
       await this.executeQuery<IPackageRow>('delete package', 'DELETE FROM packages WHERE id = ?', [id]);
     } catch (error) {
       if (error instanceof RepositoryError) {

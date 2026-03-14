@@ -260,7 +260,26 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
 
   async delete(id: string): Promise<void> {
     try {
-      // Delete related records first
+      // Delete parameters for methods belonging to this interface
+      await this.executeQuery<IClassOrInterfaceRow>(
+        'delete parameters',
+        'DELETE FROM parameters WHERE method_id IN (SELECT id FROM methods WHERE parent_id = ? AND parent_type = ?)',
+        [id, 'interface']
+      );
+
+      // Delete junction table records
+      await this.executeQuery<IClassOrInterfaceRow>(
+        'delete interface_extends',
+        'DELETE FROM interface_extends WHERE interface_id = ?',
+        [id]
+      );
+      await this.executeQuery<IClassOrInterfaceRow>(
+        'delete class_implements',
+        'DELETE FROM class_implements WHERE interface_id = ?',
+        [id]
+      );
+
+      // Delete related records
       await this.executeQuery<IClassOrInterfaceRow>(
         'delete methods',
         'DELETE FROM methods WHERE parent_id = ? AND parent_type = ?',

@@ -74,7 +74,8 @@ export class RelationshipResolver {
     interfaceNameToIds: Map<string, Set<string>>,
     methods: IMethodCreateDTO[],
     properties: IPropertyCreateDTO[]
-  ): ISymbolReferenceCreateDTO[] {
+  ): { resolved: ISymbolReferenceCreateDTO[]; unresolvedCount: number } {
+    let unresolvedCount = 0;
     const methodNameToIds = new Map<string, Set<string>>();
     const propertyNameToIds = new Map<string, Set<string>>();
     const methodByParentAndName = new Map<string, Set<string>>();
@@ -122,6 +123,13 @@ export class RelationshipResolver {
       }
       targetSymbolId ??= this.resolveUniqueName(byNameMap, usage.targetName);
       if (!targetSymbolId) {
+        unresolvedCount++;
+        this.logger.debug('Unresolved symbol reference', {
+          targetName: usage.targetName,
+          targetKind: usage.targetKind,
+          qualifierName: usage.qualifierName,
+          moduleId: usage.moduleId,
+        });
         return;
       }
 
@@ -142,7 +150,11 @@ export class RelationshipResolver {
       });
     });
 
-    return Array.from(referencesById.values());
+    if (unresolvedCount > 0) {
+      this.logger.info(`Symbol resolution: ${String(referencesById.size)} resolved, ${String(unresolvedCount)} unresolved`);
+    }
+
+    return { resolved: Array.from(referencesById.values()), unresolvedCount };
   }
 
   private buildParentMemberKey(parentId: string, memberName: string): string {

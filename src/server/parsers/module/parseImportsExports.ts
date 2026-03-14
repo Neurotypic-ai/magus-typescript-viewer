@@ -34,7 +34,11 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
         const importedName = specifier.imported.name;
         const localName = specifier.local?.type === 'Identifier' ? specifier.local.name : importedName;
         const uuid = generateImportUUID(ctx.moduleId, `${importPath}:${importedName}`);
-        const kind = isTypeImport ? 'type' : 'value';
+        // Individual specifiers can have their own importKind for inline type imports
+        // e.g. `import { type X, Y }` — X has importKind 'type', Y has importKind 'value'
+        const specifierImportKind = (specifier as unknown as { importKind?: string }).importKind;
+        const specifierIsType = specifierImportKind === 'type' || isTypeImport;
+        const kind = specifierIsType ? 'type' : 'value';
         const aliases = new Set<string>();
         if (localName !== importedName) {
           aliases.add(localName);
@@ -112,6 +116,24 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
         const name = getIdentifierName(path.node.declaration.id);
         if (name) exports.add(name);
       }
+    }
+  });
+
+  // Handle export default declarations (e.g. `export default class Foo {}`)
+  // Only captures named defaults; anonymous defaults are handled by parseClasses.ts etc.
+  ctx.root.find(ctx.j.ExportDefaultDeclaration).forEach((path) => {
+    const decl = path.node.declaration;
+    if (decl && 'id' in decl && decl.id && typeof decl.id === 'object' && 'type' in decl.id && (decl.id.type === 'Identifier' || decl.id.type === 'JSXIdentifier')) {
+      const name = getIdentifierName(decl.id);
+      if (name) exports.add(name);
+    }
+  });
+
+  // Handle CommonJS-style `export = value` (TSExportAssignment)
+  ctx.root.find(ctx.j.TSExportAssignment).forEach((path) => {
+    const expr = path.node.expression;
+    if (expr.type === 'Identifier') {
+      exports.add(expr.name);
     }
   });
 

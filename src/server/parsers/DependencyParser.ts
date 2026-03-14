@@ -117,15 +117,11 @@ export class DependencyParser {
         const nameMatch = packageNamePattern.exec(line);
         currentDep = nameMatch?.[1] ?? '';
       } else if (line.includes('version') && currentDep) {
-        deps[currentDep] = {
-          version: line.split('"')[1] ?? '',
-          resolved: '',
-        };
-      } else if (line.includes('resolved') && currentDep && deps[currentDep]) {
-        const entry = deps[currentDep];
-        if (entry) {
-          entry.resolved = line.split('"')[1] ?? '';
-        }
+        const entry = (deps[currentDep] ??= { version: '', resolved: '' });
+        entry.version = line.split('"')[1] ?? '';
+      } else if (line.includes('resolved') && currentDep) {
+        const entry = (deps[currentDep] ??= { version: '', resolved: '' });
+        entry.resolved = line.split('"')[1] ?? '';
       }
     }
 
