@@ -181,11 +181,23 @@ export class ApiServerResponder {
     }
   }
 
-  async getPackages(): Promise<
+  async getSnapshots(repoPath?: string): Promise<Snapshot[]> {
+    if (repoPath) {
+      return this.snapshotRepository.listByRepo(repoPath);
+    }
+    return this.snapshotRepository.retrieve();
+  }
+
+  private async resolveSnapshotPackageId(snapshotId: string): Promise<string | undefined> {
+    const snapshot = await this.snapshotRepository.retrieveById(snapshotId);
+    return snapshot?.packageId;
+  }
+
+  async getPackages(packageId?: string): Promise<
     PackagesResponseItem[]
   > {
     try {
-      const packages = await this.packageRepository.retrieve();
+      const packages = await this.packageRepository.retrieve(packageId);
       return packages.map((pkg) => ({
         id: pkg.id,
         name: pkg.name,

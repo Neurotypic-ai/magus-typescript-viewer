@@ -64,8 +64,9 @@ const createSnapshotStore = (): SnapshotStore => {
 
       // Auto-select the last snapshot (highest ordinal) if any exist
       if (data.length > 0) {
-        const last = data.reduce((prev, curr) => (curr.ordinal > prev.ordinal ? curr : prev), data[0]);
-        selectedSnapshotId.value = last.id;
+        const sorted = [...data].sort((a, b) => b.ordinal - a.ordinal);
+        const last = sorted[0];
+        selectedSnapshotId.value = last ? last.id : null;
       } else {
         selectedSnapshotId.value = null;
       }
@@ -87,8 +88,11 @@ const createSnapshotStore = (): SnapshotStore => {
     if (snapshots.value.length === 0) return;
     if (selectedSnapshotId.value === null) {
       // In live mode — go to the highest ordinal snapshot
-      const last = snapshots.value.reduce((prev, curr) => (curr.ordinal > prev.ordinal ? curr : prev), snapshots.value[0]);
-      selectedSnapshotId.value = last.id;
+      const sorted = [...snapshots.value].sort((a, b) => b.ordinal - a.ordinal);
+      const last = sorted[0];
+      if (last) {
+        selectedSnapshotId.value = last.id;
+      }
       return;
     }
     const sorted = [...snapshots.value].sort((a, b) => a.ordinal - b.ordinal);

@@ -111,10 +111,6 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
   // Parse only top-level exports so nested namespace exports do not leak into
   // the module's public API surface.
   ctx.root.find(ctx.j.Program).forEach((programPath) => {
-    if (programPath.node.type !== 'Program') {
-      return;
-    }
-
     for (const statement of programPath.node.body) {
       if (statement.type === 'ExportNamedDeclaration') {
         if (statement.source) {

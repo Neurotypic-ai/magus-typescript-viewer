@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
+import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { createLogger } from '../shared/utils/logger';
 import { GraphDataAssembler } from './assemblers/GraphDataAssembler';
 import ErrorBoundary from './components/ErrorBoundary.vue';
+import { useSnapshotStore } from './stores/snapshotStore';
 
 import type { DependencyPackageGraph } from './types/DependencyPackageGraph';
 
@@ -13,6 +14,7 @@ const DependencyGraph = defineAsyncComponent(() => import('./components/Dependen
 // Create an app-specific logger
 const appLogger = createLogger('App');
 const graphDataAssembler = new GraphDataAssembler();
+const snapshotStore = useSnapshotStore();
 
 const graphData = ref<DependencyPackageGraph>({ packages: [] });
 const isLoading = ref(true);
@@ -21,7 +23,7 @@ const error = ref<string | null>(null);
 let mounted = true;
 let controller: AbortController | null = null;
 
-const fetchData = async () => {
+const fetchData = async (snapshotId?: string) => {
   try {
     isLoading.value = true;
     error.value = null;
@@ -34,7 +36,7 @@ const fetchData = async () => {
 
     // Add signal to fetch operations inside assembleGraphData
     // This way we can abort the fetch if the component unmounts
-    const data = await graphDataAssembler.assembleGraphData(signal);
+    const data = await graphDataAssembler.assembleGraphData(signal, snapshotId);
 
     if (!mounted) return;
 
@@ -59,8 +61,19 @@ const retryLoad = () => {
 };
 
 onMounted(() => {
+  void snapshotStore.fetchSnapshots();
   void fetchData();
 });
+
+watch(
+  () => snapshotStore.selectedSnapshotId,
+  (newId, oldId) => {
+    // Skip the initial undefined→null transition before snapshots are fetched
+    if (newId === oldId) return;
+    graphDataAssembler.clearCache();
+    void fetchData(newId ?? undefined);
+  }
+);
 
 onUnmounted(() => {
   mounted = false;

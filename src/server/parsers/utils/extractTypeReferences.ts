@@ -25,9 +25,34 @@ const PRIMITIVE_TYPES = new Set([
 /** Built-in utility and global types */
 const BUILTIN_TYPES = new Set([
   'Array',
+  'AbortController',
+  'AbortSignal',
+  'Blob',
+  'Buffer',
+  'CustomEvent',
+  'Date',
+  'Document',
+  'DOMRect',
+  'Element',
+  'Error',
+  'ErrorEvent',
+  'Event',
+  'EventTarget',
+  'File',
+  'FinalizationRegistry',
+  'FocusEvent',
+  'FormData',
+  'HTMLElement',
   'Map',
+  'MouseEvent',
+  'MutationObserver',
+  'Node',
+  'NodeFilter',
+  'NodeList',
+  'NodeTypeFilter',
   'Set',
   'Promise',
+  'PointerEvent',
   'Record',
   'Partial',
   'Required',
@@ -54,14 +79,25 @@ const BUILTIN_TYPES = new Set([
   'WeakMap',
   'WeakSet',
   'WeakRef',
-  'FinalizationRegistry',
-  'Date',
   'RegExp',
-  'Error',
   'TypeError',
   'RangeError',
-  'Buffer',
+  'ReadableStream',
+  'Request',
+  'ResizeObserver',
+  'Response',
+  'SVGElement',
+  'TextDecoder',
+  'TextEncoder',
+  'TransformStream',
+  'URL',
+  'URLSearchParams',
+  'WheelEvent',
+  'Window',
+  'WritableStream',
 ]);
+
+const STRING_LITERAL_PATTERN = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
 
 /**
  * Represents a type reference found in a type annotation.
@@ -100,14 +136,20 @@ export function extractTypeNames(typeString: string): string[] {
     return [];
   }
 
+  const normalizedTypeString = typeString.replace(STRING_LITERAL_PATTERN, ' ');
+
   // Match capitalized identifiers: start with uppercase letter, followed by alphanumerics
   const identifierPattern = /\b([A-Z][a-zA-Z0-9]*)\b/g;
   const matches = new Set<string>();
 
   let match: RegExpExecArray | null;
-  while ((match = identifierPattern.exec(typeString)) !== null) {
+  while ((match = identifierPattern.exec(normalizedTypeString)) !== null) {
     const name = match[1];
     if (!name) continue;
+    // Single-letter uppercase identifiers are almost always generic type parameters.
+    if (name.length === 1) {
+      continue;
+    }
     if (!PRIMITIVE_TYPES.has(name) && !BUILTIN_TYPES.has(name)) {
       matches.add(name);
     }

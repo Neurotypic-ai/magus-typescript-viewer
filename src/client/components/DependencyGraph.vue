@@ -27,6 +27,7 @@ import InsightsDashboard from './InsightsDashboard.vue';
 import IssuesPanel from './IssuesPanel.vue';
 import NodeContextMenu from './NodeContextMenu.vue';
 import NodeDetails from './NodeDetails.vue';
+import SnapshotTimeline from './SnapshotTimeline.vue';
 
 import type { Component } from 'vue';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
@@ -441,6 +442,10 @@ onUnmounted(() => {
 
       <Panel position="top-right" class="insights-dashboard-panel insights-panel-slot">
         <InsightsDashboard />
+      </Panel>
+
+      <Panel position="bottom-center">
+        <SnapshotTimeline />
       </Panel>
     </VueFlow>
     <CanvasEdgeLayer

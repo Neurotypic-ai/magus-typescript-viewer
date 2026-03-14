@@ -159,20 +159,40 @@ export class PackageParser {
     );
 
     // 9. Deduplicate and assemble final result
+    const modules = uniqueById(collected.modules);
+    const classes = uniqueById(collected.classes);
+    const interfaces = uniqueById(collected.interfaces);
+    const functions = uniqueById(collected.functions);
+    const typeAliases = uniqueById(collected.typeAliases);
+    const enums = uniqueById(collected.enums);
+    const variables = uniqueById(collected.variables);
+    const methods = uniqueById(collected.methods);
+    const properties = uniqueById(collected.properties);
+    const parameters = uniqueById(collected.parameters);
+    const exports = uniqueByKey(collected.moduleExports, (e) => e.uuid);
+    const imports = [
+      ...Array.from(depResult.imports.values()),
+      ...uniqueByKey(collected.moduleImports, (i) => i.uuid),
+    ];
+    const typeReferences = uniqueByKey(
+      collected.typeReferences,
+      (ref) => `${ref.sourceId}:${ref.sourceKind}:${ref.context}:${ref.typeName}`
+    );
+
     return {
       package: packageDTO,
-      modules: uniqueById(collected.modules),
-      classes: uniqueById(collected.classes),
-      interfaces: uniqueById(collected.interfaces),
-      functions: uniqueById(collected.functions),
-      typeAliases: uniqueById(collected.typeAliases),
-      enums: uniqueById(collected.enums),
-      variables: uniqueById(collected.variables),
-      methods: uniqueById(collected.methods),
-      properties: uniqueById(collected.properties),
-      parameters: uniqueById(collected.parameters),
-      imports: [...Array.from(depResult.imports.values()), ...uniqueByKey(collected.moduleImports, (i) => i.uuid)],
-      exports: uniqueByKey(collected.moduleExports, (e) => e.uuid),
+      modules,
+      classes,
+      interfaces,
+      functions,
+      typeAliases,
+      enums,
+      variables,
+      methods,
+      properties,
+      parameters,
+      imports,
+      exports,
       importsWithModules: Array.from(
         new Map(collected.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
       ),
@@ -185,10 +205,7 @@ export class PackageParser {
       moduleMetrics: aggregateModuleMetrics(collected.moduleMetrics),
       circularDependencies,
       callEdges,
-      typeReferences: uniqueByKey(
-        collected.typeReferences,
-        (ref) => `${ref.sourceId}:${ref.sourceKind}:${ref.context}:${ref.typeName}`
-      ),
+      typeReferences,
     };
   }
 
