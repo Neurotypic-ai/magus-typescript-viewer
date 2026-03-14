@@ -4,11 +4,9 @@ import { join } from 'path';
 import { readPackage } from 'read-pkg';
 
 import { PackageImport } from '../../shared/types/Import';
-import { createLogger } from '../../shared/utils/logger';
 import { generateImportUUID, generatePackageUUID } from '../utils/uuid';
 
 import type { Import } from '../../shared/types/Import';
-import type { Logger } from '../../shared/utils/logger';
 
 interface PackageDependencies {
   dependencies?: Partial<Record<string, string | undefined>> | undefined;
@@ -31,11 +29,7 @@ export interface DependencyParseResult {
 }
 
 export class DependencyParser {
-  private readonly logger: Logger;
-
-  constructor(private readonly packagePath: string) {
-    this.logger = createLogger('DependencyParser');
-  }
+  constructor(private readonly packagePath: string) {}
 
   async parseDependencies(): Promise<DependencyParseResult> {
     const pkg = await readPackage({ cwd: this.packagePath });

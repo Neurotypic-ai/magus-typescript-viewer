@@ -454,27 +454,3 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
   }
 }
 
-/**
- * Repository interface for managing methods.
- */
-export interface IMethodRepository {
-  /**
-   * Creates a new method.
-   */
-  create(dto: IMethodCreateDTO): Promise<Method>;
-
-  /**
-   * Finds a method by its ID.
-   */
-  findById(id: string): Promise<IMethodCreateDTO | null>;
-
-  /**
-   * Finds all methods in a parent (class or interface).
-   */
-  findByParentId(parentId: string): Promise<IMethodCreateDTO[]>;
-
-  /**
-   * Deletes a method by its ID.
-   */
-  delete(id: string): Promise<void>;
-}

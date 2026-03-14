@@ -46,31 +46,6 @@ interface IInterfaceUpdateDTO {
   name?: string;
 }
 
-/**
- * Repository interface for managing interfaces.
- */
-export interface IInterfaceRepository {
-  /**
-   * Creates a new interface.
-   */
-  create(dto: IInterfaceCreateDTO): Promise<Interface>;
-
-  /**
-   * Finds an interface by its ID.
-   */
-  findById(id: string): Promise<IInterfaceCreateDTO | null>;
-
-  /**
-   * Finds all interfaces in a module.
-   */
-  findByModuleId(moduleId: string): Promise<IInterfaceCreateDTO[]>;
-
-  /**
-   * Deletes an interface by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
 export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCreateDTO, IInterfaceUpdateDTO> {
   private readonly methodRepository: MethodRepository;
   private readonly propertyRepository: PropertyRepository;
@@ -265,39 +240,16 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
 
   async delete(id: string): Promise<void> {
     try {
-      // Delete parameters for methods belonging to this interface
-      await this.executeQuery<IClassOrInterfaceRow>(
-        'delete parameters',
-        'DELETE FROM parameters WHERE method_id IN (SELECT id FROM methods WHERE parent_id = ? AND parent_type = ?)',
-        [id, 'interface']
-      );
-
-      // Delete junction table records
-      await this.executeQuery<IClassOrInterfaceRow>(
-        'delete interface_extends',
-        'DELETE FROM interface_extends WHERE interface_id = ?',
-        [id]
-      );
-      await this.executeQuery<IClassOrInterfaceRow>(
-        'delete class_implements',
-        'DELETE FROM class_implements WHERE interface_id = ?',
-        [id]
-      );
-
-      // Delete related records
-      await this.executeQuery<IClassOrInterfaceRow>(
-        'delete methods',
-        'DELETE FROM methods WHERE parent_id = ? AND parent_type = ?',
-        [id, 'interface']
-      );
-      await this.executeQuery<IClassOrInterfaceRow>(
-        'delete properties',
-        'DELETE FROM properties WHERE parent_id = ? AND parent_type = ?',
-        [id, 'interface']
-      );
-
-      // Delete the interface itself
-      await this.executeQuery<IClassOrInterfaceRow>('delete interface', 'DELETE FROM interfaces WHERE id = ?', [id]);
+      await this.cascadeDelete(id, [
+        // Delete leaf records first (parameters depend on methods)
+        { table: 'parameters', where: 'method_id IN (SELECT id FROM methods WHERE parent_id = ? AND parent_type = ?)', params: [id, 'interface'] },
+        // Delete junction table records
+        { table: 'interface_extends', where: 'interface_id = ?', params: [id] },
+        { table: 'class_implements', where: 'interface_id = ?', params: [id] },
+        // Delete child entities
+        { table: 'methods', where: 'parent_id = ? AND parent_type = ?', params: [id, 'interface'] },
+        { table: 'properties', where: 'parent_id = ? AND parent_type = ?', params: [id, 'interface'] },
+      ]);
     } catch (error) {
       if (!(error instanceof RepositoryError)) {
         this.logger.error(`Failed to delete interface: ${id}`, error);

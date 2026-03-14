@@ -54,36 +54,6 @@ interface IPackageUpdateDTO {
   path?: string;
 }
 
-/**
- * Repository interface for managing packages.
- */
-export interface IPackageRepository {
-  /**
-   * Creates a new package.
-   */
-  create(dto: IPackageCreateDTO): Promise<Package>;
-
-  /**
-   * Updates a package.
-   */
-  update(id: string, dto: IPackageUpdateDTO): Promise<Package>;
-
-  /**
-   * Finds a package by its ID.
-   */
-  findById(id: string): Promise<Package | null>;
-
-  /**
-   * Finds all packages.
-   */
-  findAll(): Promise<IPackageCreateDTO[]>;
-
-  /**
-   * Deletes a package by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
 export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO, IPackageUpdateDTO> {
   private dependencyRepository: DependencyRepository;
 

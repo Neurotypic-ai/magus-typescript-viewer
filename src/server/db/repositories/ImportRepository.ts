@@ -40,31 +40,6 @@ export interface IImportCreateDTO {
   is_type_only?: boolean;
 }
 
-/**
- * Repository interface for managing imports.
- */
-export interface IImportRepository {
-  /**
-   * Creates a new import.
-   */
-  create(dto: IImportCreateDTO): Promise<IImportCreateDTO>;
-
-  /**
-   * Finds an import by its ID.
-   */
-  findById(id: string): Promise<IImportCreateDTO | null>;
-
-  /**
-   * Finds all imports in a module.
-   */
-  findByModuleId(moduleId: string): Promise<IImportCreateDTO[]>;
-
-  /**
-   * Deletes an import by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
 interface IImportUpdateDTO {
   source?: string;
   specifiers_json?: string | null;

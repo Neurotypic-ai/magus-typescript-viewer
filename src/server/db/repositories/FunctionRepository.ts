@@ -115,27 +115,16 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
 
   async update(id: string, dto: IFunctionUpdateDTO): Promise<ModuleFunction> {
     try {
-      const sets: string[] = [];
-      const params: DuckDBValue[] = [];
+      const updates = [
+        { field: 'name', value: (dto.name as DuckDBValue) ?? undefined },
+        { field: 'return_type', value: (dto.return_type as DuckDBValue) ?? undefined },
+        { field: 'is_async', value: (dto.is_async as DuckDBValue) ?? undefined },
+        { field: 'is_exported', value: (dto.is_exported as DuckDBValue) ?? undefined },
+      ] satisfies { field: string; value: DuckDBValue | undefined }[];
 
-      if (dto.name !== undefined) {
-        sets.push('name = ?');
-        params.push(dto.name);
-      }
-      if (dto.return_type !== undefined) {
-        sets.push('return_type = ?');
-        params.push(dto.return_type);
-      }
-      if (dto.is_async !== undefined) {
-        sets.push('is_async = ?');
-        params.push(dto.is_async);
-      }
-      if (dto.is_exported !== undefined) {
-        sets.push('is_exported = ?');
-        params.push(dto.is_exported);
-      }
+      const { query, values } = this.buildUpdateQuery(updates);
 
-      if (sets.length === 0) {
+      if (!query) {
         const existing = await this.findById(id);
         if (!existing) {
           throw new EntityNotFoundError('Function', id, this.errorTag);
@@ -143,11 +132,11 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
         return existing;
       }
 
-      params.push(id);
+      values.push(id);
       const results = await this.executeQuery<IFunctionRow>(
         'update',
-        `UPDATE functions SET ${sets.join(', ')} WHERE id = ? RETURNING *`,
-        params
+        `UPDATE functions SET ${query} WHERE id = ? RETURNING *`,
+        values
       );
 
       if (results.length === 0) {

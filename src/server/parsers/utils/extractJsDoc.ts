@@ -5,16 +5,16 @@ import type { ASTNode } from 'jscodeshift';
  */
 export interface JsDocParam {
   name: string;
-  type?: string;
-  description?: string;
+  type?: string | undefined;
+  description?: string | undefined;
 }
 
 /**
  * Represents a parsed JSDoc @returns tag.
  */
 export interface JsDocReturns {
-  type?: string;
-  description?: string;
+  type?: string | undefined;
+  description?: string | undefined;
 }
 
 /**
@@ -63,7 +63,7 @@ function getLeadingBlockComment(node: ASTNode): string | undefined {
 
   // Find the last leading Block comment that looks like JSDoc (starts with *)
   for (let i = comments.length - 1; i >= 0; i--) {
-    const comment = comments[i];
+    const comment = comments[i]!;
     if (comment.type === 'Block' || comment.type === 'CommentBlock') {
       // JSDoc comments start with a second asterisk: /** ... */
       // The value stored by the parser excludes the outer /* and */,
@@ -126,7 +126,7 @@ function parseParamTag(value: string): JsDocParam {
   // Try: @param {Type} name - description
   const withType = /^\{([^}]+)\}\s+(\S+)(?:\s+-?\s*(.*))?$/.exec(value);
   if (withType) {
-    const result: JsDocParam = { name: withType[2], type: withType[1] };
+    const result: JsDocParam = { name: withType[2] ?? '', type: withType[1] };
     if (withType[3]) {
       result.description = withType[3].trim();
     }
@@ -136,7 +136,7 @@ function parseParamTag(value: string): JsDocParam {
   // Try: @param name - description  OR  @param name description
   const withoutType = /^(\S+)(?:\s+-?\s*(.*))?$/.exec(value);
   if (withoutType) {
-    const result: JsDocParam = { name: withoutType[1] };
+    const result: JsDocParam = { name: withoutType[1] ?? '' };
     if (withoutType[2]) {
       result.description = withoutType[2].trim();
     }
@@ -156,9 +156,9 @@ function parseParamTag(value: string): JsDocParam {
 function parseReturnsTag(value: string): JsDocReturns {
   const withType = /^\{([^}]+)\}\s*(.*)$/.exec(value);
   if (withType) {
-    const result: JsDocReturns = { type: withType[1] };
-    if (withType[2].trim()) {
-      result.description = withType[2].trim();
+    const result: JsDocReturns = { type: withType[1] ?? '' };
+    if (withType[2]?.trim()) {
+      result.description = withType[2]!.trim();
     }
     return result;
   }
@@ -200,7 +200,7 @@ export function extractJsDocTags(node: ASTNode): JsDocTags {
       if (currentTag) {
         tagEntries.push({ tag: currentTag.tag, value: currentTag.lines.join('\n').trim() });
       }
-      currentTag = { tag: tagMatch[1], lines: tagMatch[2] ? [tagMatch[2]] : [] };
+      currentTag = { tag: tagMatch[1] ?? '', lines: tagMatch[2] ? [tagMatch[2]] : [] };
     } else if (currentTag) {
       // Continuation line for current tag
       currentTag.lines.push(line);

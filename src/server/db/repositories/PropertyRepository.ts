@@ -68,31 +68,6 @@ export interface IPropertyCreateDTO {
   description?: string | undefined;
 }
 
-/**
- * Repository interface for managing properties.
- */
-export interface IPropertyRepository {
-  /**
-   * Creates a new property.
-   */
-  create(dto: IPropertyCreateDTO): Promise<Property>;
-
-  /**
-   * Finds a property by its ID.
-   */
-  findById(id: string): Promise<IPropertyCreateDTO | null>;
-
-  /**
-   * Finds all properties in a parent (class or interface).
-   */
-  findByParentId(parentId: string): Promise<IPropertyCreateDTO[]>;
-
-  /**
-   * Deletes a property by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
 interface IPropertyUpdateDTO {
   name?: string;
   type?: string;

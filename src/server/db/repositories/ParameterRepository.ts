@@ -140,50 +140,27 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
 
   async update(id: string, dto: Partial<IParameterCreateDTO>): Promise<Parameter> {
     try {
-      const updates: string[] = [];
-      const values: (string | number | null)[] = [];
+      const updates = [
+        { field: 'package_id', value: dto.package_id },
+        { field: 'module_id', value: dto.module_id },
+        { field: 'method_id', value: dto.method_id },
+        { field: 'name', value: dto.name },
+        { field: 'type', value: dto.type },
+        { field: 'is_optional', value: dto.is_optional !== undefined ? (dto.is_optional ? 1 : 0) : undefined },
+        { field: 'is_rest', value: dto.is_rest !== undefined ? (dto.is_rest ? 1 : 0) : undefined },
+        { field: 'default_value', value: dto.default_value !== undefined ? (dto.default_value ?? null) : undefined },
+      ] satisfies { field: string; value: string | number | null | undefined }[];
 
-      if (dto.package_id !== undefined) {
-        updates.push('package_id = ?');
-        values.push(dto.package_id);
-      }
-      if (dto.module_id !== undefined) {
-        updates.push('module_id = ?');
-        values.push(dto.module_id);
-      }
-      if (dto.method_id !== undefined) {
-        updates.push('method_id = ?');
-        values.push(dto.method_id);
-      }
-      if (dto.name !== undefined) {
-        updates.push('name = ?');
-        values.push(dto.name);
-      }
-      if (dto.type !== undefined) {
-        updates.push('type = ?');
-        values.push(dto.type);
-      }
-      if (dto.is_optional !== undefined) {
-        updates.push('is_optional = ?');
-        values.push(dto.is_optional ? 1 : 0);
-      }
-      if (dto.is_rest !== undefined) {
-        updates.push('is_rest = ?');
-        values.push(dto.is_rest ? 1 : 0);
-      }
-      if (dto.default_value !== undefined) {
-        updates.push('default_value = ?');
-        values.push(dto.default_value ?? null);
-      }
+      const { query, values } = this.buildUpdateQuery(updates);
 
-      if (updates.length === 0) {
+      if (!query) {
         throw new NoFieldsToUpdateError('Parameter', this.errorTag);
       }
 
       values.push(id);
       await this.executeQuery<IParameterRow>(
         'update',
-        `UPDATE parameters SET ${updates.join(', ')} WHERE id = ?`,
+        `UPDATE parameters SET ${query} WHERE id = ?`,
         values
       );
 

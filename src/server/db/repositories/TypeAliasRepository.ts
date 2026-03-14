@@ -66,21 +66,25 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
   }
 
   async update(id: string, dto: ITypeAliasUpdateDTO): Promise<TypeAlias> {
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    if (dto.name !== undefined) { sets.push('name = ?'); params.push(dto.name); }
-    if (dto.type !== undefined) { sets.push('type = ?'); params.push(dto.type); }
-    if (dto.type_parameters_json !== undefined) { sets.push('type_parameters_json = ?'); params.push(dto.type_parameters_json); }
-    if (sets.length === 0) {
+    const updates = [
+      { field: 'name', value: dto.name },
+      { field: 'type', value: dto.type },
+      { field: 'type_parameters_json', value: dto.type_parameters_json },
+    ] satisfies { field: string; value: string | undefined }[];
+
+    const { query, values } = this.buildUpdateQuery(updates);
+
+    if (!query) {
       const existing = await this.retrieveById(id);
       if (!existing) throw new RepositoryError('Type alias not found', 'update', this.errorTag);
       return existing;
     }
-    params.push(id);
+
+    values.push(id);
     const results = await this.executeQuery<ITypeAliasRow>(
       'update',
-      `UPDATE type_aliases SET ${sets.join(', ')} WHERE id = ? RETURNING *`,
-      params
+      `UPDATE type_aliases SET ${query} WHERE id = ? RETURNING *`,
+      values
     );
     const row = results[0];
     if (!row) throw new RepositoryError('Type alias not found', 'update', this.errorTag);

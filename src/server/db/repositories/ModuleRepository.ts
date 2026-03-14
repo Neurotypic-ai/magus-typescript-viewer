@@ -43,31 +43,6 @@ interface IModuleUpdateDTO {
   source?: FileLocation;
 }
 
-/**
- * Repository interface for managing modules.
- */
-export interface IModuleRepository {
-  /**
-   * Creates a new module.
-   */
-  create(dto: IModuleCreateDTO): Promise<Module>;
-
-  /**
-   * Finds a module by its ID.
-   */
-  findById(id: string): Promise<IModuleCreateDTO | null>;
-
-  /**
-   * Finds all modules in a package.
-   */
-  findByPackageId(packageId: string): Promise<IModuleCreateDTO[]>;
-
-  /**
-   * Deletes a module by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
 export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, IModuleUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
     super(adapter, '[ModuleRepository]', 'modules');

@@ -62,20 +62,24 @@ export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUp
   }
 
   async update(id: string, dto: IEnumUpdateDTO): Promise<Enum> {
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    if (dto.name !== undefined) { sets.push('name = ?'); params.push(dto.name); }
-    if (dto.members_json !== undefined) { sets.push('members_json = ?'); params.push(dto.members_json); }
-    if (sets.length === 0) {
+    const updates = [
+      { field: 'name', value: dto.name },
+      { field: 'members_json', value: dto.members_json },
+    ] satisfies { field: string; value: string | undefined }[];
+
+    const { query, values } = this.buildUpdateQuery(updates);
+
+    if (!query) {
       const existing = await this.retrieveById(id);
       if (!existing) throw new RepositoryError('Enum not found', 'update', this.errorTag);
       return existing;
     }
-    params.push(id);
+
+    values.push(id);
     const results = await this.executeQuery<IEnumRow>(
       'update',
-      `UPDATE enums SET ${sets.join(', ')} WHERE id = ? RETURNING *`,
-      params
+      `UPDATE enums SET ${query} WHERE id = ? RETURNING *`,
+      values
     );
     const row = results[0];
     if (!row) throw new RepositoryError('Enum not found', 'update', this.errorTag);

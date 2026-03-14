@@ -12,11 +12,11 @@ export interface IBaseEntity {
 export interface IBaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO> {
   create(dto: CreateDTO): Promise<T>;
   update(id: string, dto: UpdateDTO): Promise<T>;
-  retrieve(id?: string, module_id?: string): Promise<T | T[]>;
+  retrieve(id?: string): Promise<T[]>;
   delete(id: string): Promise<void>;
 }
 
-export class DatabaseResultError extends RepositoryError {
+class DatabaseResultError extends RepositoryError {
   constructor(message: string, operation: string, repository: string) {
     super(message, operation, repository);
     this.name = 'DatabaseResultError';
@@ -171,6 +171,16 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
         }
       }
     }
+  }
+
+  protected async cascadeDelete(
+    id: string,
+    cascades: { table: string; where: string; params: QueryParams }[]
+  ): Promise<void> {
+    for (const cascade of cascades) {
+      await this.executeQuery(`delete ${cascade.table}`, `DELETE FROM ${cascade.table} WHERE ${cascade.where}`, cascade.params);
+    }
+    await this.executeQuery(`delete ${this.tableName}`, `DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
   }
 
   protected buildUpdateQuery(updates: { field: string; value: unknown }[]): {

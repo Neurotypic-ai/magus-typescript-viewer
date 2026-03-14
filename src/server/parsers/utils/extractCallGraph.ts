@@ -20,11 +20,11 @@ export interface CallEdge {
   /** The called function/method name */
   calleeName: string;
   /** Optional qualifier (e.g., 'this', variable name, class name) */
-  qualifier?: string;
+  qualifier?: string | undefined;
   /** Type of call */
   callType: 'function' | 'method' | 'constructor' | 'static';
   /** Line number of the call */
-  line?: number;
+  line?: number | undefined;
 }
 
 /**

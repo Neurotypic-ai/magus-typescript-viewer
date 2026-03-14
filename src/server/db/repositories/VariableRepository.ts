@@ -70,22 +70,26 @@ export class VariableRepository extends BaseRepository<Variable, IVariableCreate
   }
 
   async update(id: string, dto: IVariableUpdateDTO): Promise<Variable> {
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    if (dto.name !== undefined) { sets.push('name = ?'); params.push(dto.name); }
-    if (dto.kind !== undefined) { sets.push('kind = ?'); params.push(dto.kind); }
-    if (dto.type !== undefined) { sets.push('type = ?'); params.push(dto.type); }
-    if (dto.initializer !== undefined) { sets.push('initializer = ?'); params.push(dto.initializer); }
-    if (sets.length === 0) {
+    const updates = [
+      { field: 'name', value: dto.name },
+      { field: 'kind', value: dto.kind },
+      { field: 'type', value: dto.type },
+      { field: 'initializer', value: dto.initializer },
+    ] satisfies { field: string; value: string | undefined }[];
+
+    const { query, values } = this.buildUpdateQuery(updates);
+
+    if (!query) {
       const existing = await this.retrieveById(id);
       if (!existing) throw new RepositoryError('Variable not found', 'update', this.errorTag);
       return existing;
     }
-    params.push(id);
+
+    values.push(id);
     const results = await this.executeQuery<IVariableRow>(
       'update',
-      `UPDATE variables SET ${sets.join(', ')} WHERE id = ? RETURNING *`,
-      params
+      `UPDATE variables SET ${query} WHERE id = ? RETURNING *`,
+      values
     );
     const row = results[0];
     if (!row) throw new RepositoryError('Variable not found', 'update', this.errorTag);

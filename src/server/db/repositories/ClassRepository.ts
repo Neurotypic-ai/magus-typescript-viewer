@@ -53,31 +53,6 @@ interface IClassUpdateDTO {
   extends_id?: string;
 }
 
-/**
- * Repository interface for managing classes.
- */
-export interface IClassRepository {
-  /**
-   * Creates a new class.
-   */
-  create(dto: IClassCreateDTO): Promise<Class>;
-
-  /**
-   * Finds a class by its ID.
-   */
-  findById(id: string): Promise<IClassCreateDTO | null>;
-
-  /**
-   * Finds all classes in a module.
-   */
-  findByModuleId(moduleId: string): Promise<IClassCreateDTO[]>;
-
-  /**
-   * Deletes a class by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
 export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, IClassUpdateDTO> {
   private readonly methodRepository: MethodRepository;
   private readonly propertyRepository: PropertyRepository;
@@ -277,17 +252,16 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
 
   async delete(id: string): Promise<void> {
     try {
-      // Delete leaf records first (parameters depend on methods)
-      await this.executeQuery('delete parameters', 'DELETE FROM parameters WHERE method_id IN (SELECT id FROM methods WHERE parent_id = ? AND parent_type = ?)', [id, 'class']);
-      // Delete junction/relationship records
-      await this.executeQuery('delete implements', 'DELETE FROM class_implements WHERE class_id = ?', [id]);
-      await this.executeQuery('delete extends', 'DELETE FROM class_extends WHERE class_id = ?', [id]);
-      // Delete child entities
-      await this.executeQuery('delete methods', 'DELETE FROM methods WHERE parent_id = ? AND parent_type = ?', [id, 'class']);
-      await this.executeQuery('delete properties', 'DELETE FROM properties WHERE parent_id = ? AND parent_type = ?', [id, 'class']);
-
-      // Delete the main entity
-      await this.executeQuery<IClassOrInterfaceRow>('delete class', `DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
+      await this.cascadeDelete(id, [
+        // Delete leaf records first (parameters depend on methods)
+        { table: 'parameters', where: 'method_id IN (SELECT id FROM methods WHERE parent_id = ? AND parent_type = ?)', params: [id, 'class'] },
+        // Delete junction/relationship records
+        { table: 'class_implements', where: 'class_id = ?', params: [id] },
+        { table: 'class_extends', where: 'class_id = ?', params: [id] },
+        // Delete child entities
+        { table: 'methods', where: 'parent_id = ? AND parent_type = ?', params: [id, 'class'] },
+        { table: 'properties', where: 'parent_id = ? AND parent_type = ?', params: [id, 'class'] },
+      ]);
     } catch (error) {
       this.logger.error('Failed to delete class', error);
       throw new RepositoryError('Failed to delete class', 'delete', this.errorTag, error as Error);
