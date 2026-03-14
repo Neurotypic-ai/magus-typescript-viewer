@@ -504,22 +504,31 @@ describe('PackageRepository', () => {
 
   describe('delete', () => {
     it('cascades deletes across all related tables, then deletes the package', async () => {
-      // 20 DELETE queries: 18 cascading tables + dependencies + package
-      for (let i = 0; i < 20; i++) {
+      // 23 DELETE queries: 22 cascading tables + package
+      for (let i = 0; i < 23; i++) {
         vi.mocked(adapter.query).mockResolvedValueOnce([]);
       }
 
       await repo.delete('pkg-1');
 
-      expect(adapter.query).toHaveBeenCalledTimes(20);
+      expect(adapter.query).toHaveBeenCalledTimes(23);
 
       // First call: delete parameters
       const firstCall = vi.mocked(adapter.query).mock.calls[0];
       const firstSql = firstCall![0] as string;
       expect(firstSql).toContain('DELETE FROM parameters');
 
+      const callEdgesDeleteCall = vi.mocked(adapter.query).mock.calls[6];
+      expect(callEdgesDeleteCall?.[0]).toContain('DELETE FROM call_edges');
+
+      const typeReferencesDeleteCall = vi.mocked(adapter.query).mock.calls[7];
+      expect(typeReferencesDeleteCall?.[0]).toContain('DELETE FROM type_references');
+
+      const techDebtDeleteCall = vi.mocked(adapter.query).mock.calls[8];
+      expect(techDebtDeleteCall?.[0]).toContain('DELETE FROM tech_debt_markers');
+
       // Second-to-last call: delete dependencies
-      const depDeleteCall = vi.mocked(adapter.query).mock.calls[18];
+      const depDeleteCall = vi.mocked(adapter.query).mock.calls[21];
       const depSql = depDeleteCall![0] as string;
       expect(depSql).toContain('DELETE FROM dependencies');
       expect(depSql).toContain('source_id = ?');
@@ -527,7 +536,7 @@ describe('PackageRepository', () => {
       expect(depDeleteCall![1]).toEqual(['pkg-1', 'pkg-1']);
 
       // Last call: delete the package itself
-      const pkgDeleteCall = vi.mocked(adapter.query).mock.calls[19];
+      const pkgDeleteCall = vi.mocked(adapter.query).mock.calls[22];
       const pkgSql = pkgDeleteCall![0] as string;
       expect(pkgSql).toContain('DELETE FROM packages');
       expect(pkgDeleteCall![1]).toEqual(['pkg-1']);

@@ -113,12 +113,13 @@ export class GraphDataAssembler {
   /**
    * Assembles graph data from the API with caching and abort controller support
    * @param signal Optional AbortSignal to cancel the fetch operations
+   * @param snapshotId Optional snapshot ID to filter graph data to a specific snapshot
    * @returns A Promise resolving to the dependency package graph
    */
-  async assembleGraphData(signal?: AbortSignal): Promise<DependencyPackageGraph> {
+  async assembleGraphData(signal?: AbortSignal, snapshotId?: string): Promise<DependencyPackageGraph> {
     try {
       // Check cache first
-      const cacheKey = `${GraphDataAssembler.CACHE_VERSION}:${this.baseUrl}`;
+      const cacheKey = `${GraphDataAssembler.CACHE_VERSION}:${this.baseUrl}:${snapshotId ?? 'live'}`;
       const cachedData = this.cache.get(cacheKey);
       if (cachedData) {
         assemblerLogger.debug('Using cached graph data...');
@@ -130,8 +131,10 @@ export class GraphDataAssembler {
 
       let graphData: DependencyPackageGraph | null = null;
 
+      const snapshotQuery = snapshotId ? `?snapshotId=${encodeURIComponent(snapshotId)}` : '';
+
       assemblerLogger.debug('Fetching graph summary payload from /graph/summary...');
-      const summaryResponse = await fetch(this.buildUrl('/graph/summary'), { signal: fetchSignal });
+      const summaryResponse = await fetch(this.buildUrl(`/graph/summary${snapshotQuery}`), { signal: fetchSignal });
       if (summaryResponse.ok) {
         const summaryPayload = (await summaryResponse.json()) as GraphApiPayload;
         if (Array.isArray(summaryPayload.packages)) {
@@ -146,7 +149,7 @@ export class GraphDataAssembler {
 
       if (!graphData) {
         assemblerLogger.debug('Fetching full graph payload from /graph...');
-        const graphResponse = await fetch(this.buildUrl('/graph'), { signal: fetchSignal });
+        const graphResponse = await fetch(this.buildUrl(`/graph${snapshotQuery}`), { signal: fetchSignal });
         if (graphResponse.ok) {
           const graphPayload = (await graphResponse.json()) as GraphApiPayload;
           if (Array.isArray(graphPayload.packages)) {

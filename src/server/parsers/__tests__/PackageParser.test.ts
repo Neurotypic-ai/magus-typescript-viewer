@@ -219,6 +219,31 @@ describe('PackageParser aggregation behavior', () => {
     expect(referencedTypes.size).toBeGreaterThanOrEqual(1);
   });
 
+  it('keeps only project-defined type references after aggregation', async () => {
+    const packagePath = await createTempPackage({
+      'src/types.ts': `
+        export type LocalType = { id: string };
+      `,
+      'src/main.ts': `
+        import type { LocalType } from './types';
+
+        export interface Example<T> {
+          signal: AbortSignal;
+          value: T;
+          local: LocalType;
+        }
+      `,
+    });
+
+    const parser = new PackageParser(packagePath, 'fixture-package', '1.0.0');
+    const result = await parser.parse();
+    const referencedTypes = new Set((result.typeReferences ?? []).map((ref) => ref.typeName));
+
+    expect(referencedTypes.has('LocalType')).toBe(true);
+    expect(referencedTypes.has('AbortSignal')).toBe(false);
+    expect(referencedTypes.has('T')).toBe(false);
+  });
+
   it('returns useful results when one file has syntax errors', async () => {
     const packagePath = await createTempPackage({
       'src/valid.ts': `

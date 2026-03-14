@@ -2,7 +2,7 @@
 
 import type { IDatabaseAdapter, QueryResult, DatabaseRow } from '../adapter/IDatabaseAdapter';
 import { Database } from '../Database';
-
+import { vi } from 'vitest';
 /**
  * Creates a mock IDatabaseAdapter with all methods stubbed via vi.fn().
  * Individual tests can override behavior using mockResolvedValue / mockImplementation.

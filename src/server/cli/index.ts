@@ -1,4 +1,4 @@
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 import chalk from 'chalk';
@@ -23,6 +23,8 @@ import { PropertyRepository } from '../db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from '../db/repositories/SymbolReferenceRepository';
 import { TypeAliasRepository } from '../db/repositories/TypeAliasRepository';
 import { VariableRepository } from '../db/repositories/VariableRepository';
+import { SnapshotRepository } from '../db/repositories/SnapshotRepository';
+import { GitHistoryService } from '../git/GitHistoryService';
 import { PackageParser } from '../parsers/PackageParser';
 import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
 import { InsightEngine } from '../insights/InsightEngine';
@@ -33,6 +35,7 @@ import { RulesEngine } from '../rules/RulesEngine';
 import {
   generateCallEdgeUUID,
   generateRelationshipUUID,
+  generateSnapshotUUID,
   generateTechDebtMarkerUUID,
   generateTypeReferenceUUID,
 } from '../utils/uuid';
@@ -231,6 +234,12 @@ function parseFailUnder(value: string): number {
   }
 
   return threshold;
+}
+
+function parseLimit(value: string): number {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isInteger(n) || n < 1) throw new Error('--limit must be a positive integer');
+  return n;
 }
 
 function addNameToMap(nameMap: Map<string, string[]>, name: string, id: string): void {
@@ -725,213 +734,14 @@ program
       const rulesEngine = new RulesEngine();
       const codeIssues = await rulesEngine.analyze(parseResult);
 
-      // Save all entities using batch inserts within a transaction
+      // Save all entities and relationships to database
       spinner.text = 'Saving to database...';
-
-      await adapter.transaction(async () => {
-        // Save package first
-        if (parseResult.package) {
-          await repositories.package.create(parseResult.package);
-        }
-
-        // Batch-insert modules
-        await repositories.module.createBatch(dedupeById(parseResult.modules));
-
-        // Batch-insert classes
-        await repositories.class.createBatch(dedupeById(parseResult.classes));
-
-        // Batch-insert interfaces
-        await repositories.interface.createBatch(dedupeById(parseResult.interfaces));
-
-        // Batch-insert functions
-        await repositories.function.createBatch(dedupeById(parseResult.functions));
-
-        // Batch-insert type aliases
-        await repositories.typeAlias.createBatch(dedupeById(parseResult.typeAliases));
-
-        // Batch-insert enums
-        await repositories.enum.createBatch(dedupeById(parseResult.enums));
-
-        // Batch-insert variables
-        await repositories.variable.createBatch(dedupeById(parseResult.variables));
-
-        // Batch-insert methods
-        await repositories.method.createBatch(dedupeById(parseResult.methods));
-
-        // Batch-insert parameters
-        await repositories.parameter.createBatch(dedupeById(parseResult.parameters));
-
-        // Batch-insert properties
-        await repositories.property.createBatch(dedupeById(parseResult.properties));
-
-        // Batch-insert imports with module context (use relativePath for client-side resolution)
-        if (parseResult.importsWithModules) {
-          const dedupedImports = Array.from(
-            new Map(parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
-          );
-
-          const importDTOs = dedupedImports.map(({ import: imp, moduleId }) => {
-            // An import is type-only if all its specifiers have kind 'type'
-            const specifierValues = Array.from(imp.specifiers.values());
-            const isTypeOnly = specifierValues.length > 0 && specifierValues.every((s) => s.kind === 'type');
-            return {
-              id: imp.uuid,
-              package_id: parseResult.package?.id ?? '',
-              module_id: moduleId,
-              source: imp.relativePath,
-              specifiers_json: serializeImportSpecifiers(imp),
-              is_type_only: isTypeOnly,
-            };
-          });
-          await repositories.import.createBatch(importDTOs);
-        }
-
-        // Batch-insert exports
-        const exportDTOs = dedupeBy(parseResult.exports, (row) => row.uuid).map((exp) => ({
-          id: exp.uuid,
-          package_id: parseResult.package?.id ?? '',
-          module_id: exp.module,
-          name: exp.name,
-          is_default: exp.isDefault,
-        }));
-        await repositories.export.createBatch(exportDTOs);
-
-        // Batch-insert symbol references
-        await repositories.symbolReference.createBatch(dedupeById(parseResult.symbolReferences));
-
-        // Persist code analysis issues
-        const codeIssueRepository = new CodeIssueRepository(adapter);
-        await codeIssueRepository.deleteByPackageId(parseResult.package?.id ?? '');
-        const issueDTOs = codeIssues.map((issue) => ({
-          id: issue.id,
-          rule_code: issue.rule_code,
-          severity: issue.severity,
-          message: issue.message,
-          suggestion: issue.suggestion,
-          package_id: issue.package_id,
-          module_id: issue.module_id,
-          file_path: issue.file_path,
-          entity_id: issue.entity_id,
-          entity_type: issue.entity_type,
-          entity_name: issue.entity_name,
-          parent_entity_id: issue.parent_entity_id,
-          parent_entity_type: issue.parent_entity_type,
-          parent_entity_name: issue.parent_entity_name,
-          property_name: issue.property_name,
-          line: issue.line,
-          column: issue.column,
-          refactor_action: issue.refactor_action,
-          refactor_context_json: issue.refactor_context ? JSON.stringify(issue.refactor_context) : undefined,
-        }));
-        await codeIssueRepository.createBatch(issueDTOs);
-
-        const entityLocationById = new Map<string, { packageId: string; moduleId: string }>();
-        parseResult.functions.forEach((fn) => {
-          entityLocationById.set(fn.id, {
-            packageId: fn.package_id,
-            moduleId: fn.module_id,
-          });
-        });
-        parseResult.methods.forEach((method) => {
-          entityLocationById.set(method.id, {
-            packageId: method.package_id,
-            moduleId: method.module_id,
-          });
-        });
-        parseResult.properties.forEach((property) => {
-          entityLocationById.set(property.id, {
-            packageId: property.package_id,
-            moduleId: property.module_id,
-          });
-        });
-        parseResult.parameters.forEach((parameter) => {
-          entityLocationById.set(parameter.id, {
-            packageId: parameter.package_id,
-            moduleId: parameter.module_id,
-          });
-        });
-
-        const callEdgeRows: QueryParams[] = dedupeBy(parseResult.callEdges ?? [], (edge) =>
-          `${edge.callerId}:${edge.calleeName}:${edge.qualifier ?? ''}:${edge.callType}`
-        ).flatMap((edge) => {
-          const location = entityLocationById.get(edge.callerId);
-          if (!location) {
-            return [];
-          }
-
-          return [[
-            generateCallEdgeUUID(edge.callerId, edge.calleeName, edge.qualifier, edge.callType, edge.line),
-            location.packageId,
-            location.moduleId,
-            edge.callerId,
-            edge.callerName,
-            edge.calleeName,
-            edge.qualifier ?? null,
-            edge.callType,
-            edge.line ?? null,
-          ]];
-        });
-        await batchInsertRows(
-          adapter,
-          'call_edges',
-          '(id, package_id, module_id, caller_id, caller_name, callee_name, qualifier, call_type, line)',
-          callEdgeRows,
-        );
-
-        const typeReferenceRows: QueryParams[] = dedupeBy(parseResult.typeReferences ?? [], (reference) =>
-          `${reference.sourceId}:${reference.sourceKind}:${reference.typeName}:${reference.context}`
-        ).flatMap((reference) => {
-          const location = entityLocationById.get(reference.sourceId);
-          if (!location) {
-            return [];
-          }
-
-          return [[
-            generateTypeReferenceUUID(
-              reference.sourceId,
-              reference.sourceKind,
-              reference.typeName,
-              reference.context,
-            ),
-            location.packageId,
-            location.moduleId,
-            reference.sourceId,
-            reference.sourceKind,
-            reference.typeName,
-            reference.context,
-          ]];
-        });
-        await batchInsertRows(
-          adapter,
-          'type_references',
-          '(id, package_id, module_id, source_id, source_kind, type_name, context)',
-          typeReferenceRows,
-        );
-
-        const techDebtMarkerRows: QueryParams[] = dedupeBy(parseResult.techDebtMarkers ?? [], (marker) =>
-          `${marker.moduleId ?? ''}:${marker.type}:${String(marker.line)}:${marker.snippet}`
-        ).flatMap((marker) => {
-          if (!marker.packageId || !marker.moduleId) {
-            return [];
-          }
-
-          return [[
-            generateTechDebtMarkerUUID(marker.moduleId, marker.type, marker.line, marker.snippet),
-            marker.packageId,
-            marker.moduleId,
-            marker.type,
-            marker.line,
-            marker.snippet,
-            marker.severity,
-          ]];
-        });
-        await batchInsertRows(
-          adapter,
-          'tech_debt_markers',
-          '(id, package_id, module_id, marker_type, line, snippet, severity)',
-          techDebtMarkerRows,
-        );
-      });
+      const { relationshipCount, relationStats } = await persistParseResult(
+        adapter,
+        parseResult,
+        repositories,
+        codeIssues
+      );
 
       spinner.succeed(chalk.green('Analysis complete!'));
       console.log();
@@ -1094,6 +904,115 @@ program
       await db.close();
     } catch (error) {
       spinner.fail(chalk.red('Analysis failed!'));
+      console.error(error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('analyze-history')
+  .description('Analyze the git history of a TypeScript project and store per-commit snapshots')
+  .argument('<dir>', 'Directory containing the TypeScript project (must be a git repository)')
+  .option('-o, --output <file>', 'Output database file', 'typescript-viewer.duckdb')
+  .option('--branch <ref>', 'Git branch/ref to walk', 'HEAD')
+  .option('--limit <n>', 'Max number of commits to analyze', parseLimit)
+  .option('--skip-existing', 'Skip commits already stored in the snapshots table')
+  .option('--no-rules', 'Skip RulesEngine for faster analysis')
+  .action(async (
+    dir: string,
+    options: {
+      output: string;
+      branch?: string;
+      limit?: number;
+      skipExisting?: boolean;
+      rules?: boolean;
+    }
+  ) => {
+    const absoluteDir = resolve(dir);
+    const spinner = ora('Initializing history analysis...').start();
+
+    try {
+      const adapter = new DuckDBAdapter(options.output, { allowWrite: true });
+      const db = new Database(adapter, options.output);
+      await db.initializeDatabase(false);
+
+      const repositories = {
+        package: new PackageRepository(adapter),
+        module: new ModuleRepository(adapter),
+        class: new ClassRepository(adapter),
+        export: new ExportRepository(adapter),
+        interface: new InterfaceRepository(adapter),
+        function: new FunctionRepository(adapter),
+        typeAlias: new TypeAliasRepository(adapter),
+        enum: new EnumRepository(adapter),
+        variable: new VariableRepository(adapter),
+        import: new ImportRepository(adapter),
+        method: new MethodRepository(adapter),
+        parameter: new ParameterRepository(adapter),
+        property: new PropertyRepository(adapter),
+        symbolReference: new SymbolReferenceRepository(adapter),
+      };
+
+      const snapshotRepo = new SnapshotRepository(adapter);
+      const git = new GitHistoryService(absoluteDir);
+      const rulesEngine = new RulesEngine();
+
+      spinner.text = 'Listing commits...';
+      const listCommitsOpts: { limit?: number; branch?: string } = {};
+      if (options.limit !== undefined) listCommitsOpts.limit = options.limit;
+      if (options.branch !== undefined) listCommitsOpts.branch = options.branch;
+      let commits = await git.listCommits(listCommitsOpts);
+
+      if (options.skipExisting) {
+        const existingHashes = await snapshotRepo.listExistingHashes(absoluteDir);
+        commits = commits.filter((c) => !existingHashes.has(c.hash));
+      }
+
+      const ordinalOffset = (await snapshotRepo.getMaxOrdinal(absoluteDir)) + 1;
+
+      spinner.text = `Analyzing ${commits.length.toString()} commits...`;
+
+      let stored = 0;
+      for (let i = 0; i < commits.length; i++) {
+        const commit = commits[i];
+        if (!commit) continue;
+        spinner.text = `[${(i + 1).toString()}/${commits.length.toString()}] ${commit.shortHash}: ${commit.subject}`;
+
+        let worktree: Awaited<ReturnType<GitHistoryService['createWorktree']>> | undefined;
+        try {
+          worktree = await git.createWorktree(commit.hash);
+          const pkgJson = await readPackage({ cwd: worktree.path });
+          const parser = new PackageParser(worktree.path, pkgJson.name, pkgJson.version, commit.hash);
+          const parseResult = await parser.parse();
+          const codeIssues = options.rules !== false ? await rulesEngine.analyze(parseResult) : [];
+          await persistParseResult(adapter, parseResult, repositories, codeIssues, parseResult.package?.id);
+
+          const snapshotId = generateSnapshotUUID(absoluteDir, commit.hash);
+          await snapshotRepo.create({
+            id: snapshotId,
+            repo_path: absoluteDir,
+            commit_hash: commit.hash,
+            commit_short: commit.shortHash,
+            subject: commit.subject,
+            author_name: commit.authorName,
+            author_email: commit.authorEmail,
+            commit_at: commit.committedAt,
+            package_id: parseResult.package?.id ?? '',
+            ordinal: ordinalOffset + i,
+          });
+
+          stored++;
+          await worktree.dispose();
+        } catch (err) {
+          spinner.warn(chalk.yellow(`  Skipped ${commit.shortHash}: ${err instanceof Error ? err.message : String(err)}`));
+          try { await worktree?.dispose(); } catch (_disposeErr) { /* ignore */ }
+        }
+      }
+
+      spinner.succeed(chalk.green(`History analysis complete: ${stored.toString()} commits stored`));
+      await db.close();
+    } catch (error) {
+      spinner.fail(chalk.red('History analysis failed!'));
       console.error(error);
       process.exit(1);
     }

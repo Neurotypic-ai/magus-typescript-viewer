@@ -20,7 +20,9 @@ import { PropertyRepository } from './db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from './db/repositories/SymbolReferenceRepository';
 import { TypeAliasRepository } from './db/repositories/TypeAliasRepository';
 import { VariableRepository } from './db/repositories/VariableRepository';
+import { SnapshotRepository } from './db/repositories/SnapshotRepository';
 
+import type { Snapshot } from './db/repositories/SnapshotRepository';
 import type { Package } from '../shared/types/Package';
 import type { TypeCollection } from '../shared/types/TypeCollection';
 import { typeCollectionToArray } from '../shared/utils/collections';
@@ -135,6 +137,7 @@ export class ApiServerResponder {
   private readonly typeAliasRepository: TypeAliasRepository;
   private readonly variableRepository: VariableRepository;
   private readonly codeIssueRepository: CodeIssueRepository;
+  private readonly snapshotRepository: SnapshotRepository;
 
   constructor(options: ApiServerResponderOptions = {}) {
     const dbPath = options.dbPath ?? 'typescript-viewer.duckdb';
@@ -157,6 +160,7 @@ export class ApiServerResponder {
     this.typeAliasRepository = new TypeAliasRepository(this.dbAdapter);
     this.variableRepository = new VariableRepository(this.dbAdapter);
     this.codeIssueRepository = new CodeIssueRepository(this.dbAdapter);
+    this.snapshotRepository = new SnapshotRepository(this.dbAdapter);
   }
 
   async initialize(): Promise<void> {
