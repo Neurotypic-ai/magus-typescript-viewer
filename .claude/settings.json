@@ -2,5 +2,11 @@
   "enabledPlugins": {
     "laravel-boost@claude-plugins-official": true,
     "php-lsp@claude-plugins-official": true
+  },
+  "mcpServers": {
+    "DuckDB (in-memory, r/w)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "typescript-viewer.duckdb", "--read-write", "--allow-switch-databases"]
+    }
   }
 }

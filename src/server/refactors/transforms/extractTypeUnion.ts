@@ -63,13 +63,13 @@ function extractUnionFromAnnotation(
 
 function findProperty(
   body: TSInterfaceBody | ClassBody,
-  memberType: string,
+  memberTypes: readonly string[],
   propertyName: string,
   parentName: string,
   parentLabel: string,
 ): TSPropertySignature | ClassProperty {
   for (const member of body.body) {
-    if (member.type !== memberType) continue;
+    if (!memberTypes.includes(member.type)) continue;
     const key = (member as TSPropertySignature | ClassProperty).key;
     if (key.type === 'Identifier' && key.name === propertyName) {
       return member as TSPropertySignature | ClassProperty;
@@ -130,7 +130,9 @@ export const extractTypeUnion: Transform = {
     const { suggestedName, parentName, parentType, propertyName } = context;
 
     const isIface = parentType === 'interface';
-    const memberType = isIface ? 'TSPropertySignature' : 'ClassProperty';
+    const memberTypes = isIface
+      ? ['TSPropertySignature']
+      : ['ClassProperty', 'PropertyDefinition'];
     const label = isIface ? 'Interface' : 'Class';
     const lowerLabel = isIface ? 'interface' : 'class';
 
@@ -143,7 +145,7 @@ export const extractTypeUnion: Transform = {
     checkNameConflict(j, root, suggestedName);
 
     const body = (declPath.value as { body: TSInterfaceBody | ClassBody }).body;
-    const targetProp = findProperty(body, memberType, propertyName, parentName, lowerLabel);
+    const targetProp = findProperty(body, memberTypes, propertyName, parentName, lowerLabel);
     const unionType = extractUnionFromAnnotation(
       targetProp.typeAnnotation as AnnotationNode, propertyName, parentName, lowerLabel,
     );

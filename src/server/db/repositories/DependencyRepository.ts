@@ -1,5 +1,6 @@
 import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
+import { isMissingTableError } from '../errors/isMissingTableError';
 import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
@@ -75,7 +76,7 @@ export class DependencyRepository extends BaseRepository<
 
   async update(id: string, dto: IDependencyUpdateDTO): Promise<IDependencyEntity> {
     try {
-      const updates = [{ field: 'type', value: (dto.type as DuckDBValue) ?? undefined }] satisfies {
+      const updates = [{ field: 'type', value: dto.type ?? undefined }] satisfies {
         field: string;
         value: DuckDBValue | undefined;
       }[];
@@ -103,7 +104,7 @@ export class DependencyRepository extends BaseRepository<
     }
   }
 
-  async retrieve(id?: string): Promise<IDependencyEntity[]> {
+  async retrieve(id?: string, _module_id?: string): Promise<IDependencyEntity[]> {
     try {
       const query = id ? 'SELECT * FROM dependencies WHERE id = ?' : 'SELECT * FROM dependencies';
       const params: DuckDBValue[] = id ? [id] : [];
@@ -112,11 +113,11 @@ export class DependencyRepository extends BaseRepository<
 
       for (const dep of results) {
         dependencies.push({
-          id: String(dep.id),
-          source_id: String(dep.source_id),
-          target_id: String(dep.target_id),
+          id: dep.id,
+          source_id: dep.source_id,
+          target_id: dep.target_id,
           type: dep.type as DependencyType,
-          created_at: new Date(String(dep.created_at)),
+          created_at: new Date(dep.created_at),
         });
       }
 
@@ -145,16 +146,14 @@ export class DependencyRepository extends BaseRepository<
       );
 
       return results.map((dep) => ({
-        id: String(dep.id),
-        source_id: String(dep.source_id),
-        target_id: String(dep.target_id),
+        id: dep.id,
+        source_id: dep.source_id,
+        target_id: dep.target_id,
         type: dep.type as DependencyType,
-        created_at: new Date(String(dep.created_at)),
+        created_at: new Date(dep.created_at),
       }));
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '';
-      // Only swallow "table not found" errors for graceful degradation
-      if (msg.includes('does not exist') || msg.includes('Table') || msg.includes('not found')) {
+      if (isMissingTableError(error)) {
         this.logger.warn('Dependencies table may not exist, returning empty set', error);
         return [];
       }
@@ -172,16 +171,14 @@ export class DependencyRepository extends BaseRepository<
       );
 
       return results.map((dep) => ({
-        id: String(dep.id),
-        source_id: String(dep.source_id),
-        target_id: String(dep.target_id),
+        id: dep.id,
+        source_id: dep.source_id,
+        target_id: dep.target_id,
         type: dep.type as DependencyType,
-        created_at: new Date(String(dep.created_at)),
+        created_at: new Date(dep.created_at),
       }));
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '';
-      // Only swallow "table not found" errors for graceful degradation
-      if (msg.includes('does not exist') || msg.includes('Table') || msg.includes('not found')) {
+      if (isMissingTableError(error)) {
         this.logger.warn('Dependencies table may not exist, returning empty set', error);
         return [];
       }

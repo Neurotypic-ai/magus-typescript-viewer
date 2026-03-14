@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import ora from 'ora';
 import { readPackage } from 'read-pkg';
+import { createServer } from 'vite';
 
 import { Database } from '../db/Database';
 import { DuckDBAdapter } from '../db/adapter/DuckDBAdapter';
@@ -164,11 +165,31 @@ function dedupeById<T extends { id: string }>(rows: T[]): T[] {
 }
 
 type ResolutionStatus = 'resolved' | 'ambiguous' | 'unresolved';
+type OutputFormat = 'text' | 'json' | 'markdown' | 'sarif';
 
 interface ResolutionSummary {
   resolved: number;
   ambiguous: number;
   unresolved: number;
+}
+
+const OUTPUT_FORMATS = new Set<OutputFormat>(['text', 'json', 'markdown', 'sarif']);
+
+function parseOutputFormat(value: string): OutputFormat {
+  if (OUTPUT_FORMATS.has(value as OutputFormat)) {
+    return value as OutputFormat;
+  }
+
+  throw new Error(`Invalid format "${value}". Expected one of: text, json, markdown, sarif.`);
+}
+
+function parseFailUnder(value: string): number {
+  const threshold = Number.parseInt(value, 10);
+  if (!Number.isInteger(threshold) || threshold < 0 || threshold > 100) {
+    throw new Error('Fail-under threshold must be an integer between 0 and 100.');
+  }
+
+  return threshold;
 }
 
 function addNameToMap(nameMap: Map<string, string[]>, name: string, id: string): void {
@@ -212,23 +233,18 @@ program
   .argument('<dir>', 'Directory containing the TypeScript project')
   .option('-o, --output <file>', 'Output database file', 'typescript-viewer.duckdb')
   .option('--no-reset', 'Do not reset the database before analyzing (append mode)')
-  .option('--format <format>', 'Output format for insights: text, json, markdown, sarif', 'text')
-  .option('--fail-under <score>', 'Exit with code 1 if health score is below this threshold (0-100)')
+  .option('--format <format>', 'Output format for insights: text, json, markdown, sarif', parseOutputFormat, 'text')
+  .option('--fail-under <score>', 'Exit with code 1 if health score is below this threshold (0-100)', parseFailUnder)
   .option('--diff', 'Show delta against previous insight report')
-  .action(async (dir: string, options: { output: string; reset?: boolean; readOnly?: boolean; format: string; failUnder?: string; diff?: boolean }) => {
+  .action(async (dir: string, options: { output: string; reset?: boolean; readOnly?: boolean; format: OutputFormat; failUnder?: number; diff?: boolean }) => {
     const spinner = ora('Analyzing TypeScript project...').start();
 
     try {
-      console.log('options.output', options.output);
       // Initialize database and repositories
       const adapter = new DuckDBAdapter(options.output, { allowWrite: true });
       const db = new Database(adapter, options.output);
       // Default to reset=true for idempotent behavior, unless --no-reset is specified
       const shouldReset = options.reset !== false;
-      console.log(
-        'reset mode:',
-        shouldReset ? 'RESET (will delete existing data)' : 'APPEND (will keep existing data)'
-      );
       await db.initializeDatabase(shouldReset);
 
       const repositories = {
@@ -682,15 +698,12 @@ program
         }
 
         // Check --fail-under threshold
-        if (options.failUnder !== undefined) {
-          const threshold = parseInt(options.failUnder, 10);
-          if (!isNaN(threshold) && report.healthScore < threshold) {
-            console.error(
-              chalk.red(`\nHealth score ${report.healthScore.toString()} is below threshold ${threshold.toString()}`)
-            );
-            await db.close();
-            process.exit(1);
-          }
+        if (options.failUnder !== undefined && report.healthScore < options.failUnder) {
+          console.error(
+            chalk.red(`\nHealth score ${report.healthScore.toString()} is below threshold ${options.failUnder.toString()}`)
+          );
+          await db.close();
+          process.exit(1);
         }
       } catch (insightError) {
         insightSpinner.warn(chalk.yellow('Insight computation skipped'));
@@ -714,9 +727,6 @@ program
     const spinner = ora('Starting visualization server...').start();
 
     try {
-      // Import dynamically to avoid loading React in CLI mode
-      const { createServer } = await import('vite');
-
       const server = await createServer({
         configFile: join(__dirname, '../../vite.config.ts'),
         root: join(__dirname, '../..'),

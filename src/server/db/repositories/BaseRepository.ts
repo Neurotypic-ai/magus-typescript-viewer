@@ -12,7 +12,7 @@ export interface IBaseEntity {
 export interface IBaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO> {
   create(dto: CreateDTO): Promise<T>;
   update(id: string, dto: UpdateDTO): Promise<T>;
-  retrieve(id?: string): Promise<T[]>;
+  retrieve(id?: string, module_id?: string): Promise<T[]>;
   delete(id: string): Promise<void>;
 }
 

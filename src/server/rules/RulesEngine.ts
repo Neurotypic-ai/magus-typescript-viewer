@@ -44,7 +44,16 @@ export class RulesEngine {
       let sourceContent: string;
 
       if (filePath.endsWith('.vue')) {
-        const extracted = await this.vueExtractor.getSourceOverride(filePath);
+        let extracted: string | null | undefined;
+        try {
+          extracted = await this.vueExtractor.getSourceOverride(filePath);
+        } catch (error) {
+          this.logger.warn(
+            `Could not extract script content for rules analysis: ${filePath}`,
+            getErrorMessage(error)
+          );
+          continue;
+        }
         if (!extracted) {
           continue;
         }

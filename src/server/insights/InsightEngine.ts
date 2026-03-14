@@ -164,41 +164,70 @@ export class InsightEngine {
   async compute(packageId?: string): Promise<InsightReport> {
     const graph = await buildImportGraph(this.adapter, packageId);
 
-    const results = await Promise.allSettled([
-      Promise.resolve(this.circularImports(graph)),
-      Promise.resolve(this.degreeInsight(graph, 'in', T.FAN_IN, 'import-fan-in', 'dependency-health', 'warning', 'High Import Fan-in',
-        (n, t) => `${String(n)} modules are imported by ${String(t)}+ other modules`, (inD) => `imported by ${String(inD)} modules`)),
-      Promise.resolve(this.degreeInsight(graph, 'out', T.FAN_OUT, 'import-fan-out', 'dependency-health', 'warning', 'High Import Fan-out',
-        (n, t) => `${String(n)} modules import ${String(t)}+ other modules`, (_i, outD) => `imports ${String(outD)} modules`)),
+    const insights: InsightResult[] = [
+      ...this.circularImports(graph),
+      ...this.degreeInsight(
+        graph,
+        'in',
+        T.FAN_IN,
+        'import-fan-in',
+        'dependency-health',
+        'warning',
+        'High Import Fan-in',
+        (n, t) => `${String(n)} modules are imported by ${String(t)}+ other modules`,
+        (inD) => `imported by ${String(inD)} modules`
+      ),
+      ...this.degreeInsight(
+        graph,
+        'out',
+        T.FAN_OUT,
+        'import-fan-out',
+        'dependency-health',
+        'warning',
+        'High Import Fan-out',
+        (n, t) => `${String(n)} modules import ${String(t)}+ other modules`,
+        (_i, outD) => `imports ${String(outD)} modules`
+      ),
+      ...this.barrelFileDepth(graph),
+      ...this.orphanedModules(graph),
+      ...this.degreeInsight(
+        graph,
+        'combined',
+        T.HUB_DEGREE,
+        'hub-modules',
+        'connectivity',
+        'info',
+        'Hub Modules',
+        (n, t) => `${String(n)} modules have combined degree >= ${String(t)}`,
+        (inD, outD) => `degree ${String(inD + outD)} (in: ${String(inD)}, out: ${String(outD)})`
+      ),
+      ...this.bridgeModules(graph),
+      ...this.clusterDetection(graph),
+      ...this.layeringViolations(graph),
+      ...this.dependencyDepth(graph),
+      ...this.reExportChains(graph),
+      ...this.packageCoupling(graph),
+    ];
+
+    const asyncResults = await Promise.allSettled([
       this.heavyExternalDependencies(packageId),
       this.godClasses(packageId),
       this.longParameterLists(packageId),
       this.moduleSize(packageId),
       this.deepInheritance(packageId),
       this.leakyEncapsulation(packageId),
-      Promise.resolve(this.barrelFileDepth(graph)),
       this.unexportedEntities(packageId),
       this.typeOnlyDependencies(packageId),
-      Promise.resolve(this.orphanedModules(graph)),
-      Promise.resolve(this.degreeInsight(graph, 'combined', T.HUB_DEGREE, 'hub-modules', 'connectivity', 'info', 'Hub Modules',
-        (n, t) => `${String(n)} modules have combined degree >= ${String(t)}`, (inD, outD) => `degree ${String(inD + outD)} (in: ${String(inD)}, out: ${String(outD)})`)),
-      Promise.resolve(this.bridgeModules(graph)),
-      Promise.resolve(this.clusterDetection(graph)),
       this.unusedExports(graph, packageId),
       this.interfaceSegregationViolations(packageId),
       this.missingReturnTypes(packageId),
       this.asyncBoundaryMismatches(packageId),
-      Promise.resolve(this.layeringViolations(graph)),
-      Promise.resolve(this.dependencyDepth(graph)),
-      Promise.resolve(this.reExportChains(graph)),
       this.duplicateExports(packageId),
       this.namingInconsistency(packageId),
       this.abstractNoImpl(packageId),
-      Promise.resolve(this.packageCoupling(graph)),
     ]);
 
-    let insights: InsightResult[] = [];
-    for (const r of results) {
+    for (const r of asyncResults) {
       if (r.status === 'fulfilled') {
         insights.push(...r.value);
       } else {
@@ -433,7 +462,7 @@ export class InsightEngine {
     const rows = await this.adapter.query<CountRow>(
       `SELECT id, name, '' as module_id, line_count as cnt
        FROM modules
-       WHERE line_count > ${T.MODULE_SIZE_WARNING}
+       WHERE line_count > ${String(T.MODULE_SIZE_WARNING)}
          ${wherePackage('modules', packageId)}
        ORDER BY line_count DESC`,
       pkgParams(packageId),
@@ -486,7 +515,7 @@ export class InsightEngine {
        JOIN classes c ON c.id = ch.class_id
        WHERE 1=1 ${wherePackage('c', packageId)}
        GROUP BY c.id, c.name, c.module_id
-       HAVING MAX(ch.depth) >= ${T.DEEP_INHERITANCE_WARNING}
+       HAVING MAX(ch.depth) >= ${String(T.DEEP_INHERITANCE_WARNING)}
        ORDER BY max_depth DESC`,
       pkgParams(packageId),
     );
@@ -537,7 +566,7 @@ export class InsightEngine {
        ) sub ON sub.parent_id = c.id
        WHERE 1=1 ${wherePackage('c', packageId)}
        GROUP BY c.id, c.name, c.module_id
-       HAVING COUNT(*) >= ${T.LEAKY_MIN_MEMBERS}
+       HAVING COUNT(*) >= ${String(T.LEAKY_MIN_MEMBERS)}
          AND CAST(SUM(CASE WHEN sub.visibility = 'public' THEN 1 ELSE 0 END) AS DOUBLE) / COUNT(*) > ${T.LEAKY_RATIO.toString()}`,
       pkgParams(packageId),
     );
@@ -1346,7 +1375,7 @@ export class InsightEngine {
     if (packageIds.size < 2) return [];
 
     // Count total imports per package and cross-package imports per pair
-    const pairKey = (a: string, b: string): string => a < b ? `${String(a)}||${String(b)}` : `${String(b)}||${String(a)}`;
+    const pairKey = (a: string, b: string): string => a < b ? `${a}||${b}` : `${b}||${a}`;
     const crossImports = new Map<string, number>();
     const pkgTotalImports = new Map<string, number>();
 

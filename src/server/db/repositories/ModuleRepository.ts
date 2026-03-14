@@ -64,7 +64,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
         dto.source.directory,
         dto.source.filename,
         dto.source.relativePath,
-        Boolean(dto.source.isBarrel ?? false) ? 1 : 0,
+        (dto.source.isBarrel ?? false) ? 1 : 0,
         dto.line_count ?? 0,
       ]
     );
@@ -85,7 +85,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
           dto.source.directory,
           dto.source.filename,
           dto.source.relativePath,
-          Boolean(dto.source.isBarrel ?? false) ? 1 : 0,
+          (dto.source.isBarrel ?? false) ? 1 : 0,
           dto.line_count ?? 0,
         ]
       );
@@ -109,7 +109,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
   async update(id: string, dto: IModuleUpdateDTO): Promise<Module> {
     try {
       const updates = [
-        { field: 'name', value: (dto.name as DuckDBValue) ?? undefined },
+        { field: 'name', value: dto.name ?? undefined },
         { field: 'source', value: dto.source ? JSON.stringify(dto.source) : undefined },
       ] satisfies { field: string; value: DuckDBValue | undefined }[];
 
@@ -161,11 +161,11 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
     }
 
     return new Module(
-      String(mod.id),
-      String(mod.package_id),
-      String(mod.name),
+      mod.id,
+      mod.package_id,
+      mod.name,
       source,
-      new Date(String(mod.created_at)),
+      new Date(mod.created_at),
       new Map(), // classes
       new Map(), // interfaces
       new Map(), // imports
@@ -179,10 +179,26 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
     );
   }
 
-  async retrieve(id?: string): Promise<Module[]> {
+  async retrieve(id?: string, module_id?: string): Promise<Module[]> {
     try {
-      const query = id ? 'SELECT * FROM modules WHERE id = ?' : 'SELECT * FROM modules';
-      const params: DuckDBValue[] = id ? [id] : [];
+      let query = 'SELECT * FROM modules';
+      const params: DuckDBValue[] = [];
+      const conditions: string[] = [];
+
+      if (id !== undefined) {
+        conditions.push('id = ?');
+        params.push(id);
+      }
+
+      if (module_id !== undefined) {
+        conditions.push('package_id = ?');
+        params.push(module_id);
+      }
+
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+
       const results = await this.executeQuery<IModuleRow>('retrieve', query, params);
       return results.map((mod) => this.createModuleFromRow(mod));
     } catch (error) {
@@ -197,7 +213,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
   }
 
   async retrieveByModuleId(module_id: string): Promise<Module[]> {
-    return this.retrieveAll(module_id);
+    return this.retrieve(undefined, module_id);
   }
 
   async retrieveAll(packageId?: string): Promise<Module[]> {

@@ -9,9 +9,9 @@ import { generateImportUUID, generatePackageUUID } from '../utils/uuid';
 import type { Import } from '../../shared/types/Import';
 
 interface PackageDependencies {
-  dependencies?: Partial<Record<string, string | undefined>> | undefined;
-  devDependencies?: Partial<Record<string, string | undefined>> | undefined;
-  peerDependencies?: Partial<Record<string, string | undefined>> | undefined;
+  dependencies?: Partial<Record<string, string | undefined>>;
+  devDependencies?: Partial<Record<string, string | undefined>>;
+  peerDependencies?: Partial<Record<string, string | undefined>>;
 }
 
 type PackageLock = Record<string, LockfileEntry | undefined>;
@@ -34,7 +34,11 @@ export class DependencyParser {
   async parseDependencies(): Promise<DependencyParseResult> {
     const pkg = await readPackage({ cwd: this.packagePath });
     const pkgLock = await this.readPackageLock();
-    const packageDependencies = pkg as PackageDependencies;
+    const packageDependencies: PackageDependencies = {
+      ...(pkg.dependencies ? { dependencies: pkg.dependencies } : {}),
+      ...(pkg.devDependencies ? { devDependencies: pkg.devDependencies } : {}),
+      ...(pkg.peerDependencies ? { peerDependencies: pkg.peerDependencies } : {}),
+    };
 
     const imports = new Map<string, Import>();
     const dependencies = this.parseDependencyType(packageDependencies, pkgLock, 'dependencies', imports);
@@ -83,20 +87,27 @@ export class DependencyParser {
     return depsMap;
   }
 
-  private async readPackageLock(): Promise<PackageLock> {
+  private async tryReadLockFile(fileName: string): Promise<string | undefined> {
     try {
-      const lockPath = join(this.packagePath, 'package-lock.json');
-      const content = await readFile(lockPath, 'utf-8');
-      return JSON.parse(content) as PackageLock;
+      const lockPath = join(this.packagePath, fileName);
+      return await readFile(lockPath, 'utf-8');
     } catch {
+      return undefined;
+    }
+  }
+
+  private async readPackageLock(): Promise<PackageLock> {
+    const packageLockContent = await this.tryReadLockFile('package-lock.json');
+    if (packageLockContent) {
       try {
-        const lockPath = join(this.packagePath, 'yarn.lock');
-        const content = await readFile(lockPath, 'utf-8');
-        return this.parseYarnLock(content);
+        return JSON.parse(packageLockContent) as PackageLock;
       } catch {
-        return {};
+        // Fall back to yarn.lock when package-lock exists but is invalid.
       }
     }
+
+    const yarnLockContent = await this.tryReadLockFile('yarn.lock');
+    return yarnLockContent ? this.parseYarnLock(yarnLockContent) : {};
   }
 
   private parseYarnLock(content: string): PackageLock {

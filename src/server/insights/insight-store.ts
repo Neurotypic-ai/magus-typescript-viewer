@@ -23,12 +23,24 @@ const CREATE_TABLE_SQL = `
   )
 `;
 
-/**
- * Ensures the insight_reports table exists.
- * Safe to call multiple times due to IF NOT EXISTS.
- */
+const tableInitialization = new WeakMap<IDatabaseAdapter, Promise<void>>();
+
 async function ensureTable(adapter: IDatabaseAdapter): Promise<void> {
-  await adapter.query(CREATE_TABLE_SQL);
+  const existingInitialization = tableInitialization.get(adapter);
+  if (existingInitialization) {
+    return existingInitialization;
+  }
+
+  const initialization = adapter
+    .query(CREATE_TABLE_SQL)
+    .then(() => undefined)
+    .catch((error: unknown) => {
+      tableInitialization.delete(adapter);
+      throw error;
+    });
+
+  tableInitialization.set(adapter, initialization);
+  await initialization;
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -55,20 +67,13 @@ export async function storeInsightReport(adapter: IDatabaseAdapter, report: Insi
 export async function getLatestReport(adapter: IDatabaseAdapter, packageId?: string): Promise<InsightReport | null> {
   await ensureTable(adapter);
 
-  const sql = packageId
-    ? `SELECT id, package_id, computed_at, health_score, report_json FROM insight_reports WHERE package_id = ? ORDER BY computed_at DESC LIMIT 1`
-    : `SELECT id, package_id, computed_at, health_score, report_json FROM insight_reports WHERE package_id IS NULL ORDER BY computed_at DESC LIMIT 1`;
-
+  const whereClause = packageId ? 'package_id = ?' : 'package_id IS NULL';
+  const sql = `SELECT id, package_id, computed_at, health_score, report_json FROM insight_reports WHERE ${whereClause} ORDER BY computed_at DESC LIMIT 1`;
   const params = packageId ? [packageId] : [];
   const rows = await adapter.query<InsightReportRow>(sql, params);
 
-  if (rows.length === 0) {
-    return null;
-  }
-
   const row = rows[0];
-  if (!row) return null;
-  return JSON.parse(row.report_json) as InsightReport;
+  return row ? (JSON.parse(row.report_json) as InsightReport) : null;
 }
 
 /**
@@ -82,10 +87,8 @@ export async function getReportHistory(
 ): Promise<InsightReport[]> {
   await ensureTable(adapter);
 
-  const sql = packageId
-    ? `SELECT id, package_id, computed_at, health_score, report_json FROM insight_reports WHERE package_id = ? ORDER BY computed_at DESC LIMIT ?`
-    : `SELECT id, package_id, computed_at, health_score, report_json FROM insight_reports WHERE package_id IS NULL ORDER BY computed_at DESC LIMIT ?`;
-
+  const whereClause = packageId ? 'package_id = ?' : 'package_id IS NULL';
+  const sql = `SELECT id, package_id, computed_at, health_score, report_json FROM insight_reports WHERE ${whereClause} ORDER BY computed_at DESC LIMIT ?`;
   const params = packageId ? [packageId, limit] : [limit];
   const rows = await adapter.query<InsightReportRow>(sql, params);
 

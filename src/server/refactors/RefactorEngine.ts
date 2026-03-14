@@ -10,6 +10,13 @@ import type { Transform, TransformRequest, TransformResult } from './Transform';
 
 const j = jscodeshift.withParser('tsx');
 
+function isWithinProjectRoot(filePath: string, projectRoot: string): boolean {
+  const resolvedFilePath = path.resolve(filePath);
+  const resolvedProjectRoot = path.resolve(projectRoot);
+  const relativePath = path.relative(resolvedProjectRoot, resolvedFilePath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
 export class RefactorEngine {
   private readonly transforms: Record<string, Transform> = Object.fromEntries(
     allTransforms.map((t) => [t.action, t]),
@@ -29,8 +36,7 @@ export class RefactorEngine {
     const { filePath, action, context } = request;
 
     if (this.projectRoot) {
-      const resolved = path.resolve(filePath);
-      if (!resolved.startsWith(this.projectRoot)) {
+      if (!isWithinProjectRoot(filePath, this.projectRoot)) {
         return {
           success: false,
           filePath,

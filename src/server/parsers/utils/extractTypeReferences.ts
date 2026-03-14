@@ -107,7 +107,8 @@ export function extractTypeNames(typeString: string): string[] {
   let match: RegExpExecArray | null;
   while ((match = identifierPattern.exec(typeString)) !== null) {
     const name = match[1];
-    if (name && !PRIMITIVE_TYPES.has(name) && !BUILTIN_TYPES.has(name)) {
+    if (!name) continue;
+    if (!PRIMITIVE_TYPES.has(name) && !BUILTIN_TYPES.has(name)) {
       matches.add(name);
     }
   }

@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { DuckDBInstance } from '@duckdb/node-api';
 
-import type { DuckDBConnection, DuckDBInstance, DuckDBValue } from '@duckdb/node-api';
+import type { DuckDBConnection, DuckDBValue } from '@duckdb/node-api';
 
 import type { DatabaseRow, IDatabaseAdapter, QueryParams, QueryResult } from './IDatabaseAdapter';
 
@@ -90,9 +91,7 @@ export class DuckDBAdapter implements IDatabaseAdapter {
       return;
     }
 
-    const duckdb = await import('@duckdb/node-api');
-
-    this.db = await duckdb.DuckDBInstance.create(this.dbPath, {
+    this.db = await DuckDBInstance.create(this.dbPath, {
       access_mode: this.config?.allowWrite ? 'READ_WRITE' : 'READ_ONLY',
       threads: this.config?.threads ? this.config.threads.toString() : '8',
     });
@@ -130,7 +129,7 @@ export class DuckDBAdapter implements IDatabaseAdapter {
         if (index !== -1) {
           this.waitingForConnection.splice(index, 1);
         }
-        reject(new Error(`Connection pool timeout: no connection available after ${timeoutMs}ms`));
+        reject(new Error(`Connection pool timeout: no connection available after ${String(timeoutMs)}ms`));
       }, timeoutMs);
       this.waitingForConnection.push(waiter);
     });
@@ -178,27 +177,21 @@ export class DuckDBAdapter implements IDatabaseAdapter {
     // If we're inside a transaction, use its dedicated connection
     const txnConnection = this.transactionConnection.getStore();
     if (txnConnection) {
-      try {
-        return await this.executeOnConnection<T>(txnConnection, sql, params);
-      } catch (error) {
-        throw error instanceof Error ? error : new Error(String(error));
-      }
+      return await this.executeOnConnection<T>(txnConnection, sql, params);
     }
 
     // Otherwise acquire from pool
     const connection = await this.acquireConnection();
     try {
       return await this.executeOnConnection<T>(connection, sql, params);
-    } catch (error) {
-      throw error instanceof Error ? error : new Error(String(error));
     } finally {
       this.releaseConnection(connection);
     }
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
     if (!this.isInitialized) {
-      return;
+      return Promise.resolve();
     }
 
     this.isClosing = true;
@@ -217,6 +210,7 @@ export class DuckDBAdapter implements IDatabaseAdapter {
 
     this.isInitialized = false;
     this.isClosing = false;
+    return Promise.resolve();
   }
 
   async transaction<T>(callback: () => Promise<T>): Promise<T> {

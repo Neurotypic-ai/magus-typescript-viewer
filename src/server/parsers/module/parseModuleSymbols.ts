@@ -156,7 +156,12 @@ export function parseTypeAliases(ctx: ModuleParserContext, exports: Set<string>,
           const params = node.typeParameters as ASTNode;
           if ('params' in params && Array.isArray(params.params)) {
             const names = (params.params as TSTypeParameter[])
-              .map((p) => getIdentifierName(p as unknown as Identifier))
+              .map((p) => {
+                if (!('name' in p) || !p.name) {
+                  return null;
+                }
+                return getIdentifierName(p.name as Identifier);
+              })
               .filter((n): n is string => n !== null);
             if (names.length > 0) {
               typeParametersJson = JSON.stringify(names);

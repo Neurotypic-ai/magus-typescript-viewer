@@ -160,7 +160,7 @@ export const typeUnionWithoutAlias: Rule = {
         const memberType = member.type as string;
         if (memberType !== 'ClassProperty' && memberType !== 'PropertyDefinition') continue;
         const key = getNodeProp(member, 'key') as { type: string; name: string } | undefined;
-        if (!key || key.type !== 'Identifier') continue;
+        if (key?.type !== 'Identifier') continue;
 
         const issue = checkUnionProperty(context, getNodeProp(member, 'typeAnnotation'), {
           name: key.name,

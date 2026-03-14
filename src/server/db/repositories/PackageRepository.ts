@@ -1,5 +1,6 @@
 import { Package } from '../../../shared/types/Package';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
+import { isMissingTableError } from '../errors/isMissingTableError';
 import { BaseRepository } from './BaseRepository';
 import { DependencyRepository } from './DependencyRepository';
 
@@ -75,9 +76,6 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         throw new EntityNotFoundError('Package', dto.id, this.errorTag);
       }
 
-      // Create dependencies using DependencyRepository
-      // Only create dependency records for packages that exist in our database
-      // Skip external npm packages that we haven't analyzed
       if (dto.dependencies) {
         for (const dependencyId of dto.dependencies.values()) {
           if (dependencyId !== dto.id) {
@@ -88,7 +86,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
                 type: 'dependency',
               });
             } catch {
-              // Silently skip dependencies that don't exist in the database (external packages)
+              // Skip external packages that are not in our database.
             }
           }
         }
@@ -103,7 +101,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
                 type: 'devDependency',
               });
             } catch {
-              // Silently skip dependencies that don't exist in the database (external packages)
+              // Skip external packages that are not in our database.
             }
           }
         }
@@ -118,7 +116,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
                 type: 'peerDependency',
               });
             } catch {
-              // Silently skip dependencies that don't exist in the database (external packages)
+              // Skip external packages that are not in our database.
             }
           }
         }
@@ -128,17 +126,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
       if (!pkg) {
         throw new EntityNotFoundError('Package', dto.id, this.errorTag);
       }
-      return new Package(
-        pkg.id,
-        pkg.name,
-        pkg.version,
-        pkg.path,
-        new Date(pkg.created_at),
-        new Map(),
-        new Map(),
-        new Map(),
-        new Map()
-      );
+      return this.createPackage(pkg);
     } catch (error) {
       if (error instanceof RepositoryError) {
         throw error;
@@ -150,9 +138,9 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
   async update(id: string, dto: IPackageUpdateDTO): Promise<Package> {
     try {
       const updates = [
-        { field: 'name', value: (dto.name as DuckDBValue) ?? undefined },
-        { field: 'version', value: (dto.version as DuckDBValue) ?? undefined },
-        { field: 'path', value: (dto.path as DuckDBValue) ?? undefined },
+        { field: 'name', value: dto.name ?? undefined },
+        { field: 'version', value: dto.version ?? undefined },
+        { field: 'path', value: dto.path ?? undefined },
       ] satisfies { field: string; value: DuckDBValue | undefined }[];
 
       const { query, values } = this.buildUpdateQuery(updates);
@@ -177,8 +165,26 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
     }
   }
 
+  private createPackage(
+    pkg: IPackageRow,
+    dependencies = new Map<string, Package>(),
+    devDependencies = new Map<string, Package>(),
+    peerDependencies = new Map<string, Package>()
+  ): Package {
+    return new Package(
+      pkg.id,
+      pkg.name,
+      pkg.version,
+      pkg.path,
+      new Date(pkg.created_at),
+      dependencies,
+      devDependencies,
+      peerDependencies,
+      new Map()
+    );
+  }
+
   private async createPackageWithDependencies(pkg: IPackageRow): Promise<Package> {
-    // Gracefully degrade: return package with empty dependency maps if dependency retrieval fails
     try {
       const dependencyRows = await this.dependencyRepository.findBySourceId(pkg.id);
 
@@ -186,9 +192,8 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
       const devDependencies = new Map<string, Package>();
       const peerDependencies = new Map<string, Package>();
 
-      // Best-effort: do not recursively hydrate dependent packages to avoid cycles and heavy queries
       for (const row of dependencyRows) {
-        const placeholder = new Package(String(row.target_id), '', '', '', new Date());
+        const placeholder = new Package(row.target_id, '', '', '', new Date());
         switch (row.type) {
           case 'dependency':
             dependencies.set(placeholder.id, placeholder);
@@ -202,32 +207,11 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         }
       }
 
-      return new Package(
-        String(pkg.id),
-        String(pkg.name),
-        String(pkg.version),
-        String(pkg.path),
-        new Date(String(pkg.created_at)),
-        dependencies,
-        devDependencies,
-        peerDependencies,
-        new Map()
-      );
+      return this.createPackage(pkg, dependencies, devDependencies, peerDependencies);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '';
-      if (msg.includes('does not exist') || msg.includes('Table') || msg.includes('not found')) {
+      if (isMissingTableError(error)) {
         this.logger.warn('Dependency hydration failed (table may not exist), returning package without dependencies', error as Error);
-        return new Package(
-          String(pkg.id),
-          String(pkg.name),
-          String(pkg.version),
-          String(pkg.path),
-          new Date(String(pkg.created_at)),
-          new Map(),
-          new Map(),
-          new Map(),
-          new Map()
-        );
+        return this.createPackage(pkg);
       }
       this.logger.error('Dependency hydration failed', error as Error);
       throw new RepositoryError('Failed to hydrate package dependencies', 'createPackageWithDependencies', this.errorTag, error as Error);
@@ -243,7 +227,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
     return Promise.resolve([]);
   }
 
-  async retrieve(id?: string): Promise<Package[]> {
+  async retrieve(id?: string, _module_id?: string): Promise<Package[]> {
     try {
       const query = id ? 'SELECT * FROM packages WHERE id = ?' : 'SELECT * FROM packages';
       const params: DuckDBValue[] = id ? [id] : [];

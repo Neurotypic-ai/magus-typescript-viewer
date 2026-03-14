@@ -11,6 +11,14 @@ export interface ImportsExportsResult {
   reExports: Set<string>;
 }
 
+function getImportKind(specifier: unknown): string | undefined {
+  if (!specifier || typeof specifier !== 'object' || !('importKind' in specifier)) {
+    return undefined;
+  }
+  const importKind = specifier.importKind;
+  return typeof importKind === 'string' ? importKind : undefined;
+}
+
 /**
  * Parse all import declarations, export declarations, and re-exports from
  * the module AST.  Returns Maps/Sets rather than mutating class state so
@@ -34,9 +42,7 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
         const importedName = specifier.imported.name;
         const localName = specifier.local?.type === 'Identifier' ? specifier.local.name : importedName;
         const uuid = generateImportUUID(ctx.moduleId, `${importPath}:${importedName}`);
-        // Individual specifiers can have their own importKind for inline type imports
-        // e.g. `import { type X, Y }` — X has importKind 'type', Y has importKind 'value'
-        const specifierImportKind = (specifier as unknown as { importKind?: string }).importKind;
+        const specifierImportKind = getImportKind(specifier);
         const specifierIsType = specifierImportKind === 'type' || isTypeImport;
         const kind = specifierIsType ? 'type' : 'value';
         const aliases = new Set<string>();
@@ -123,7 +129,7 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
   // Only captures named defaults; anonymous defaults are handled by parseClasses.ts etc.
   ctx.root.find(ctx.j.ExportDefaultDeclaration).forEach((path) => {
     const decl = path.node.declaration;
-    if (decl && 'id' in decl && decl.id && typeof decl.id === 'object' && 'type' in decl.id && (decl.id.type === 'Identifier' || decl.id.type === 'JSXIdentifier')) {
+    if ('id' in decl && decl.id && typeof decl.id === 'object' && 'type' in decl.id && (decl.id.type === 'Identifier' || decl.id.type === 'JSXIdentifier')) {
       const name = getIdentifierName(decl.id);
       if (name) exports.add(name);
     }

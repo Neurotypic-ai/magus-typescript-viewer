@@ -5,16 +5,16 @@ import type { ASTNode } from 'jscodeshift';
  */
 export interface JsDocParam {
   name: string;
-  type?: string | undefined;
-  description?: string | undefined;
+  type?: string;
+  description?: string;
 }
 
 /**
  * Represents a parsed JSDoc @returns tag.
  */
 export interface JsDocReturns {
-  type?: string | undefined;
-  description?: string | undefined;
+  type?: string;
+  description?: string;
 }
 
 /**
@@ -47,15 +47,18 @@ interface CommentNode {
   leading?: boolean;
 }
 
+type CommentCarrier = ASTNode & {
+  leadingComments?: CommentNode[];
+  comments?: CommentNode[];
+};
+
 /**
  * Checks whether an AST node has a leading JSDoc block comment.
  * JSDoc comments are Block comments (delimited by slash-star-star ... star-slash).
  */
 function getLeadingBlockComment(node: ASTNode): string | undefined {
-  // jscodeshift attaches comments in `leadingComments` or `comments` arrays
-  const comments: CommentNode[] | undefined =
-    (node as unknown as { leadingComments?: CommentNode[] }).leadingComments ??
-    (node as unknown as { comments?: CommentNode[] }).comments;
+  const commentNode = node as CommentCarrier;
+  const comments = commentNode.leadingComments ?? commentNode.comments;
 
   if (!comments || comments.length === 0) {
     return undefined;
@@ -63,7 +66,10 @@ function getLeadingBlockComment(node: ASTNode): string | undefined {
 
   // Find the last leading Block comment that looks like JSDoc (starts with *)
   for (let i = comments.length - 1; i >= 0; i--) {
-    const comment = comments[i]!;
+    const comment = comments[i];
+    if (!comment) {
+      continue;
+    }
     if (comment.type === 'Block' || comment.type === 'CommentBlock') {
       // JSDoc comments start with a second asterisk: /** ... */
       // The value stored by the parser excludes the outer /* and */,
@@ -126,7 +132,7 @@ function parseParamTag(value: string): JsDocParam {
   // Try: @param {Type} name - description
   const withType = /^\{([^}]+)\}\s+(\S+)(?:\s+-?\s*(.*))?$/.exec(value);
   if (withType) {
-    const result: JsDocParam = { name: withType[2] ?? '', type: withType[1] };
+    const result: JsDocParam = { name: withType[2] ?? '', type: withType[1] ?? '' };
     if (withType[3]) {
       result.description = withType[3].trim();
     }
@@ -158,12 +164,13 @@ function parseReturnsTag(value: string): JsDocReturns {
   if (withType) {
     const result: JsDocReturns = { type: withType[1] ?? '' };
     if (withType[2]?.trim()) {
-      result.description = withType[2]!.trim();
+      result.description = withType[2].trim();
     }
     return result;
   }
 
-  return { description: value.trim() || undefined };
+  const description = value.trim();
+  return description ? { description } : {};
 }
 
 /**

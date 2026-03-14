@@ -94,24 +94,27 @@ function matchesAnyPattern(value: string, patterns: RegExp[]): boolean {
   return patterns.some((re) => re.test(value));
 }
 
+function allEntitiesMatch(insight: InsightResult, patterns: RegExp[]): boolean {
+  if (insight.entities.length === 0) {
+    return false;
+  }
+
+  return insight.entities.every((entity) => {
+    const nameToCheck = entity.moduleId ?? entity.name;
+    return matchesAnyPattern(nameToCheck, patterns);
+  });
+}
+
 export function shouldSuppressInsight(rules: InsightIgnoreRules, insight: InsightResult): boolean {
   if (rules.suppressedKinds.has(insight.type)) return true;
 
-  if (rules.filePatterns.length > 0 && insight.entities.length > 0) {
-    const allMatch = insight.entities.every((entity) => {
-      const nameToCheck = entity.moduleId ?? entity.name;
-      return matchesAnyPattern(nameToCheck, rules.filePatterns);
-    });
-    if (allMatch) return true;
+  if (rules.filePatterns.length > 0 && allEntitiesMatch(insight, rules.filePatterns)) {
+    return true;
   }
 
   const kindPatterns = rules.kindFilePatterns.get(insight.type);
-  if (kindPatterns && kindPatterns.length > 0 && insight.entities.length > 0) {
-    const allMatch = insight.entities.every((entity) => {
-      const nameToCheck = entity.moduleId ?? entity.name;
-      return matchesAnyPattern(nameToCheck, kindPatterns);
-    });
-    if (allMatch) return true;
+  if (kindPatterns && kindPatterns.length > 0 && allEntitiesMatch(insight, kindPatterns)) {
+    return true;
   }
 
   return false;
@@ -125,7 +128,8 @@ export async function loadInsightIgnore(rootDir: string): Promise<InsightIgnoreR
     const content = await fs.readFile(filePath, 'utf-8');
     return parseInsightIgnore(content);
   } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+    const error = err as NodeJS.ErrnoException;
+    if (error.code === 'ENOENT') {
       return null;
     }
     throw err;
