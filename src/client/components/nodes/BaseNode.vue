@@ -348,30 +348,30 @@ const containerStyle = computed(() => {
   flex-shrink: 0;
 }
 
-/* Badge color variants — defined here because the badge element lives in BaseNode's template */
+/* Badge color variants — using CSS custom properties from design system */
 .base-node-badge.type-module {
-  background-color: rgba(20, 184, 166, 0.2);
-  color: rgb(94, 234, 212);
+  background-color: var(--badge-module-bg);
+  color: var(--badge-module-text);
 }
 
 .base-node-badge.type-class {
-  background-color: rgba(59, 130, 246, 0.2);
-  color: rgb(147, 197, 253);
+  background-color: var(--badge-class-bg);
+  color: var(--badge-class-text);
 }
 
 .base-node-badge.type-interface {
-  background-color: rgba(168, 85, 247, 0.2);
-  color: rgb(216, 180, 254);
+  background-color: var(--badge-interface-bg);
+  color: var(--badge-interface-text);
 }
 
 .base-node-badge.type-property {
-  background-color: rgba(20, 184, 166, 0.2);
-  color: rgb(94, 234, 212);
+  background-color: var(--badge-property-bg);
+  color: var(--badge-property-text);
 }
 
 .base-node-badge.type-method {
-  background-color: rgba(249, 115, 22, 0.2);
-  color: rgb(253, 186, 116);
+  background-color: var(--badge-method-bg);
+  color: var(--badge-method-text);
 }
 
 .base-node-badge.type-default {
@@ -407,7 +407,7 @@ const containerStyle = computed(() => {
 }
 
 .base-node-subnodes-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
 }
 
@@ -443,18 +443,18 @@ const containerStyle = computed(() => {
 }
 
 .issue-indicator--warning {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.5);
+  color: var(--severity-warning);
+  border-color: var(--severity-warning-border);
 }
 
 .issue-indicator--error {
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.5);
+  color: var(--severity-error);
+  border-color: var(--severity-error-border);
 }
 
 .issue-indicator--info {
-  color: #60a5fa;
-  border-color: rgba(96, 165, 250, 0.5);
+  color: var(--severity-info);
+  border-color: var(--severity-info-border);
 }
 
 .issue-indicator:hover {
@@ -467,11 +467,11 @@ const containerStyle = computed(() => {
 
 /* Insight glow */
 .base-node-insight-critical {
-  box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 8px 1px var(--glow-critical);
 }
 
 .base-node-insight-warning {
-  box-shadow: 0 0 8px 1px rgba(251, 191, 36, 0.28);
+  box-shadow: 0 0 8px 1px var(--glow-warning);
 }
 
 /* Insight filter dimming */

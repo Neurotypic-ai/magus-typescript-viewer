@@ -81,16 +81,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="node-context-menu" :style="{ left: `${x}px`, top: `${y}px` }">
+  <div class="node-context-menu" role="menu" :style="{ left: `${x}px`, top: `${y}px` }">
     <div class="context-menu-header">{{ nodeLabel }}</div>
-    <button type="button" class="context-menu-item" @click="handleFocusNode">
+    <button type="button" role="menuitem" class="context-menu-item" @click="handleFocusNode">
       <span class="context-menu-icon">&loz;</span> Focus Node
     </button>
-    <button type="button" class="context-menu-item" @click="handleIsolateNeighborhood">
+    <button type="button" role="menuitem" class="context-menu-item" @click="handleIsolateNeighborhood">
       <span class="context-menu-icon">&cir;</span> Isolate Neighborhood
     </button>
     <template v-if="nodeIssues.length > 0">
-      <button type="button" class="context-menu-item" @click="handleViewIssues">
+      <button type="button" role="menuitem" class="context-menu-item" @click="handleViewIssues">
         <span class="context-menu-icon">&starf;</span> View Issues ({{ nodeIssues.length }})
       </button>
     </template>
@@ -100,6 +100,7 @@ onUnmounted(() => {
         v-for="issue in refactorableIssues"
         :key="issue.id"
         type="button"
+        role="menuitem"
         class="context-menu-item context-menu-item--refactor"
         @click="handlePreview(issue)"
       >

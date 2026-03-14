@@ -35,11 +35,16 @@ const isExpanded = (id: string) => props.expandedSymbols.has(id);
 <template>
   <CollapsibleSection v-if="symbols.length > 0" :title="title" :count="symbols.length" :default-open="defaultOpen">
     <div v-for="symbol in symbols" :key="symbol.id" class="symbol-card">
-      <button class="symbol-card-header nodrag" type="button" @click.stop="emit('toggle-symbol', symbol.id)">
+      <button
+        class="symbol-card-header nodrag"
+        type="button"
+        :aria-expanded="isExpanded(symbol.id)"
+        @click.stop="emit('toggle-symbol', symbol.id)"
+      >
         <span class="symbol-card-name">{{ symbol.name }}</span>
         <span class="symbol-card-spacer" />
         <span :class="['symbol-card-badge', badgeClass]">{{ badgeText }}</span>
-        <span class="symbol-card-toggle">{{ isExpanded(symbol.id) ? '\u2212' : '+' }}</span>
+        <span class="symbol-card-toggle" :aria-label="`${symbol.name} details`">{{ isExpanded(symbol.id) ? '\u2212' : '+' }}</span>
       </button>
       <div :class="['symbol-card-grid', { 'symbol-card-grid--open': isExpanded(symbol.id) }]">
         <div class="symbol-card-body">
@@ -93,7 +98,7 @@ const isExpanded = (id: string) => props.expandedSymbols.has(id);
 
 .symbol-card-count {
   color: var(--text-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.62rem;
   opacity: 0.7;
   flex-shrink: 0;
@@ -147,13 +152,13 @@ const isExpanded = (id: string) => props.expandedSymbols.has(id);
 }
 
 .type-class {
-  background-color: rgba(59, 130, 246, 0.2);
-  color: rgb(147, 197, 253);
+  background-color: var(--badge-class-bg);
+  color: var(--badge-class-text);
 }
 
 .type-interface {
-  background-color: rgba(168, 85, 247, 0.2);
-  color: rgb(216, 180, 254);
+  background-color: var(--badge-interface-bg);
+  color: var(--badge-interface-text);
 }
 
 @media (prefers-reduced-motion: reduce) {

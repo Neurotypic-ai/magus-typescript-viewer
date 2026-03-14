@@ -59,7 +59,7 @@ describe('rendering strategy registry', () => {
 
   it('defaults contain minimumDistancePx for folderDistributor', () => {
     const defaults = createDefaultStrategyOptionsById();
-    expect(defaults.folderDistributor['minimumDistancePx']).toBe(40);
+    expect(defaults.folderDistributor['minimumDistancePx']).toBe(20);
   });
 
   it('sanitizeStrategyOptionsById clamps minimumDistancePx to min/max', () => {
@@ -68,7 +68,7 @@ describe('rendering strategy registry', () => {
       vueflow: {},
       folderDistributor: { minimumDistancePx: 5 },
     });
-    expect(sanitized.folderDistributor['minimumDistancePx']).toBe(20);
+    expect(sanitized.folderDistributor['minimumDistancePx']).toBe(10);
 
     const sanitizedMax = sanitizeStrategyOptionsById({
       canvas: {},

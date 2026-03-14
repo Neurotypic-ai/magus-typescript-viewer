@@ -266,8 +266,8 @@ export function computeAdaptiveLowZoomBudget(
     budget = Math.round(budget * 0.75);
   }
 
-  budget = Math.min(config.lowZoomMaxBudget, Math.max(config.lowZoomMinBudget, budget));
-  return Math.max(config.lowZoomMinBudget, Math.min(budget, visibleEdgeCount));
+  budget = Math.max(config.lowZoomMinBudget, Math.min(config.lowZoomMaxBudget, budget));
+  return Math.min(budget, Math.max(config.lowZoomMinBudget, visibleEdgeCount));
 }
 
 const applyLowZoomThresholding = (

@@ -467,8 +467,32 @@ describe('detectCommunities', () => {
     // With enough iterations, label propagation should converge on a chain
     const labels = detectCommunities(adj, 50);
     const uniqueLabels = new Set(labels.values());
-    // A connected component should converge to a single label (or at most a few, since LP is non-deterministic)
+    // A connected component should converge to a single label (or at most a few)
     // We relax the assertion: the number of distinct labels should be much less than node count
     expect(uniqueLabels.size).toBeLessThanOrEqual(labels.size);
+  });
+
+  it('produces deterministic results across repeated calls', () => {
+    const adj = buildAdjacency([
+      ['A', 'B'],
+      ['B', 'C'],
+      ['C', 'A'],
+      ['D', 'E'],
+      ['E', 'F'],
+      ['F', 'D'],
+    ]);
+
+    const results: Map<string, number>[] = [];
+    for (let i = 0; i < 10; i++) {
+      results.push(detectCommunities(adj));
+    }
+
+    // All 10 runs should produce identical results
+    const first = results[0]!;
+    for (let i = 1; i < results.length; i++) {
+      first.forEach((label, node) => {
+        expect(results[i]!.get(node)).toBe(label);
+      });
+    }
   });
 });

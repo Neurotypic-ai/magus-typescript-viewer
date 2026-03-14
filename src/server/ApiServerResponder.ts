@@ -23,6 +23,7 @@ import { VariableRepository } from './db/repositories/VariableRepository';
 
 import type { Package } from '../shared/types/Package';
 import type { TypeCollection } from '../shared/types/TypeCollection';
+import { typeCollectionToArray } from '../shared/utils/collections';
 
 export interface ApiServerResponderOptions {
   dbPath?: string;
@@ -114,19 +115,6 @@ function inferExternalPackageName(source: string): string | undefined {
   const [packageName] = source.split('/');
   return packageName ?? undefined;
 }
-
-const typeCollectionToArray = <T>(collection: TypeCollection<T> | undefined): T[] => {
-  if (!collection) {
-    return [];
-  }
-  if (collection instanceof Map) {
-    return Array.from(collection.values());
-  }
-  if (Array.isArray(collection)) {
-    return collection;
-  }
-  return Object.values(collection);
-};
 
 export class ApiServerResponder {
   private readonly database: Database;

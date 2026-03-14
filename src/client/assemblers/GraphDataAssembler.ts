@@ -221,7 +221,7 @@ export class GraphDataAssembler {
   private transformModules(modules: Module[]): ModuleStructure[] {
     // Use type assertion to convert array elements
     return modules.map((module) => {
-      const relativePath = module.source.relativePath;
+      const relativePath = module.source?.relativePath ?? '';
       const transformedImports = this.transformImportCollection(typeCollectionToArray(module.imports));
       // Simple module transformation that meets ModuleStructure requirements
       return {

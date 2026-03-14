@@ -23,6 +23,7 @@ const createInsightsStore = (): InsightsStore => {
   const loading = ref(false);
   const activeFilter = ref<InsightKind | null>(null);
   const dashboardOpen = ref(false);
+  let requestVersion = 0;
 
   /** Map from entity/node ID → insights that reference it */
   const insightsByNodeId = computed(() => {
@@ -84,21 +85,27 @@ const createInsightsStore = (): InsightsStore => {
   }
 
   async function fetchInsights(packageId?: string): Promise<void> {
+    const version = ++requestVersion;
     loading.value = true;
     try {
       const baseUrl = getApiBaseUrl();
       const url = packageId ? `${baseUrl}/insights?packageId=${encodeURIComponent(packageId)}` : `${baseUrl}/insights`;
       const response = await fetch(url);
+      if (version !== requestVersion) return;
       if (!response.ok) {
         report.value = null;
         return;
       }
       const data = (await response.json()) as InsightReport;
+      if (version !== requestVersion) return;
       report.value = data;
     } catch {
+      if (version !== requestVersion) return;
       report.value = null;
     } finally {
-      loading.value = false;
+      if (version === requestVersion) {
+        loading.value = false;
+      }
     }
   }
 

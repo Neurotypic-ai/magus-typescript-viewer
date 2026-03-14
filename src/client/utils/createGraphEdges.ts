@@ -211,7 +211,7 @@ function createEdge(
   targetHandle?: string
 ): GraphEdge {
   return {
-    id: `${source}-${target}-${type}`,
+    id: `${source}-${target}-${type}${importName ? `-${importName}` : ''}`,
     source,
     target,
     sourceHandle,

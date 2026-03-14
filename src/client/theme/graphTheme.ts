@@ -142,7 +142,7 @@ const defaultTheme = graphTheme as Required<GraphTheme>;
 // Node Styles
 export function getNodeStyle(type: DependencyKind): CSSProperties {
   const baseStyle: CSSProperties = {
-    padding: `${String(defaultTheme.nodes.padding.header)}px ${String(defaultTheme.nodes.padding.content)}px`,
+    padding: `${defaultTheme.nodes.padding.header}px ${defaultTheme.nodes.padding.content}px`,
     borderRadius: defaultTheme.nodes.borderRadius,
     border: `1px solid ${defaultTheme.nodes.colors.border}`,
     backgroundColor: defaultTheme.nodes.colors.background.default,
@@ -264,6 +264,18 @@ export function getEdgeStyle(type: DependencyEdgeKind): CSSProperties {
         stroke: defaultTheme.edges.colors.contains,
         strokeWidth: 1.5,
       };
+    case 'extends':
+      return {
+        ...baseStyle,
+        stroke: defaultTheme.edges.colors.inheritance,
+        strokeWidth: defaultTheme.edges.sizes.width.inheritance,
+      };
+    case 'uses':
+      return {
+        ...baseStyle,
+        stroke: defaultTheme.edges.colors.contains,
+        strokeDasharray: '4 3',
+      };
     default:
       return baseStyle;
   }
@@ -286,6 +298,12 @@ export function getEdgeColor(type: DependencyEdgeKind): string {
       return defaultTheme.edges.colors.devDependency;
     case 'peerDependency':
       return defaultTheme.edges.colors.peerDependency;
+    case 'contains':
+      return defaultTheme.edges.colors.contains;
+    case 'extends':
+      return defaultTheme.edges.colors.inheritance;
+    case 'uses':
+      return defaultTheme.edges.colors.contains;
     default:
       return defaultTheme.edges.colors.default;
   }

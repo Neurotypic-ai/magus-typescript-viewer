@@ -59,10 +59,10 @@ function closePanel(): void {
         <span class="issues-panel-count">{{ displayIssues.length }}</span>
       </div>
       <div class="issues-panel-actions">
-        <button v-if="hasFilter" type="button" class="issues-panel-btn" title="Clear filter" @click="clearFilter">
+        <button v-if="hasFilter" type="button" class="issues-panel-btn" title="Clear filter" aria-label="Clear issue filter" @click="clearFilter">
           Clear
         </button>
-        <button type="button" class="issues-panel-btn" title="Close panel" @click="closePanel">
+        <button type="button" class="issues-panel-btn" title="Close panel" aria-label="Close issues panel" @click="closePanel">
           &times;
         </button>
       </div>

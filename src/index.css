@@ -9,7 +9,7 @@
 
   --color-text-primary: rgba(255, 255, 255, 0.87);
   --color-text-secondary: rgba(255, 255, 255, 0.6);
-  --color-text-muted: rgba(255, 255, 255, 0.38);
+  --color-text-muted: rgba(255, 255, 255, 0.5);
 
   --color-border-default: #404040;
   --color-border-hover: #606060;
@@ -84,6 +84,64 @@
 
   /* focus ring color aligned with primary */
   --focus-ring: #00ffff;
+
+  /* ── Severity colors ── */
+  --severity-error: #ef4444;
+  --severity-warning: #fbbf24;
+  --severity-info: #60a5fa;
+  --severity-error-border: rgba(239, 68, 68, 0.5);
+  --severity-warning-border: rgba(251, 191, 36, 0.5);
+  --severity-info-border: rgba(96, 165, 250, 0.5);
+
+  /* ── Accent / selection ── */
+  --accent-cyan: #22d3ee;
+  --accent-cyan-dim: rgba(34, 211, 238, 0.5);
+  --accent-gold: #ffd700;
+
+  /* ── Badge colors ── */
+  --badge-module-bg: rgba(20, 184, 166, 0.2);
+  --badge-module-text: rgb(94, 234, 212);
+  --badge-class-bg: rgba(59, 130, 246, 0.2);
+  --badge-class-text: rgb(147, 197, 253);
+  --badge-interface-bg: rgba(168, 85, 247, 0.2);
+  --badge-interface-text: rgb(216, 180, 254);
+  --badge-property-bg: rgba(245, 158, 11, 0.2);
+  --badge-property-text: rgb(252, 211, 77);
+  --badge-method-bg: rgba(139, 92, 246, 0.2);
+  --badge-method-text: rgb(196, 181, 253);
+  --badge-function-bg: rgba(16, 185, 129, 0.15);
+  --badge-function-text: rgb(110, 231, 183);
+  --badge-type-bg: rgba(99, 102, 241, 0.15);
+  --badge-type-text: rgb(165, 180, 252);
+  --badge-enum-bg: rgba(236, 72, 153, 0.15);
+  --badge-enum-text: rgb(249, 168, 212);
+  --badge-const-bg: rgba(20, 184, 166, 0.15);
+  --badge-const-text: rgb(94, 234, 212);
+  --badge-var-bg: rgba(148, 163, 184, 0.15);
+  --badge-var-text: rgb(203, 213, 225);
+
+  /* ── Glow effects ── */
+  --glow-critical: rgba(239, 68, 68, 0.35);
+  --glow-warning: rgba(251, 191, 36, 0.28);
+  --glow-selection: rgba(34, 211, 238, 0.34);
+
+  /* ── Z-index scale ── */
+  --z-canvas: 1;
+  --z-graph: 2;
+  --z-node-connected: 10;
+  --z-node-selected: 11;
+  --z-edge-hover: 12;
+  --z-overlay: 20;
+  --z-panel: 21;
+  --z-context-menu: 100;
+
+  /* ── Hover/interaction ── */
+  --hover-bg: rgba(255, 255, 255, 0.06);
+  --hover-bg-strong: rgba(255, 255, 255, 0.08);
+  --active-bg: rgba(255, 255, 255, 0.1);
+
+  /* ── Monospace font stack ── */
+  --font-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', 'JetBrains Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
 /* Firefox uses a significantly slower text shaping path with

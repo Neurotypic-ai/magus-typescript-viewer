@@ -24,13 +24,30 @@ export function getHeritageClauseName(node: ASTNode): string | null {
   // TSExpressionWithTypeArguments has an `expression` property
   if ('expression' in node) {
     const expression = node.expression as ASTNode | undefined;
-    if (expression?.type === 'Identifier' && 'name' in expression) {
-      return expression.name;
+    if (expression) {
+      if (expression.type === 'Identifier' && 'name' in expression) {
+        return expression.name;
+      }
+      // MemberExpression: e.g. module.Parent or a.b.c.Parent
+      // Extract the rightmost property name, which is the actual type name
+      if (expression.type === 'MemberExpression' && 'property' in expression) {
+        const property = expression.property as ASTNode;
+        if (property.type === 'Identifier' && 'name' in property) {
+          return property.name;
+        }
+      }
     }
   }
   // Direct Identifier
   if (node.type === 'Identifier' && 'name' in node) {
     return node.name;
+  }
+  // Direct MemberExpression (without TSExpressionWithTypeArguments wrapper)
+  if (node.type === 'MemberExpression' && 'property' in node) {
+    const property = node.property as ASTNode;
+    if (property.type === 'Identifier' && 'name' in property) {
+      return property.name;
+    }
   }
   return null;
 }

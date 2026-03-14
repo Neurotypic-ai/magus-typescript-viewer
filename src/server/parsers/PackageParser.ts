@@ -513,22 +513,23 @@ export class PackageParser {
     }
 
     // Resolve relationship IDs when a name maps uniquely within this package.
+    // Preserve already-resolved IDs from ModuleParser; only overwrite with a successful resolution.
     const classExtends: DeferredClassExtendsRef[] = rawClassExtends.map((ref) => ({
       classId: ref.classId,
       parentName: ref.parentName,
-      parentId: this.resolveUniqueName(classNameToIds, ref.parentName),
+      parentId: this.resolveUniqueName(classNameToIds, ref.parentName) ?? ref.parentId,
     }));
 
     const classImplements: DeferredClassImplementsRef[] = rawClassImplements.map((ref) => ({
       classId: ref.classId,
       interfaceName: ref.interfaceName,
-      interfaceId: this.resolveUniqueName(interfaceNameToIds, ref.interfaceName),
+      interfaceId: this.resolveUniqueName(interfaceNameToIds, ref.interfaceName) ?? ref.interfaceId,
     }));
 
     const interfaceExtends: DeferredInterfaceExtendsRef[] = rawInterfaceExtends.map((ref) => ({
       interfaceId: ref.interfaceId,
       parentName: ref.parentName,
-      parentId: this.resolveUniqueName(interfaceNameToIds, ref.parentName),
+      parentId: this.resolveUniqueName(interfaceNameToIds, ref.parentName) ?? ref.parentId,
     }));
 
     const symbolReferences = this.resolveSymbolReferences(

@@ -47,10 +47,21 @@ function sendError(res: http.ServerResponse, statusCode: number, message: string
   res.end(JSON.stringify({ error: message }));
 }
 
+const MAX_BODY_SIZE = 1024 * 1024; // 1MB
+
 function readRequestBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    let totalSize = 0;
+    req.on('data', (chunk: Buffer) => {
+      totalSize += chunk.length;
+      if (totalSize > MAX_BODY_SIZE) {
+        req.destroy();
+        reject(new Error('Request body too large'));
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => { resolve(Buffer.concat(chunks).toString('utf-8')); });
     req.on('error', reject);
   });
@@ -251,6 +262,10 @@ const server = http.createServer((req, res) => {
             ? await engine.preview(request)
             : await engine.execute(request);
         } catch (routeErr) {
+          if (routeErr instanceof Error && routeErr.message === 'Request body too large') {
+            sendError(res, 413, 'Request body too large');
+            return;
+          }
           logger.error('Error in /refactor route', routeErr);
           sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Refactoring failed');
           return;
@@ -267,6 +282,8 @@ const server = http.createServer((req, res) => {
     }
   })();
 });
+
+server.timeout = 30000;
 
 // Update error handling for the server
 server.on('error', (err: NodeJS.ErrnoException) => {

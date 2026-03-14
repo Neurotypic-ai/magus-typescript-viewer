@@ -216,7 +216,7 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
   gap: 0.2rem;
   padding: 0.2rem 0.35rem;
   border-radius: 0.25rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   line-height: 1.3;
 }

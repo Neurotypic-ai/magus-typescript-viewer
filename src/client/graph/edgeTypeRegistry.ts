@@ -32,7 +32,7 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
     kind: 'implements',
     label: 'Implements',
     validSources: ['class', 'module'],
-    validTargets: ['interface', 'module'],
+    validTargets: ['interface'],
     directed: true,
     handleCategory: 'relational',
   },

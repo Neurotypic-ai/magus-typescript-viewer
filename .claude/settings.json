@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "laravel-boost@claude-plugins-official": true,
+    "php-lsp@claude-plugins-official": true
+  }
+}

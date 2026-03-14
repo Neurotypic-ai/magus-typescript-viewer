@@ -33,7 +33,7 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
       if (specifier.type === 'ImportSpecifier' && specifier.imported.type === 'Identifier') {
         const importedName = specifier.imported.name;
         const localName = specifier.local?.type === 'Identifier' ? specifier.local.name : importedName;
-        const uuid = generateImportUUID(importPath, importedName);
+        const uuid = generateImportUUID(ctx.moduleId, `${importPath}:${importedName}`);
         const kind = isTypeImport ? 'type' : 'value';
         const aliases = new Set<string>();
         if (localName !== importedName) {
@@ -50,13 +50,13 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
         importSpecifiers.set(localName, importSpecifier);
       } else if (specifier.type === 'ImportDefaultSpecifier' && specifier.local?.type === 'Identifier') {
         const name = specifier.local.name;
-        const uuid = generateImportUUID(importPath, name);
+        const uuid = generateImportUUID(ctx.moduleId, `${importPath}:${name}`);
         const kind = isTypeImport ? 'type' : 'default';
         const importSpecifier = new ImportSpecifier(uuid, name, kind, undefined, new Set(), new Set());
         importSpecifiers.set(name, importSpecifier);
       } else if (specifier.type === 'ImportNamespaceSpecifier' && specifier.local?.type === 'Identifier') {
         const name = specifier.local.name;
-        const uuid = generateImportUUID(importPath, name);
+        const uuid = generateImportUUID(ctx.moduleId, `${importPath}:${name}`);
         const kind = isTypeImport ? 'type' : 'namespace';
         const importSpecifier = new ImportSpecifier(uuid, name, kind, undefined, new Set(), new Set());
         importSpecifiers.set(name, importSpecifier);

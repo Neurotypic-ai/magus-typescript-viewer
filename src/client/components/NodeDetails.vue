@@ -525,7 +525,7 @@ const openSymbolUsageGraph = () => {
     data-graph-overlay-scrollable
     class="nowheel absolute top-14 right-4 z-50 bg-background-paper p-5 rounded-lg border border-border-default shadow-2xl max-w-md max-h-128 overflow-y-auto"
     role="dialog"
-    aria-modal="false"
+    aria-modal="true"
     aria-labelledby="node-details-title"
   >
     <h2 id="node-details-title" class="text-xl font-bold text-text-primary mb-1">

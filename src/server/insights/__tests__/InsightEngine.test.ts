@@ -145,6 +145,57 @@ function graphWithOrphanedModule(): ImportGraph {
   };
 }
 
+/** Build a graph with an orphaned entry point (index.ts, test files) — should be filtered */
+function graphWithOrphanedEntryPoints(): ImportGraph {
+  const adjacency = new Map<string, Set<string>>();
+  adjacency.set('mod-connected-a', new Set(['mod-connected-b']));
+  adjacency.set('mod-connected-b', new Set());
+  adjacency.set('mod-index', new Set());
+  adjacency.set('mod-test', new Set());
+  adjacency.set('mod-real-orphan', new Set());
+
+  const reverseAdjacency = new Map<string, Set<string>>();
+  reverseAdjacency.set('mod-connected-a', new Set());
+  reverseAdjacency.set('mod-connected-b', new Set(['mod-connected-a']));
+  reverseAdjacency.set('mod-index', new Set());
+  reverseAdjacency.set('mod-test', new Set());
+  reverseAdjacency.set('mod-real-orphan', new Set());
+
+  return {
+    adjacency,
+    reverseAdjacency,
+    modules: new Map([
+      ['mod-connected-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+      ['mod-connected-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+      ['mod-index', { name: 'index.ts', directory: '/src', relativePath: 'src/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
+      ['mod-test', { name: 'utils.test.ts', directory: '/src', relativePath: 'src/utils.test.ts', isBarrel: false, lineCount: 100, packageId: 'pkg-1' }],
+      ['mod-real-orphan', { name: 'dead-code.ts', directory: '/src', relativePath: 'src/dead-code.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+    ]),
+    nodeIds: new Set(['mod-connected-a', 'mod-connected-b', 'mod-index', 'mod-test', 'mod-real-orphan']),
+  };
+}
+
+/** Build a graph with adjacency for unused exports testing (mod-2 imports mod-1) */
+function graphWithImportEdge(): ImportGraph {
+  const adjacency = new Map<string, Set<string>>();
+  adjacency.set('mod-1', new Set());
+  adjacency.set('mod-2', new Set(['mod-1']));
+
+  const reverseAdjacency = new Map<string, Set<string>>();
+  reverseAdjacency.set('mod-1', new Set(['mod-2']));
+  reverseAdjacency.set('mod-2', new Set());
+
+  return {
+    adjacency,
+    reverseAdjacency,
+    modules: new Map([
+      ['mod-1', { name: 'mod1.ts', directory: '/src', relativePath: 'src/mod1.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+      ['mod-2', { name: 'mod2.ts', directory: '/src', relativePath: 'src/mod2.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+    ]),
+    nodeIds: new Set(['mod-1', 'mod-2']),
+  };
+}
+
 /** Build a graph with barrel files that re-export through other barrels */
 function graphWithNestedBarrels(): ImportGraph {
   const adjacency = new Map<string, Set<string>>();
@@ -375,6 +426,18 @@ describe('InsightEngine', () => {
       expect(orphans[0]!.severity).toBe('warning');
       expect(orphans[0]!.entities).toHaveLength(1);
       expect(orphans[0]!.entities[0]!.name).toBe('orphan.ts');
+    });
+
+    it('filters out entry points and test files from orphaned modules', async () => {
+      buildImportGraph.mockResolvedValue(graphWithOrphanedEntryPoints());
+
+      const report = await engine.compute();
+      const orphans = report.insights.filter((i) => i.type === 'orphaned-modules');
+
+      expect(orphans).toHaveLength(1);
+      // Only dead-code.ts should be flagged, not index.ts or utils.test.ts
+      expect(orphans[0]!.entities).toHaveLength(1);
+      expect(orphans[0]!.entities[0]!.name).toBe('dead-code.ts');
     });
   });
 
@@ -775,8 +838,8 @@ describe('InsightEngine', () => {
       // The unexported entities query uses "FROM classes" and "FROM functions"
       // but the UNION ALL result comes from a single query
       responses.set('NOT EXISTS', [
-        { id: 'class-1', name: 'InternalHelper', module_id: 'mod-1' },
-        { id: 'func-1', name: 'privateUtil', module_id: 'mod-2' },
+        { id: 'class-1', name: 'InternalHelper', module_id: 'mod-1', entity_type: 'class' },
+        { id: 'func-1', name: 'privateUtil', module_id: 'mod-2', entity_type: 'function' },
       ]);
 
       adapter = createMockAdapter(responses);
@@ -789,6 +852,27 @@ describe('InsightEngine', () => {
       expect(unexported).toHaveLength(1);
       expect(unexported[0]!.severity).toBe('info');
       expect(unexported[0]!.entities).toHaveLength(2);
+    });
+
+    it('correctly identifies entity kind for classes vs functions', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('NOT EXISTS', [
+        { id: 'class-1', name: 'InternalClass', module_id: 'mod-1', entity_type: 'class' },
+        { id: 'func-1', name: 'helperFn', module_id: 'mod-2', entity_type: 'function' },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const unexported = report.insights.filter((i) => i.type === 'unexported-entities');
+
+      expect(unexported).toHaveLength(1);
+      const classEntity = unexported[0]!.entities.find((e) => e.name === 'InternalClass');
+      const funcEntity = unexported[0]!.entities.find((e) => e.name === 'helperFn');
+      expect(classEntity!.kind).toBe('class');
+      expect(funcEntity!.kind).toBe('function');
     });
   });
 
@@ -818,6 +902,24 @@ describe('InsightEngine', () => {
       expect(typeOnly).toHaveLength(1);
       expect(typeOnly[0]!.severity).toBe('info');
       expect(typeOnly[0]!.entities[0]!.detail).toBe('3/5 imports are type-only');
+    });
+
+    it('escalates to warning when all imports in a module are type-only', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('is_type_only', [
+        { id: 'mod-1', name: 'all-types.ts', type_only_count: 4, total_count: 4 },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const typeOnly = report.insights.filter((i) => i.type === 'type-only-dependencies');
+
+      expect(typeOnly).toHaveLength(1);
+      expect(typeOnly[0]!.severity).toBe('warning');
+      expect(typeOnly[0]!.entities[0]!.detail).toContain('all 4 imports are type-only');
     });
   });
 
@@ -906,7 +1008,7 @@ describe('InsightEngine', () => {
     });
   });
 
-  // ── Unused Exports (DB-based) ────────────────────────────────────────────
+  // ── Unused Exports (DB + graph-based) ────────────────────────────────────
 
   describe('unused exports', () => {
     it('returns no insight when all exports are imported', async () => {
@@ -920,7 +1022,8 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      // Graph must have adjacency edge: mod-2 imports mod-1
+      buildImportGraph.mockResolvedValue(graphWithImportEdge());
 
       const report = await engine.compute();
       const unused = report.insights.filter((i) => i.type === 'unused-exports');
@@ -940,7 +1043,7 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      buildImportGraph.mockResolvedValue(graphWithImportEdge());
 
       const report = await engine.compute();
       const unused = report.insights.filter((i) => i.type === 'unused-exports');
@@ -962,7 +1065,7 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      buildImportGraph.mockResolvedValue(graphWithImportEdge());
 
       // Should not throw
       const report = await engine.compute();
@@ -970,6 +1073,50 @@ describe('InsightEngine', () => {
 
       // someSymbol is reported as unused since the import json couldn't be parsed
       expect(unused).toHaveLength(1);
+    });
+
+    it('distinguishes exports with same name in different modules', async () => {
+      // Two modules both export 'config', but only mod-1's is imported
+      const graph: ImportGraph = {
+        adjacency: new Map([
+          ['mod-1', new Set<string>()],
+          ['mod-2', new Set<string>()],
+          ['mod-3', new Set<string>(['mod-1'])],
+        ]),
+        reverseAdjacency: new Map([
+          ['mod-1', new Set(['mod-3'])],
+          ['mod-2', new Set<string>()],
+          ['mod-3', new Set<string>()],
+        ]),
+        modules: new Map([
+          ['mod-1', { name: 'config-a.ts', directory: '/src', relativePath: 'src/config-a.ts', isBarrel: false, lineCount: 20, packageId: 'pkg-1' }],
+          ['mod-2', { name: 'config-b.ts', directory: '/src', relativePath: 'src/config-b.ts', isBarrel: false, lineCount: 20, packageId: 'pkg-1' }],
+          ['mod-3', { name: 'consumer.ts', directory: '/src', relativePath: 'src/consumer.ts', isBarrel: false, lineCount: 20, packageId: 'pkg-1' }],
+        ]),
+        nodeIds: new Set(['mod-1', 'mod-2', 'mod-3']),
+      };
+
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('FROM exports', [
+        { id: 'exp-1', name: 'config', module_id: 'mod-1' },
+        { id: 'exp-2', name: 'config', module_id: 'mod-2' },
+      ]);
+      responses.set('FROM imports', [
+        { id: 'imp-1', module_id: 'mod-3', source: './config-a', specifiers_json: '[{"imported": "config"}]' },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(graph);
+
+      const report = await engine.compute();
+      const unused = report.insights.filter((i) => i.type === 'unused-exports');
+
+      expect(unused).toHaveLength(1);
+      // mod-2's 'config' is unused — mod-3 only imports from mod-1
+      const unusedEntities = unused[0]!.entities;
+      expect(unusedEntities).toHaveLength(1);
+      expect(unusedEntities[0]!.moduleId).toBe('mod-2');
     });
   });
 
@@ -999,6 +1146,25 @@ describe('InsightEngine', () => {
       expect(isp).toHaveLength(1);
       expect(isp[0]!.severity).toBe('warning');
       expect(isp[0]!.entities[0]!.detail).toBe('10 members, implemented by 3 classes');
+    });
+
+    it('escalates to critical at 15+ members', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('member_count', [
+        { id: 'iface-1', name: 'IMegaInterface', module_id: 'mod-1', member_count: 18, implementor_count: 2 },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const isp = report.insights.filter((i) => i.type === 'interface-segregation-violations');
+
+      expect(isp).toHaveLength(1);
+      expect(isp[0]!.severity).toBe('critical');
+      expect(isp[0]!.value).toBe(18);
+      expect(isp[0]!.threshold).toBe(7);
     });
   });
 

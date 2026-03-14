@@ -1,6 +1,6 @@
 import { createLogger } from '../../shared/utils/logger';
 import { buildImportGraph } from './import-graph';
-import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents } from './graph-algorithms';
+import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents, toUndirected } from './graph-algorithms';
 
 import type { DatabaseRow, IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from './import-graph';
@@ -24,6 +24,7 @@ const T = {
   HUB_DEGREE: 15,
   EXTERNAL_DEPS: 8,
   INTERFACE_SEGREGATION_MIN: 7,
+  INTERFACE_SEGREGATION_CRITICAL: 15,
 } as const;
 
 // ── Row types for SQL results ───────────────────────────────────────────────
@@ -57,6 +58,7 @@ interface LeakyRow extends DatabaseRow {
 interface ExportRow extends DatabaseRow {
   name: string;
   module_id: string;
+  entity_type?: string;
 }
 
 interface ImportSpecRow extends DatabaseRow {
@@ -114,17 +116,27 @@ function pkgParams(packageId?: string): string[] {
   return packageId ? [packageId] : [];
 }
 
+const externalPackageNameCache = new Map<string, string | undefined>();
+
 function inferExternalPackageName(source: string): string | undefined {
+  const cached = externalPackageNameCache.get(source);
+  if (cached !== undefined) return cached;
+  if (externalPackageNameCache.has(source)) return undefined;
+
+  let result: string | undefined;
   if (!source || source.startsWith('.') || source.startsWith('/') || source.startsWith('@/') || source.startsWith('src/')) {
-    return undefined;
-  }
-  if (source.startsWith('@')) {
+    result = undefined;
+  } else if (source.startsWith('@')) {
     const parts = source.split('/');
     const scope = parts[0];
     const name = parts[1];
-    return scope && name ? `${scope}/${name}` : undefined;
+    result = scope && name ? `${scope}/${name}` : undefined;
+  } else {
+    result = source.split('/')[0] ?? undefined;
   }
-  return source.split('/')[0] ?? undefined;
+
+  externalPackageNameCache.set(source, result);
+  return result;
 }
 
 // ── InsightEngine ───────────────────────────────────────────────────────────
@@ -139,6 +151,7 @@ export class InsightEngine {
 
   async compute(packageId?: string): Promise<InsightReport> {
     const graph = await buildImportGraph(this.adapter, packageId);
+    const undirected = toUndirected(graph.adjacency);
 
     const results = await Promise.allSettled([
       Promise.resolve(this.circularImports(graph)),
@@ -155,9 +168,9 @@ export class InsightEngine {
       this.typeOnlyDependencies(packageId),
       Promise.resolve(this.orphanedModules(graph)),
       Promise.resolve(this.hubModules(graph)),
-      Promise.resolve(this.bridgeModules(graph)),
-      Promise.resolve(this.clusterDetection(graph)),
-      this.unusedExports(packageId),
+      Promise.resolve(this.bridgeModules(graph, undirected)),
+      Promise.resolve(this.clusterDetection(graph, undirected)),
+      this.unusedExports(graph, packageId),
       this.interfaceSegregationViolations(packageId),
       this.missingReturnTypes(packageId),
       this.asyncBoundaryMismatches(packageId),
@@ -530,6 +543,7 @@ export class InsightEngine {
     for (const row of rows) {
       const pub = num(row.public_count);
       const total = num(row.total_count);
+      if (total === 0) continue;
       const pct = Math.round((pub / total) * 100);
       entities.push({
         id: row.id,
@@ -588,25 +602,26 @@ export class InsightEngine {
   // ── 11. Unexported Entities ─────────────────────────────────────────────
 
   private async unexportedEntities(packageId?: string): Promise<InsightResult[]> {
+    const params = pkgParams(packageId);
     const rows = await this.adapter.query<ExportRow>(
-      `SELECT c.id as id, c.name as name, c.module_id as module_id
+      `SELECT c.id as id, c.name as name, c.module_id as module_id, 'class' as entity_type
        FROM classes c
        WHERE NOT EXISTS (
          SELECT 1 FROM exports e WHERE e.module_id = c.module_id AND e.name = c.name
        ) ${wherePackage('c', packageId)}
        UNION ALL
-       SELECT f.id as id, f.name as name, f.module_id as module_id
+       SELECT f.id as id, f.name as name, f.module_id as module_id, 'function' as entity_type
        FROM functions f
        WHERE NOT EXISTS (
          SELECT 1 FROM exports e WHERE e.module_id = f.module_id AND e.name = f.name
        ) AND (f.is_exported = FALSE OR f.is_exported = 'false' OR f.is_exported = '0')
        ${wherePackage('f', packageId)}`,
-      [...pkgParams(packageId), ...pkgParams(packageId)],
+      [...params, ...params],
     );
 
     const entities: InsightEntity[] = rows.map((row) => ({
       id: row.id,
-      kind: 'class' as const,
+      kind: (row.entity_type === 'function' ? 'function' : 'class') as InsightEntity['kind'],
       name: row.name,
       moduleId: row.module_id,
     }));
@@ -640,25 +655,33 @@ export class InsightEngine {
     );
 
     const entities: InsightEntity[] = [];
+    let allTypeOnlyCount = 0;
     for (const row of rows) {
       const typeOnly = num(row.type_only_count);
       const total = num(row.total_count);
+      const allTypeOnly = typeOnly === total;
+      if (allTypeOnly) allTypeOnlyCount++;
       entities.push({
         id: row.id,
         kind: 'module',
         name: row.name,
-        detail: `${s(typeOnly)}/${s(total)} imports are type-only`,
+        detail: allTypeOnly
+          ? `all ${s(total)} imports are type-only — consider using \`import type\``
+          : `${s(typeOnly)}/${s(total)} imports are type-only`,
       });
     }
 
     if (entities.length === 0) return [];
+    const severity: InsightSeverity = allTypeOnlyCount > 0 ? 'warning' : 'info';
     return [
       this.make(
         'type-only-dependencies',
         'api-surface',
-        'info',
+        severity,
         'Type-Only Dependencies',
-        `${s(entities.length)} modules have type-only imports (candidates for import type)`,
+        allTypeOnlyCount > 0
+          ? `${s(allTypeOnlyCount)} modules have only type imports (should use \`import type\`), ${s(entities.length - allTypeOnlyCount)} have a mix`
+          : `${s(entities.length)} modules have type-only imports (candidates for import type)`,
         entities,
       ),
     ];
@@ -667,15 +690,23 @@ export class InsightEngine {
   // ── 13. Orphaned Modules ────────────────────────────────────────────────
 
   private orphanedModules(graph: ImportGraph): InsightResult[] {
+    const entryPointPatterns = /(?:^index\.[^.]+$|\.(?:test|spec|stories|story)\.[^.]+$|^(?:main|app|vite\.config|vitest\.config|eslint\.config)\.[^.]+$)/;
+
     const entities: InsightEntity[] = [];
     for (const id of graph.nodeIds) {
       const outDegree = graph.adjacency.get(id)?.size ?? 0;
       const inDegree = graph.reverseAdjacency.get(id)?.size ?? 0;
       if (outDegree === 0 && inDegree === 0) {
+        const meta = graph.modules.get(id);
+        const name = meta?.name ?? id;
+
+        // Skip known entry points, test files, and config files
+        if (entryPointPatterns.test(name)) continue;
+
         entities.push({
           id,
           kind: 'module',
-          name: graph.modules.get(id)?.name ?? id,
+          name,
           detail: 'no imports and not imported by any module',
         });
       }
@@ -731,8 +762,8 @@ export class InsightEngine {
 
   // ── 15. Bridge Modules ──────────────────────────────────────────────────
 
-  private bridgeModules(graph: ImportGraph): InsightResult[] {
-    const points = findArticulationPoints(graph.adjacency);
+  private bridgeModules(graph: ImportGraph, undirected: Map<string, Set<string>>): InsightResult[] {
+    const points = findArticulationPoints(graph.adjacency, undirected);
     const entities: InsightEntity[] = Array.from(points).map((id) => ({
       id,
       kind: 'module' as const,
@@ -755,10 +786,10 @@ export class InsightEngine {
 
   // ── 16. Cluster Detection ───────────────────────────────────────────────
 
-  private clusterDetection(graph: ImportGraph): InsightResult[] {
+  private clusterDetection(graph: ImportGraph, undirected: Map<string, Set<string>>): InsightResult[] {
     if (graph.nodeIds.size < 3) return [];
 
-    const labels = detectCommunities(graph.adjacency);
+    const labels = detectCommunities(graph.adjacency, 10, undirected);
 
     // Group by community label
     const communities = new Map<number, string[]>();
@@ -800,7 +831,7 @@ export class InsightEngine {
 
   // ── 17. Unused Exports ──────────────────────────────────────────────────
 
-  private async unusedExports(packageId?: string): Promise<InsightResult[]> {
+  private async unusedExports(graph: ImportGraph, packageId?: string): Promise<InsightResult[]> {
     const allExports = await this.adapter.query<ExportRow>(
       `SELECT id, name, module_id FROM exports WHERE 1=1 ${wherePackage('exports', packageId)}`,
       pkgParams(packageId),
@@ -808,20 +839,32 @@ export class InsightEngine {
     if (allExports.length === 0) return [];
 
     const allImports = await this.adapter.query<ImportSpecRow>(
-      `SELECT id, module_id, source, specifiers_json FROM imports WHERE specifiers_json IS NOT NULL`,
-      [],
+      `SELECT id, module_id, source, specifiers_json FROM imports
+       WHERE specifiers_json IS NOT NULL ${wherePackage('imports', packageId)}`,
+      pkgParams(packageId),
     );
 
-    // Parse all imported names
-    const importedNames = new Set<string>();
+    // Build set of (target_module_id, imported_name) pairs for precise matching
+    const importedPairs = new Set<string>();
     for (const imp of allImports) {
       const json = imp.specifiers_json;
       if (!json) continue;
+
+      // Resolve the import source to a target module ID using the graph's adjacency
+      // The source module's outgoing edges tell us which modules it imports
+      const targetModuleIds = graph.adjacency.get(imp.module_id);
+      if (!targetModuleIds || targetModuleIds.size === 0) continue;
+
       try {
         const specs = JSON.parse(json) as { imported?: string }[];
         if (Array.isArray(specs)) {
           for (const spec of specs) {
-            if (spec.imported) importedNames.add(spec.imported);
+            if (spec.imported) {
+              // Associate imported name with each possible target module
+              for (const targetId of targetModuleIds) {
+                importedPairs.add(`${targetId}::${spec.imported}`);
+              }
+            }
           }
         }
       } catch {
@@ -829,10 +872,11 @@ export class InsightEngine {
       }
     }
 
-    // Find exports not referenced by any import
+    // Find exports not referenced by any import targeting their module
     const entities: InsightEntity[] = [];
     for (const exp of allExports) {
-      if (!importedNames.has(exp.name)) {
+      const key = `${exp.module_id}::${exp.name}`;
+      if (!importedPairs.has(key)) {
         entities.push({
           id: exp.id,
           kind: 'module',
@@ -873,9 +917,13 @@ export class InsightEngine {
     );
 
     const entities: InsightEntity[] = [];
+    let worstSeverity: InsightSeverity = 'warning';
+    let maxMembers = 0;
     for (const row of rows) {
       const members = num(row.member_count);
       const implementors = num(row.implementor_count);
+      maxMembers = Math.max(maxMembers, members);
+      if (members >= T.INTERFACE_SEGREGATION_CRITICAL) worstSeverity = 'critical';
       entities.push({
         id: row.id,
         kind: 'interface',
@@ -890,10 +938,12 @@ export class InsightEngine {
       this.make(
         'interface-segregation-violations',
         'maintenance',
-        'warning',
+        worstSeverity,
         'Large Interfaces',
         `${s(entities.length)} interfaces have ${s(T.INTERFACE_SEGREGATION_MIN)}+ members (potential ISP violation)`,
         entities,
+        maxMembers,
+        T.INTERFACE_SEGREGATION_MIN,
       ),
     ];
   }
@@ -901,6 +951,7 @@ export class InsightEngine {
   // ── 19. Missing Return Types ────────────────────────────────────────────
 
   private async missingReturnTypes(packageId?: string): Promise<InsightResult[]> {
+    const params = pkgParams(packageId);
     const rows = await this.adapter.query<MissingReturnRow>(
       `SELECT id, name, module_id, 'function' as entity_type
        FROM functions
@@ -909,7 +960,7 @@ export class InsightEngine {
        SELECT id, name, module_id, 'method' as entity_type
        FROM methods
        WHERE has_explicit_return_type = FALSE ${wherePackage('methods', packageId)}`,
-      [...pkgParams(packageId), ...pkgParams(packageId)],
+      [...params, ...params],
     );
 
     const entities: InsightEntity[] = rows.map((row) => ({

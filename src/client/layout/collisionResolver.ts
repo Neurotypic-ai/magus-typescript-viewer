@@ -135,14 +135,23 @@ function getContainerPadding(
  */
 function computeParentDepths(childIdsByParent: Map<string, string[]>): Map<string, number> {
   const depths = new Map<string, number>();
+  const resolving = new Set<string>();
 
   function resolveDepth(parentId: string): number {
     const cached = depths.get(parentId);
     if (cached !== undefined) return cached;
 
+    // Guard against circular parent-child relationships
+    if (resolving.has(parentId)) {
+      depths.set(parentId, 0);
+      return 0;
+    }
+    resolving.add(parentId);
+
     const children = childIdsByParent.get(parentId);
     if (!children || children.length === 0) {
       depths.set(parentId, 0);
+      resolving.delete(parentId);
       return 0;
     }
 
@@ -153,6 +162,7 @@ function computeParentDepths(childIdsByParent: Map<string, string[]>): Map<strin
       }
     }
     depths.set(parentId, maxChildDepth);
+    resolving.delete(parentId);
     return maxChildDepth;
   }
 

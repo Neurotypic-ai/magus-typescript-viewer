@@ -152,7 +152,7 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   background: rgba(148, 163, 184, 0.15);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 9px;
+  font-size: 0.5625rem;
   line-height: 1;
   padding: 0;
   transition: background 120ms ease;
@@ -167,7 +167,7 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 }
 
 .group-node-label {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: var(--text-secondary);
   overflow: hidden;
@@ -185,7 +185,7 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   border-radius: 9px;
   background: rgba(96, 165, 250, 0.3);
   color: rgba(96, 165, 250, 0.95);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   flex-shrink: 0;
 }

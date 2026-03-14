@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import type { DependencyEdgeKind } from '../../types/DependencyEdgeKind';
 
 import { EDGE_KIND_PRIORITY } from '../edgePriority';
@@ -164,7 +166,3 @@ describe('EDGE_KIND_PRIORITY', () => {
     }
   });
 });
-function expect(arg0: number) {
-  throw new Error('Function not implemented.');
-}
-

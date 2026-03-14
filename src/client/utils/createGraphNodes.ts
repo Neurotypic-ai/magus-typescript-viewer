@@ -396,7 +396,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           0
         );
         const estimatedHeight = hasVueFlowChildren
-          ? Math.max(140, 120 + visibleSubnodeCount * 90)
+          ? Math.min(Math.max(140, 120 + visibleSubnodeCount * 90), 2000)
           : undefined;
 
         // In compact mode, embed class/interface data as symbols.

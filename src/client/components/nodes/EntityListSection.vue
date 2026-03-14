@@ -67,7 +67,7 @@ const visibleEntities = computed(() => props.entities);
 
 .entity-name {
   color: var(--text-primary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -88,28 +88,28 @@ const visibleEntities = computed(() => props.entities);
 }
 
 .entity-function {
-  background-color: rgba(251, 191, 36, 0.2);
-  color: rgb(253, 224, 71);
+  background-color: var(--badge-function-bg);
+  color: var(--badge-function-text);
 }
 
 .entity-type {
-  background-color: rgba(34, 197, 94, 0.2);
-  color: rgb(134, 239, 172);
+  background-color: var(--badge-type-bg);
+  color: var(--badge-type-text);
 }
 
 .entity-enum {
-  background-color: rgba(244, 114, 182, 0.2);
-  color: rgb(249, 168, 212);
+  background-color: var(--badge-enum-bg);
+  color: var(--badge-enum-text);
 }
 
 .entity-const {
-  background-color: rgba(56, 189, 248, 0.2);
-  color: rgb(125, 211, 252);
+  background-color: var(--badge-const-bg);
+  color: var(--badge-const-text);
 }
 
 .entity-var {
-  background-color: rgba(251, 146, 60, 0.2);
-  color: rgb(253, 186, 116);
+  background-color: var(--badge-var-bg);
+  color: var(--badge-var-text);
 }
 
 </style>

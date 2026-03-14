@@ -1,4 +1,23 @@
 /**
+ * Convert a directed adjacency map to an undirected one.
+ * Each directed edge A→B becomes bidirectional (A↔B).
+ */
+export function toUndirected(adjacency: Map<string, Set<string>>): Map<string, Set<string>> {
+  const undirected = new Map<string, Set<string>>();
+  adjacency.forEach((neighbors, node) => {
+    if (!undirected.has(node)) undirected.set(node, new Set());
+    neighbors.forEach((neighbor) => {
+      const nodeSet = undirected.get(node);
+      if (nodeSet) nodeSet.add(neighbor);
+      if (!undirected.has(neighbor)) undirected.set(neighbor, new Set());
+      const neighborSet = undirected.get(neighbor);
+      if (neighborSet) neighborSet.add(node);
+    });
+  });
+  return undirected;
+}
+
+/**
  * Tarjan's algorithm to find strongly connected components.
  * Returns arrays of node IDs — only SCCs with size > 1 (actual cycles).
  */
@@ -60,19 +79,10 @@ export function findStronglyConnectedComponents(adjacency: Map<string, Set<strin
 /**
  * Find articulation points (cut vertices) in the undirected version of a directed graph.
  * Removing an articulation point disconnects the graph — these are "bridge modules."
+ * Accepts an optional pre-built undirected graph to avoid redundant conversion.
  */
-export function findArticulationPoints(adjacency: Map<string, Set<string>>): Set<string> {
-  const undirected = new Map<string, Set<string>>();
-  adjacency.forEach((neighbors, node) => {
-    if (!undirected.has(node)) undirected.set(node, new Set());
-    neighbors.forEach((neighbor) => {
-      const nodeSet = undirected.get(node);
-      if (nodeSet) nodeSet.add(neighbor);
-      if (!undirected.has(neighbor)) undirected.set(neighbor, new Set());
-      const neighborSet = undirected.get(neighbor);
-      if (neighborSet) neighborSet.add(node);
-    });
-  });
+export function findArticulationPoints(adjacency: Map<string, Set<string>>, prebuiltUndirected?: Map<string, Set<string>>): Set<string> {
+  const undirected = prebuiltUndirected ?? toUndirected(adjacency);
 
   const disc = new Map<string, number>();
   const low = new Map<string, number>();
@@ -123,32 +133,53 @@ export function findArticulationPoints(adjacency: Map<string, Set<string>>): Set
 }
 
 /**
+ * Simple seeded PRNG (mulberry32) for deterministic shuffling.
+ * Produces values in [0, 1) like Math.random().
+ */
+function seededRandom(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Compute a deterministic seed from a set of node IDs.
+ */
+function hashNodeIds(nodes: string[]): number {
+  let hash = 0;
+  const sorted = [...nodes].sort();
+  for (const id of sorted) {
+    for (let i = 0; i < id.length; i++) {
+      hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+    }
+  }
+  return hash;
+}
+
+/**
  * Label propagation for community detection on the undirected graph.
  * Returns a map of node ID to community label (number).
+ * Uses a seeded PRNG derived from node IDs for deterministic results.
  */
-export function detectCommunities(adjacency: Map<string, Set<string>>, maxIterations = 10): Map<string, number> {
-  const undirected = new Map<string, Set<string>>();
-  adjacency.forEach((neighbors, node) => {
-    if (!undirected.has(node)) undirected.set(node, new Set());
-    neighbors.forEach((neighbor) => {
-      const nodeSet = undirected.get(node);
-      if (nodeSet) nodeSet.add(neighbor);
-      if (!undirected.has(neighbor)) undirected.set(neighbor, new Set());
-      const neighborSet = undirected.get(neighbor);
-      if (neighborSet) neighborSet.add(node);
-    });
-  });
+export function detectCommunities(adjacency: Map<string, Set<string>>, maxIterations = 10, prebuiltUndirected?: Map<string, Set<string>>): Map<string, number> {
+  const undirected = prebuiltUndirected ?? toUndirected(adjacency);
 
   const labels = new Map<string, number>();
   const nodes = Array.from(undirected.keys());
   nodes.forEach((node, i) => labels.set(node, i));
 
+  const random = seededRandom(hashNodeIds(nodes));
+
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     let changed = false;
 
-    // Fisher-Yates shuffle
+    // Fisher-Yates shuffle with seeded PRNG for determinism
     for (let i = nodes.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(random() * (i + 1));
       const a = nodes[i];
       const b = nodes[j];
       if (a !== undefined && b !== undefined) {

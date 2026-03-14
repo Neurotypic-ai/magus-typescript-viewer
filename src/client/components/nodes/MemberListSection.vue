@@ -31,7 +31,7 @@ const props = withDefaults(defineProps<MemberListSectionProps>(), {
       class="member-item"
     >
       <span class="member-name">{{ member.name }}{{ appendParens ? '()' : '' }}</span>
-      <span class="member-type-annotation">{{ member.typeAnnotation }}</span>
+      <span class="member-type-annotation" :title="member.typeAnnotation">{{ member.typeAnnotation }}</span>
     </div>
   </CollapsibleSection>
 </template>
@@ -43,7 +43,7 @@ const props = withDefaults(defineProps<MemberListSectionProps>(), {
   justify-content: space-between;
   padding: 0.2rem 0.35rem;
   border-radius: 0.25rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   line-height: 1.3;
 }
@@ -56,6 +56,10 @@ const props = withDefaults(defineProps<MemberListSectionProps>(), {
   color: var(--text-primary);
   font-weight: 700;
   white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .member-type-annotation {

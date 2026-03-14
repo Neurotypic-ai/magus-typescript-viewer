@@ -153,10 +153,23 @@ export class DuckDBAdapter implements IDatabaseAdapter {
   }
 
   async close(): Promise<void> {
-    if (this.isInitialized) {
-      await Promise.resolve();
-      this.isInitialized = false;
+    if (!this.isInitialized) {
+      return;
     }
+
+    // Reject any waiting connection requests
+    for (const waiter of this.waitingForConnection) {
+      waiter(null as unknown as DuckDBConnection);
+    }
+    this.waitingForConnection.length = 0;
+
+    // Close all available connections
+    for (const connection of this.availableConnections) {
+      connection.disconnectSync();
+    }
+    this.availableConnections.length = 0;
+
+    this.isInitialized = false;
   }
 
   async transaction<T>(callback: () => Promise<T>): Promise<T> {

@@ -26,6 +26,7 @@ const createIssuesStore = (): IssuesStore => {
   const panelOpen = ref(false);
   const selectedNodeFilter = ref<string | null>(null);
   const previewResult = ref<{ original: string; transformed: string } | null>(null);
+  let requestVersion = 0;
 
   const issuesByModuleId = computed(() => {
     const map = new Map<string, CodeIssueRef[]>();
@@ -93,16 +94,20 @@ const createIssuesStore = (): IssuesStore => {
   });
 
   async function fetchIssues(): Promise<void> {
+    const version = ++requestVersion;
     try {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/issues`);
+      if (version !== requestVersion) return;
       if (!response.ok) {
         issues.value = [];
         return;
       }
       const data = (await response.json()) as CodeIssueRef[];
+      if (version !== requestVersion) return;
       issues.value = Array.isArray(data) ? data : [];
     } catch {
+      if (version !== requestVersion) return;
       issues.value = [];
     }
   }

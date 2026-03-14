@@ -102,12 +102,26 @@ export function parseMethods(
         const isStatic = parentType === 'class' && 'static' in node && node.static;
 
         // Add async detection with type guard
-        const isAsync =
-          parentType === 'class' &&
-          'value' in node &&
-          node.value !== null &&
-          node.value.type === 'FunctionExpression' &&
-          node.value.async === true;
+        // Check for async on the node itself (MethodDefinition, TSMethodSignature)
+        // and on the inner function value (FunctionExpression, ArrowFunctionExpression)
+        const isAsync = (() => {
+          const nodeRec = node as unknown as Record<string, unknown>;
+          // Check async property directly on the node (e.g., MethodDefinition.async)
+          if ('async' in node && nodeRec['async'] === true) {
+            return true;
+          }
+          // Check async on the inner function value (FunctionExpression or ArrowFunctionExpression)
+          if ('value' in node && node.value !== null && typeof node.value === 'object') {
+            const value = node.value as unknown as Record<string, unknown>;
+            if (
+              (value['type'] === 'FunctionExpression' || value['type'] === 'ArrowFunctionExpression') &&
+              value['async'] === true
+            ) {
+              return true;
+            }
+          }
+          return false;
+        })();
 
         methods.push({
           id: methodId,
@@ -167,7 +181,9 @@ export function parseProperties(
   const propertyNodes =
     parentType === 'class' ? collection.find(ctx.j.ClassProperty) : collection.find(ctx.j.TSPropertySignature);
 
-  propertyNodes.forEach((path, index) => {
+  const propertyNameCounts = new Map<string, number>();
+
+  propertyNodes.forEach((path) => {
     try {
       const propertyNode = path.node;
       const propertyName = getPropertyName(propertyNode, ctx.logger);
@@ -185,12 +201,18 @@ export function parseProperties(
       }
 
       const propertyType = getTypeFromAnnotation(ctx.j, propertyNode.typeAnnotation as TSTypeAnnotation, ctx.logger);
-      // Generate a unique property ID using package, module, parent, property info, and position
+
+      // Track seen property names and disambiguate only on collision
+      const seenCount = propertyNameCounts.get(propertyName) ?? 0;
+      propertyNameCounts.set(propertyName, seenCount + 1);
+      const propertyKey = seenCount === 0 ? propertyName : `${propertyName}_${String(seenCount)}`;
+
+      // Generate a deterministic property ID using package, module, parent, and property name
       const propertyId = generatePropertyUUID(
         ctx.packageId,
         moduleId,
         parentId,
-        `${propertyName}_${String(index)}`,
+        propertyKey,
         parentType
       );
 
@@ -236,22 +258,62 @@ function parseParameters(
     }
 
     for (const param of params) {
-      if (param.type !== 'Identifier') {
+      let paramName: string;
+      let paramTypeAnnotation: TSTypeAnnotation | undefined;
+      let isRest = false;
+      let isOptional = false;
+
+      if (param.type === 'Identifier') {
+        paramName = param.name;
+        paramTypeAnnotation = param.typeAnnotation as TSTypeAnnotation | undefined;
+        isOptional = Boolean(param.optional);
+      } else if (param.type === 'RestElement') {
+        // ...rest: string[]
+        isRest = true;
+        if (param.argument?.type === 'Identifier') {
+          paramName = param.argument.name;
+        } else {
+          paramName = '...rest';
+        }
+        paramTypeAnnotation = param.typeAnnotation as TSTypeAnnotation | undefined;
+      } else if (param.type === 'AssignmentPattern') {
+        // x = defaultVal
+        if (param.left?.type === 'Identifier') {
+          paramName = param.left.name;
+          paramTypeAnnotation = param.left.typeAnnotation as TSTypeAnnotation | undefined;
+        } else {
+          paramName = '{destructured}';
+          paramTypeAnnotation = undefined;
+          ctx.logger.debug(`Parameter with AssignmentPattern has non-Identifier left side, using placeholder name`);
+        }
+        isOptional = true; // Parameters with defaults are effectively optional
+      } else if (param.type === 'ObjectPattern') {
+        // { x, y }: Point
+        paramName = '{destructured}';
+        paramTypeAnnotation = param.typeAnnotation as TSTypeAnnotation | undefined;
+      } else if (param.type === 'ArrayPattern') {
+        // [a, b]: number[]
+        paramName = '[destructured]';
+        // ArrayPattern may not have typeAnnotation directly; access via index signature
+        const arrayParam = param as unknown as Record<string, unknown>;
+        paramTypeAnnotation = (arrayParam['typeAnnotation'] as TSTypeAnnotation | undefined) ?? undefined;
+      } else {
+        ctx.logger.debug(`Skipping unsupported parameter type: ${param.type}`);
         continue;
       }
 
-      const paramType = getTypeFromAnnotation(ctx.j, param.typeAnnotation as TSTypeAnnotation, ctx.logger);
-      const paramId = generateParameterUUID(methodId, param.name);
+      const paramType = getTypeFromAnnotation(ctx.j, paramTypeAnnotation as TSTypeAnnotation, ctx.logger);
+      const paramId = generateParameterUUID(methodId, paramName);
 
       parameters.push({
         id: paramId,
-        name: param.name,
+        name: paramName,
         type: paramType,
         package_id: ctx.packageId,
         module_id: moduleId,
         method_id: methodId,
-        is_optional: false,
-        is_rest: false,
+        is_optional: isOptional,
+        is_rest: isRest,
       });
     }
   } catch (error) {

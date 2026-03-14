@@ -35,7 +35,13 @@ useExpandCollapseState(
 
 <template>
   <div class="collapsible-section">
-    <button class="collapsible-section-toggle nodrag" type="button" @click.stop="toggle">
+    <button
+      class="collapsible-section-toggle nodrag"
+      type="button"
+      :aria-expanded="isOpen"
+      :aria-label="`${title} section, ${isOpen ? 'collapse' : 'expand'}`"
+      @click.stop="toggle"
+    >
       <span class="collapsible-section-title">{{ title }} ({{ count }})</span>
       <span class="collapsible-section-indicator">{{ isOpen ? '\u2212' : '+' }}</span>
     </button>
