@@ -103,24 +103,10 @@ export class DependencyRepository extends BaseRepository<
     }
   }
 
-  async retrieve(id?: string, _module_id?: string): Promise<IDependencyEntity[]> {
+  async retrieve(id?: string): Promise<IDependencyEntity[]> {
     try {
-      let query = 'SELECT * FROM dependencies';
-      const params: DuckDBValue[] = [];
-      const conditions: string[] = [];
-
-      if (id) {
-        conditions.push('id = ?');
-        params.push(id);
-      }
-
-      // Note: dependencies table has no module_id column.
-      // The _module_id parameter exists only to satisfy the BaseRepository interface.
-
-      if (conditions.length > 0) {
-        query += ' WHERE ' + conditions.join(' AND ');
-      }
-
+      const query = id ? 'SELECT * FROM dependencies WHERE id = ?' : 'SELECT * FROM dependencies';
+      const params: DuckDBValue[] = id ? [id] : [];
       const results = await this.executeQuery<IDependencyRow>('retrieve', query, params);
       const dependencies: IDependencyEntity[] = [];
 
@@ -209,7 +195,7 @@ export class DependencyRepository extends BaseRepository<
     return results[0];
   }
 
-  async retrieveByModuleId(module_id: string): Promise<IDependencyEntity[]> {
-    return this.retrieve(undefined, module_id);
+  retrieveByModuleId(_module_id: string): Promise<IDependencyEntity[]> {
+    return Promise.resolve([]);
   }
 }

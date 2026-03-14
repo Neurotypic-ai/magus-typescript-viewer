@@ -493,29 +493,11 @@ describe('DependencyRepository', () => {
   });
 
   describe('retrieveByModuleId', () => {
-    it('delegates to retrieve but module_id is ignored (no module_id column)', async () => {
-      const rows = [
-        makeDependencyRow({ id: 'dep-1' }),
-        makeDependencyRow({ id: 'dep-2' }),
-      ];
-
-      vi.mocked(adapter.query).mockResolvedValueOnce(rows);
-
+    it('returns empty array (dependencies have no module_id column)', async () => {
       const results = await repo.retrieveByModuleId('mod-123');
 
-      expect(results).toHaveLength(2);
-
-      const queryCall = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
-      // module_id is ignored — query should have no WHERE clause
-      expect(queryCall[0]).toBe('SELECT * FROM dependencies');
-      expect(queryCall[1]).toEqual([]);
-    });
-
-    it('returns an empty array when no dependencies exist for the module', async () => {
-      vi.mocked(adapter.query).mockResolvedValueOnce([]);
-
-      const results = await repo.retrieveByModuleId('nonexistent-mod');
-      expect(results).toEqual([]);
+      expect(results).toHaveLength(0);
+      expect(vi.mocked(adapter.query)).not.toHaveBeenCalled();
     });
   });
 });

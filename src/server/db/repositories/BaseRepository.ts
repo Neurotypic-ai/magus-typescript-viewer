@@ -42,7 +42,7 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
   abstract update(id: string, dto: UpdateDTO): Promise<T>;
   abstract retrieveById(id: string): Promise<T | undefined>;
   abstract retrieveByModuleId(module_id: string): Promise<T[]>;
-  abstract retrieve(id?: string, module_id?: string): Promise<T[]>;
+  abstract retrieve(id?: string): Promise<T[]>;
   abstract delete(id: string): Promise<void>;
 
   protected isDatabaseRow(item: unknown): item is DatabaseRow {
@@ -181,6 +181,15 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
       await this.executeQuery(`delete ${cascade.table}`, `DELETE FROM ${cascade.table} WHERE ${cascade.where}`, cascade.params);
     }
     await this.executeQuery(`delete ${this.tableName}`, `DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
+  }
+
+  protected parseJsonField<T>(json: string | null | undefined, fallback: T): T {
+    if (!json) return fallback;
+    try {
+      return JSON.parse(json) as T;
+    } catch {
+      return fallback;
+    }
   }
 
   protected buildUpdateQuery(updates: { field: string; value: unknown }[]): {

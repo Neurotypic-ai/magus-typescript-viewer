@@ -134,17 +134,10 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
   }
 
   protected mapToEntity(row: ITypeAliasRow): TypeAlias {
-    let typeParameters: string[] = [];
-    if (row.type_parameters_json) {
-      try {
-        const parsed: unknown = JSON.parse(row.type_parameters_json);
-        if (Array.isArray(parsed)) {
-          typeParameters = parsed.filter((p): p is string => typeof p === 'string');
-        }
-      } catch {
-        // Invalid JSON — default to empty array
-      }
-    }
+    const rawTypeParams = this.parseJsonField<unknown>(row.type_parameters_json, []);
+    const typeParameters = (Array.isArray(rawTypeParams) ? rawTypeParams : []).filter(
+      (p): p is string => typeof p === 'string'
+    );
     return new TypeAlias(
       row.id,
       row.package_id,

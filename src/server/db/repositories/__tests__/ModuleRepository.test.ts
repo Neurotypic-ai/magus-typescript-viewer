@@ -364,24 +364,24 @@ describe('ModuleRepository', () => {
       expect(params).toEqual(['mod-1']);
     });
 
-    it('should filter by package_id when module_id is provided', async () => {
+    it('should filter by package_id when retrieveAll is called with packageId', async () => {
       vi.mocked(adapter.query).mockResolvedValueOnce([] as QueryResult);
 
-      await repo.retrieve(undefined, 'pkg-1');
+      await repo.retrieveAll('pkg-1');
 
       const [sql, params] = getQueryCall(adapter, 0);
       expect(sql).toContain('WHERE package_id = ?');
       expect(params).toEqual(['pkg-1']);
     });
 
-    it('should filter by both id and package_id when both are provided', async () => {
+    it('should filter by package_id when retrieveByModuleId is called', async () => {
       vi.mocked(adapter.query).mockResolvedValueOnce([] as QueryResult);
 
-      await repo.retrieve('mod-1', 'pkg-1');
+      await repo.retrieveByModuleId('pkg-1');
 
       const [sql, params] = getQueryCall(adapter, 0);
-      expect(sql).toContain('WHERE id = ? AND package_id = ?');
-      expect(params).toEqual(['mod-1', 'pkg-1']);
+      expect(sql).toContain('WHERE package_id = ?');
+      expect(params).toEqual(['pkg-1']);
     });
 
     it('should return Module instances from rows', async () => {

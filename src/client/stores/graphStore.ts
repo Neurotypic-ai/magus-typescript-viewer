@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, shallowRef, watch } from 'vue';
+import type { SetupStoreDefinition } from 'pinia';
+import type { Ref, ShallowRef } from 'vue';
 
 
 import type { DependencyNode } from '../types/DependencyNode';
@@ -15,6 +17,41 @@ const EDGES_CACHE_KEY = `${CACHE_VERSION}:typescript-viewer-edges`;
 const CACHE_DEBOUNCE_MS = 500;
 const MAX_CACHEABLE_NODE_COUNT = 1200;
 const MAX_CACHEABLE_EDGE_COUNT = 5000;
+
+interface GraphSnapshot {
+  nodes: DependencyNode[];
+  edges: GraphEdge[];
+}
+
+interface GraphStoreSetup {
+  nodes: Ref<DependencyNode[]>;
+  edges: Ref<GraphEdge[]>;
+  selectedNode: Ref<DependencyNode | null>;
+  cacheKey: Ref<string | null>;
+  viewMode: Ref<GraphViewMode>;
+  overviewSnapshot: Ref<GraphSnapshot | null>;
+  semanticSnapshot: ShallowRef<GraphSnapshot | null>;
+  manualOffsets: Ref<Map<string, ManualOffset>>;
+  setNodes(newNodes: DependencyNode[]): void;
+  setEdges(newEdges: GraphEdge[]): void;
+  updateNodesById(updates: Map<string, DependencyNode>): void;
+  updateEdgesById(updates: Map<string, GraphEdge>): void;
+  setEdgeVisibility(visibilityMap: Map<string, boolean>): void;
+  setSelectedNode(node: DependencyNode | null): void;
+  setCacheKey(key: string | null): void;
+  setViewMode(mode: GraphViewMode): void;
+  setOverviewSnapshot(snapshot: GraphSnapshot | null): void;
+  setSemanticSnapshot(snapshot: GraphSnapshot | null): void;
+  restoreOverviewSnapshot(): boolean;
+  clearCache(): void;
+  mergeManualOffsets(offsets: Map<string, ManualOffset>): void;
+  applyManualOffsets(nodeList: DependencyNode[]): DependencyNode[];
+  clearManualOffsets(): void;
+  suspendCacheWrites(): void;
+  resumeCacheWrites(): void;
+}
+
+type GraphStoreDefinition = SetupStoreDefinition<'graph', GraphStoreSetup>;
 
 
 function debounce<P extends unknown[]>(func: (...args: P) => void, wait: number): (...args: P) => void {
@@ -32,17 +69,17 @@ function debounce<P extends unknown[]>(func: (...args: P) => void, wait: number)
 /**
  * Pinia store for graph state management
  */
-export const useGraphStore = defineStore('graph', () => {
+export const useGraphStore: GraphStoreDefinition = defineStore('graph', (): GraphStoreSetup => {
   // State
-  const nodes = ref<DependencyNode[]>([]);
-  const edges = ref<GraphEdge[]>([]);
-  const selectedNode = ref<DependencyNode | null>(null);
-  const cacheKey = ref<string | null>(null);
-  const viewMode = ref<GraphViewMode>('overview');
-  const overviewSnapshot = ref<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>(null);
-  const semanticSnapshot = shallowRef<{ nodes: DependencyNode[]; edges: GraphEdge[] } | null>(null);
-  const cacheWriteSuspended = ref(false);
-  const manualOffsets = ref<Map<string, ManualOffset>>(new Map());
+  const nodes: Ref<DependencyNode[]> = ref([]);
+  const edges: Ref<GraphEdge[]> = ref([]);
+  const selectedNode: Ref<DependencyNode | null> = ref(null);
+  const cacheKey: Ref<string | null> = ref(null);
+  const viewMode: Ref<GraphViewMode> = ref('overview');
+  const overviewSnapshot: Ref<GraphSnapshot | null> = ref(null);
+  const semanticSnapshot: ShallowRef<GraphSnapshot | null> = shallowRef(null);
+  const cacheWriteSuspended: Ref<boolean> = ref(false);
+  const manualOffsets: Ref<Map<string, ManualOffset>> = ref(new Map());
 
   // Load cached data from localStorage on initialization
   const loadCache = () => {
@@ -119,7 +156,7 @@ export const useGraphStore = defineStore('graph', () => {
     for (const [nodeId, nextNode] of updates) {
       const nodeIndex = nodeIndexById.get(nodeId);
       if (nodeIndex !== undefined) {
-        const current = (nextNodes ?? nodes.value)[nodeIndex];
+        const current: DependencyNode | undefined = (nextNodes ?? nodes.value)[nodeIndex];
         if (current !== nextNode) {
           nextNodes ??= [...nodes.value];
           nextNodes[nodeIndex] = nextNode;
@@ -146,7 +183,7 @@ export const useGraphStore = defineStore('graph', () => {
     for (const [edgeId, nextEdge] of updates) {
       const edgeIndex = edgeIndexById.get(edgeId);
       if (edgeIndex !== undefined) {
-        const current = (nextEdges ?? edges.value)[edgeIndex];
+        const current: GraphEdge | undefined = (nextEdges ?? edges.value)[edgeIndex];
         if (current !== nextEdge) {
           nextEdges ??= [...edges.value];
           nextEdges[edgeIndex] = nextEdge;
@@ -173,7 +210,7 @@ export const useGraphStore = defineStore('graph', () => {
     for (const [edgeId, hidden] of visibilityMap) {
       const edgeIndex = edgeIndexById.get(edgeId);
       if (edgeIndex !== undefined) {
-        const current = (updated ?? edges.value)[edgeIndex];
+        const current: GraphEdge | undefined = (updated ?? edges.value)[edgeIndex];
         if (current && current.hidden !== hidden) {
           updated ??= [...edges.value];
           updated[edgeIndex] = {
@@ -201,11 +238,11 @@ export const useGraphStore = defineStore('graph', () => {
     viewMode.value = mode;
   };
 
-  const setOverviewSnapshot = (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => {
+  const setOverviewSnapshot = (snapshot: GraphSnapshot | null) => {
     overviewSnapshot.value = snapshot;
   };
 
-  const setSemanticSnapshot = (snapshot: { nodes: DependencyNode[]; edges: GraphEdge[] } | null) => {
+  const setSemanticSnapshot = (snapshot: GraphSnapshot | null) => {
     semanticSnapshot.value = snapshot;
   };
 
@@ -304,10 +341,10 @@ export const useGraphStore = defineStore('graph', () => {
     mergeManualOffsets,
     applyManualOffsets,
     clearManualOffsets,
-    suspendCacheWrites: () => {
+    suspendCacheWrites: (): void => {
       cacheWriteSuspended.value = true;
     },
-    resumeCacheWrites: () => {
+    resumeCacheWrites: (): void => {
       cacheWriteSuspended.value = false;
     },
   };

@@ -179,28 +179,10 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
     );
   }
 
-  // NOTE: The second parameter is named `_module_id` to match the BaseRepository signature,
-  // but it is actually used as `package_id` to filter modules by their parent package.
-  async retrieve(id?: string, _module_id?: string): Promise<Module[]> {
+  async retrieve(id?: string): Promise<Module[]> {
     try {
-      let query = 'SELECT * FROM modules';
-      const params: DuckDBValue[] = [];
-      const conditions: string[] = [];
-
-      if (id !== undefined) {
-        conditions.push('id = ?');
-        params.push(id);
-      }
-
-      if (_module_id !== undefined) {
-        conditions.push('package_id = ?');
-        params.push(_module_id);
-      }
-
-      if (conditions.length > 0) {
-        query += ' WHERE ' + conditions.join(' AND ');
-      }
-
+      const query = id ? 'SELECT * FROM modules WHERE id = ?' : 'SELECT * FROM modules';
+      const params: DuckDBValue[] = id ? [id] : [];
       const results = await this.executeQuery<IModuleRow>('retrieve', query, params);
       return results.map((mod) => this.createModuleFromRow(mod));
     } catch (error) {
@@ -215,7 +197,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
   }
 
   async retrieveByModuleId(module_id: string): Promise<Module[]> {
-    return this.retrieve(undefined, module_id);
+    return this.retrieveAll(module_id);
   }
 
   async retrieveAll(packageId?: string): Promise<Module[]> {
@@ -233,29 +215,25 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
 
   async delete(id: string): Promise<void> {
     try {
-      // Delete leaf records first (parameters depend on methods)
-      await this.executeQuery('delete parameters', 'DELETE FROM parameters WHERE module_id = ?', [id]);
-      // Delete junction table records (depend on classes/interfaces)
-      await this.executeQuery('delete class_implements', 'DELETE FROM class_implements WHERE class_id IN (SELECT id FROM classes WHERE module_id = ?)', [id]);
-      await this.executeQuery('delete class_extends', 'DELETE FROM class_extends WHERE class_id IN (SELECT id FROM classes WHERE module_id = ?)', [id]);
-      await this.executeQuery('delete interface_extends', 'DELETE FROM interface_extends WHERE interface_id IN (SELECT id FROM interfaces WHERE module_id = ?)', [id]);
-      // Delete child entity records
-      await this.executeQuery('delete methods', 'DELETE FROM methods WHERE module_id = ?', [id]);
-      await this.executeQuery('delete properties', 'DELETE FROM properties WHERE module_id = ?', [id]);
-      await this.executeQuery('delete symbol_references', 'DELETE FROM symbol_references WHERE module_id = ?', [id]);
-      await this.executeQuery('delete code_issues', 'DELETE FROM code_issues WHERE module_id = ?', [id]);
-      await this.executeQuery('delete module tests', 'DELETE FROM module_tests WHERE module_id = ?', [id]);
-      await this.executeQuery('delete classes', 'DELETE FROM classes WHERE module_id = ?', [id]);
-      await this.executeQuery('delete interfaces', 'DELETE FROM interfaces WHERE module_id = ?', [id]);
-      await this.executeQuery('delete functions', 'DELETE FROM functions WHERE module_id = ?', [id]);
-      await this.executeQuery('delete imports', 'DELETE FROM imports WHERE module_id = ?', [id]);
-      await this.executeQuery('delete exports', 'DELETE FROM exports WHERE module_id = ?', [id]);
-      await this.executeQuery('delete type_aliases', 'DELETE FROM type_aliases WHERE module_id = ?', [id]);
-      await this.executeQuery('delete enums', 'DELETE FROM enums WHERE module_id = ?', [id]);
-      await this.executeQuery('delete variables', 'DELETE FROM variables WHERE module_id = ?', [id]);
-
-      // Delete the module itself
-      await this.executeQuery('delete module', 'DELETE FROM modules WHERE id = ?', [id]);
+      await this.cascadeDelete(id, [
+        { table: 'parameters', where: 'module_id = ?', params: [id] },
+        { table: 'class_implements', where: 'class_id IN (SELECT id FROM classes WHERE module_id = ?)', params: [id] },
+        { table: 'class_extends', where: 'class_id IN (SELECT id FROM classes WHERE module_id = ?)', params: [id] },
+        { table: 'interface_extends', where: 'interface_id IN (SELECT id FROM interfaces WHERE module_id = ?)', params: [id] },
+        { table: 'methods', where: 'module_id = ?', params: [id] },
+        { table: 'properties', where: 'module_id = ?', params: [id] },
+        { table: 'symbol_references', where: 'module_id = ?', params: [id] },
+        { table: 'code_issues', where: 'module_id = ?', params: [id] },
+        { table: 'module_tests', where: 'module_id = ?', params: [id] },
+        { table: 'classes', where: 'module_id = ?', params: [id] },
+        { table: 'interfaces', where: 'module_id = ?', params: [id] },
+        { table: 'functions', where: 'module_id = ?', params: [id] },
+        { table: 'imports', where: 'module_id = ?', params: [id] },
+        { table: 'exports', where: 'module_id = ?', params: [id] },
+        { table: 'type_aliases', where: 'module_id = ?', params: [id] },
+        { table: 'enums', where: 'module_id = ?', params: [id] },
+        { table: 'variables', where: 'module_id = ?', params: [id] },
+      ]);
     } catch (error) {
       this.logger.error('Failed to delete module', error);
       throw new RepositoryError('Failed to delete module', 'delete', this.errorTag, error as Error);

@@ -129,17 +129,10 @@ export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUp
   }
 
   protected mapToEntity(row: IEnumRow): Enum {
-    let members: string[] = [];
-    if (row.members_json) {
-      try {
-        const parsed: unknown = JSON.parse(row.members_json);
-        if (Array.isArray(parsed)) {
-          members = parsed.filter((m): m is string => typeof m === 'string');
-        }
-      } catch {
-        // Invalid JSON — default to empty array
-      }
-    }
+    const rawMembers = this.parseJsonField<unknown>(row.members_json, []);
+    const members = (Array.isArray(rawMembers) ? rawMembers : []).filter(
+      (m): m is string => typeof m === 'string'
+    );
     return new Enum(
       row.id,
       row.package_id,

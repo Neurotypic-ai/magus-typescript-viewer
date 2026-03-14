@@ -485,28 +485,11 @@ describe('PackageRepository', () => {
   // =========================================================================
 
   describe('retrieveByModuleId', () => {
-    it('delegates to retrieve but module_id is ignored (no module_id column)', async () => {
-      vi.mocked(adapter.query).mockResolvedValueOnce([]);
-
-      await repo.retrieveByModuleId('mod-1');
-
-      const selectCall = vi.mocked(adapter.query).mock.calls[0];
-      const sql = selectCall![0] as string;
-      // module_id is ignored — query should have no WHERE clause
-      expect(sql).toBe('SELECT * FROM packages');
-      expect(selectCall![1]).toEqual([]);
-    });
-
-    it('returns matching packages', async () => {
-      const rows = [makePackageRow({ id: 'pkg-a' }), makePackageRow({ id: 'pkg-b' })];
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce(rows) // SELECT
-        .mockResolvedValueOnce([]) // dep hydration for pkg-a
-        .mockResolvedValueOnce([]); // dep hydration for pkg-b
-
+    it('returns empty array (packages have no module_id column)', async () => {
       const results = await repo.retrieveByModuleId('mod-1');
 
-      expect(results).toHaveLength(2);
+      expect(results).toHaveLength(0);
+      expect(vi.mocked(adapter.query)).not.toHaveBeenCalled();
     });
   });
 

@@ -190,7 +190,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
   const highlightedEdgeIds = computed<Set<string>>(() => {
     const ids = new Set<string>();
     selectedConnectedEdgeIds.value.forEach((edgeId) => ids.add(edgeId));
-    hoveredConnectedEdgeIds.value.forEach((edgeId) => ids.add(edgeId));
+    // Hovered edges stay on the canvas layer so hover glow can render there.
     if (searchHighlightState.hasResults) {
       searchHighlightState.matchingEdgeIds.forEach((edgeId) => ids.add(edgeId));
     }
