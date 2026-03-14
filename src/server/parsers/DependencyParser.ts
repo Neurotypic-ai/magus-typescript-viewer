@@ -118,8 +118,10 @@ export class DependencyParser {
     const packageNamePattern = /^["']?(@?[^@"']+)@/;
 
     for (const line of lines) {
-      if (line.startsWith('"') || line.startsWith("'") || line.startsWith('@')) {
-        const nameMatch = packageNamePattern.exec(line);
+      const trimmed = line.trim();
+
+      if (trimmed.length > 0 && line === trimmed) {
+        const nameMatch = packageNamePattern.exec(trimmed);
         currentDep = nameMatch?.[1] ?? '';
       } else if (line.includes('version') && currentDep) {
         const entry = (deps[currentDep] ??= { version: '', resolved: '' });

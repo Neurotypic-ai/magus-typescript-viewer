@@ -96,4 +96,50 @@ describe('ModuleParser.parseImportsAndExports', () => {
     expect(extendsRef).toBeDefined();
     expect(extendsRef?.parentName).toBe('BaseClass');
   });
+
+  it('captures local export specifiers and aliases', async () => {
+    const result = await parseFixture('local-exports.input.ts');
+    const exportNames = result.exports.map((entry) => entry.name).sort((a, b) => a.localeCompare(b));
+
+    expect(exportNames).toEqual(['defaultLabel', 'foo', 'renamedBar']);
+    expect(exportNames.includes('bar')).toBe(false);
+  });
+
+  it('keeps anonymous default exports out of named export list', async () => {
+    const result = await parseFixture('anonymous-default-exports.input.ts');
+    expect(result.exports).toHaveLength(0);
+  });
+});
+
+describe('ModuleParser symbol extraction', () => {
+  it('extracts call graph edges from exported function bodies', async () => {
+    const result = await parseFixture('call-edges.input.ts');
+    const edgeSet = new Set(
+      (result.callEdges ?? []).map(
+        (edge) => `${edge.calleeName}:${edge.callType}:${edge.qualifier ?? 'none'}`
+      )
+    );
+
+    expect(edgeSet.has('helper:function:none')).toBe(true);
+    expect(edgeSet.has('process:method:thisLike')).toBe(true);
+    expect(edgeSet.has('build:static:Service')).toBe(true);
+    expect(edgeSet.has('Widget:constructor:none')).toBe(true);
+    expect(edgeSet.has('run:method:instance')).toBe(true);
+  });
+
+  it('extracts method/property/parameter type references from complex members', async () => {
+    const result = await parseFixture('complex-members.input.ts');
+    const references = result.typeReferences ?? [];
+    const referenceKeys = new Set(
+      references.map((ref) => `${ref.typeName}:${ref.context}:${ref.sourceKind}`)
+    );
+
+    expect(referenceKeys.has('LabelType:property_type:property')).toBe(true);
+    expect(referenceKeys.has('InputValue:parameter_type:parameter')).toBe(true);
+    expect(referenceKeys.has('WorkerResult:return_type:method')).toBe(true);
+    expect(referenceKeys.has('RunPayload:parameter_type:parameter')).toBe(true);
+
+    expect(result.methods.some((method) => method.name === 'configure')).toBe(true);
+    expect(result.methods.some((method) => method.name === 'run')).toBe(true);
+  });
 });

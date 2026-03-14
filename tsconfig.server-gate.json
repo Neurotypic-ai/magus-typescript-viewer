@@ -1,0 +1,46 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "vitest/globals"],
+    "tsBuildInfoFile": "./dist/tsconfig.server-gate.tsbuildinfo",
+    "strict": false,
+    "noImplicitAny": false,
+    "noUncheckedIndexedAccess": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "exactOptionalPropertyTypes": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "declaration": false,
+    "declarationMap": false,
+    "composite": false,
+    "isolatedDeclarations": false
+  },
+  "include": [
+    "./src/server.ts",
+    "./src/server/__tests__/setup.ts",
+    "./src/server/__tests__/normalizers.ts",
+    "./src/server/__tests__/tempWorkspace.ts",
+    "./src/server/__tests__/runtime-e2e.test.ts",
+    "./src/server/parsers/__tests__/ModuleParser.test.ts",
+    "./src/server/parsers/__tests__/PackageParser.test.ts",
+    "./src/server/parsers/__tests__/FileDiscovery.test.ts",
+    "./src/server/parsers/__tests__/VueScriptExtractor.test.ts",
+    "./src/server/parsers/__tests__/DependencyParser.test.ts",
+    "./src/server/parsers/__tests__/RelationshipResolver.test.ts",
+    "./src/server/parsers/utils/__tests__/extractTypeReferences.property.test.ts",
+    "./src/server/insights/__tests__/import-graph.test.ts",
+    "./src/server/insights/__tests__/InsightEngine.integration.test.ts",
+    "./src/server/insights/__tests__/insight-store.test.ts",
+    "./src/server/refactors/__tests__/RefactorEngine.test.ts",
+    "./src/server/refactors/__tests__/RulesRefactorRoundTrip.test.ts",
+    "./src/server/refactors/transforms/__tests__/extractTypeUnion.test.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/node_modules/**/*",
+    "**/dist/**/*",
+    "**/node_modules/.pnpm/**/*",
+    "./src/shared/**/__tests__/**"
+  ]
+}

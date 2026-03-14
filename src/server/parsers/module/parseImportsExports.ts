@@ -122,6 +122,12 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
         const name = getIdentifierName(path.node.declaration.id);
         if (name) exports.add(name);
       }
+    } else if (path.node.specifiers && path.node.specifiers.length > 0) {
+      path.node.specifiers.forEach((specifier) => {
+        if (specifier.exported.type === 'Identifier') {
+          exports.add(specifier.exported.name);
+        }
+      });
     }
   });
 

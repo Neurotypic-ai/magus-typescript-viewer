@@ -381,4 +381,43 @@ describe('RefactorEngine', () => {
       expect(result.transformedSource).toBe(source);
     });
   });
+
+  describe('project root guard', () => {
+    it('rejects preview requests for files outside the configured root', async () => {
+      const transform = makeTransform({ action: 'test-action' });
+      const mutableTransforms = allTransforms as unknown as Transform[];
+      mutableTransforms.length = 0;
+      mutableTransforms.push(transform);
+
+      const engine = new RefactorEngine('/workspace/project');
+      const result = await engine.preview({
+        filePath: '/tmp/outside.ts',
+        action: 'test-action',
+        context: {},
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('outside the allowed project root');
+      expect(mockReadFile).not.toHaveBeenCalled();
+    });
+
+    it('rejects execute requests outside project root without writing', async () => {
+      const transform = makeTransform({ action: 'test-action' });
+      const mutableTransforms = allTransforms as unknown as Transform[];
+      mutableTransforms.length = 0;
+      mutableTransforms.push(transform);
+
+      const engine = new RefactorEngine('/workspace/project');
+      const result = await engine.execute({
+        filePath: '/tmp/outside.ts',
+        action: 'test-action',
+        context: {},
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('outside the allowed project root');
+      expect(mockReadFile).not.toHaveBeenCalled();
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+  });
 });

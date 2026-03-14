@@ -1,0 +1,40 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "vitest/globals"],
+    "tsBuildInfoFile": "./dist/tsconfig.test.tsbuildinfo",
+    "strict": false,
+    "noImplicitAny": false,
+    "noUncheckedIndexedAccess": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "exactOptionalPropertyTypes": false,
+    "declaration": false,
+    "declarationMap": false,
+    "composite": false,
+    "isolatedDeclarations": false
+  },
+  "include": [
+    "./src/server.ts",
+    "./src/server/**/*.ts",
+    "./src/server/**/*.tsx",
+    "./src/server/**/*.mts",
+    "./src/server/**/*.mtsx",
+    "./src/server/**/__tests__/**/*.ts",
+    "./src/server/**/__tests__/**/*.tsx",
+    "./src/server/**/__tests__/**/*.mts",
+    "./src/server/**/__tests__/**/*.mtsx",
+    "./src/shared/**/*.ts",
+    "./src/shared/**/*.tsx",
+    "./src/shared/**/*.mts",
+    "./src/shared/**/*.mtsx",
+    "./vitest.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/node_modules/**/*",
+    "**/dist/**/*",
+    "**/node_modules/.pnpm/**/*",
+    "./src/shared/**/__tests__/**"
+  ]
+}

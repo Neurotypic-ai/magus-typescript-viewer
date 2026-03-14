@@ -42,8 +42,23 @@ export interface ImportGraph {
 }
 
 function normalizePath(p: string): string {
-  const withoutExt = p.replace(/\.(tsx?|jsx?|mjs|cjs)$/, '');
+  const withoutExt = p.replace(/\.(tsx?|jsx?|mjs|cjs|vue)$/, '');
   return withoutExt.replace(/\/index$/, '');
+}
+
+function isIndexModulePath(relativePath: string): boolean {
+  return /\/index\.(tsx?|jsx?|mjs|cjs|vue)$/i.test(relativePath);
+}
+
+function shouldPreferCandidate(existingPath: string, candidatePath: string): boolean {
+  const existingIsIndex = isIndexModulePath(existingPath);
+  const candidateIsIndex = isIndexModulePath(candidatePath);
+
+  if (existingIsIndex !== candidateIsIndex) {
+    return existingIsIndex && !candidateIsIndex;
+  }
+
+  return candidatePath.length < existingPath.length;
 }
 
 function isInternalImport(source: string): boolean {
@@ -66,9 +81,6 @@ export async function buildImportGraph(adapter: IDatabaseAdapter, packageId?: st
 
   for (const row of moduleRows) {
     const relPath = row.relative_path;
-    pathToModuleId.set(normalizePath(relPath), row.id);
-    pathToModuleId.set(relPath, row.id);
-
     modules.set(row.id, {
       name: row.name,
       directory: row.directory,
@@ -77,6 +89,19 @@ export async function buildImportGraph(adapter: IDatabaseAdapter, packageId?: st
       lineCount: Number(row.line_count) || 0,
       packageId: row.package_id,
     });
+
+    const normalizedPath = normalizePath(relPath);
+    const existingId = pathToModuleId.get(normalizedPath);
+    if (!existingId) {
+      pathToModuleId.set(normalizedPath, row.id);
+    } else {
+      const existingPath = modules.get(existingId)?.relativePath;
+      if (existingPath && shouldPreferCandidate(existingPath, relPath)) {
+        pathToModuleId.set(normalizedPath, row.id);
+      }
+    }
+
+    pathToModuleId.set(relPath, row.id);
   }
 
   // Fetch imports

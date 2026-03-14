@@ -93,8 +93,28 @@ function findSingleDeclaration(
 }
 
 function checkNameConflict(j: JSCodeshift, root: Collection, suggestedName: string): void {
-  if (root.find(j.TSTypeAliasDeclaration, { id: { name: suggestedName } }).length > 0) {
-    throw new Error(`Type alias '${suggestedName}' already exists in this file — choose a different name`);
+  const hasTypeAlias = root.find(j.TSTypeAliasDeclaration, { id: { name: suggestedName } }).length > 0;
+  const hasInterface = root.find(j.TSInterfaceDeclaration, { id: { name: suggestedName } }).length > 0;
+  const hasClass = root.find(j.ClassDeclaration, { id: { name: suggestedName } }).length > 0;
+  const hasEnum = root.find(j.TSEnumDeclaration, { id: { name: suggestedName } }).length > 0;
+  const hasFunction = root.find(j.FunctionDeclaration, { id: { name: suggestedName } }).length > 0;
+  const hasVariable = root.find(j.VariableDeclarator, { id: { type: 'Identifier', name: suggestedName } }).length > 0;
+  const hasImportNamed = root.find(j.ImportSpecifier, { local: { name: suggestedName } }).length > 0;
+  const hasImportDefault = root.find(j.ImportDefaultSpecifier, { local: { name: suggestedName } }).length > 0;
+  const hasImportNamespace = root.find(j.ImportNamespaceSpecifier, { local: { name: suggestedName } }).length > 0;
+
+  if (
+    hasTypeAlias ||
+    hasInterface ||
+    hasClass ||
+    hasEnum ||
+    hasFunction ||
+    hasVariable ||
+    hasImportNamed ||
+    hasImportDefault ||
+    hasImportNamespace
+  ) {
+    throw new Error(`Type alias '${suggestedName}' already exists in this file scope — choose a different name`);
   }
 }
 

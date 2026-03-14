@@ -171,3 +171,73 @@ describe('PackageParser source coverage', () => {
     expect(relativePaths.some((path) => path.startsWith('.cache/'))).toBe(false);
   });
 });
+
+describe('PackageParser aggregation behavior', () => {
+  it('aggregates tech debt, module metrics, call edges, and type references', async () => {
+    const packagePath = await createTempPackage({
+      'src/main.ts': `
+        // TODO: tighten validation
+        type AlphaType = { id: string };
+        type ResultType = { ok: boolean };
+        type ConfigType = { retries: number };
+
+        export class Worker {
+          config: ConfigType;
+
+          constructor(config: ConfigType) {
+            this.config = config;
+          }
+
+          run(input: AlphaType): ResultType {
+            return { ok: Boolean(input.id) };
+          }
+        }
+
+        export function orchestrate(input: AlphaType): ResultType {
+          helper(input);
+          return { ok: true };
+        }
+
+        function helper(_input: AlphaType): void {}
+      `,
+      'src/other.ts': `
+        // FIXME: cleanup legacy branch
+        export const value = 1;
+      `,
+    });
+
+    const parser = new PackageParser(packagePath, 'fixture-package', '1.0.0');
+    const result = await parser.parse();
+
+    expect((result.techDebtMarkers ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(result.moduleMetrics).toBeDefined();
+    expect(result.moduleMetrics?.exportCount).toBeGreaterThanOrEqual(2);
+    expect((result.callEdges ?? []).length).toBeGreaterThan(0);
+
+    const referencedTypes = new Set((result.typeReferences ?? []).map((ref) => ref.typeName));
+    expect(referencedTypes.has('ConfigType')).toBe(true);
+    expect(referencedTypes.size).toBeGreaterThanOrEqual(1);
+  });
+
+  it('returns useful results when one file has syntax errors', async () => {
+    const packagePath = await createTempPackage({
+      'src/valid.ts': `
+        export class GoodClass {
+          run(): number {
+            return 1;
+          }
+        }
+      `,
+      'src/broken.ts': `
+        export const broken = 
+      `,
+    });
+
+    const parser = new PackageParser(packagePath, 'fixture-package', '1.0.0');
+    const result = await parser.parse();
+
+    expect(result.modules.some((module) => module.source.relativePath.endsWith('src/valid.ts'))).toBe(true);
+    expect(result.modules.some((module) => module.source.relativePath.endsWith('src/broken.ts'))).toBe(true);
+    expect(result.classes.some((cls) => cls.name === 'GoodClass')).toBe(true);
+  });
+});

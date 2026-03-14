@@ -407,6 +407,30 @@ describe('extractTypeUnion name conflict detection', () => {
       }),
     ).toThrow('already exists');
   });
+
+  it('throws when suggested name conflicts with an imported symbol', () => {
+    const source = `import { Mode } from './types';\ninterface Config { mode: "dev" | "prod"; }`;
+    expect(() =>
+      run(source, {
+        suggestedName: 'Mode',
+        parentName: 'Config',
+        parentType: 'interface',
+        propertyName: 'mode',
+      }),
+    ).toThrow('already exists');
+  });
+
+  it('throws when suggested name conflicts with an existing class name', () => {
+    const source = `class Status {}\ninterface Config { status: "active" | "inactive"; }`;
+    expect(() =>
+      run(source, {
+        suggestedName: 'Status',
+        parentName: 'Config',
+        parentType: 'interface',
+        propertyName: 'status',
+      }),
+    ).toThrow('already exists');
+  });
 });
 
 // ---------------------------------------------------------------------------

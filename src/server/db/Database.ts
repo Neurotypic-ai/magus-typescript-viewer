@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { join } from 'path';
+import { resolve } from 'path';
 
 import { getErrorMessage } from '../../shared/utils/errorUtils';
 import { createLogger } from '../../shared/utils/logger';
@@ -177,7 +177,7 @@ export class Database {
     }
 
     this.logger.debug('Initializing file-based database');
-    const path = join(process.cwd(), this.dbPath);
+    const path = resolve(process.cwd(), this.dbPath);
     this.logger.debug('Absolute path being checked:', path);
 
     let exists = false;

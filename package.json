@@ -33,7 +33,7 @@
   },
   "description": "TypeScript codebase visualization tool",
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
+    "@eslint/js": "^9.39.4",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@neurotypic-ai/eslint-config": "workspace:*",
     "@neurotypic-ai/typescript-config": "workspace:*",
@@ -53,6 +53,7 @@
     "esbuild": "^0.27.4",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
+    "fast-check": "^4.6.0",
     "globals": "^17.4.0",
     "jsdom": "^28.1.0",
     "nodemon": "^3.1.14",
@@ -87,8 +88,12 @@
     "serve": "node --import tsx src/server/bin/typescript-viewer.ts serve",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:server": "vitest run --config vitest.server.config.ts",
+    "test:server:coverage": "vitest run --config vitest.server.config.ts --coverage",
     "test:watch": "vitest",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "typecheck:test": "tsc -p tsconfig.server-gate.json --noEmit",
+    "verify:server": "pnpm typecheck:test && pnpm test:server && pnpm test:server:coverage"
   },
   "type": "module",
   "version": "1.0.0"

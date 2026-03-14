@@ -6,6 +6,7 @@ import type { ITypeAliasCreateDTO } from '../../db/repositories/TypeAliasReposit
 import type { IEnumCreateDTO } from '../../db/repositories/EnumRepository';
 import type { IVariableCreateDTO } from '../../db/repositories/VariableRepository';
 import { getIdentifierName, getTypeFromAnnotation, getReturnTypeFromNode, extractSymbolUsages } from './astUtils';
+import { extractCallEdges } from '../utils/extractCallGraph';
 import { generateFunctionUUID, generateTypeAliasUUID, generateEnumUUID, generateVariableUUID } from '../../utils/uuid';
 
 // ---------------------------------------------------------------------------
@@ -95,11 +96,15 @@ export function parseFunctions(ctx: ModuleParserContext, exports: Set<string>, r
 
       result.functions.push(functionDTO);
 
-      // TODO: Extract call graph edges from function body AST node.
-      // The function body is available here as `node.body` (BlockStatement).
-      // Call extractCallEdges(ctx.j, node.body, functionId, functionName) from
-      // '../utils/extractCallGraph' and push results to result.callEdges.
-      // This requires the callEdges field on ParseResult (already added).
+      if (node.body) {
+        const callEdges = extractCallEdges(ctx.j, node.body, functionId, functionName);
+        if (callEdges.length > 0) {
+          if (!result.callEdges) {
+            result.callEdges = [];
+          }
+          result.callEdges.push(...callEdges);
+        }
+      }
 
       const usages = extractSymbolUsages(ctx.j, node, {
         moduleId: ctx.moduleId,

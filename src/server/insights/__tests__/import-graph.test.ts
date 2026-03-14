@@ -244,6 +244,34 @@ describe('buildImportGraph', () => {
       // and 'src/components/index.ts' normalizes to 'src/components'
       expect(graph.adjacency.get('m1')?.has('m2')).toBe(true);
     });
+
+    it('resolves extensionless imports to .vue modules', async () => {
+      const adapter = createMockAdapter(
+        [
+          mod('m1', 'src/app.ts'),
+          mod('m2', 'src/components/Widget.vue'),
+        ],
+        [imp('i1', 'm1', './components/Widget')],
+      );
+      const graph = await buildImportGraph(adapter);
+
+      expect(graph.adjacency.get('m1')?.has('m2')).toBe(true);
+    });
+
+    it('prefers direct module files over index barrels on normalized-path collisions', async () => {
+      const adapter = createMockAdapter(
+        [
+          mod('m1', 'src/app.ts'),
+          mod('m2', 'src/utils/index.ts', { is_barrel: true }),
+          mod('m3', 'src/utils.ts'),
+        ],
+        [imp('i1', 'm1', './utils')],
+      );
+      const graph = await buildImportGraph(adapter);
+
+      expect(graph.adjacency.get('m1')?.has('m3')).toBe(true);
+      expect(graph.adjacency.get('m1')?.has('m2')).toBe(false);
+    });
   });
 
   // -----------------------------------------------------------------------

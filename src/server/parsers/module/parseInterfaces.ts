@@ -44,7 +44,7 @@ export function parseInterfaces(ctx: ModuleParserContext, result: ParseResult): 
     }
 
     try {
-      const properties = parseProperties(ctx, ctx.moduleId, interfaceId, 'interface', node);
+      const properties = parseProperties(ctx, ctx.moduleId, interfaceId, 'interface', result, node);
       result.properties.push(...properties);
     } catch (error: unknown) {
       ctx.logger.error(`Error parsing interface properties: ${String(error)}`);

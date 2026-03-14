@@ -1,6 +1,7 @@
 import { getErrorMessage } from '../../../shared/utils/errorUtils';
 import { getTypeFromAnnotation, extractSymbolUsages } from './astUtils';
 import { getNodeProp } from '../utils/astNodeAccess';
+import { buildTypeReference, extractTypeNames } from '../utils/extractTypeReferences';
 import { generateMethodUUID, generateParameterUUID, generatePropertyUUID } from '../../utils/uuid';
 
 import type { ModuleParserContext } from './types';
@@ -45,6 +46,31 @@ function isAsyncMethod(node: ASTNode): boolean {
     return (getNodeProp(value, 'type') === 'FunctionExpression' || getNodeProp(value, 'type') === 'ArrowFunctionExpression') && getNodeProp(value, 'async') === true;
   }
   return false;
+}
+
+function appendTypeReferences(
+  result: ParseResult,
+  typeExpression: string | undefined,
+  context: 'property_type' | 'parameter_type' | 'return_type',
+  sourceId: string,
+  sourceKind: 'property' | 'method' | 'parameter'
+): void {
+  if (!typeExpression) {
+    return;
+  }
+
+  const typeNames = extractTypeNames(typeExpression);
+  if (typeNames.length === 0) {
+    return;
+  }
+
+  if (!result.typeReferences) {
+    result.typeReferences = [];
+  }
+
+  result.typeReferences.push(
+    ...typeNames.map((typeName) => buildTypeReference(typeName, context, sourceId, sourceKind))
+  );
 }
 
 /** Extract a name from a node's `key` (Identifier, StringLiteral, NumericLiteral, Literal). */
@@ -181,6 +207,11 @@ export function parseMethods(
         if (parameters.length > 0) {
           result.parameters.push(...parameters);
         }
+
+        appendTypeReferences(result, returnType, 'return_type', methodId, 'method');
+        parameters.forEach((parameter) => {
+          appendTypeReferences(result, parameter.type, 'parameter_type', parameter.id, 'parameter');
+        });
       } catch (error) {
         ctx.logger.error('Error parsing individual method:', { error, parentId });
       }
@@ -202,6 +233,7 @@ export function parseProperties(
   moduleId: string,
   parentId: string,
   parentType: 'class' | 'interface',
+  result: ParseResult,
   node: ClassDeclaration | TSInterfaceDeclaration
 ): IPropertyCreateDTO[] {
   const properties: IPropertyCreateDTO[] = [];
@@ -263,6 +295,8 @@ export function parseProperties(
         is_readonly: isReadonly,
         visibility,
       });
+
+      appendTypeReferences(result, propertyType, 'property_type', propertyId, 'property');
     } catch (error: unknown) {
       ctx.logger.error(`Error parsing property: ${String(error)}`);
     }

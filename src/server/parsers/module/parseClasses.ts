@@ -69,7 +69,7 @@ export function parseClasses(ctx: ModuleParserContext, result: ParseResult): voi
     }
 
     try {
-      const properties = parseProperties(ctx, ctx.moduleId, classId, 'class', node);
+      const properties = parseProperties(ctx, ctx.moduleId, classId, 'class', result, node);
       result.properties.push(...properties);
     } catch (error: unknown) {
       ctx.logger.error(`Error parsing class properties: ${String(error)}`);

@@ -12,6 +12,8 @@ import type { Import } from '../../shared/types/Import';
 import type { CallEdge } from './utils/extractCallGraph';
 import type { CircularDependency } from './utils/detectCircularDependencies';
 import type { ModuleDescriptor } from './utils/detectCircularDependencies';
+import type { TechDebtMarker } from './utils/detectTechDebt';
+import type { TypeReference } from './utils/extractTypeReferences';
 import type { IClassCreateDTO } from '../db/repositories/ClassRepository';
 import type { IEnumCreateDTO } from '../db/repositories/EnumRepository';
 import type { IFunctionCreateDTO } from '../db/repositories/FunctionRepository';
@@ -24,6 +26,7 @@ import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
 import type { ITypeAliasCreateDTO } from '../db/repositories/TypeAliasRepository';
 import type { IVariableCreateDTO } from '../db/repositories/VariableRepository';
 import type { FileDiscoveryConfig } from './FileDiscovery';
+import type { ModuleComplexityMetrics } from './utils/moduleAnalysis';
 import type { ClassExtendsRef, ClassImplementsRef, InterfaceExtendsRef, ParseResult, SymbolUsageRef } from './ParseResult';
 
 /** @deprecated Use {@link FileDiscoveryConfig} instead */
@@ -177,8 +180,14 @@ export class PackageParser {
       interfaceExtends: resolved.interfaceExtends,
       symbolUsages: collected.symbolUsages,
       symbolReferences: uniqueById(symbolReferences),
+      techDebtMarkers: collected.techDebtMarkers,
+      moduleMetrics: aggregateModuleMetrics(collected.moduleMetrics),
       circularDependencies,
       callEdges,
+      typeReferences: uniqueByKey(
+        collected.typeReferences,
+        (ref) => `${ref.sourceId}:${ref.sourceKind}:${ref.context}:${ref.typeName}`
+      ),
     };
   }
 
@@ -201,6 +210,9 @@ export class PackageParser {
     const rawInterfaceExtends: InterfaceExtendsRef[] = [];
     const symbolUsages: SymbolUsageRef[] = [];
     const callEdges: CallEdge[] = [];
+    const techDebtMarkers: TechDebtMarker[] = [];
+    const moduleMetrics: ModuleComplexityMetrics[] = [];
+    const typeReferences: TypeReference[] = [];
 
     for (const moduleResult of parseResults) {
       const moduleId = moduleResult.modules[0]?.id ?? '';
@@ -228,6 +240,15 @@ export class PackageParser {
       if (moduleResult.callEdges && moduleResult.callEdges.length > 0) {
         callEdges.push(...moduleResult.callEdges);
       }
+      if (moduleResult.techDebtMarkers && moduleResult.techDebtMarkers.length > 0) {
+        techDebtMarkers.push(...moduleResult.techDebtMarkers);
+      }
+      if (moduleResult.moduleMetrics) {
+        moduleMetrics.push(moduleResult.moduleMetrics);
+      }
+      if (moduleResult.typeReferences && moduleResult.typeReferences.length > 0) {
+        typeReferences.push(...moduleResult.typeReferences);
+      }
     }
 
     return {
@@ -249,6 +270,9 @@ export class PackageParser {
       rawInterfaceExtends,
       symbolUsages,
       callEdges,
+      techDebtMarkers,
+      moduleMetrics,
+      typeReferences,
     };
   }
 }
@@ -272,6 +296,41 @@ interface CollectedModuleData {
   rawInterfaceExtends: InterfaceExtendsRef[];
   symbolUsages: SymbolUsageRef[];
   callEdges: CallEdge[];
+  techDebtMarkers: TechDebtMarker[];
+  moduleMetrics: ModuleComplexityMetrics[];
+  typeReferences: TypeReference[];
+}
+
+function aggregateModuleMetrics(metrics: ModuleComplexityMetrics[]): ModuleComplexityMetrics | undefined {
+  if (metrics.length === 0) {
+    return undefined;
+  }
+
+  const aggregate = metrics.reduce<ModuleComplexityMetrics>(
+    (totals, metric) => ({
+      exportCount: totals.exportCount + metric.exportCount,
+      importCount: totals.importCount + metric.importCount,
+      reExportCount: totals.reExportCount + metric.reExportCount,
+      isBarrelFile: totals.isBarrelFile || metric.isBarrelFile,
+      reExportRatio: totals.reExportRatio + metric.reExportRatio,
+      importSourceCount: totals.importSourceCount + metric.importSourceCount,
+      fanOut: totals.fanOut + metric.fanOut,
+    }),
+    {
+      exportCount: 0,
+      importCount: 0,
+      reExportCount: 0,
+      isBarrelFile: false,
+      reExportRatio: 0,
+      importSourceCount: 0,
+      fanOut: 0,
+    }
+  );
+
+  return {
+    ...aggregate,
+    reExportRatio: aggregate.reExportRatio / metrics.length,
+  };
 }
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {

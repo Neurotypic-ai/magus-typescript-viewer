@@ -25,6 +25,14 @@ const CREATE_TABLE_SQL = `
 
 const tableInitialization = new WeakMap<IDatabaseAdapter, Promise<void>>();
 
+function parseReportJson(reportJson: string): InsightReport | null {
+  try {
+    return JSON.parse(reportJson) as InsightReport;
+  } catch {
+    return null;
+  }
+}
+
 async function ensureTable(adapter: IDatabaseAdapter): Promise<void> {
   const existingInitialization = tableInitialization.get(adapter);
   if (existingInitialization) {
@@ -68,12 +76,18 @@ export async function getLatestReport(adapter: IDatabaseAdapter, packageId?: str
   await ensureTable(adapter);
 
   const whereClause = packageId ? 'package_id = ?' : 'package_id IS NULL';
-  const sql = `SELECT id, package_id, computed_at, health_score, report_json FROM insight_reports WHERE ${whereClause} ORDER BY computed_at DESC LIMIT 1`;
+  const sql = `SELECT id, package_id, computed_at, health_score, report_json FROM insight_reports WHERE ${whereClause} ORDER BY computed_at DESC LIMIT 50`;
   const params = packageId ? [packageId] : [];
   const rows = await adapter.query<InsightReportRow>(sql, params);
 
-  const row = rows[0];
-  return row ? (JSON.parse(row.report_json) as InsightReport) : null;
+  for (const row of rows) {
+    const parsed = parseReportJson(row.report_json);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -92,5 +106,7 @@ export async function getReportHistory(
   const params = packageId ? [packageId, limit] : [limit];
   const rows = await adapter.query<InsightReportRow>(sql, params);
 
-  return rows.map((row) => JSON.parse(row.report_json) as InsightReport);
+  return rows
+    .map((row) => parseReportJson(row.report_json))
+    .filter((report): report is InsightReport => report !== null);
 }

@@ -20,6 +20,11 @@ export function emptyParseResult(overrides?: Partial<ParseResult>): ParseResult 
     interfaceExtends: [],
     symbolUsages: [],
     symbolReferences: [],
+    techDebtMarkers: [],
+    moduleMetrics: undefined,
+    circularDependencies: [],
+    callEdges: [],
+    typeReferences: [],
     ...overrides,
   };
 }
