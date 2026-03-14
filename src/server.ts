@@ -133,7 +133,17 @@ const server = http.createServer((req, res) => {
   void (async () => {
     try {
       let resource: unknown;
-      if (req.url === '/packages' && req.method === 'GET') {
+      if (req.url?.startsWith('/snapshots') && req.method === 'GET') {
+        try {
+          const qIdx = req.url.indexOf('?');
+          const params = qIdx !== -1 ? new URLSearchParams(req.url.slice(qIdx + 1)) : new URLSearchParams();
+          const repoPath = params.get('repoPath') ?? undefined;
+          resource = await apiServerResponder.getSnapshots(repoPath);
+        } catch (routeErr) {
+          logger.error('Error in /snapshots route, returning empty array', routeErr);
+          resource = [];
+        }
+      } else if (req.url === '/packages' && req.method === 'GET') {
         // Get all packages (be permissive on errors)
         try {
           resource = await apiServerResponder.getPackages();
@@ -143,14 +153,22 @@ const server = http.createServer((req, res) => {
         }
       } else if (req.url?.startsWith('/graph/summary') && req.method === 'GET') {
         try {
-          resource = await apiServerResponder.getGraphSummary();
+          const qIdx = req.url.indexOf('?');
+          const params = qIdx !== -1 ? new URLSearchParams(req.url.slice(qIdx + 1)) : new URLSearchParams();
+          const snapshotId = params.get('snapshotId') ?? undefined;
+          const packageId = snapshotId ? await apiServerResponder.resolveSnapshotPackageId(snapshotId) : undefined;
+          resource = await apiServerResponder.getGraphSummary(packageId);
         } catch (routeErr) {
           logger.error('Error in /graph/summary route, returning empty graph payload', routeErr);
           resource = { packages: [] };
         }
-      } else if (req.url === '/graph' && req.method === 'GET') {
+      } else if (req.url?.startsWith('/graph') && req.method === 'GET') {
         try {
-          resource = await apiServerResponder.getGraph();
+          const qIdx = req.url.indexOf('?');
+          const params = qIdx !== -1 ? new URLSearchParams(req.url.slice(qIdx + 1)) : new URLSearchParams();
+          const snapshotId = params.get('snapshotId') ?? undefined;
+          const packageId = snapshotId ? await apiServerResponder.resolveSnapshotPackageId(snapshotId) : undefined;
+          resource = await apiServerResponder.getGraph(packageId);
         } catch (routeErr) {
           logger.error('Error in /graph route, returning empty graph payload', routeErr);
           resource = { packages: [] };

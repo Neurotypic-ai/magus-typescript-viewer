@@ -43,6 +43,7 @@ const BUILTIN_TYPES = new Set([
   'FocusEvent',
   'FormData',
   'HTMLElement',
+  'KeyboardEvent',
   'Map',
   'MouseEvent',
   'MutationObserver',

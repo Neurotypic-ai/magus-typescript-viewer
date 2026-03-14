@@ -229,6 +229,7 @@ describe('PackageParser aggregation behavior', () => {
 
         export interface Example<T> {
           signal: AbortSignal;
+          keyboardEvent: KeyboardEvent;
           value: T;
           local: LocalType;
         }
@@ -241,6 +242,7 @@ describe('PackageParser aggregation behavior', () => {
 
     expect(referencedTypes.has('LocalType')).toBe(true);
     expect(referencedTypes.has('AbortSignal')).toBe(false);
+    expect(referencedTypes.has('KeyboardEvent')).toBe(false);
     expect(referencedTypes.has('T')).toBe(false);
   });
 

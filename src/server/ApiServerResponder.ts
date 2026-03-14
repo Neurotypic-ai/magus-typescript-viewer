@@ -137,7 +137,7 @@ export class ApiServerResponder {
   private readonly typeAliasRepository: TypeAliasRepository;
   private readonly variableRepository: VariableRepository;
   private readonly codeIssueRepository: CodeIssueRepository;
-  private readonly snapshotRepository: SnapshotRepository;
+  private readonly snapshotRepository!: SnapshotRepository;
 
   constructor(options: ApiServerResponderOptions = {}) {
     const dbPath = options.dbPath ?? 'typescript-viewer.duckdb';
@@ -188,7 +188,7 @@ export class ApiServerResponder {
     return this.snapshotRepository.retrieve();
   }
 
-  private async resolveSnapshotPackageId(snapshotId: string): Promise<string | undefined> {
+  async resolveSnapshotPackageId(snapshotId: string): Promise<string | undefined> {
     const snapshot = await this.snapshotRepository.retrieveById(snapshotId);
     return snapshot?.packageId;
   }
@@ -216,9 +216,9 @@ export class ApiServerResponder {
     }
   }
 
-  async getGraph(): Promise<{ packages: GraphResponseItem[] }> {
+  async getGraph(packageId?: string): Promise<{ packages: GraphResponseItem[] }> {
     try {
-      const packages = await this.packageRepository.retrieve();
+      const packages = await this.packageRepository.retrieve(packageId);
       const PACKAGE_CONCURRENCY = 4;
       const queue = packages.map((pkg, index) => ({ pkg, index }));
       const responses = new Map<number, GraphResponseItem>();
@@ -386,9 +386,9 @@ export class ApiServerResponder {
     } as unknown as Module;
   }
 
-  async getGraphSummary(): Promise<{ packages: GraphResponseItem[] }> {
+  async getGraphSummary(packageId?: string): Promise<{ packages: GraphResponseItem[] }> {
     try {
-      const packages = await this.packageRepository.retrieve();
+      const packages = await this.packageRepository.retrieve(packageId);
       const PACKAGE_CONCURRENCY = 4;
       const queue = packages.map((pkg, index) => ({ pkg, index }));
       const responses = new Map<number, GraphResponseItem>();
