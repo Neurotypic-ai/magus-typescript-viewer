@@ -7,4 +7,6 @@ export interface NodeMethod {
   returnType: string;
   visibility: string;
   signature: string;
+  isStatic?: boolean | undefined;
+  isAsync?: boolean | undefined;
 }

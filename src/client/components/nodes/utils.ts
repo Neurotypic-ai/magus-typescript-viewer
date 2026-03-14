@@ -133,20 +133,43 @@ export function visibilityIndicator(visibility: string): string {
 }
 
 export function formatProperty(prop: NodeProperty): FormattedMember {
+  const modifiers = [
+    prop.isStatic ? 'static' : null,
+    prop.isReadonly ? 'readonly' : null,
+  ].filter((value): value is string => value !== null);
+  const annotationSegments = [
+    modifiers.join(' '),
+    normalizeTypeAnnotation(prop.type, 'unknown'),
+    typeof prop.defaultValue === 'string' && prop.defaultValue.length > 0 ? `= ${prop.defaultValue}` : '',
+  ].filter((value) => value.length > 0);
+
   return {
-    key: `${prop.name}:${prop.type || 'unknown'}:${prop.visibility || 'default'}`,
+    key: `${prop.name}:${prop.type || 'unknown'}:${prop.visibility || 'default'}:${String(prop.isStatic)}:${String(prop.isReadonly)}:${prop.defaultValue ?? ''}`,
     indicator: visibilityIndicator(prop.visibility),
     name: prop.name,
-    typeAnnotation: normalizeTypeAnnotation(prop.type, 'unknown'),
+    typeAnnotation: annotationSegments.join(' '),
   };
 }
 
 export function formatMethod(method: NodeMethod): FormattedMember {
+  const modifiers = [
+    method.isStatic ? 'static' : null,
+    method.isAsync ? 'async' : null,
+  ].filter((value): value is string => value !== null);
+  const rawSignature = typeof method.signature === 'string' && method.signature.length > 0
+    ? method.signature
+    : '';
+  const signature = rawSignature.startsWith(`${method.name}(`)
+    ? rawSignature.slice(method.name.length)
+    : rawSignature.length > 0
+      ? `(${rawSignature}): ${method.returnType}`
+      : `(): ${method.returnType}`;
+
   return {
-    key: `${method.name}:${method.returnType || 'void'}:${method.visibility || 'default'}`,
+    key: `${method.name}:${method.returnType || 'void'}:${method.visibility || 'default'}:${String(method.isStatic)}:${String(method.isAsync)}:${signature}`,
     indicator: visibilityIndicator(method.visibility),
     name: method.name,
-    typeAnnotation: normalizeTypeAnnotation(method.returnType, 'void'),
+    typeAnnotation: [modifiers.join(' '), signature].filter((value) => value.length > 0).join(' '),
   };
 }
 

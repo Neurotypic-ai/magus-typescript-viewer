@@ -41,18 +41,59 @@ function createFixtureGraph(): DependencyPackageGraph {
               AppService: {
                 id: 'class-1',
                 name: 'AppService',
-                properties: [{ id: 'prop-1', name: 'state', type: 'string', visibility: 'private' }],
-                methods: [{ id: 'method-1', name: 'load', returnType: 'void', visibility: 'public', signature: 'load(): void' }],
+                properties: [
+                  {
+                    id: 'prop-1',
+                    name: 'state',
+                    type: 'string',
+                    visibility: 'private',
+                    isStatic: false,
+                    isReadonly: true,
+                    defaultValue: "'idle'",
+                  },
+                ],
+                methods: [
+                  {
+                    id: 'method-1',
+                    name: 'load',
+                    returnType: 'Promise<void>',
+                    visibility: 'public',
+                    signature: 'load(force: boolean): Promise<void>',
+                    isStatic: true,
+                    isAsync: true,
+                  },
+                ],
               },
             },
             interfaces: {
               AppContract: {
                 id: 'iface-1',
                 name: 'AppContract',
-                properties: [{ id: 'iface-prop-1', name: 'id', type: 'string', visibility: 'public' }],
-                methods: [{ id: 'iface-method-1', name: 'execute', returnType: 'void', visibility: 'public', signature: 'execute(): void' }],
+                properties: [
+                  {
+                    id: 'iface-prop-1',
+                    name: 'id',
+                    type: 'string',
+                    visibility: 'public',
+                    isReadonly: true,
+                  },
+                ],
+                methods: [
+                  {
+                    id: 'iface-method-1',
+                    name: 'execute',
+                    returnType: 'void',
+                    visibility: 'public',
+                    signature: 'execute(): void',
+                    isAsync: false,
+                  },
+                ],
               },
             },
+            exports: [
+              { name: 'AppService', isDefault: false },
+              { name: 'AppModule', localName: 'default', isDefault: true },
+            ],
           },
         },
       },
@@ -103,6 +144,16 @@ describe('createGraphNodes', () => {
     expect(externalDependencies?.[0]?.symbols).toEqual(['computed', 'ref']);
     expect(moduleNode.data.diagnostics?.externalDependencyPackageCount).toBe(1);
     expect(moduleNode.data.diagnostics?.externalDependencySymbolCount).toBe(2);
+    expect(moduleNode.data.exports).toEqual(['AppService', 'default AppModule']);
+    expect(symbols?.[0]?.properties[0]).toMatchObject({
+      isReadonly: true,
+      defaultValue: "'idle'",
+    });
+    expect(symbols?.[0]?.methods[0]).toMatchObject({
+      isStatic: true,
+      isAsync: true,
+      signature: 'load(force: boolean): Promise<void>',
+    });
   });
 
   it('creates class/interface VueFlow nodes with members metadata in graph mode', () => {

@@ -27,6 +27,8 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     // Wait for at least one node to be rendered — this means data was fetched
     // from the API and the layout engine has placed nodes on the canvas.
     await page.waitForSelector('.vue-flow__node', { timeout: GRAPH_RENDER_TIMEOUT });
+
+    await waitForGraphLayoutToSettle(page);
   });
 
   // ---------------------------------------------------------------------------
@@ -498,6 +500,25 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
     }
   });
 
+  test('folder view keeps visible edges enabled by default', async ({ page }) => {
+    const controlsPanel = page.locator('.vue-flow__panel.top.left');
+    const strategyToggle = controlsPanel.getByRole('button', { name: /rendering strategy/i }).first();
+    await expect(strategyToggle).toBeVisible();
+    if ((await strategyToggle.getAttribute('aria-expanded')) === 'false') {
+      await strategyToggle.click();
+    }
+
+    const folderStrategy = controlsPanel.locator('[role="radio"][data-rendering-strategy-id="folderDistributor"]').first();
+    await expect(folderStrategy).toBeVisible();
+    await folderStrategy.click();
+
+    await waitForGraphLayoutToSettle(page);
+
+    const graphStatsMetrics = await page.locator('.graph-stats-summary-metrics').textContent();
+    const renderedEdgeCount = parseGraphStatsCount(graphStatsMetrics, 'edges');
+    expect(renderedEdgeCount).toBeGreaterThan(0);
+  });
+
   // ---------------------------------------------------------------------------
   // 14. Mac wheel handling placeholder
   // ---------------------------------------------------------------------------
@@ -532,7 +553,7 @@ test.describe('Dependency Graph — Baseline Behavior', () => {
  *   transform: translate(Xpx, Ypx) scale(Z)
  */
 async function getViewportZoom(page: Page): Promise<number> {
-  const transform = await page.locator('.vue-flow__viewport').getAttribute('style');
+  const transform = await page.locator('.vue-flow__transformationpane').getAttribute('style');
   if (!transform) return 1;
   const scaleMatch = /scale\(([^)]+)\)/.exec(transform) ?? [];
   return parseFloat(scaleMatch[1] ?? '1');
@@ -545,7 +566,7 @@ async function getViewportZoom(page: Page): Promise<number> {
  * @returns The viewport transform { x, y, zoom }.
  */
 async function getViewportTransform(page: Page): Promise<{ x: number; y: number; zoom: number }> {
-  const style = await page.locator('.vue-flow__viewport').getAttribute('style');
+  const style = await page.locator('.vue-flow__transformationpane').getAttribute('style');
   if (!style) return { x: 0, y: 0, zoom: 1 };
 
   const translateMatch = /translate\(([^,]+)px,\s*([^)]+)px\)/.exec(style) ?? [];
@@ -590,21 +611,77 @@ function boxesOverlap(
   );
 }
 
+function intersectionArea(
+  first: { x: number; y: number; width: number; height: number },
+  second: { x: number; y: number; width: number; height: number }
+): number {
+  const overlapWidth = Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x);
+  const overlapHeight = Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y);
+  if (overlapWidth <= 0 || overlapHeight <= 0) {
+    return 0;
+  }
+  return overlapWidth * overlapHeight;
+}
+
+async function waitForGraphLayoutToSettle(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const layoutIndicator = document.querySelector('.layout-loading-indicator');
+    if (layoutIndicator) {
+      return false;
+    }
+
+    const pane = document.querySelector('.vue-flow__transformationpane');
+    const paneStyle = pane?.getAttribute('style') ?? '';
+    if (!/scale\(/.test(paneStyle)) {
+      return false;
+    }
+
+    const visibleNodeCount = Array.from(document.querySelectorAll('.vue-flow__node')).filter((element) => {
+      const rect = element.getBoundingClientRect();
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > 0 &&
+        rect.right > 0 &&
+        rect.left < window.innerWidth &&
+        rect.top < window.innerHeight
+      );
+    }).length;
+
+    return visibleNodeCount > 0;
+  }, { timeout: GRAPH_RENDER_TIMEOUT });
+
+  await page.waitForTimeout(200);
+}
+
 async function getInteractableNode(page: Page): Promise<Locator> {
   const nodes = page.locator('.vue-flow__node');
   const count = await nodes.count();
   const panelBox = await page.locator('.vue-flow__panel.top.left').first().boundingBox();
+  const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+  let bestIndex = 0;
+  let bestVisibleArea = -1;
   for (let index = 0; index < count; index += 1) {
     const candidate = nodes.nth(index);
     const box = await candidate.boundingBox();
     if (!box) {
       continue;
     }
-    if (!panelBox || !boxesOverlap(box, panelBox)) {
-      return candidate;
+
+    const viewportBox = { x: 0, y: 0, width: viewport.width, height: viewport.height };
+    const visibleArea = intersectionArea(box, viewportBox);
+    if (visibleArea <= 0) {
+      continue;
+    }
+    if (panelBox && boxesOverlap(box, panelBox)) {
+      continue;
+    }
+    if (visibleArea > bestVisibleArea) {
+      bestVisibleArea = visibleArea;
+      bestIndex = index;
     }
   }
-  return nodes.first();
+  return nodes.nth(bestIndex);
 }
 
 interface NodeBox {
@@ -628,7 +705,16 @@ async function getVisibleNodeBoxes(page: Page): Promise<NodeBox[]> {
           height: rect.height,
         };
       })
-      .filter((box) => box.id.length > 0 && box.width > 0 && box.height > 0)
+      .filter(
+        (box) =>
+          box.id.length > 0 &&
+          box.width > 0 &&
+          box.height > 0 &&
+          box.x + box.width > 0 &&
+          box.y + box.height > 0 &&
+          box.x < window.innerWidth &&
+          box.y < window.innerHeight
+      )
   );
 }
 
@@ -636,4 +722,9 @@ function hasMeaningfulNodeOverlap(first: NodeBox, second: NodeBox, tolerancePx =
   const overlapWidth = Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x);
   const overlapHeight = Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y);
   return overlapWidth > tolerancePx && overlapHeight > tolerancePx;
+}
+
+function parseGraphStatsCount(metrics: string | null, label: 'nodes' | 'edges'): number {
+  const match = metrics?.match(new RegExp(`(\\d+)\\s+${label}`));
+  return Number.parseInt(match?.[1] ?? '0', 10);
 }

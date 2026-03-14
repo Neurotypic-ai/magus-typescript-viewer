@@ -24,6 +24,13 @@ const externalDependencies = computed<ExternalDependencyRef[]>(() => {
   return Array.isArray(metadata) ? metadata : [];
 });
 
+const moduleExports = computed<string[]>(() => {
+  const metadata = nodeData.value.exports;
+  return Array.isArray(metadata)
+    ? metadata.map((value) => String(value ?? '').trim()).filter((value) => value.length > 0)
+    : [];
+});
+
 const embeddedSymbols = computed<EmbeddedSymbol[]>(() => {
   const symbols = nodeData.value.symbols;
   return Array.isArray(symbols) ? symbols : [];
@@ -203,6 +210,21 @@ useExpandCollapseState(
         </div>
       </CollapsibleSection>
 
+      <CollapsibleSection
+        v-if="moduleExports.length > 0"
+        title="Exports"
+        :count="moduleExports.length"
+        :default-open="false"
+      >
+        <div
+          v-for="moduleExport in moduleExports"
+          :key="moduleExport"
+          class="export-item"
+        >
+          {{ moduleExport }}
+        </div>
+      </CollapsibleSection>
+
       <!-- Embedded Symbols -->
       <div v-if="embeddedSymbols.length > 0" class="module-symbols">
         <SymbolCardSection
@@ -241,6 +263,7 @@ useExpandCollapseState(
         v-if="
           metadataItems.length === 0 &&
           externalDependencies.length === 0 &&
+          moduleExports.length === 0 &&
           embeddedSymbols.length === 0 &&
           !hasModuleEntities
         "
@@ -296,6 +319,13 @@ useExpandCollapseState(
   line-height: 1.1;
   margin-top: 0.15rem;
   white-space: nowrap;
+}
+
+.export-item {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  padding: 0.15rem 0;
 }
 
 .module-empty-state,

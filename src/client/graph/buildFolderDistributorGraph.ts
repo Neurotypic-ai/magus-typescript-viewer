@@ -142,18 +142,32 @@ export function buildFolderDistributorGraph(options: BuildFolderDistributorGraph
   const showIntraFolderEdges =
     typeof options.strategyOptions?.['showIntraFolderEdges'] === 'boolean'
       ? options.strategyOptions['showIntraFolderEdges']
+      : true;
+
+  const hideInterFolderEdges =
+    typeof options.strategyOptions?.['hideInterFolderEdges'] === 'boolean'
+      ? options.strategyOptions['hideInterFolderEdges']
       : false;
 
-  let renderedEdges: GraphEdge[] = [];
-  if (showIntraFolderEdges) {
-    const intraEdges = filterIntraFolderEdges(collapsedGraph.nodes, collapsedGraph.edges);
-    const routedEdges = intraEdges.map((edge) => ({
+  let candidateEdges: GraphEdge[] = collapsedGraph.edges;
+  if (!showIntraFolderEdges) {
+    // Keep only inter-folder edges
+    const nodeToFolder = buildNodeToFolderMap(collapsedGraph.nodes);
+    candidateEdges = candidateEdges.filter((edge) => {
+      const sourceFolder = nodeToFolder.get(edge.source);
+      const targetFolder = nodeToFolder.get(edge.target);
+      return !sourceFolder || !targetFolder || sourceFolder !== targetFolder;
+    });
+  } else if (hideInterFolderEdges) {
+    // Keep only intra-folder edges
+    candidateEdges = filterIntraFolderEdges(collapsedGraph.nodes, collapsedGraph.edges).map((edge) => ({
       ...edge,
       type: 'intraFolder' as const,
     }));
-    const visibleEdges = applyEdgeVisibility(routedEdges, options.enabledRelationshipTypes);
-    renderedEdges = bundleParallelEdges(visibleEdges);
   }
+
+  const visibleEdges = applyEdgeVisibility(candidateEdges, options.enabledRelationshipTypes);
+  const renderedEdges = bundleParallelEdges(visibleEdges);
 
   const currentDegreeMap = buildDegreeMap(collapsedGraph.nodes, collapsedGraph.edges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);

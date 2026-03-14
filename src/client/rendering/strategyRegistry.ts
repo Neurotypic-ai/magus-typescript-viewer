@@ -32,7 +32,7 @@ const SHOW_INTRA_FOLDER_EDGES_OPTION = {
   type: 'boolean' as const,
   label: 'Show intra-folder edges',
   description: 'Display edges between nodes within the same folder group.',
-  defaultValue: false,
+  defaultValue: true,
 };
 
 export const RENDERING_STRATEGY_IDS: readonly RenderingStrategyId[] = ['canvas', 'vueflow', 'folderDistributor'];

@@ -24,6 +24,7 @@ import type { ImportRef } from '../types/ImportRef';
 import type { InterfaceStructure } from '../types/InterfaceStructure';
 import type { ImportSpecifierRef } from '../types/ImportSpecifierRef';
 import type { ModuleStructure } from '../types/ModuleStructure';
+import type { ModuleExportRef } from '../types/ModuleExportRef';
 import type { NodeMethod } from '../types/NodeMethod';
 import type { NodeProperty } from '../types/NodeProperty';
 import type { SymbolReferenceRef } from '../types/SymbolReferenceRef';
@@ -235,6 +236,8 @@ export class GraphDataAssembler {
           relativePath,
         },
         imports: transformedImports,
+        exports: this.transformExportCollection(typeCollectionToArray(module.exports)),
+        referencePaths: Array.isArray(module.referencePaths) ? [...module.referencePaths] : [],
         externalDependencies: this.buildExternalDependencies(transformedImports),
         symbol_references: this.transformSymbolReferenceCollection(typeCollectionToArray(module.symbol_references)),
         classes: this.transformClassCollection(typeCollectionToArray(module.classes)),
@@ -246,6 +249,28 @@ export class GraphDataAssembler {
         created_at: typeof module.created_at === 'string' ? module.created_at : module.created_at.toISOString(),
       } as ModuleStructure;
     });
+  }
+
+  private transformExportCollection(
+    exports: Array<{
+      uuid?: string;
+      name?: string;
+      localName?: string;
+      exportedFrom?: string;
+      isDefault?: boolean;
+    }>
+  ): ModuleExportRef[] {
+    return exports
+      .filter((entry) => typeof entry.uuid === 'string' && typeof entry.name === 'string')
+      .map((entry) => ({
+        uuid: entry.uuid as string,
+        name: entry.name as string,
+        ...(typeof entry.localName === 'string' && entry.localName.length > 0 ? { localName: entry.localName } : {}),
+        ...(typeof entry.exportedFrom === 'string' && entry.exportedFrom.length > 0
+          ? { exportedFrom: entry.exportedFrom }
+          : {}),
+        isDefault: entry.isDefault === true,
+      }));
   }
 
 
@@ -292,8 +317,11 @@ export class GraphDataAssembler {
       name: prop.name,
       type: prop.type,
       visibility: prop.visibility,
-      // Note: is_static, default_value from SharedProperty are not in NodeProperty
-      // id and created_at are also not directly part of NodeProperty display type
+      isStatic: prop.is_static,
+      isReadonly: prop.is_readonly,
+      ...(typeof prop.default_value === 'string' && prop.default_value.length > 0
+        ? { defaultValue: prop.default_value }
+        : {}),
     }));
   }
 
@@ -311,8 +339,8 @@ export class GraphDataAssembler {
         returnType: method.return_type,
         visibility: method.visibility,
         signature: parameters.map((p) => `${p.name}: ${p.type}`).join(', '),
-        // Note: is_static, is_async from SharedMethod are not in NodeMethod display type
-        // id and created_at are also not directly part of NodeMethod display type
+        isStatic: method.is_static,
+        isAsync: method.is_async,
       };
     });
   }

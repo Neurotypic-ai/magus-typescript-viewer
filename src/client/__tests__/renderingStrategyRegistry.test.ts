@@ -62,6 +62,11 @@ describe('rendering strategy registry', () => {
     expect(defaults.folderDistributor['minimumDistancePx']).toBe(20);
   });
 
+  it('shows intra-folder edges by default for folderDistributor', () => {
+    const defaults = createDefaultStrategyOptionsById();
+    expect(defaults.folderDistributor['showIntraFolderEdges']).toBe(true);
+  });
+
   it('sanitizeStrategyOptionsById clamps minimumDistancePx to min/max', () => {
     const sanitized = sanitizeStrategyOptionsById({
       canvas: {},

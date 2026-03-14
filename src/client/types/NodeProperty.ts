@@ -6,4 +6,7 @@ export interface NodeProperty {
   name: string;
   type: string;
   visibility: string;
+  isStatic?: boolean | undefined;
+  isReadonly?: boolean | undefined;
+  defaultValue?: string | undefined;
 }

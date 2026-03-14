@@ -21,6 +21,9 @@ interface DisplayMember {
   name: string;
   type: string;
   visibility?: string | undefined;
+  isStatic?: boolean | undefined;
+  isReadonly?: boolean | undefined;
+  defaultValue?: string | undefined;
   usedBy: string[];
 }
 
@@ -29,6 +32,9 @@ interface DisplayMethod {
   name: string;
   returnType: string;
   visibility?: string | undefined;
+  signature?: string | undefined;
+  isStatic?: boolean | undefined;
+  isAsync?: boolean | undefined;
   usedBy: string[];
 }
 
@@ -165,6 +171,68 @@ function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
 
+function formatModuleExportLabel(entry: unknown): string {
+  if (typeof entry === 'string') {
+    return entry;
+  }
+
+  if (!entry || typeof entry !== 'object') {
+    return '';
+  }
+
+  const exportEntry = entry as {
+    name?: unknown;
+    localName?: unknown;
+    path?: unknown;
+    isDefault?: unknown;
+  };
+  const exportName = typeof exportEntry.name === 'string' ? exportEntry.name : '';
+  const localName = typeof exportEntry.localName === 'string' ? exportEntry.localName : '';
+  const fallbackPath = typeof exportEntry.path === 'string' ? exportEntry.path : '';
+
+  if (exportEntry.isDefault === true) {
+    if (localName.length > 0 && localName !== 'default') {
+      return `default ${localName}`;
+    }
+    if (exportName.length > 0 && exportName !== 'default') {
+      return `default ${exportName}`;
+    }
+    return 'default';
+  }
+
+  if (exportName.length > 0) {
+    return exportName;
+  }
+  if (localName.length > 0) {
+    return localName;
+  }
+  return fallbackPath;
+}
+
+function formatPropertySummary(prop: DisplayMember): string {
+  const modifiers = [
+    prop.isStatic ? 'static' : null,
+    prop.isReadonly ? 'readonly' : null,
+  ].filter((value): value is string => value !== null);
+  const defaultSuffix =
+    typeof prop.defaultValue === 'string' && prop.defaultValue.length > 0 ? ` = ${prop.defaultValue}` : '';
+  return `${modifiers.length > 0 ? `${modifiers.join(' ')} ` : ''}${prop.name}: ${prop.type}${defaultSuffix}`;
+}
+
+function formatMethodSummary(method: DisplayMethod): string {
+  const modifiers = [
+    method.isStatic ? 'static' : null,
+    method.isAsync ? 'async' : null,
+  ].filter((value): value is string => value !== null);
+  const signature = typeof method.signature === 'string' && method.signature.length > 0
+    ? method.signature
+    : `${method.name}(): ${method.returnType}`;
+  const normalizedSignature = signature.startsWith(`${method.name}(`)
+    ? signature
+    : `${method.name}(${signature}): ${method.returnType}`;
+  return `${modifiers.length > 0 ? `${modifiers.join(' ')} ` : ''}${normalizedSignature}`;
+}
+
 const graphDetailsIndex = computed<GraphDetailsIndex>(() => {
   const cached = graphDetailsIndexCache.get(props.data);
   if (cached) {
@@ -296,6 +364,9 @@ const moduleClasses = computed<SymbolSummary[]>(() => {
       name: prop.name ?? 'unnamed',
       type: prop.type ?? 'unknown',
       visibility: prop.visibility,
+      isStatic: prop.isStatic,
+      isReadonly: prop.isReadonly,
+      defaultValue: prop.defaultValue,
       usedBy: getUsedBy(prop.id),
     })),
     methods: (cls.methods ?? []).map((method) => ({
@@ -303,6 +374,9 @@ const moduleClasses = computed<SymbolSummary[]>(() => {
       name: method.name ?? 'unnamed',
       returnType: method.returnType ?? 'void',
       visibility: method.visibility,
+      signature: method.signature,
+      isStatic: method.isStatic,
+      isAsync: method.isAsync,
       usedBy: getUsedBy(method.id),
     })),
   }));
@@ -320,6 +394,9 @@ const moduleInterfaces = computed<SymbolSummary[]>(() => {
       name: prop.name ?? 'unnamed',
       type: prop.type ?? 'unknown',
       visibility: prop.visibility,
+      isStatic: prop.isStatic,
+      isReadonly: prop.isReadonly,
+      defaultValue: prop.defaultValue,
       usedBy: getUsedBy(prop.id),
     })),
     methods: (iface.methods ?? []).map((method) => ({
@@ -327,6 +404,9 @@ const moduleInterfaces = computed<SymbolSummary[]>(() => {
       name: method.name ?? 'unnamed',
       returnType: method.returnType ?? 'void',
       visibility: method.visibility,
+      signature: method.signature,
+      isStatic: method.isStatic,
+      isAsync: method.isAsync,
       usedBy: getUsedBy(method.id),
     })),
   }));
@@ -368,6 +448,9 @@ const nodeProperties = computed<DisplayMember[]>(() => {
     name: prop.name ?? 'unnamed',
     type: prop.type ?? 'unknown',
     visibility: prop.visibility,
+    isStatic: prop.isStatic,
+    isReadonly: prop.isReadonly,
+    defaultValue: prop.defaultValue,
     usedBy: getUsedBy(prop.id),
   }));
 });
@@ -380,6 +463,9 @@ const nodeMethods = computed<DisplayMethod[]>(() => {
     name: method.name ?? 'unnamed',
     returnType: method.returnType ?? 'void',
     visibility: method.visibility,
+    signature: method.signature,
+    isStatic: method.isStatic,
+    isAsync: method.isAsync,
     usedBy: getUsedBy(method.id),
   }));
 });
@@ -437,7 +523,25 @@ const implementsTargets = computed(() => labelsForOutgoingType('implements'));
 const implementedBy = computed(() => labelsForIncomingType('implements'));
 
 const moduleImportsMetadata = computed(() => props.node.data?.imports ?? []);
-const moduleExportsMetadata = computed(() => props.node.data?.exports ?? []);
+const moduleExportsMetadata = computed<string[]>(() => {
+  const nodeExports = Array.isArray(props.node.data?.exports) ? props.node.data.exports : [];
+  if (nodeExports.length > 0) {
+    return nodeExports.map((entry) => String(entry ?? '')).filter((entry) => entry.length > 0);
+  }
+
+  const selectedExports = (selectedModule.value as { exports?: unknown } | undefined)?.exports;
+  if (Array.isArray(selectedExports)) {
+    return selectedExports.map(formatModuleExportLabel).filter((entry) => entry.length > 0);
+  }
+
+  return [];
+});
+const moduleReferencePaths = computed<string[]>(() => {
+  const referencePaths = selectedModule.value?.referencePaths;
+  return Array.isArray(referencePaths)
+    ? referencePaths.map((entry) => String(entry ?? '')).filter((entry) => entry.length > 0)
+    : [];
+});
 
 interface ExternalImportGroup {
   packageName: string;
@@ -569,7 +673,7 @@ const openSymbolUsageGraph = () => {
           <div class="ml-3 mt-1 space-y-1">
             <div v-if="cls.properties.length > 0" class="text-xs text-text-secondary">
               <div v-for="(prop, propIndex) in cls.properties" :key="prop.id ?? `${cls.id}-p-${propIndex}`">
-                {{ prop.name }}: {{ prop.type }}
+                {{ formatPropertySummary(prop) }}
                 <div v-if="prop.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ prop.usedBy.join(', ') }}
                 </div>
@@ -577,7 +681,7 @@ const openSymbolUsageGraph = () => {
             </div>
             <div v-if="cls.methods.length > 0" class="text-xs text-text-secondary">
               <div v-for="(method, methodIndex) in cls.methods" :key="method.id ?? `${cls.id}-m-${methodIndex}`">
-                {{ method.name }}(): {{ method.returnType }}
+                {{ formatMethodSummary(method) }}
                 <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ method.usedBy.join(', ') }}
                 </div>
@@ -594,7 +698,7 @@ const openSymbolUsageGraph = () => {
           <div class="ml-3 mt-1 space-y-1">
             <div v-if="iface.properties.length > 0" class="text-xs text-text-secondary">
               <div v-for="(prop, propIndex) in iface.properties" :key="prop.id ?? `${iface.id}-p-${propIndex}`">
-                {{ prop.name }}: {{ prop.type }}
+                {{ formatPropertySummary(prop) }}
                 <div v-if="prop.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ prop.usedBy.join(', ') }}
                 </div>
@@ -602,7 +706,7 @@ const openSymbolUsageGraph = () => {
             </div>
             <div v-if="iface.methods.length > 0" class="text-xs text-text-secondary">
               <div v-for="(method, methodIndex) in iface.methods" :key="method.id ?? `${iface.id}-m-${methodIndex}`">
-                {{ method.name }}(): {{ method.returnType }}
+                {{ formatMethodSummary(method) }}
                 <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ method.usedBy.join(', ') }}
                 </div>
@@ -621,8 +725,7 @@ const openSymbolUsageGraph = () => {
           :key="prop.id ?? `prop-${index}`"
           class="text-sm text-text-secondary ml-3 font-mono"
         >
-          <span class="text-primary-main">{{ prop.name }}</span><span class="text-text-muted">:</span>
-          {{ prop.type }}
+          {{ formatPropertySummary(prop) }}
           <div v-if="prop.usedBy.length > 0" class="text-xs text-text-muted ml-1">
             used by: {{ prop.usedBy.join(', ') }}
           </div>
@@ -638,8 +741,7 @@ const openSymbolUsageGraph = () => {
           :key="method.id ?? `method-${index}`"
           class="text-sm text-text-secondary ml-3 font-mono"
         >
-          <span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
-          ><span class="text-text-muted">:</span> {{ method.returnType }}
+          {{ formatMethodSummary(method) }}
           <div v-if="method.usedBy.length > 0" class="text-xs text-text-muted ml-1">
             used by: {{ method.usedBy.join(', ') }}
           </div>
@@ -715,6 +817,19 @@ const openSymbolUsageGraph = () => {
           class="text-xs text-text-secondary ml-3 font-mono truncate"
         >
           {{ String(exp ?? '') }}
+        </div>
+      </div>
+    </div>
+
+    <div v-if="moduleReferencePaths.length > 0" class="mb-4">
+      <strong class="text-sm font-semibold text-text-primary block mb-2">Referenced By Paths</strong>
+      <div class="space-y-1">
+        <div
+          v-for="(referencePath, index) in moduleReferencePaths"
+          :key="`reference-path-${index}`"
+          class="text-xs text-text-secondary ml-3 font-mono truncate"
+        >
+          {{ referencePath }}
         </div>
       </div>
     </div>

@@ -1,0 +1,17 @@
+Total messages: 15 (Errors: 0, Warnings: 0)
+
+[DEBUG] [vite] connecting... @ http://localhost:4000/@vite/client:732
+[DEBUG] [vite] connected. @ http://localhost:4000/@vite/client:826
+[INFO] <Suspense> is an experimental feature and its API will likely change. @ http://localhost:4000/node_modules/.vite/deps/chunk-F7C45AFU.js?v=f752ba95:9381
+[LOG] 10:51:00 [Performance] graph-layout took 1392.83ms @ http://localhost:4000/src/shared/utils/logger.ts:42
+[LOG] 10:51:00 [Performance] graph-initialization took 1434.20ms @ http://localhost:4000/src/shared/utils/logger.ts:42
+[DEBUG] [vite] connecting... @ http://localhost:4000/@vite/client:732
+[DEBUG] [vite] connected. @ http://localhost:4000/@vite/client:826
+[INFO] <Suspense> is an experimental feature and its API will likely change. @ http://localhost:4000/node_modules/.vite/deps/chunk-F7C45AFU.js?v=f752ba95:9381
+[LOG] 10:52:12 [Performance] graph-layout took 1485.45ms @ http://localhost:4000/src/shared/utils/logger.ts:42
+[LOG] 10:52:12 [Performance] graph-initialization took 1524.88ms @ http://localhost:4000/src/shared/utils/logger.ts:42
+[DEBUG] [vite] connecting... @ http://localhost:4000/@vite/client:732
+[DEBUG] [vite] connected. @ http://localhost:4000/@vite/client:826
+[INFO] <Suspense> is an experimental feature and its API will likely change. @ http://localhost:4000/node_modules/.vite/deps/chunk-F7C45AFU.js?v=f752ba95:9381
+[LOG] 10:54:09 [Performance] graph-layout took 1465.34ms @ http://localhost:4000/src/shared/utils/logger.ts:42
+[LOG] 10:54:09 [Performance] graph-initialization took 1504.75ms @ http://localhost:4000/src/shared/utils/logger.ts:42

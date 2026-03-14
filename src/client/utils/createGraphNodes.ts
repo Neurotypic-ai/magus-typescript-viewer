@@ -78,6 +78,11 @@ function toNodeProperty(property: NodeProperty | Record<string, unknown>): NodeP
     name: toStringField(property.name, 'unknown'),
     type: toStringField(property.type, 'unknown'),
     visibility: toStringField(property.visibility, 'public'),
+    ...(typeof property.isStatic === 'boolean' ? { isStatic: property.isStatic } : {}),
+    ...(typeof property.isReadonly === 'boolean' ? { isReadonly: property.isReadonly } : {}),
+    ...(typeof property.defaultValue === 'string' && property.defaultValue.length > 0
+      ? { defaultValue: property.defaultValue }
+      : {}),
   };
 }
 
@@ -94,7 +99,33 @@ function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod 
       typeof method.signature === 'string' && method.signature.length > 0
         ? method.signature
         : `${methodName}(): ${returnType}`,
+    ...(typeof method.isStatic === 'boolean' ? { isStatic: method.isStatic } : {}),
+    ...(typeof method.isAsync === 'boolean' ? { isAsync: method.isAsync } : {}),
   };
+}
+
+function formatModuleExportLabel(entry: { name?: string; localName?: string; isDefault?: boolean; path?: string }): string {
+  const exportName = typeof entry.name === 'string' && entry.name.length > 0 ? entry.name : '';
+  const localName = typeof entry.localName === 'string' && entry.localName.length > 0 ? entry.localName : '';
+  const fallbackPath = typeof entry.path === 'string' && entry.path.length > 0 ? entry.path : '';
+
+  if (entry.isDefault) {
+    if (localName.length > 0 && localName !== 'default') {
+      return `default ${localName}`;
+    }
+    if (exportName.length > 0 && exportName !== 'default') {
+      return `default ${exportName}`;
+    }
+    return 'default';
+  }
+
+  if (exportName.length > 0) {
+    return exportName;
+  }
+  if (localName.length > 0) {
+    return localName;
+  }
+  return fallbackPath;
 }
 
 /**
@@ -214,8 +245,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
         .map((value) => {
           if (typeof value === 'string') return value;
           if (value && typeof value === 'object') {
-            const entry = value as { name?: string; path?: string };
-            return entry.name ?? entry.path ?? '';
+            return formatModuleExportLabel(value as { name?: string; localName?: string; isDefault?: boolean; path?: string });
           }
           return '';
         })
@@ -227,8 +257,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
         .map((value) => {
           if (typeof value === 'string') return value;
           if (value && typeof value === 'object') {
-            const entry = value as { name?: string; path?: string };
-            return entry.name ?? entry.path ?? '';
+            return formatModuleExportLabel(value as { name?: string; localName?: string; isDefault?: boolean; path?: string });
           }
           return '';
         })
@@ -240,8 +269,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
         .map((value: unknown) => {
           if (typeof value === 'string') return value;
           if (value && typeof value === 'object') {
-            const entry = value as { name?: string; path?: string };
-            return entry.name ?? entry.path ?? '';
+            return formatModuleExportLabel(value as { name?: string; localName?: string; isDefault?: boolean; path?: string });
           }
           return '';
         })
