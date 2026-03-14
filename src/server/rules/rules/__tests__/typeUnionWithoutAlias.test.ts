@@ -816,3 +816,158 @@ interface Single {
     expect(issues[0].suggestion).toBe("Extract to type alias 'SingleX'");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Property modifiers — rule should detect regardless of access modifiers
+// ---------------------------------------------------------------------------
+
+describe('typeUnionWithoutAlias — property modifiers', () => {
+  it('detects union on readonly interface property', () => {
+    // readonly only affects mutability, not how the type annotation is structured
+    const source = `
+interface Config {
+  readonly mode: "dev" | "staging" | "prod";
+}`;
+    const ifaceDTO = makeInterfaceDTO('Config');
+    const context = makeContext(source, {
+      parseResult: { interfaces: [ifaceDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].entity_name).toBe('mode');
+  });
+
+  it('detects union on optional interface property (?: union)', () => {
+    // optional marker (?) is on the TSPropertySignature node, not the type annotation
+    const source = `
+interface Options {
+  format?: "json" | "xml" | "csv";
+}`;
+    const ifaceDTO = makeInterfaceDTO('Options');
+    const context = makeContext(source, {
+      parseResult: { interfaces: [ifaceDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].entity_name).toBe('format');
+    expect(issues[0].parent_entity_name).toBe('Options');
+  });
+
+  it('detects union on static class property', () => {
+    // static is a modifier on the ClassProperty node, transparent to checkUnionProperty
+    const source = `
+class Logger {
+  static defaultLevel: "debug" | "info" | "error";
+}`;
+    const classDTO = makeClassDTO('Logger');
+    const context = makeContext(source, {
+      parseResult: { classes: [classDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].entity_name).toBe('defaultLevel');
+  });
+
+  it('detects union on private class property', () => {
+    const source = `
+class Service {
+  private _state: "idle" | "loading" | "error";
+}`;
+    const classDTO = makeClassDTO('Service');
+    const context = makeContext(source, {
+      parseResult: { classes: [classDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].entity_name).toBe('_state');
+  });
+
+  it('detects union on readonly class property', () => {
+    const source = `
+class Theme {
+  readonly variant: "primary" | "secondary" | "danger";
+}`;
+    const classDTO = makeClassDTO('Theme');
+    const context = makeContext(source, {
+      parseResult: { classes: [classDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].entity_name).toBe('variant');
+  });
+
+  it('detects union on protected class property', () => {
+    const source = `
+class Base {
+  protected phase: "init" | "running" | "done";
+}`;
+    const classDTO = makeClassDTO('Base');
+    const context = makeContext(source, {
+      parseResult: { classes: [classDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].entity_name).toBe('phase');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Type annotation structure boundaries — nested unions are NOT detected
+// ---------------------------------------------------------------------------
+
+describe('typeUnionWithoutAlias — type annotation structure boundaries', () => {
+  it('does NOT fire when union is wrapped in TSTypeReference (Record<K, A | B | C>)', () => {
+    // Known limitation: the rule only checks the immediate TSUnionType child of
+    // typeAnnotation. A union nested inside a generic argument is not detected.
+    const source = `
+interface ApiMap {
+  handlers: Record<string, "get" | "post" | "put">;
+}`;
+    const ifaceDTO = makeInterfaceDTO('ApiMap');
+    const context = makeContext(source, {
+      parseResult: { interfaces: [ifaceDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(0);
+  });
+
+  it('does NOT fire when union is wrapped in TSArrayType ((A | B | C)[])', () => {
+    // Known limitation: (A | B | C)[] has TSArrayType at the top level, not TSUnionType.
+    const source = `
+interface EventLog {
+  events: ("click" | "scroll" | "keydown")[];
+}`;
+    const ifaceDTO = makeInterfaceDTO('EventLog');
+    const context = makeContext(source, {
+      parseResult: { interfaces: [ifaceDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(0);
+  });
+
+  it('does NOT fire on a plain generic type parameter (T, not a union)', () => {
+    const source = `
+interface Box<T> {
+  value: T;
+}`;
+    const ifaceDTO = makeInterfaceDTO('Box');
+    const context = makeContext(source, {
+      parseResult: { interfaces: [ifaceDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(0);
+  });
+
+  it('does NOT fire on a TSTypeReference (named type, not inline union)', () => {
+    const source = `
+interface Widget {
+  status: StatusType;
+}`;
+    const ifaceDTO = makeInterfaceDTO('Widget');
+    const context = makeContext(source, {
+      parseResult: { interfaces: [ifaceDTO] },
+    });
+    const issues = typeUnionWithoutAlias.check(context);
+    expect(issues).toHaveLength(0);
+  });
+});

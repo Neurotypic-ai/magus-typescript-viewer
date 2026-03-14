@@ -33,5 +33,6 @@ export function classifyWheelIntent(event: WheelEvent, isMac = false): WheelInte
 }
 
 export function isMacPlatform(): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- no reliable cross-browser alternative
   return typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 }

@@ -2,6 +2,10 @@
   "extends": "@neurotypic-ai/typescript-config/config/tsconfig.base.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
     "noEmit": true,
     "outDir": "./dist",
     "rootDir": "./",

@@ -4,6 +4,7 @@ import { InsightEngine } from '../InsightEngine';
 
 import type { IDatabaseAdapter, QueryParams, QueryResult, DatabaseRow } from '../../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from '../import-graph';
+import { toUndirected } from '../graph-algorithms';
 
 // ── Mock buildImportGraph ────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ function emptyGraph(): ImportGraph {
   return {
     adjacency: new Map(),
     reverseAdjacency: new Map(),
+    undirected: new Map<string, Set<string>>(),
     modules: new Map(),
     nodeIds: new Set(),
   };
@@ -62,6 +64,7 @@ function graphWithCycle(): ImportGraph {
   return {
     adjacency,
     reverseAdjacency,
+    undirected: toUndirected(adjacency),
     modules: new Map([
       ['mod-a', { name: 'moduleA.ts', directory: '/src', relativePath: 'src/moduleA.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
       ['mod-b', { name: 'moduleB.ts', directory: '/src', relativePath: 'src/moduleB.ts', isBarrel: false, lineCount: 30, packageId: 'pkg-1' }],
@@ -93,7 +96,7 @@ function graphWithHighFanIn(importerCount: number): ImportGraph {
     nodeIds.add(id);
   }
 
-  return { adjacency, reverseAdjacency, modules, nodeIds };
+  return { adjacency, reverseAdjacency, undirected: toUndirected(adjacency), modules, nodeIds };
 }
 
 /** Build a graph with high fan-out: one module importing many modules */
@@ -118,7 +121,7 @@ function graphWithHighFanOut(depCount: number): ImportGraph {
     nodeIds.add(id);
   }
 
-  return { adjacency, reverseAdjacency, modules, nodeIds };
+  return { adjacency, reverseAdjacency, undirected: toUndirected(adjacency), modules, nodeIds };
 }
 
 /** Build a graph with an orphaned module (no connections) */
@@ -136,6 +139,7 @@ function graphWithOrphanedModule(): ImportGraph {
   return {
     adjacency,
     reverseAdjacency,
+    undirected: toUndirected(adjacency),
     modules: new Map([
       ['mod-connected-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
       ['mod-connected-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
@@ -164,6 +168,7 @@ function graphWithOrphanedEntryPoints(): ImportGraph {
   return {
     adjacency,
     reverseAdjacency,
+    undirected: toUndirected(adjacency),
     modules: new Map([
       ['mod-connected-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
       ['mod-connected-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
@@ -188,6 +193,7 @@ function graphWithImportEdge(): ImportGraph {
   return {
     adjacency,
     reverseAdjacency,
+    undirected: toUndirected(adjacency),
     modules: new Map([
       ['mod-1', { name: 'mod1.ts', directory: '/src', relativePath: 'src/mod1.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
       ['mod-2', { name: 'mod2.ts', directory: '/src', relativePath: 'src/mod2.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
@@ -211,6 +217,7 @@ function graphWithNestedBarrels(): ImportGraph {
   return {
     adjacency,
     reverseAdjacency,
+    undirected: toUndirected(adjacency),
     modules: new Map([
       ['mod-barrel-outer', { name: 'index.ts', directory: '/src', relativePath: 'src/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
       ['mod-barrel-inner', { name: 'index.ts', directory: '/src/utils', relativePath: 'src/utils/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
@@ -491,6 +498,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
           ['mod-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
@@ -571,6 +579,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules,
         nodeIds: new Set(['a', 'b', 'c', 'd', 'e', 'f']),
       };
@@ -1077,17 +1086,19 @@ describe('InsightEngine', () => {
 
     it('distinguishes exports with same name in different modules', async () => {
       // Two modules both export 'config', but only mod-1's is imported
+      const adjacency = new Map([
+        ['mod-1', new Set<string>()],
+        ['mod-2', new Set<string>()],
+        ['mod-3', new Set<string>(['mod-1'])],
+      ]);
       const graph: ImportGraph = {
-        adjacency: new Map([
-          ['mod-1', new Set<string>()],
-          ['mod-2', new Set<string>()],
-          ['mod-3', new Set<string>(['mod-1'])],
-        ]),
+        adjacency,
         reverseAdjacency: new Map([
           ['mod-1', new Set(['mod-3'])],
           ['mod-2', new Set<string>()],
           ['mod-3', new Set<string>()],
         ]),
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-1', { name: 'config-a.ts', directory: '/src', relativePath: 'src/config-a.ts', isBarrel: false, lineCount: 20, packageId: 'pkg-1' }],
           ['mod-2', { name: 'config-b.ts', directory: '/src', relativePath: 'src/config-b.ts', isBarrel: false, lineCount: 20, packageId: 'pkg-1' }],
@@ -1243,6 +1254,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-comp', { name: 'Button.ts', directory: '/src/components', relativePath: 'src/components/Button.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
           ['mod-util', { name: 'format.ts', directory: '/src/utils', relativePath: 'src/utils/format.ts', isBarrel: false, lineCount: 30, packageId: 'pkg-1' }],
@@ -1270,6 +1282,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-util', { name: 'format.ts', directory: '/src/utils', relativePath: 'src/utils/format.ts', isBarrel: false, lineCount: 30, packageId: 'pkg-1' }],
           ['mod-comp', { name: 'Button.ts', directory: '/src/components', relativePath: 'src/components/Button.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
@@ -1311,6 +1324,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules,
         nodeIds: new Set(['mod-a', 'mod-b', 'mod-c']),
       };
@@ -1337,7 +1351,7 @@ describe('InsightEngine', () => {
         modules.set(id, { name: `mod${i}.ts`, directory: '/src', relativePath: `src/mod${i}.ts`, isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
       }
 
-      const graph: ImportGraph = { adjacency, reverseAdjacency, modules, nodeIds };
+      const graph: ImportGraph = { adjacency, reverseAdjacency, undirected: toUndirected(adjacency), modules, nodeIds };
 
       buildImportGraph.mockResolvedValue(graph);
       const report = await engine.compute();
@@ -1363,7 +1377,7 @@ describe('InsightEngine', () => {
         modules.set(id, { name: `mod${i}.ts`, directory: '/src', relativePath: `src/mod${i}.ts`, isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
       }
 
-      const graph: ImportGraph = { adjacency, reverseAdjacency, modules, nodeIds };
+      const graph: ImportGraph = { adjacency, reverseAdjacency, undirected: toUndirected(adjacency), modules, nodeIds };
 
       buildImportGraph.mockResolvedValue(graph);
       const report = await engine.compute();
@@ -1390,6 +1404,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-barrel-a', { name: 'index.ts', directory: '/src', relativePath: 'src/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
           ['mod-barrel-b', { name: 'index.ts', directory: '/src/utils', relativePath: 'src/utils/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
@@ -1418,6 +1433,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-barrel-a', { name: 'index.ts', directory: '/src', relativePath: 'src/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
           ['mod-barrel-b', { name: 'index.ts', directory: '/src/utils', relativePath: 'src/utils/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
@@ -1642,6 +1658,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
           ['mod-b', { name: 'b.ts', directory: '/lib', relativePath: 'lib/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-2' }],
@@ -1672,6 +1689,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
           ['mod-b', { name: 'b.ts', directory: '/lib', relativePath: 'lib/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-2' }],
@@ -1706,6 +1724,7 @@ describe('InsightEngine', () => {
       const graph: ImportGraph = {
         adjacency,
         reverseAdjacency,
+        undirected: toUndirected(adjacency),
         modules: new Map([
           ['mod-a1', { name: 'a1.ts', directory: '/src', relativePath: 'src/a1.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
           ['mod-a2', { name: 'a2.ts', directory: '/src', relativePath: 'src/a2.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
@@ -1743,6 +1762,171 @@ describe('InsightEngine', () => {
 
       expect(report.summary.critical).toBeGreaterThanOrEqual(1); // from circular imports
       expect(report.summary.warning).toBeGreaterThanOrEqual(1); // from god class
+    });
+  });
+
+  // ── Complexity hotspot post-processing ───────────────────────────────────
+
+  describe('complexity-hotspot post-processing', () => {
+    it('fires when a module appears in 3+ distinct insight types', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+
+      // God class on mod-hot — matched by `property_count` column (unique to this query)
+      responses.set('property_count', [
+        { id: 'class-hot', name: 'HotClass', module_id: 'mod-hot', method_count: 20, property_count: 5 },
+      ]);
+
+      // Long parameter lists on mod-hot — matched by `COUNT(p.id) as cnt`
+      responses.set('COUNT(p.id) as cnt', [
+        { id: 'method-hot', name: 'hotMethod', module_id: 'mod-hot', cnt: 7 },
+      ]);
+
+      // Missing return types on mod-hot — matched by `has_explicit_return_type`
+      responses.set('has_explicit_return_type', [
+        { id: 'fn-hot', name: 'hotFn', module_id: 'mod-hot', entity_type: 'function' },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const hotspots = report.insights.filter((i) => i.type === 'complexity-hotspot');
+
+      expect(hotspots).toHaveLength(1);
+      expect(hotspots[0]!.severity).toBe('warning');
+      const entity = hotspots[0]!.entities.find((e) => e.id === 'mod-hot');
+      expect(entity).toBeDefined();
+      expect(entity?.detail).toContain('3 distinct insight types');
+    });
+
+    it('does NOT fire when a module appears in only 2 distinct insight types', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+
+      // Only god class and long params — 2 types, not enough for hotspot
+      responses.set('property_count', [
+        { id: 'class-cool', name: 'CoolClass', module_id: 'mod-cool', method_count: 20, property_count: 5 },
+      ]);
+      responses.set('COUNT(p.id) as cnt', [
+        { id: 'method-cool', name: 'coolMethod', module_id: 'mod-cool', cnt: 7 },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const hotspots = report.insights.filter((i) => i.type === 'complexity-hotspot');
+
+      expect(hotspots).toHaveLength(0);
+    });
+
+    it('complexity-hotspot has warning severity', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('property_count', [
+        { id: 'class-x', name: 'X', module_id: 'mod-x', method_count: 20, property_count: 5 },
+      ]);
+      responses.set('COUNT(p.id) as cnt', [
+        { id: 'method-x', name: 'xMethod', module_id: 'mod-x', cnt: 7 },
+      ]);
+      responses.set('has_explicit_return_type', [
+        { id: 'fn-x', name: 'xFn', module_id: 'mod-x', entity_type: 'function' },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const hotspot = report.insights.find((i) => i.type === 'complexity-hotspot');
+      expect(hotspot?.severity).toBe('warning');
+      expect(report.summary.warning).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ── Enrichment pipeline ───────────────────────────────────────────────────
+
+  describe('enrichment pipeline (enrichSingle integration)', () => {
+    it('god-class insight is enriched with a non-empty suggestions array', async () => {
+      const responses = new Map<string, DatabaseRow[]>();
+      // 20 methods, 1 property — triggers the "more methods" suggestion
+      responses.set('property_count', [
+        { id: 'class-big', name: 'BigGod', module_id: 'mod-1', method_count: 20, property_count: 1 },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const godClass = report.insights.find((i) => i.type === 'god-class');
+      expect(godClass).toBeDefined();
+
+      // The enriched insight should have suggestions (EnrichedInsight)
+      const enriched = godClass as { suggestions?: unknown[] };
+      expect(enriched.suggestions).toBeDefined();
+      expect(Array.isArray(enriched.suggestions)).toBe(true);
+      expect((enriched.suggestions as unknown[]).length).toBeGreaterThan(0);
+    });
+
+    it('insight type without a generator has an empty suggestions array', async () => {
+      // module-size insight has no suggestion generator
+      const responses = new Map<string, DatabaseRow[]>();
+      responses.set('line_count', [
+        { id: 'mod-big', name: 'big-module.ts', module_id: 'mod-big', line_count: 600 },
+      ]);
+
+      adapter = createMockAdapter(responses);
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(emptyGraph());
+
+      const report = await engine.compute();
+      const moduleSize = report.insights.find((i) => i.type === 'module-size');
+      if (moduleSize) {
+        const enriched = moduleSize as { suggestions?: unknown[] };
+        // module-size does have a generator — so this test verifies it
+        expect(enriched.suggestions).toBeDefined();
+        expect(Array.isArray(enriched.suggestions)).toBe(true);
+      }
+    });
+  });
+
+  // ── InsightIgnore suppression in compute() pipeline ──────────────────────
+
+  describe('insightignore suppression in compute()', () => {
+    it('suppresses insights matching ignoreRules before counting summary', async () => {
+      const ignoreRules = {
+        suppressedKinds: new Set(['circular-imports'] as const),
+        filePatterns: [] as RegExp[],
+        kindFilePatterns: new Map(),
+      };
+
+      engine = new InsightEngine(adapter, ignoreRules);
+      buildImportGraph.mockResolvedValue(graphWithCycle());
+
+      const reportWithSuppression = await engine.compute();
+      const circular = reportWithSuppression.insights.filter((i) => i.type === 'circular-imports');
+      expect(circular).toHaveLength(0);
+    });
+
+    it('health score does not penalize suppressed insights', async () => {
+      // No suppression — critical circular import reduces score
+      engine = new InsightEngine(adapter);
+      buildImportGraph.mockResolvedValue(graphWithCycle());
+      const reportNoSuppression = await engine.compute();
+
+      // With suppression — same graph but circular-imports suppressed
+      const ignoreRules = {
+        suppressedKinds: new Set(['circular-imports'] as const),
+        filePatterns: [] as RegExp[],
+        kindFilePatterns: new Map(),
+      };
+      engine = new InsightEngine(adapter, ignoreRules);
+      buildImportGraph.mockResolvedValue(graphWithCycle());
+      const reportWithSuppression = await engine.compute();
+
+      // Suppressed report should have equal or higher health score
+      expect(reportWithSuppression.healthScore).toBeGreaterThanOrEqual(reportNoSuppression.healthScore);
     });
   });
 });

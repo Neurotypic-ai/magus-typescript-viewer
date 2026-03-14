@@ -504,3 +504,196 @@ describe('extractTypeUnion output validity', () => {
     expect(classIndex).toBeGreaterThan(typeAliasIndex);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Access modifiers preserved after extraction
+// ---------------------------------------------------------------------------
+
+describe('extractTypeUnion — access modifiers preserved', () => {
+  it('preserves readonly modifier on interface property after extraction', () => {
+    // readonly is a node property on TSPropertySignature; transform only mutates typeAnnotation
+    const source = `interface Config {
+  readonly mode: "dev" | "staging" | "prod";
+}`;
+
+    const result = run(source, {
+      suggestedName: 'ConfigMode',
+      parentName: 'Config',
+      parentType: 'interface',
+      propertyName: 'mode',
+    });
+
+    // Type alias is created with the union members
+    expect(result).toContain('type ConfigMode');
+    // Property now uses the alias — and keeps its readonly modifier
+    expect(result).toContain('readonly mode: ConfigMode');
+  });
+
+  it('preserves optional flag on interface property (?:) after extraction', () => {
+    const source = `interface Options {
+  format?: "json" | "xml" | "csv";
+}`;
+
+    const result = run(source, {
+      suggestedName: 'OptionsFormat',
+      parentName: 'Options',
+      parentType: 'interface',
+      propertyName: 'format',
+    });
+
+    // Optional marker should survive — the property key retains its ? sigil
+    expect(result).toContain('format?: OptionsFormat');
+  });
+
+  it('preserves protected accessibility on class property after extraction', () => {
+    const source = `class Base {
+  protected phase: "init" | "running" | "done";
+}`;
+
+    const result = run(source, {
+      suggestedName: 'BasePhase',
+      parentName: 'Base',
+      parentType: 'class',
+      propertyName: 'phase',
+    });
+
+    // protected keyword and the alias reference must both appear on the property
+    expect(result).toContain('protected phase: BasePhase');
+    // Type alias is created separately
+    expect(result).toContain('type BasePhase');
+  });
+
+  it('preserves readonly modifier on class property after extraction', () => {
+    const source = `class Theme {
+  readonly variant: "primary" | "secondary" | "danger";
+}`;
+
+    const result = run(source, {
+      suggestedName: 'ThemeVariant',
+      parentName: 'Theme',
+      parentType: 'class',
+      propertyName: 'variant',
+    });
+
+    expect(result).toContain('readonly variant: ThemeVariant');
+    expect(result).toContain('type ThemeVariant');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sequential transforms on same file
+// ---------------------------------------------------------------------------
+
+describe('extractTypeUnion — sequential transforms on same file', () => {
+  it('extracts two unions from same interface in sequence', () => {
+    const source = `interface ApiConfig {
+  method: "GET" | "POST" | "PUT";
+  format: "json" | "xml" | "csv";
+}`;
+
+    // First transform: extract method union
+    const intermediate = run(source, {
+      suggestedName: 'ApiConfigMethod',
+      parentName: 'ApiConfig',
+      parentType: 'interface',
+      propertyName: 'method',
+    });
+
+    // Second transform on the intermediate result: extract format union
+    const final = run(intermediate, {
+      suggestedName: 'ApiConfigFormat',
+      parentName: 'ApiConfig',
+      parentType: 'interface',
+      propertyName: 'format',
+    });
+
+    expect(final).toContain('type ApiConfigMethod');
+    expect(final).toContain('type ApiConfigFormat');
+    // Both properties now reference their aliases, not inline unions
+    expect(final).toContain('method: ApiConfigMethod');
+    expect(final).toContain('format: ApiConfigFormat');
+    // Verify the result is still parseable TypeScript
+    expect(() => j(final)).not.toThrow();
+  });
+
+  it('second extract on the same property fails (property now references alias, not union)', () => {
+    const source = `interface Widget {
+  size: "sm" | "md" | "lg";
+}`;
+
+    const intermediate = run(source, {
+      suggestedName: 'WidgetSize',
+      parentName: 'Widget',
+      parentType: 'interface',
+      propertyName: 'size',
+    });
+
+    // Running again on the same property should throw because the type annotation
+    // is now TSTypeReference (WidgetSize), not TSUnionType
+    expect(() =>
+      run(intermediate, {
+        suggestedName: 'WidgetSizeAgain',
+        parentName: 'Widget',
+        parentType: 'interface',
+        propertyName: 'size',
+      }),
+    ).toThrow("does not have a union type annotation");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Name conflict with non-TypeAlias declarations
+// ---------------------------------------------------------------------------
+
+describe('extractTypeUnion — name conflict with existing declarations', () => {
+  it('throws when suggested name conflicts with an existing interface name', () => {
+    // checkNameConflict checks TSInterfaceDeclaration in addition to TSTypeAliasDeclaration
+    const source = `interface WidgetSize {
+  label: string;
+}
+interface Widget {
+  size: "sm" | "md" | "lg";
+}`;
+
+    expect(() =>
+      run(source, {
+        suggestedName: 'WidgetSize',  // already an interface name
+        parentName: 'Widget',
+        parentType: 'interface',
+        propertyName: 'size',
+      }),
+    ).toThrow("already exists in this file scope");
+  });
+
+  it('throws when suggested name conflicts with an existing class name', () => {
+    const source = `class LogLevel {}
+class Logger {
+  level: "debug" | "info" | "error";
+}`;
+
+    expect(() =>
+      run(source, {
+        suggestedName: 'LogLevel',
+        parentName: 'Logger',
+        parentType: 'class',
+        propertyName: 'level',
+      }),
+    ).toThrow("already exists in this file scope");
+  });
+
+  it('throws when suggested name conflicts with an existing type alias', () => {
+    const source = `type WidgetSize = string;
+interface Widget {
+  size: "sm" | "md" | "lg";
+}`;
+
+    expect(() =>
+      run(source, {
+        suggestedName: 'WidgetSize',
+        parentName: 'Widget',
+        parentType: 'interface',
+        propertyName: 'size',
+      }),
+    ).toThrow("already exists in this file scope");
+  });
+});

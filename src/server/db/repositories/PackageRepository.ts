@@ -76,48 +76,25 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         throw new EntityNotFoundError('Package', dto.id, this.errorTag);
       }
 
-      if (dto.dependencies) {
-        for (const dependencyId of dto.dependencies.values()) {
-          if (dependencyId !== dto.id) {
-            try {
-              await this.dependencyRepository.create({
-                source_id: dto.id,
-                target_id: dependencyId,
-                type: 'dependency',
-              });
-            } catch {
-              // Skip external packages that are not in our database.
-            }
-          }
-        }
-      }
-      if (dto.devDependencies) {
-        for (const dependencyId of dto.devDependencies.values()) {
-          if (dependencyId !== dto.id) {
-            try {
-              await this.dependencyRepository.create({
-                source_id: dto.id,
-                target_id: dependencyId,
-                type: 'devDependency',
-              });
-            } catch {
-              // Skip external packages that are not in our database.
-            }
-          }
-        }
-      }
-      if (dto.peerDependencies) {
-        for (const dependencyId of dto.peerDependencies.values()) {
-          if (dependencyId !== dto.id) {
-            try {
-              await this.dependencyRepository.create({
-                source_id: dto.id,
-                target_id: dependencyId,
-                type: 'peerDependency',
-              });
-            } catch {
-              // Skip external packages that are not in our database.
-            }
+      const knownPackageRows = await this.executeQuery<IPackageRow>(
+        'list-ids',
+        'SELECT id FROM packages',
+      );
+      const knownPackageIds = new Set(knownPackageRows.map((r) => r['id'] as string));
+
+      const depGroups: Array<{ ids: Map<string, string>; type: 'dependency' | 'devDependency' | 'peerDependency' }> = [];
+      if (dto.dependencies) depGroups.push({ ids: dto.dependencies, type: 'dependency' });
+      if (dto.devDependencies) depGroups.push({ ids: dto.devDependencies, type: 'devDependency' });
+      if (dto.peerDependencies) depGroups.push({ ids: dto.peerDependencies, type: 'peerDependency' });
+
+      for (const group of depGroups) {
+        for (const dependencyId of group.ids.values()) {
+          if (dependencyId !== dto.id && knownPackageIds.has(dependencyId)) {
+            await this.dependencyRepository.create({
+              source_id: dto.id,
+              target_id: dependencyId,
+              type: group.type,
+            });
           }
         }
       }

@@ -91,7 +91,7 @@ export function applyNodeChanges<T extends NodeWithId>(
         : undefined;
     const dimensions = u.dimensions;
     const resolvedDimensions =
-      dimensions?.width !== undefined && dimensions?.height !== undefined
+      dimensions?.width !== undefined && dimensions.height !== undefined
         ? { width: dimensions.width, height: dimensions.height }
         : undefined;
     const resolvedMeasured =

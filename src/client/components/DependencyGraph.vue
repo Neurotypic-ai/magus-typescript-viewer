@@ -18,6 +18,7 @@ import ModuleNode from './nodes/ModuleNode.vue';
 import PackageNode from './nodes/PackageNode.vue';
 import SymbolNode from './nodes/SymbolNode.vue';
 import { useDependencyGraphCore, DEFAULT_VIEWPORT } from '../composables/useDependencyGraphCore';
+import type { DependencyGraphCoreEnv } from '../composables/dependencyGraphCoreTypes';
 import CanvasEdgeLayer from './CanvasEdgeLayer.vue';
 import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
 import { useGraphSearch } from '../composables/useGraphSearch';
@@ -41,7 +42,7 @@ export interface DependencyGraphProps {
 const props = defineProps<DependencyGraphProps>();
 const graphRootRef = ref<HTMLElement | null>(null);
 
-const env = {
+const env: DependencyGraphCoreEnv = {
   EDGE_VISIBLE_RENDER_THRESHOLD: parseEnvInt('VITE_EDGE_VISIBLE_RENDER_THRESHOLD', 1400),
   MINIMAP_AUTO_HIDE_EDGE_THRESHOLD: 2800,
   HEAVY_EDGE_STYLE_THRESHOLD: 2200,

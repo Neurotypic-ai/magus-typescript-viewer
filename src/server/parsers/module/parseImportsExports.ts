@@ -121,6 +121,11 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
       } else if (path.node.declaration.type === 'TSEnumDeclaration') {
         const name = getIdentifierName(path.node.declaration.id);
         if (name) exports.add(name);
+      } else if (path.node.declaration.type === 'TSInterfaceDeclaration') {
+        const id = path.node.declaration.id;
+        if (id.type === 'Identifier') {
+          exports.add(id.name);
+        }
       }
     } else if (path.node.specifiers && path.node.specifiers.length > 0) {
       path.node.specifiers.forEach((specifier) => {

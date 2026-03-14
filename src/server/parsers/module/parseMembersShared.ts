@@ -13,6 +13,7 @@ import type {
   ASTNode,
   ASTPath,
   ClassDeclaration,
+  ClassMethod,
   ClassProperty,
   Collection,
   MethodDefinition,
@@ -21,6 +22,8 @@ import type {
   TSPropertySignature,
   TSTypeAnnotation,
 } from 'jscodeshift';
+
+type MethodLikeNode = MethodDefinition | ClassMethod | TSMethodSignature | ClassProperty | TSPropertySignature;
 import type { Logger } from '../../../shared/utils/logger';
 
 // ---------------------------------------------------------------------------
@@ -64,9 +67,7 @@ function appendTypeReferences(
     return;
   }
 
-  if (!result.typeReferences) {
-    result.typeReferences = [];
-  }
+  result.typeReferences ??= [];
 
   result.typeReferences.push(
     ...typeNames.map((typeName) => buildTypeReference(typeName, context, sourceId, sourceKind))
@@ -116,10 +117,10 @@ export function parseMethods(
     let methodNodes: Collection;
 
     if (parentType === 'class') {
-      // Get method definitions
-      const classMethods = collection.find(ctx.j.MethodDefinition);
+      // Babel/tsx parser produces ClassMethod; ESTree uses MethodDefinition
+      const classMethodPaths = collection.find(ctx.j.ClassMethod).paths();
+      const methodDefPaths = collection.find(ctx.j.MethodDefinition).paths();
 
-      // Add class property arrow functions
       const propertyMethods = collection
         .find(ctx.j.ClassProperty)
         .filter((path: ASTPath<ClassProperty>): boolean => {
@@ -128,14 +129,12 @@ export function parseMethods(
             value && typeof value === 'object' && 'type' in value && value.type === 'ArrowFunctionExpression'
           );
 
-          // Also check for function type annotations
           const hasFunctionType = isFunctionTypeProperty(path.value);
 
           return hasArrowFunction || hasFunctionType;
         });
 
-      // Combine both collections
-      methodNodes = ctx.j([...classMethods.paths(), ...propertyMethods.paths()]);
+      methodNodes = ctx.j([...classMethodPaths, ...methodDefPaths, ...propertyMethods.paths()]);
     } else {
       // Interface methods - include both method signatures and function-typed properties
       const interfaceMethods = collection.find(ctx.j.TSMethodSignature);
@@ -150,7 +149,7 @@ export function parseMethods(
 
     methodNodes.forEach((path) => {
       try {
-        const node = path.value as MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature;
+        const node = path.value as MethodLikeNode;
         const methodName = getNodeKeyName(node, ctx.logger);
 
         if (!methodName) {
@@ -302,6 +301,12 @@ export function parseProperties(
     }
   });
 
+  if (parentType === 'class') {
+    extractConstructorParameterProperties(
+      ctx, collection, moduleId, parentId, propertyNameCounts, properties, result
+    );
+  }
+
   return properties;
 }
 
@@ -314,7 +319,7 @@ export function parseProperties(
  */
 function parseParameters(
   ctx: ModuleParserContext,
-  node: MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature,
+  node: MethodLikeNode,
   methodId: string,
   moduleId: string
 ): IParameterCreateDTO[] {
@@ -336,7 +341,7 @@ function parseParameters(
       } else if (param.type === 'RestElement') {
         // ...rest: string[]
         isRest = true;
-        if (param.argument?.type === 'Identifier') {
+        if (param.argument.type === 'Identifier') {
           paramName = param.argument.name;
         } else {
           paramName = '...rest';
@@ -344,7 +349,7 @@ function parseParameters(
         paramTypeAnnotation = param.typeAnnotation as TSTypeAnnotation | undefined;
       } else if (param.type === 'AssignmentPattern') {
         // x = defaultVal
-        if (param.left?.type === 'Identifier') {
+        if (param.left.type === 'Identifier') {
           paramName = param.left.name;
           paramTypeAnnotation = param.left.typeAnnotation as TSTypeAnnotation | undefined;
         } else {
@@ -367,7 +372,7 @@ function parseParameters(
         continue;
       }
 
-      const paramType = getTypeFromAnnotation(ctx.j, paramTypeAnnotation as TSTypeAnnotation, ctx.logger);
+      const paramType = getTypeFromAnnotation(ctx.j, paramTypeAnnotation, ctx.logger);
       const paramId = generateParameterUUID(methodId, paramName);
 
       parameters.push({
@@ -394,16 +399,17 @@ function parseParameters(
  * and TSPropertySignature (function-typed properties).
  */
 function getParametersList(
-  node: MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature
+  node: MethodLikeNode
 ): ASTNode[] {
+  if ('params' in node && Array.isArray(node.params)) {
+    return node.params;
+  }
   if ('value' in node && node.value) {
-    // For ClassProperty with arrow function or MethodDefinition
     if ('params' in node.value) {
       return node.value.params;
     }
   }
   if ('parameters' in node) {
-    // For TSMethodSignature
     return node.parameters;
   }
   // For function-typed properties, try to extract params from type annotation
@@ -422,7 +428,7 @@ function getParametersList(
  */
 function getReturnType(
   ctx: ModuleParserContext,
-  node: MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature
+  node: MethodLikeNode
 ): string {
   try {
     const returnTypeNode = getReturnTypeNode(node);
@@ -437,19 +443,92 @@ function getReturnType(
  * Extract the return type annotation node from a method-like node.
  */
 function getReturnTypeNode(
-  node: MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature
+  node: MethodLikeNode
 ): TSTypeAnnotation | undefined {
+  if ('returnType' in node && node.returnType) {
+    return node.returnType as TSTypeAnnotation;
+  }
   if ('value' in node && node.value) {
-    // For MethodDefinition and ClassProperty with arrow functions
     if ('returnType' in node.value && node.value.returnType) {
       return node.value.returnType as TSTypeAnnotation;
     }
   }
   if ('typeAnnotation' in node && node.typeAnnotation) {
-    // For TSMethodSignature and TSPropertySignature with function types
     return node.typeAnnotation as TSTypeAnnotation;
   }
   return undefined;
+}
+
+/**
+ * Extract constructor parameter properties (e.g., `constructor(private readonly x: string)`).
+ * In TypeScript, constructor parameters with accessibility modifiers (public/private/protected)
+ * or `readonly` implicitly declare class properties. The Babel AST represents these as
+ * `TSParameterProperty` nodes wrapping the actual parameter.
+ */
+function extractConstructorParameterProperties(
+  ctx: ModuleParserContext,
+  collection: Collection,
+  moduleId: string,
+  parentId: string,
+  propertyNameCounts: Map<string, number>,
+  properties: IPropertyCreateDTO[],
+  result: ParseResult
+): void {
+  const constructors = collection.find(ctx.j.ClassMethod, { kind: 'constructor' });
+  constructors.forEach((ctorPath) => {
+    for (const param of ctorPath.node.params) {
+      if (param.type !== 'TSParameterProperty') continue;
+
+      const accessibility = getNodeProp(param, 'accessibility');
+      const isReadonly = getNodeProp(param, 'readonly') === true;
+      if (typeof accessibility !== 'string' && !isReadonly) continue;
+
+      const innerParam = getNodeProp(param, 'parameter');
+      if (!innerParam || typeof innerParam !== 'object' || !('type' in innerParam)) continue;
+
+      const innerNode = innerParam as ASTNode;
+      let paramName: string;
+      let paramTypeAnnotation: TSTypeAnnotation | undefined;
+
+      if (innerNode.type === 'Identifier') {
+        paramName = (innerNode as unknown as { name: string }).name;
+        paramTypeAnnotation = getNodeProp(innerNode, 'typeAnnotation') as TSTypeAnnotation | undefined;
+      } else if (innerNode.type === 'AssignmentPattern') {
+        const left = getNodeProp(innerNode, 'left') as ASTNode | undefined;
+        if (left?.type === 'Identifier') {
+          paramName = (left as unknown as { name: string }).name;
+          paramTypeAnnotation = getNodeProp(left, 'typeAnnotation') as TSTypeAnnotation | undefined;
+        } else {
+          continue;
+        }
+      } else {
+        continue;
+      }
+
+      const propertyType = getTypeFromAnnotation(ctx.j, paramTypeAnnotation, ctx.logger);
+
+      const seenCount = propertyNameCounts.get(paramName) ?? 0;
+      propertyNameCounts.set(paramName, seenCount + 1);
+      const propertyKey = seenCount === 0 ? paramName : `${paramName}_${String(seenCount)}`;
+
+      const propertyId = generatePropertyUUID(ctx.packageId, moduleId, parentId, propertyKey, 'class');
+
+      properties.push({
+        id: propertyId,
+        module_id: moduleId,
+        parent_id: parentId,
+        parent_type: 'class',
+        name: paramName,
+        type: propertyType,
+        package_id: ctx.packageId,
+        is_static: false,
+        is_readonly: isReadonly,
+        visibility: typeof accessibility === 'string' ? accessibility : 'public',
+      });
+
+      appendTypeReferences(result, propertyType, 'property_type', propertyId, 'property');
+    }
+  });
 }
 
 /**

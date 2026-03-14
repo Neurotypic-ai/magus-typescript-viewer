@@ -29,8 +29,14 @@ export function getHeritageClauseName(node: ASTNode): string | null {
       if (expression.type === 'Identifier' && 'name' in expression) {
         return expression.name;
       }
-      // MemberExpression: e.g. module.Parent or a.b.c.Parent
-      // Extract the rightmost property name, which is the actual type name
+      // TSQualifiedName: e.g. ns.Bar — Babel AST uses this for type-position qualified names
+      if (expression.type === 'TSQualifiedName' && 'right' in expression) {
+        const right = expression.right as ASTNode;
+        if ('name' in right && typeof right.name === 'string') {
+          return right.name;
+        }
+      }
+      // MemberExpression: e.g. module.Parent or a.b.c.Parent (value-position)
       if (expression.type === 'MemberExpression' && 'property' in expression) {
         const property = expression.property as ASTNode;
         if (property.type === 'Identifier' && 'name' in property) {
@@ -42,6 +48,13 @@ export function getHeritageClauseName(node: ASTNode): string | null {
   // Direct Identifier
   if (node.type === 'Identifier' && 'name' in node) {
     return node.name;
+  }
+  // Direct TSQualifiedName (without TSExpressionWithTypeArguments wrapper)
+  if (node.type === 'TSQualifiedName' && 'right' in node) {
+    const right = node.right as ASTNode;
+    if ('name' in right && typeof right.name === 'string') {
+      return right.name;
+    }
   }
   // Direct MemberExpression (without TSExpressionWithTypeArguments wrapper)
   if (node.type === 'MemberExpression' && 'property' in node) {

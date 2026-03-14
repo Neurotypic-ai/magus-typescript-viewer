@@ -82,7 +82,7 @@ const DIRECTIVE_PATTERNS: DirectivePattern[] = [
 function stripStringContent(line: string): string {
   return line.replace(RE_STRING_CONTENT, (match) => {
     if (match.length <= 2) return match;
-    return match[0] + ' '.repeat(match.length - 2) + match[match.length - 1];
+    return (match[0] ?? '') + ' '.repeat(match.length - 2) + (match[match.length - 1] ?? '');
   });
 }
 
@@ -137,7 +137,9 @@ export function detectTechDebt(source: string): TechDebtReport {
 
     // Check comment markers (TODO, FIXME, HACK)
     for (let j = 0; j < COMMENT_MARKERS.length; j++) {
+      // eslint-disable-next-line @typescript-eslint/non-nullable-type-assertion-style -- conflicts with no-non-null-assertion
       const marker = COMMENT_MARKERS[j] as (typeof COMMENT_MARKERS)[number];
+      // eslint-disable-next-line @typescript-eslint/non-nullable-type-assertion-style -- conflicts with no-non-null-assertion
       const regexes = COMMENT_REGEXES[j] as (typeof COMMENT_REGEXES)[number];
       if (regexes.line.test(strippedLine) || regexes.block.test(strippedLine)) {
         markers.push({

@@ -41,6 +41,135 @@ function createProperty(
   };
 }
 
+describe('RelationshipResolver.addNameMapping', () => {
+  it('creates a new Set for a new name', () => {
+    const resolver = new RelationshipResolver();
+    const map = new Map<string, Set<string>>();
+    resolver.addNameMapping(map, 'Widget', 'class-widget-1');
+    expect(map.get('Widget')).toEqual(new Set(['class-widget-1']));
+  });
+
+  it('appends to the existing Set without replacing it', () => {
+    const resolver = new RelationshipResolver();
+    const map = new Map<string, Set<string>>();
+    resolver.addNameMapping(map, 'Widget', 'class-widget-1');
+    resolver.addNameMapping(map, 'Widget', 'class-widget-2');
+    expect(map.get('Widget')).toEqual(new Set(['class-widget-1', 'class-widget-2']));
+  });
+
+  it('deduplicates: adding the same id twice keeps Set size 1', () => {
+    const resolver = new RelationshipResolver();
+    const map = new Map<string, Set<string>>();
+    resolver.addNameMapping(map, 'Widget', 'class-widget-1');
+    resolver.addNameMapping(map, 'Widget', 'class-widget-1');
+    expect(map.get('Widget')?.size).toBe(1);
+  });
+});
+
+describe('RelationshipResolver.resolveUniqueName', () => {
+  it('returns the id when exactly one id maps to the name', () => {
+    const resolver = new RelationshipResolver();
+    const map = new Map<string, Set<string>>([['Foo', new Set(['id-foo'])]]);
+    expect(resolver.resolveUniqueName(map, 'Foo')).toBe('id-foo');
+  });
+
+  it('returns undefined when name is ambiguous (2+ ids)', () => {
+    const resolver = new RelationshipResolver();
+    const map = new Map<string, Set<string>>([['Foo', new Set(['id-a', 'id-b'])]]);
+    expect(resolver.resolveUniqueName(map, 'Foo')).toBeUndefined();
+  });
+
+  it('returns undefined when name is not in the map', () => {
+    const resolver = new RelationshipResolver();
+    const map = new Map<string, Set<string>>();
+    expect(resolver.resolveUniqueName(map, 'Unknown')).toBeUndefined();
+  });
+
+  it('returns undefined when Set is empty', () => {
+    const resolver = new RelationshipResolver();
+    const map = new Map<string, Set<string>>([['Foo', new Set<string>()]]);
+    expect(resolver.resolveUniqueName(map, 'Foo')).toBeUndefined();
+  });
+});
+
+describe('RelationshipResolver.resolveRelationships', () => {
+  it('resolves classExtends.parentName to parentId when exactly one match exists', () => {
+    const resolver = new RelationshipResolver();
+    const classNameToIds = new Map<string, Set<string>>([['Base', new Set(['class-base'])]]);
+    const interfaceNameToIds = new Map<string, Set<string>>();
+
+    const result = resolver.resolveRelationships(
+      [{ classId: 'class-child', parentName: 'Base' }],
+      [],
+      [],
+      classNameToIds,
+      interfaceNameToIds
+    );
+
+    expect(result.classExtends[0]?.parentId).toBe('class-base');
+  });
+
+  it('leaves parentId undefined when parentName is ambiguous (2+ class ids)', () => {
+    const resolver = new RelationshipResolver();
+    const classNameToIds = new Map<string, Set<string>>([['Base', new Set(['id-1', 'id-2'])]]);
+    const interfaceNameToIds = new Map<string, Set<string>>();
+
+    const result = resolver.resolveRelationships(
+      [{ classId: 'class-child', parentName: 'Base' }],
+      [],
+      [],
+      classNameToIds,
+      interfaceNameToIds
+    );
+
+    expect(result.classExtends[0]?.parentId).toBeUndefined();
+  });
+
+  it('resolves classImplements interfaceName to interfaceId', () => {
+    const resolver = new RelationshipResolver();
+    const classNameToIds = new Map<string, Set<string>>();
+    const interfaceNameToIds = new Map<string, Set<string>>([
+      ['Serializable', new Set(['iface-serializable'])],
+    ]);
+
+    const result = resolver.resolveRelationships(
+      [],
+      [{ classId: 'class-widget', interfaceName: 'Serializable' }],
+      [],
+      classNameToIds,
+      interfaceNameToIds
+    );
+
+    expect(result.classImplements[0]?.interfaceId).toBe('iface-serializable');
+  });
+
+  it('resolves interfaceExtends parentName to parentId', () => {
+    const resolver = new RelationshipResolver();
+    const classNameToIds = new Map<string, Set<string>>();
+    const interfaceNameToIds = new Map<string, Set<string>>([
+      ['Base', new Set(['iface-base'])],
+    ]);
+
+    const result = resolver.resolveRelationships(
+      [],
+      [],
+      [{ interfaceId: 'iface-child', parentName: 'Base' }],
+      classNameToIds,
+      interfaceNameToIds
+    );
+
+    expect(result.interfaceExtends[0]?.parentId).toBe('iface-base');
+  });
+
+  it('handles empty input arrays gracefully', () => {
+    const resolver = new RelationshipResolver();
+    const result = resolver.resolveRelationships([], [], [], new Map(), new Map());
+    expect(result.classExtends).toEqual([]);
+    expect(result.classImplements).toEqual([]);
+    expect(result.interfaceExtends).toEqual([]);
+  });
+});
+
 describe('RelationshipResolver.resolveSymbolReferences', () => {
   it('resolves this-qualified and explicit qualifier usages', () => {
     const resolver = new RelationshipResolver();

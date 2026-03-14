@@ -35,7 +35,6 @@ const routeResult = computed(() => {
     };
   }
 
-  // Rollback mode: use smoothstep fallback when env flag is false
   if (!ENABLE_OBSTACLE_AWARE) {
     const [path, labelX, labelY] = getSmoothStepPath({
       sourceX: props.sourceX,
@@ -50,8 +49,17 @@ const routeResult = computed(() => {
     return { path, labelX, labelY, status: 'no-route' as const };
   }
 
-  // Obstacle-aware mode: do not render edge when no safe path found
   return { path: null, labelX: undefined, labelY: undefined, status: result.status };
+});
+
+const optionalEdgeProps = computed(() => {
+  const result: Record<string, unknown> = {};
+  const { labelX, labelY } = routeResult.value;
+  if (labelX !== undefined) result['labelX'] = labelX;
+  if (labelY !== undefined) result['labelY'] = labelY;
+  if (props.style !== undefined) result['style'] = props.style;
+  if (props.interactionWidth !== undefined) result['interactionWidth'] = props.interactionWidth;
+  return result;
 });
 </script>
 
@@ -60,11 +68,8 @@ const routeResult = computed(() => {
     v-if="routeResult.path"
     :id="id"
     :path="routeResult.path"
-    :label-x="routeResult.labelX"
-    :label-y="routeResult.labelY"
     :marker-start="markerStart"
     :marker-end="markerEnd"
-    :style="style"
-    :interaction-width="interactionWidth"
+    v-bind="optionalEdgeProps"
   />
 </template>

@@ -15,13 +15,15 @@ interface InsightReportRow extends DatabaseRow {
 
 const CREATE_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS insight_reports (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY DEFAULT(nextval('insight_reports_seq')),
     package_id TEXT,
     computed_at TEXT NOT NULL,
     health_score INTEGER NOT NULL,
     report_json TEXT NOT NULL
   )
 `;
+
+const CREATE_SEQ_SQL = `CREATE SEQUENCE IF NOT EXISTS insight_reports_seq START 1`;
 
 const tableInitialization = new WeakMap<IDatabaseAdapter, Promise<void>>();
 
@@ -40,7 +42,8 @@ async function ensureTable(adapter: IDatabaseAdapter): Promise<void> {
   }
 
   const initialization = adapter
-    .query(CREATE_TABLE_SQL)
+    .query(CREATE_SEQ_SQL)
+    .then(() => adapter.query(CREATE_TABLE_SQL))
     .then(() => undefined)
     .catch((error: unknown) => {
       tableInitialization.delete(adapter);

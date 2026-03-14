@@ -96,14 +96,10 @@ export function parseFunctions(ctx: ModuleParserContext, exports: Set<string>, r
 
       result.functions.push(functionDTO);
 
-      if (node.body) {
-        const callEdges = extractCallEdges(ctx.j, node.body, functionId, functionName);
-        if (callEdges.length > 0) {
-          if (!result.callEdges) {
-            result.callEdges = [];
-          }
-          result.callEdges.push(...callEdges);
-        }
+      const callEdges = extractCallEdges(ctx.j, node.body, functionId, functionName);
+      if (callEdges.length > 0) {
+        result.callEdges ??= [];
+        result.callEdges.push(...callEdges);
       }
 
       const usages = extractSymbolUsages(ctx.j, node, {

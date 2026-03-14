@@ -179,7 +179,9 @@ describe('PackageRepository', () => {
 
     it('skips self-referencing dependencies', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query)
+        .mockResolvedValueOnce([row]) // package INSERT
+        .mockResolvedValueOnce([{ id: 'pkg-1' }]); // SELECT id FROM packages
 
       const dto = makeCreateDTO({
         dependencies: new Map([['self', 'pkg-1']]), // same id as the package itself
@@ -187,21 +189,23 @@ describe('PackageRepository', () => {
 
       await repo.create(dto);
 
-      // Only the package INSERT -- no dependency INSERT because the target equals the source
-      expect(adapter.query).toHaveBeenCalledTimes(1);
+      // package INSERT + SELECT id FROM packages; no dep INSERT because target === source
+      expect(adapter.query).toHaveBeenCalledTimes(2);
     });
 
-    it('silently skips dependency creation failures (external packages)', async () => {
+    it('silently skips dependency creation for unknown (external) packages', async () => {
+      // New behaviour: implementation queries known packages first and skips unknowns
+      // rather than attempting the INSERT and catching the FK error.
       const row = makePackageRow();
       vi.mocked(adapter.query)
         .mockResolvedValueOnce([row]) // package INSERT
-        .mockRejectedValueOnce(new Error('foreign key constraint')); // dependency INSERT fails
+        .mockResolvedValueOnce([]); // SELECT id FROM packages — ext-1 not present
 
       const dto = makeCreateDTO({
         dependencies: new Map([['external', 'ext-1']]),
       });
 
-      // Should not throw despite the dependency creation failure
+      // Should not throw; ext-1 is not in known packages so no dep INSERT is attempted
       const result = await repo.create(dto);
       expect(result).toBeInstanceOf(Package);
     });
@@ -229,6 +233,7 @@ describe('PackageRepository', () => {
       const row = makePackageRow();
       vi.mocked(adapter.query)
         .mockResolvedValueOnce([row]) // package INSERT
+        .mockResolvedValueOnce([{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }]) // SELECT id FROM packages
         .mockResolvedValueOnce([{ id: 'pkg-1_d1', source_id: 'pkg-1', target_id: 'd1', type: 'dependency', created_at: NOW_ISO }])
         .mockResolvedValueOnce([{ id: 'pkg-1_d2', source_id: 'pkg-1', target_id: 'd2', type: 'devDependency', created_at: NOW_ISO }])
         .mockResolvedValueOnce([{ id: 'pkg-1_d3', source_id: 'pkg-1', target_id: 'd3', type: 'peerDependency', created_at: NOW_ISO }]);
@@ -242,8 +247,8 @@ describe('PackageRepository', () => {
       const result = await repo.create(dto);
 
       expect(result).toBeInstanceOf(Package);
-      // 1 package INSERT + 3 dependency INSERTs
-      expect(adapter.query).toHaveBeenCalledTimes(4);
+      // 1 package INSERT + 1 SELECT id FROM packages + 3 dependency INSERTs
+      expect(adapter.query).toHaveBeenCalledTimes(5);
     });
   });
 
@@ -568,7 +573,9 @@ describe('PackageRepository', () => {
   describe('edge cases', () => {
     it('handles empty dependency maps without errors', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query)
+        .mockResolvedValueOnce([row]) // package INSERT
+        .mockResolvedValueOnce([]); // SELECT id FROM packages
 
       const dto = makeCreateDTO({
         dependencies: new Map(),
@@ -579,14 +586,15 @@ describe('PackageRepository', () => {
       const result = await repo.create(dto);
 
       expect(result).toBeInstanceOf(Package);
-      // Only the package INSERT -- no dependency INSERTs because maps are empty
-      expect(adapter.query).toHaveBeenCalledTimes(1);
+      // package INSERT + SELECT id FROM packages; no dep INSERTs because maps are empty
+      expect(adapter.query).toHaveBeenCalledTimes(2);
     });
 
     it('handles multiple dependencies of the same type', async () => {
       const row = makePackageRow();
       vi.mocked(adapter.query)
         .mockResolvedValueOnce([row]) // package INSERT
+        .mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) // SELECT id FROM packages
         .mockResolvedValueOnce([{ id: 'd1', source_id: 'pkg-1', target_id: 'a', type: 'dependency', created_at: NOW_ISO }])
         .mockResolvedValueOnce([{ id: 'd2', source_id: 'pkg-1', target_id: 'b', type: 'dependency', created_at: NOW_ISO }])
         .mockResolvedValueOnce([{ id: 'd3', source_id: 'pkg-1', target_id: 'c', type: 'dependency', created_at: NOW_ISO }]);
@@ -601,8 +609,8 @@ describe('PackageRepository', () => {
 
       await repo.create(dto);
 
-      // 1 package INSERT + 3 dependency INSERTs
-      expect(adapter.query).toHaveBeenCalledTimes(4);
+      // 1 package INSERT + 1 SELECT id FROM packages + 3 dependency INSERTs
+      expect(adapter.query).toHaveBeenCalledTimes(5);
     });
 
     it('returns Package instances with correct Date objects from retrieve', async () => {

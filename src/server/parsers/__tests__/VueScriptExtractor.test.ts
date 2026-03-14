@@ -49,4 +49,53 @@ describe('VueScriptExtractor', () => {
 
     expect(source).toBeUndefined();
   });
+
+  it('returns empty string when the .vue file has no script blocks at all', async () => {
+    const workspace = await createWorkspaceWithFiles({
+      'src/template-only.vue': `
+        <template><div>Hello</div></template>
+        <style scoped>.foo { color: red; }</style>
+      `,
+    });
+    cleanups.push(workspace.cleanup);
+
+    const extractor = new VueScriptExtractor();
+    const source = await extractor.getSourceOverride(workspace.resolve('src/template-only.vue'));
+
+    expect(source).toBe('');
+  });
+
+  it('extracts bare <script> block with no lang attribute', async () => {
+    const workspace = await createWorkspaceWithFiles({
+      'src/options-api.vue': `
+        <template><div /></template>
+        <script>
+        export default { name: 'OptionsComp' };
+        </script>
+      `,
+    });
+    cleanups.push(workspace.cleanup);
+
+    const extractor = new VueScriptExtractor();
+    const source = await extractor.getSourceOverride(workspace.resolve('src/options-api.vue'));
+
+    expect(source).toContain("export default { name: 'OptionsComp' }");
+  });
+
+  it('extracts script with single-quoted lang attribute', async () => {
+    const workspace = await createWorkspaceWithFiles({
+      'src/single-quote.vue': `
+        <template><div /></template>
+        <script lang='ts'>
+        const singleQuoteLang = true;
+        </script>
+      `,
+    });
+    cleanups.push(workspace.cleanup);
+
+    const extractor = new VueScriptExtractor();
+    const source = await extractor.getSourceOverride(workspace.resolve('src/single-quote.vue'));
+
+    expect(source).toContain('const singleQuoteLang = true');
+  });
 });

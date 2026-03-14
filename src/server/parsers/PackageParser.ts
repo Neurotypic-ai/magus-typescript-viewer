@@ -10,8 +10,7 @@ import { detectCircularDependencies } from './utils/detectCircularDependencies';
 import type { Export } from '../../shared/types/Export';
 import type { Import } from '../../shared/types/Import';
 import type { CallEdge } from './utils/extractCallGraph';
-import type { CircularDependency } from './utils/detectCircularDependencies';
-import type { ModuleDescriptor } from './utils/detectCircularDependencies';
+import type { CircularDependency, ModuleDescriptor } from './utils/detectCircularDependencies';
 import type { TechDebtMarker } from './utils/detectTechDebt';
 import type { TypeReference } from './utils/extractTypeReferences';
 import type { IClassCreateDTO } from '../db/repositories/ClassRepository';
@@ -119,7 +118,7 @@ export class PackageParser {
     });
     const circularDependencies: CircularDependency[] = detectCircularDependencies(moduleDescriptors);
     if (circularDependencies.length > 0) {
-      this.logger.info(`Found ${circularDependencies.length} circular dependencies`);
+      this.logger.info(`Found ${String(circularDependencies.length)} circular dependencies`);
     }
 
     // 5b. Collect call edges from per-module results

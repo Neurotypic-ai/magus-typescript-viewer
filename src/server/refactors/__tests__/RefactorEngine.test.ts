@@ -419,5 +419,112 @@ describe('RefactorEngine', () => {
       expect(mockReadFile).not.toHaveBeenCalled();
       expect(mockWriteFile).not.toHaveBeenCalled();
     });
+
+    it('rejects path traversal attack (/project/root/../../etc/passwd)', async () => {
+      // Path.resolve collapses traversal sequences before the check; this must fail
+      const transform = makeTransform({ action: 'test-action' });
+      const mutableTransforms = allTransforms as unknown as Transform[];
+      mutableTransforms.length = 0;
+      mutableTransforms.push(transform);
+
+      const engine = new RefactorEngine('/workspace/project');
+      const result = await engine.preview({
+        filePath: '/workspace/project/../../etc/passwd',
+        action: 'test-action',
+        context: {},
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('outside the allowed project root');
+      expect(mockReadFile).not.toHaveBeenCalled();
+    });
+
+    it('rejects absolute path to system file (/etc/passwd)', async () => {
+      const transform = makeTransform({ action: 'test-action' });
+      const mutableTransforms = allTransforms as unknown as Transform[];
+      mutableTransforms.length = 0;
+      mutableTransforms.push(transform);
+
+      const engine = new RefactorEngine('/workspace/project');
+      const result = await engine.preview({
+        filePath: '/etc/passwd',
+        action: 'test-action',
+        context: {},
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('outside the allowed project root');
+      expect(mockReadFile).not.toHaveBeenCalled();
+    });
+
+    it('allows file exactly at project root boundary', async () => {
+      // A file whose resolved path equals projectRoot should pass the check
+      const source = 'export const x = 1;\n';
+      mockReadFile.mockResolvedValueOnce(source);
+
+      const transform = makeTransform({
+        action: 'noop',
+        execute: (_j, root) => root.toSource(),
+      });
+      const mutableTransforms = allTransforms as unknown as Transform[];
+      mutableTransforms.length = 0;
+      mutableTransforms.push(transform);
+
+      // Use the project root itself as the file path — isWithinProjectRoot returns true for equal paths
+      const engine = new RefactorEngine('/workspace/project');
+      const result = await engine.preview({
+        filePath: '/workspace/project',
+        action: 'noop',
+        context: {},
+      });
+
+      // The guard passes; actual failure may be read/parse, but not the path check
+      expect(result.error ?? '').not.toContain('outside the allowed project root');
+    });
+
+    it('allows file within project root subdirectory', async () => {
+      const source = 'export const x = 1;\n';
+      mockReadFile.mockResolvedValueOnce(source);
+
+      const transform = makeTransform({
+        action: 'noop',
+        execute: (_j, root) => root.toSource(),
+      });
+      const mutableTransforms = allTransforms as unknown as Transform[];
+      mutableTransforms.length = 0;
+      mutableTransforms.push(transform);
+
+      const engine = new RefactorEngine('/workspace/project');
+      const result = await engine.preview({
+        filePath: '/workspace/project/src/utils/helper.ts',
+        action: 'noop',
+        context: {},
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockReadFile).toHaveBeenCalledWith('/workspace/project/src/utils/helper.ts', 'utf-8');
+    });
+
+    it('skips path check entirely when no projectRoot is configured', async () => {
+      // Without a root, any file path should be accepted (guard is opt-in)
+      const source = 'export const x = 1;\n';
+      mockReadFile.mockResolvedValueOnce(source);
+
+      const transform = makeTransform({
+        action: 'noop',
+        execute: (_j, root) => root.toSource(),
+      });
+      const engine = engineWith(transform);  // engineWith uses new RefactorEngine() — no root
+
+      const result = await engine.preview({
+        filePath: '/etc/passwd',
+        action: 'noop',
+        context: {},
+      });
+
+      // The guard is not invoked; readFile is called (the source is from our mock)
+      expect(mockReadFile).toHaveBeenCalled();
+      expect(result.error ?? '').not.toContain('outside the allowed project root');
+    });
   });
 });
