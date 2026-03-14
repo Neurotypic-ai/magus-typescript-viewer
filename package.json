@@ -39,6 +39,7 @@
     "@neurotypic-ai/typescript-config": "workspace:*",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.2.1",
+    "@types/jest": "^30.0.0",
     "@types/jscodeshift": "^17.3.0",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
