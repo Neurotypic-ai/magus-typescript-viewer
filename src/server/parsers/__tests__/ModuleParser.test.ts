@@ -230,6 +230,67 @@ describe('ModuleParser — class parsing', () => {
     const widget = result.classes.find((c) => c.name === 'Widget');
     expect(widget?.description).toBeUndefined();
   });
+
+  it('captures constructor parameter properties as class properties', async () => {
+    const source = `
+      export class Example {
+        constructor(private readonly filePath: string, protected count: number) {}
+      }
+    `;
+    const result = await new ModuleParser('/virtual/constructor-properties.ts', TEST_PACKAGE_ID, source).parse();
+
+    const filePathProp = result.properties.find((property) => property.name === 'filePath');
+    expect(filePathProp).toBeDefined();
+    expect(filePathProp?.visibility).toBe('private');
+    expect(filePathProp?.is_readonly).toBe(true);
+    expect(filePathProp?.type).toBe(': string');
+
+    const countProp = result.properties.find((property) => property.name === 'count');
+    expect(countProp).toBeDefined();
+    expect(countProp?.visibility).toBe('protected');
+    expect(countProp?.is_readonly).toBe(false);
+    expect(countProp?.type).toBe(': number');
+  });
+
+  it('captures abstract class methods as abstract methods', async () => {
+    const source = `
+      export abstract class ExampleRepository {
+        abstract create(name: string): Promise<void>;
+      }
+    `;
+    const result = await new ModuleParser('/virtual/abstract-methods.ts', TEST_PACKAGE_ID, source).parse();
+
+    const createMethod = result.methods.find((method) => method.name === 'create');
+    expect(createMethod).toBeDefined();
+    expect(createMethod?.is_abstract).toBe(true);
+    expect(createMethod?.return_type).toBe(': Promise<void>');
+
+    const createParameters = result.parameters.filter((parameter) => parameter.method_id === createMethod?.id);
+    expect(createParameters).toHaveLength(1);
+    expect(createParameters[0]?.name).toBe('name');
+    expect(createParameters[0]?.type).toBe(': string');
+  });
+
+  it('assigns distinct IDs to getter and setter accessors with the same name', async () => {
+    const source = `
+      export class Example {
+        private _value = '';
+
+        get value(): string {
+          return this._value;
+        }
+
+        set value(next: string) {
+          this._value = next;
+        }
+      }
+    `;
+    const result = await new ModuleParser('/virtual/accessors.ts', TEST_PACKAGE_ID, source).parse();
+    const valueMethods = result.methods.filter((method) => method.name === 'value');
+
+    expect(valueMethods).toHaveLength(2);
+    expect(valueMethods[0]?.id).not.toBe(valueMethods[1]?.id);
+  });
 });
 
 // ---------------------------------------------------------------------------

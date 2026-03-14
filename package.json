@@ -13,6 +13,7 @@
     "@vue-flow/core": "^1.48.2",
     "@vue-flow/minimap": "^1.5.4",
     "@vue-flow/node-toolbar": "^1.1.1",
+    "@vue/compiler-sfc": "^3.5.30",
     "apache-arrow": "^21.1.0",
     "ast-types": "^0.14.2",
     "chalk": "^5.6.2",

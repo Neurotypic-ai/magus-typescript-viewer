@@ -17,24 +17,25 @@ export class ConsoleLogger implements Logger {
     this.prefix = prefix ?? '';
   }
 
-  private async processQueue(): Promise<void> {
+  private processQueue(): void {
     if (this.isProcessing || this.logQueue.length === 0) return;
 
     this.isProcessing = true;
-    while (this.logQueue.length > 0) {
-      const logFn = this.logQueue.shift();
-      if (logFn) {
-        logFn();
-        // Small delay to ensure console output is flushed
-        await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      while (this.logQueue.length > 0) {
+        const logFn = this.logQueue.shift();
+        if (logFn) {
+          logFn();
+        }
       }
+    } finally {
+      this.isProcessing = false;
     }
-    this.isProcessing = false;
   }
 
   private queueLog(logFn: () => void): void {
     this.logQueue.push(logFn);
-    void this.processQueue();
+    this.processQueue();
   }
 
   private formatMessage(message: string): string {

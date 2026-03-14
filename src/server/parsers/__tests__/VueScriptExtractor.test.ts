@@ -98,4 +98,21 @@ describe('VueScriptExtractor', () => {
 
     expect(source).toContain('const singleQuoteLang = true');
   });
+
+  it('extracts script with lang="typescript"', async () => {
+    const workspace = await createWorkspaceWithFiles({
+      'src/typescript-lang.vue': `
+        <template><div /></template>
+        <script lang="typescript">
+        const fromTypescript = 1;
+        </script>
+      `,
+    });
+    cleanups.push(workspace.cleanup);
+
+    const extractor = new VueScriptExtractor();
+    const source = await extractor.getSourceOverride(workspace.resolve('src/typescript-lang.vue'));
+
+    expect(source).toContain('const fromTypescript = 1;');
+  });
 });

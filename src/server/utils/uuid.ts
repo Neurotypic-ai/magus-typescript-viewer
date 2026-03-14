@@ -20,6 +20,7 @@ const NAMESPACES = {
   moduleDefinition: 'e481a0e5-fac9-4ec1-bd87-7f871c807db5',
   codeIssue: 'a3b2c1d0-e4f5-6789-abcd-ef0123456789',
   relationship: '7f3a9c2e-1b4d-5e6f-8a0c-d2e4f6b8a1c3',
+  snapshot: 'b2c3d4e5-f6a7-8901-bcde-f01234567890',
 } as const;
 
 /**
@@ -42,8 +43,8 @@ export const generateClassUUID = (packageId: string, moduleId: string, name: str
 export const generateInterfaceUUID = (packageId: string, moduleId: string, name: string): string =>
   generateUUID('interface', `${packageId}.${moduleId}.${name}`);
 
-export const generatePackageUUID = (name: string, version: string): string =>
-  generateUUID('package', `${name}@${version}`);
+export const generatePackageUUID = (name: string, version: string, commitHash?: string): string =>
+  generateUUID('package', commitHash ? `${name}@${version}#${commitHash}` : `${name}@${version}`);
 
 export const generateMethodUUID = (packageId: string, moduleId: string, parentId: string, name: string): string =>
   generateUUID('method', `${packageId}.${moduleId}.${parentId}.${name}`);
@@ -89,3 +90,7 @@ export const generateCodeIssueUUID = (moduleId: string, ruleCode: string, entity
 /** Generate a deterministic UUID for a relationship record (junction table row) */
 export const generateRelationshipUUID = (sourceId: string, targetId: string, type: string): string =>
   generateUUID('relationship', `rel:${type}:${sourceId}:${targetId}`);
+
+/** Generate a deterministic UUID for a history snapshot (repo_path + commit_hash) */
+export const generateSnapshotUUID = (repoPath: string, commitHash: string): string =>
+  generateUUID('snapshot', `${repoPath}#${commitHash}`);

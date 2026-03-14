@@ -158,6 +158,32 @@ export { Hidden };
     const { exports } = parseImportsAndExports(ctx);
     expect(exports.has('App')).toBe(true);
   });
+
+  it('captures export default identifier references', () => {
+    const ctx = makeCtx(`
+const config = {};
+export default config;
+`);
+    const { exports } = parseImportsAndExports(ctx);
+    expect(exports.has('config')).toBe(true);
+  });
+
+  it('captures string-literal export aliases for local exports', () => {
+    const ctx = makeCtx(`
+const foo = 1;
+export { foo as "bar" };
+`);
+    const { exports } = parseImportsAndExports(ctx);
+    expect(exports.has('bar')).toBe(true);
+    expect(exports.has('foo')).toBe(false);
+  });
+
+  it('captures exported namespace names without leaking nested exports', () => {
+    const ctx = makeCtx(`export namespace Ns { export const x = 1; }`);
+    const { exports } = parseImportsAndExports(ctx);
+    expect(exports.has('Ns')).toBe(true);
+    expect(exports.has('x')).toBe(false);
+  });
 });
 
 describe('parseImportsAndExports — re-exports', () => {
@@ -172,6 +198,13 @@ describe('parseImportsAndExports — re-exports', () => {
     const ctx = makeCtx(`export * from './utils';`);
     const { reExports } = parseImportsAndExports(ctx);
     expect(reExports.has('*')).toBe(true);
+  });
+
+  it('captures string-literal export aliases for re-exports', () => {
+    const ctx = makeCtx(`export { foo as "bar" } from './mod';`);
+    const { exports, reExports } = parseImportsAndExports(ctx);
+    expect(exports.has('bar')).toBe(true);
+    expect(reExports.has('bar')).toBe(true);
   });
 
   it('does not add non-re-export names to reExports', () => {

@@ -163,7 +163,10 @@ export function parseMethods(
           return;
         }
 
-        const methodId = generateMethodUUID(ctx.packageId, moduleId, parentId, methodName);
+        const methodKind = getNodeProp(node, 'kind');
+        const methodKey =
+          methodKind === 'get' || methodKind === 'set' ? `${methodName}:${methodKind}` : methodName;
+        const methodId = generateMethodUUID(ctx.packageId, moduleId, parentId, methodKey);
         const hasExplicitReturnType = getReturnTypeNode(node) != null;
         const returnType = getReturnType(ctx, node);
 

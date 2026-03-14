@@ -1,4 +1,4 @@
-import type { ASTPath, ExportNamedDeclaration, ImportDeclaration } from 'jscodeshift';
+import type { ASTPath, ImportDeclaration } from 'jscodeshift';
 
 import { Import, ImportSpecifier } from '../../../shared/types/Import';
 import { generateImportUUID } from '../../utils/uuid';
@@ -17,6 +17,25 @@ function getImportKind(specifier: unknown): string | undefined {
   }
   const importKind = specifier.importKind;
   return typeof importKind === 'string' ? importKind : undefined;
+}
+
+function getExportedName(node: unknown): string | undefined {
+  if (!node || typeof node !== 'object' || !('type' in node)) {
+    return undefined;
+  }
+
+  if (
+    ('name' in node && (node.type === 'Identifier' || node.type === 'JSXIdentifier'))
+    && typeof node.name === 'string'
+  ) {
+    return node.name;
+  }
+
+  if (node.type === 'StringLiteral' && 'value' in node && typeof node.value === 'string') {
+    return node.value;
+  }
+
+  return undefined;
 }
 
 /**
@@ -89,77 +108,85 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
     imports.set(importPath, imp);
   });
 
-  // Parse exports and track re-exports
-  ctx.root.find(ctx.j.ExportNamedDeclaration).forEach((path: ASTPath<ExportNamedDeclaration>) => {
-    // Handle re-exports (export { x } from 'module')
-    if (path.node.source) {
-      path.node.specifiers?.forEach((specifier) => {
-        if (specifier.exported.type === 'Identifier') {
-          reExports.add(specifier.exported.name);
-          exports.add(specifier.exported.name);
-        }
-      });
+  // Parse only top-level exports so nested namespace exports do not leak into
+  // the module's public API surface.
+  ctx.root.find(ctx.j.Program).forEach((programPath) => {
+    if (programPath.node.type !== 'Program') {
+      return;
     }
-    // Handle local exports
-    else if (path.node.declaration) {
-      if (path.node.declaration.type === 'ClassDeclaration' && path.node.declaration.id) {
-        const name = getIdentifierName(path.node.declaration.id);
-        if (name) exports.add(name);
-      } else if (path.node.declaration.type === 'VariableDeclaration') {
-        path.node.declaration.declarations.forEach((decl) => {
-          if ('id' in decl && decl.id.type === 'Identifier') {
-            const name = getIdentifierName(decl.id);
+
+    for (const statement of programPath.node.body) {
+      if (statement.type === 'ExportNamedDeclaration') {
+        if (statement.source) {
+          statement.specifiers?.forEach((specifier) => {
+            const name = getExportedName(specifier.exported);
+            if (name) {
+              reExports.add(name);
+              exports.add(name);
+            }
+          });
+          continue;
+        }
+
+        if (statement.declaration) {
+          if (statement.declaration.type === 'ClassDeclaration' && statement.declaration.id) {
+            const name = getIdentifierName(statement.declaration.id);
+            if (name) exports.add(name);
+          } else if (statement.declaration.type === 'VariableDeclaration') {
+            statement.declaration.declarations.forEach((decl) => {
+              if ('id' in decl && decl.id.type === 'Identifier') {
+                const name = getIdentifierName(decl.id);
+                if (name) exports.add(name);
+              }
+            });
+          } else if (statement.declaration.type === 'FunctionDeclaration' && statement.declaration.id) {
+            const name = getIdentifierName(statement.declaration.id);
+            if (name) exports.add(name);
+          } else if (statement.declaration.type === 'TSTypeAliasDeclaration') {
+            const name = getIdentifierName(statement.declaration.id);
+            if (name) exports.add(name);
+          } else if (statement.declaration.type === 'TSEnumDeclaration') {
+            const name = getIdentifierName(statement.declaration.id);
+            if (name) exports.add(name);
+          } else if (statement.declaration.type === 'TSInterfaceDeclaration') {
+            const name = getExportedName(statement.declaration.id);
+            if (name) exports.add(name);
+          } else if (statement.declaration.type === 'TSModuleDeclaration') {
+            const name = getExportedName(statement.declaration.id);
             if (name) exports.add(name);
           }
+          continue;
+        }
+
+        statement.specifiers?.forEach((specifier) => {
+          const name = getExportedName(specifier.exported);
+          if (name) {
+            exports.add(name);
+          }
         });
-      } else if (path.node.declaration.type === 'FunctionDeclaration' && path.node.declaration.id) {
-        const name = getIdentifierName(path.node.declaration.id);
-        if (name) exports.add(name);
-      } else if (path.node.declaration.type === 'TSTypeAliasDeclaration') {
-        const name = getIdentifierName(path.node.declaration.id);
-        if (name) exports.add(name);
-      } else if (path.node.declaration.type === 'TSEnumDeclaration') {
-        const name = getIdentifierName(path.node.declaration.id);
-        if (name) exports.add(name);
-      } else if (path.node.declaration.type === 'TSInterfaceDeclaration') {
-        const id = path.node.declaration.id;
-        if (id.type === 'Identifier') {
-          exports.add(id.name);
-        }
+        continue;
       }
-    } else if (path.node.specifiers && path.node.specifiers.length > 0) {
-      path.node.specifiers.forEach((specifier) => {
-        if (specifier.exported.type === 'Identifier') {
-          exports.add(specifier.exported.name);
+
+      if (statement.type === 'ExportDefaultDeclaration') {
+        const decl = statement.declaration;
+        if (decl.type === 'Identifier') {
+          exports.add(decl.name);
+        } else if ('id' in decl && decl.id) {
+          const name = getExportedName(decl.id);
+          if (name) exports.add(name);
         }
-      });
-    }
-  });
+        continue;
+      }
 
-  // Handle export default declarations
-  ctx.root.find(ctx.j.ExportDefaultDeclaration).forEach((path) => {
-    const decl = path.node.declaration;
-    if (decl.type === 'Identifier') {
-      exports.add(decl.name);
-    } else if ('id' in decl && decl.id && typeof decl.id === 'object' && 'type' in decl.id && (decl.id.type === 'Identifier' || decl.id.type === 'JSXIdentifier')) {
-      const name = getIdentifierName(decl.id);
-      if (name) exports.add(name);
-    }
-  });
+      if (statement.type === 'TSExportAssignment') {
+        const name = getExportedName(statement.expression);
+        if (name) exports.add(name);
+        continue;
+      }
 
-  // Handle CommonJS-style `export = value` (TSExportAssignment)
-  ctx.root.find(ctx.j.TSExportAssignment).forEach((path) => {
-    const expr = path.node.expression;
-    if (expr.type === 'Identifier') {
-      exports.add(expr.name);
-    }
-  });
-
-  // Also handle export * from 'module'
-  ctx.root.find(ctx.j.ExportAllDeclaration).forEach((path) => {
-    if (typeof path.node.source.value === 'string') {
-      // Mark this module as having re-exports
-      reExports.add('*');
+      if (statement.type === 'ExportAllDeclaration' && typeof statement.source.value === 'string') {
+        reExports.add('*');
+      }
     }
   });
 

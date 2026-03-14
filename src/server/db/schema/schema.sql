@@ -9,6 +9,7 @@ CREATE TABLE packages (
   name TEXT NOT NULL,
   version TEXT NOT NULL,
   path TEXT NOT NULL,
+  commit_hash CHAR(40),
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -297,3 +298,22 @@ CREATE INDEX idx_code_issues_module_id ON code_issues (module_id);
 CREATE INDEX idx_code_issues_package_id ON code_issues (package_id);
 CREATE INDEX idx_code_issues_entity_id ON code_issues (entity_id);
 CREATE INDEX idx_code_issues_rule_code ON code_issues (rule_code);
+
+-- Snapshots table: one row per analyzed git commit
+CREATE TABLE snapshots (
+  id           CHAR(36)   NOT NULL PRIMARY KEY,
+  repo_path    TEXT       NOT NULL,
+  commit_hash  CHAR(40)   NOT NULL,
+  commit_short CHAR(7)    NOT NULL,
+  subject      TEXT       NOT NULL,
+  author_name  TEXT       NOT NULL,
+  author_email TEXT       NOT NULL,
+  commit_at    TIMESTAMP  NOT NULL,
+  package_id   CHAR(36)   NOT NULL REFERENCES packages (id),
+  ordinal      INTEGER    NOT NULL,
+  created_at   TIMESTAMP  NOT NULL DEFAULT current_timestamp,
+  UNIQUE (repo_path, commit_hash)
+);
+
+CREATE INDEX idx_snapshots_repo_path ON snapshots (repo_path);
+CREATE INDEX idx_snapshots_ordinal   ON snapshots (ordinal);
