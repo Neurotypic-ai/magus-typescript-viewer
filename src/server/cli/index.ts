@@ -30,9 +30,16 @@ import { toSarif } from '../insights/sarif-output';
 import { diffInsights } from '../insights/insight-diff';
 import { getLatestReport, storeInsightReport } from '../insights/insight-store';
 import { RulesEngine } from '../rules/RulesEngine';
-import { generateRelationshipUUID } from '../utils/uuid';
+import {
+  generateCallEdgeUUID,
+  generateRelationshipUUID,
+  generateTechDebtMarkerUUID,
+  generateTypeReferenceUUID,
+} from '../utils/uuid';
 
-import type { IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
+import type { IDatabaseAdapter, QueryParams } from '../db/adapter/IDatabaseAdapter';
+import type { CodeIssue } from '../rules/Rule';
+import type { ParseResult } from '../parsers/ParseResult';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -42,7 +49,7 @@ async function safeInsert(
   adapter: IDatabaseAdapter,
   table: string,
   columns: string,
-  values: string[]
+  values: QueryParams
 ): Promise<void> {
   const placeholders = values.map(() => '?').join(', ');
   try {
@@ -54,6 +61,40 @@ async function safeInsert(
       return;
     }
     throw error;
+  }
+}
+
+async function batchInsertRows(
+  adapter: IDatabaseAdapter,
+  table: string,
+  columns: string,
+  rows: QueryParams[],
+  chunkSize = 500
+): Promise<void> {
+  if (rows.length === 0) {
+    return;
+  }
+
+  const columnCount = rows[0]?.length ?? 0;
+  const singleRowPlaceholder = `(${Array.from({ length: columnCount }, () => '?').join(', ')})`;
+
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => singleRowPlaceholder).join(', ');
+    const params = chunk.flatMap((row) => row);
+
+    try {
+      await adapter.query(`INSERT INTO ${table} ${columns} VALUES ${placeholders}`, params);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '';
+      if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
+        throw error;
+      }
+
+      for (const row of chunk) {
+        await safeInsert(adapter, table, columns, row);
+      }
+    }
   }
 }
 
@@ -223,6 +264,412 @@ function resolveFromNameMap(
   return { id: undefined, status: 'unresolved' };
 }
 
+async function persistParseResult(
+  adapter: IDatabaseAdapter,
+  parseResult: ParseResult,
+  repositories: {
+    package: PackageRepository;
+    module: ModuleRepository;
+    class: ClassRepository;
+    export: ExportRepository;
+    interface: InterfaceRepository;
+    function: FunctionRepository;
+    typeAlias: TypeAliasRepository;
+    enum: EnumRepository;
+    variable: VariableRepository;
+    import: ImportRepository;
+    method: MethodRepository;
+    parameter: ParameterRepository;
+    property: PropertyRepository;
+    symbolReference: SymbolReferenceRepository;
+  },
+  codeIssues: CodeIssue[],
+  snapshotPackageId?: string
+): Promise<{ relationshipCount: number; relationStats: Record<'classExtends' | 'classImplements' | 'interfaceExtends', ResolutionSummary> }> {
+  await adapter.transaction(async () => {
+    // Save package first
+    if (parseResult.package) {
+      await repositories.package.create(parseResult.package);
+    }
+
+    // Batch-insert modules
+    await repositories.module.createBatch(dedupeById(parseResult.modules));
+
+    // Batch-insert classes
+    await repositories.class.createBatch(dedupeById(parseResult.classes));
+
+    // Batch-insert interfaces
+    await repositories.interface.createBatch(dedupeById(parseResult.interfaces));
+
+    // Batch-insert functions
+    await repositories.function.createBatch(dedupeById(parseResult.functions));
+
+    // Batch-insert type aliases
+    await repositories.typeAlias.createBatch(dedupeById(parseResult.typeAliases));
+
+    // Batch-insert enums
+    await repositories.enum.createBatch(dedupeById(parseResult.enums));
+
+    // Batch-insert variables
+    await repositories.variable.createBatch(dedupeById(parseResult.variables));
+
+    // Batch-insert methods
+    await repositories.method.createBatch(dedupeById(parseResult.methods));
+
+    // Batch-insert parameters
+    await repositories.parameter.createBatch(dedupeById(parseResult.parameters));
+
+    // Batch-insert properties
+    await repositories.property.createBatch(dedupeById(parseResult.properties));
+
+    // Batch-insert imports with module context (use relativePath for client-side resolution)
+    if (parseResult.importsWithModules) {
+      const dedupedImports = Array.from(
+        new Map(parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
+      );
+
+      const importDTOs = dedupedImports.map(({ import: imp, moduleId }) => {
+        // An import is type-only if all its specifiers have kind 'type'
+        const specifierValues = Array.from(imp.specifiers.values());
+        const isTypeOnly = specifierValues.length > 0 && specifierValues.every((s) => s.kind === 'type');
+        return {
+          id: imp.uuid,
+          package_id: parseResult.package?.id ?? '',
+          module_id: moduleId,
+          source: imp.relativePath,
+          specifiers_json: serializeImportSpecifiers(imp),
+          is_type_only: isTypeOnly,
+        };
+      });
+      await repositories.import.createBatch(importDTOs);
+    }
+
+    // Batch-insert exports
+    const exportDTOs = dedupeBy(parseResult.exports, (row) => row.uuid).map((exp) => ({
+      id: exp.uuid,
+      package_id: parseResult.package?.id ?? '',
+      module_id: exp.module,
+      name: exp.name,
+      is_default: exp.isDefault,
+    }));
+    await repositories.export.createBatch(exportDTOs);
+
+    // Batch-insert symbol references
+    await repositories.symbolReference.createBatch(dedupeById(parseResult.symbolReferences));
+
+    // Persist code analysis issues
+    const codeIssueRepository = new CodeIssueRepository(adapter);
+    await codeIssueRepository.deleteByPackageId(parseResult.package?.id ?? '');
+    const issueDTOs = codeIssues.map((issue) => ({
+      id: issue.id,
+      rule_code: issue.rule_code,
+      severity: issue.severity,
+      message: issue.message,
+      suggestion: issue.suggestion,
+      package_id: issue.package_id,
+      module_id: issue.module_id,
+      file_path: issue.file_path,
+      entity_id: issue.entity_id,
+      entity_type: issue.entity_type,
+      entity_name: issue.entity_name,
+      parent_entity_id: issue.parent_entity_id,
+      parent_entity_type: issue.parent_entity_type,
+      parent_entity_name: issue.parent_entity_name,
+      property_name: issue.property_name,
+      line: issue.line,
+      column: issue.column,
+      refactor_action: issue.refactor_action,
+      refactor_context_json: issue.refactor_context ? JSON.stringify(issue.refactor_context) : undefined,
+    }));
+    await codeIssueRepository.createBatch(issueDTOs);
+
+    const entityLocationById = new Map<string, { packageId: string; moduleId: string }>();
+    parseResult.functions.forEach((fn) => {
+      entityLocationById.set(fn.id, {
+        packageId: fn.package_id,
+        moduleId: fn.module_id,
+      });
+    });
+    parseResult.methods.forEach((method) => {
+      entityLocationById.set(method.id, {
+        packageId: method.package_id,
+        moduleId: method.module_id,
+      });
+    });
+    parseResult.properties.forEach((property) => {
+      entityLocationById.set(property.id, {
+        packageId: property.package_id,
+        moduleId: property.module_id,
+      });
+    });
+    parseResult.parameters.forEach((parameter) => {
+      entityLocationById.set(parameter.id, {
+        packageId: parameter.package_id,
+        moduleId: parameter.module_id,
+      });
+    });
+
+    const callEdgeRows: QueryParams[] = dedupeBy(parseResult.callEdges ?? [], (edge) =>
+      `${edge.callerId}:${edge.calleeName}:${edge.qualifier ?? ''}:${edge.callType}`
+    ).flatMap((edge) => {
+      const location = entityLocationById.get(edge.callerId);
+      if (!location) {
+        return [];
+      }
+
+      return [[
+        generateCallEdgeUUID(edge.callerId, edge.calleeName, edge.qualifier, edge.callType, edge.line),
+        location.packageId,
+        location.moduleId,
+        edge.callerId,
+        edge.callerName,
+        edge.calleeName,
+        edge.qualifier ?? null,
+        edge.callType,
+        edge.line ?? null,
+      ]];
+    });
+    await batchInsertRows(
+      adapter,
+      'call_edges',
+      '(id, package_id, module_id, caller_id, caller_name, callee_name, qualifier, call_type, line)',
+      callEdgeRows,
+    );
+
+    const typeReferenceRows: QueryParams[] = dedupeBy(parseResult.typeReferences ?? [], (reference) =>
+      `${reference.sourceId}:${reference.sourceKind}:${reference.typeName}:${reference.context}`
+    ).flatMap((reference) => {
+      const location = entityLocationById.get(reference.sourceId);
+      if (!location) {
+        return [];
+      }
+
+      return [[
+        generateTypeReferenceUUID(
+          reference.sourceId,
+          reference.sourceKind,
+          reference.typeName,
+          reference.context,
+        ),
+        location.packageId,
+        location.moduleId,
+        reference.sourceId,
+        reference.sourceKind,
+        reference.typeName,
+        reference.context,
+      ]];
+    });
+    await batchInsertRows(
+      adapter,
+      'type_references',
+      '(id, package_id, module_id, source_id, source_kind, type_name, context)',
+      typeReferenceRows,
+    );
+
+    const techDebtMarkerRows: QueryParams[] = dedupeBy(parseResult.techDebtMarkers ?? [], (marker) =>
+      `${marker.moduleId ?? ''}:${marker.type}:${String(marker.line)}:${marker.snippet}`
+    ).flatMap((marker) => {
+      if (!marker.packageId || !marker.moduleId) {
+        return [];
+      }
+
+      return [[
+        generateTechDebtMarkerUUID(marker.moduleId, marker.type, marker.line, marker.snippet),
+        marker.packageId,
+        marker.moduleId,
+        marker.type,
+        marker.line,
+        marker.snippet,
+        marker.severity,
+      ]];
+    });
+    await batchInsertRows(
+      adapter,
+      'tech_debt_markers',
+      '(id, package_id, module_id, marker_type, line, snippet, severity)',
+      techDebtMarkerRows,
+    );
+  });
+
+  // Save relationship records to junction tables
+  let relationshipCount = 0;
+  const relationStats: Record<'classExtends' | 'classImplements' | 'interfaceExtends', ResolutionSummary> = {
+    classExtends: { resolved: 0, ambiguous: 0, unresolved: 0 },
+    classImplements: { resolved: 0, ambiguous: 0, unresolved: 0 },
+    interfaceExtends: { resolved: 0, ambiguous: 0, unresolved: 0 },
+  };
+
+  // Cross-package resolution: only fetch classes/interfaces whose names
+  // match unresolved references (Issue #18: avoid full-table scans)
+  const unresolvedClassNames = Array.from(
+    new Set(
+      parseResult.classExtends
+        .filter((ref) => !ref.parentId)
+        .map((ref) => ref.parentName)
+    )
+  );
+  const unresolvedInterfaceNames = Array.from(
+    new Set([
+      ...parseResult.classImplements
+        .filter((ref) => !ref.interfaceId)
+        .map((ref) => ref.interfaceName),
+      ...parseResult.interfaceExtends
+        .filter((ref) => !ref.parentId)
+        .map((ref) => ref.parentName),
+    ])
+  );
+
+  const globalClassMap = new Map<string, string[]>();
+  if (unresolvedClassNames.length > 0) {
+    const placeholders = unresolvedClassNames.map(() => '?').join(', ');
+    const classRows = await adapter.query<{ id: string; name: string }>(
+      snapshotPackageId
+        ? `SELECT id, name FROM classes WHERE name IN (${placeholders}) AND package_id = ?`
+        : `SELECT id, name FROM classes WHERE name IN (${placeholders})`,
+      snapshotPackageId ? [...unresolvedClassNames, snapshotPackageId] : unresolvedClassNames
+    );
+    for (const row of classRows) {
+      addNameToMap(globalClassMap, row.name, row.id);
+    }
+  }
+
+  const globalInterfaceMap = new Map<string, string[]>();
+  if (unresolvedInterfaceNames.length > 0) {
+    const placeholders = unresolvedInterfaceNames.map(() => '?').join(', ');
+    const interfaceRows = await adapter.query<{ id: string; name: string }>(
+      snapshotPackageId
+        ? `SELECT id, name FROM interfaces WHERE name IN (${placeholders}) AND package_id = ?`
+        : `SELECT id, name FROM interfaces WHERE name IN (${placeholders})`,
+      snapshotPackageId ? [...unresolvedInterfaceNames, snapshotPackageId] : unresolvedInterfaceNames
+    );
+    for (const row of interfaceRows) {
+      addNameToMap(globalInterfaceMap, row.name, row.id);
+    }
+  }
+
+  // Resolve relationships and batch-insert them
+  const classExtendsInserts: string[][] = [];
+  const classExtendsUpdates: { id: string; extendsId: string }[] = [];
+
+  for (const ref of parseResult.classExtends) {
+    const resolution = resolveFromNameMap(ref.parentId, ref.parentName, globalClassMap);
+    if (!resolution.id) {
+      relationStats.classExtends[resolution.status]++;
+      continue;
+    }
+
+    if (resolution.id === ref.classId) {
+      relationStats.classExtends.unresolved++;
+      continue;
+    }
+
+    const relId = generateRelationshipUUID(ref.classId, resolution.id, 'class_extends');
+    classExtendsInserts.push([relId, ref.classId, resolution.id]);
+    classExtendsUpdates.push({ id: ref.classId, extendsId: resolution.id });
+    relationshipCount++;
+    relationStats.classExtends.resolved++;
+  }
+
+  const classImplementsInserts: string[][] = [];
+  for (const ref of parseResult.classImplements) {
+    const resolution = resolveFromNameMap(ref.interfaceId, ref.interfaceName, globalInterfaceMap);
+    if (!resolution.id) {
+      relationStats.classImplements[resolution.status]++;
+      continue;
+    }
+
+    const relId = generateRelationshipUUID(ref.classId, resolution.id, 'class_implements');
+    classImplementsInserts.push([relId, ref.classId, resolution.id]);
+    relationshipCount++;
+    relationStats.classImplements.resolved++;
+  }
+
+  const interfaceExtendsInserts: string[][] = [];
+  for (const ref of parseResult.interfaceExtends) {
+    const resolution = resolveFromNameMap(ref.parentId, ref.parentName, globalInterfaceMap);
+    if (!resolution.id) {
+      relationStats.interfaceExtends[resolution.status]++;
+      continue;
+    }
+
+    if (resolution.id === ref.interfaceId) {
+      relationStats.interfaceExtends.unresolved++;
+      continue;
+    }
+
+    const relId = generateRelationshipUUID(ref.interfaceId, resolution.id, 'interface_extends');
+    interfaceExtendsInserts.push([relId, ref.interfaceId, resolution.id]);
+    relationshipCount++;
+    relationStats.interfaceExtends.resolved++;
+  }
+
+  // Batch-insert all relationship records in a transaction
+  await adapter.transaction(async () => {
+    // Batch-insert class_extends
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < classExtendsInserts.length; i += CHUNK_SIZE) {
+      const chunk = classExtendsInserts.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
+      const params = chunk.flat();
+      try {
+        await adapter.query(`INSERT INTO class_extends (id, class_id, parent_id) VALUES ${placeholders}`, params);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : '';
+        if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
+          throw error;
+        }
+        // Fall back to individual inserts for duplicates
+        for (const row of chunk) {
+          await safeInsert(adapter, 'class_extends', '(id, class_id, parent_id)', row);
+        }
+      }
+    }
+
+    // Batch-update classes.extends_id
+    for (const { id, extendsId } of classExtendsUpdates) {
+      await safeUpdate(adapter, 'classes', 'extends_id', extendsId, id);
+    }
+
+    // Batch-insert class_implements
+    for (let i = 0; i < classImplementsInserts.length; i += CHUNK_SIZE) {
+      const chunk = classImplementsInserts.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
+      const params = chunk.flat();
+      try {
+        await adapter.query(`INSERT INTO class_implements (id, class_id, interface_id) VALUES ${placeholders}`, params);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : '';
+        if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
+          throw error;
+        }
+        for (const row of chunk) {
+          await safeInsert(adapter, 'class_implements', '(id, class_id, interface_id)', row);
+        }
+      }
+    }
+
+    // Batch-insert interface_extends
+    for (let i = 0; i < interfaceExtendsInserts.length; i += CHUNK_SIZE) {
+      const chunk = interfaceExtendsInserts.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
+      const params = chunk.flat();
+      try {
+        await adapter.query(`INSERT INTO interface_extends (id, interface_id, extended_id) VALUES ${placeholders}`, params);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : '';
+        if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
+          throw error;
+        }
+        for (const row of chunk) {
+          await safeInsert(adapter, 'interface_extends', '(id, interface_id, extended_id)', row);
+        }
+      }
+    }
+  });
+
+  return { relationshipCount, relationStats };
+}
+
 const program = new Command();
 
 program.name('typescript-viewer').description('TypeScript codebase visualization tool').version('1.0.0');
@@ -377,6 +824,113 @@ program
           refactor_context_json: issue.refactor_context ? JSON.stringify(issue.refactor_context) : undefined,
         }));
         await codeIssueRepository.createBatch(issueDTOs);
+
+        const entityLocationById = new Map<string, { packageId: string; moduleId: string }>();
+        parseResult.functions.forEach((fn) => {
+          entityLocationById.set(fn.id, {
+            packageId: fn.package_id,
+            moduleId: fn.module_id,
+          });
+        });
+        parseResult.methods.forEach((method) => {
+          entityLocationById.set(method.id, {
+            packageId: method.package_id,
+            moduleId: method.module_id,
+          });
+        });
+        parseResult.properties.forEach((property) => {
+          entityLocationById.set(property.id, {
+            packageId: property.package_id,
+            moduleId: property.module_id,
+          });
+        });
+        parseResult.parameters.forEach((parameter) => {
+          entityLocationById.set(parameter.id, {
+            packageId: parameter.package_id,
+            moduleId: parameter.module_id,
+          });
+        });
+
+        const callEdgeRows: QueryParams[] = dedupeBy(parseResult.callEdges ?? [], (edge) =>
+          `${edge.callerId}:${edge.calleeName}:${edge.qualifier ?? ''}:${edge.callType}`
+        ).flatMap((edge) => {
+          const location = entityLocationById.get(edge.callerId);
+          if (!location) {
+            return [];
+          }
+
+          return [[
+            generateCallEdgeUUID(edge.callerId, edge.calleeName, edge.qualifier, edge.callType, edge.line),
+            location.packageId,
+            location.moduleId,
+            edge.callerId,
+            edge.callerName,
+            edge.calleeName,
+            edge.qualifier ?? null,
+            edge.callType,
+            edge.line ?? null,
+          ]];
+        });
+        await batchInsertRows(
+          adapter,
+          'call_edges',
+          '(id, package_id, module_id, caller_id, caller_name, callee_name, qualifier, call_type, line)',
+          callEdgeRows,
+        );
+
+        const typeReferenceRows: QueryParams[] = dedupeBy(parseResult.typeReferences ?? [], (reference) =>
+          `${reference.sourceId}:${reference.sourceKind}:${reference.typeName}:${reference.context}`
+        ).flatMap((reference) => {
+          const location = entityLocationById.get(reference.sourceId);
+          if (!location) {
+            return [];
+          }
+
+          return [[
+            generateTypeReferenceUUID(
+              reference.sourceId,
+              reference.sourceKind,
+              reference.typeName,
+              reference.context,
+            ),
+            location.packageId,
+            location.moduleId,
+            reference.sourceId,
+            reference.sourceKind,
+            reference.typeName,
+            reference.context,
+          ]];
+        });
+        await batchInsertRows(
+          adapter,
+          'type_references',
+          '(id, package_id, module_id, source_id, source_kind, type_name, context)',
+          typeReferenceRows,
+        );
+
+        const techDebtMarkerRows: QueryParams[] = dedupeBy(parseResult.techDebtMarkers ?? [], (marker) =>
+          `${marker.moduleId ?? ''}:${marker.type}:${String(marker.line)}:${marker.snippet}`
+        ).flatMap((marker) => {
+          if (!marker.packageId || !marker.moduleId) {
+            return [];
+          }
+
+          return [[
+            generateTechDebtMarkerUUID(marker.moduleId, marker.type, marker.line, marker.snippet),
+            marker.packageId,
+            marker.moduleId,
+            marker.type,
+            marker.line,
+            marker.snippet,
+            marker.severity,
+          ]];
+        });
+        await batchInsertRows(
+          adapter,
+          'tech_debt_markers',
+          '(id, package_id, module_id, marker_type, line, snippet, severity)',
+          techDebtMarkerRows,
+        );
       });
 
       // Save relationship records to junction tables

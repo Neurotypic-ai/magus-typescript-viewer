@@ -309,6 +309,12 @@ describe('Database', () => {
             { id: '3', name: 'created_at' },
           ] as QueryResult;
         }
+        if (sql === "PRAGMA table_info('packages')") {
+          return [
+            { id: '0', name: 'id' },
+            { id: '1', name: 'commit_hash' },
+          ] as QueryResult;
+        }
         if (sql.startsWith('PRAGMA table_info')) {
           // Other tables: return columns that include created_at and specifiers_json
           return [

@@ -85,6 +85,11 @@ export class Database {
       { name: 'specifiers_json', definition: 'specifiers_json TEXT' },
     ]);
 
+    // Packages table: ensure commit_hash column exists
+    await this.ensureColumns('packages', [
+      { name: 'commit_hash', definition: 'commit_hash CHAR(40)' },
+    ]);
+
     // Ensure code_issues table exists (optional — not in requiredTables)
     try {
       await this.adapter.query('SELECT 1 FROM code_issues LIMIT 1');
@@ -116,6 +121,85 @@ export class Database {
       await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_code_issues_entity_id ON code_issues (entity_id)');
       await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_code_issues_rule_code ON code_issues (rule_code)');
     }
+
+    try {
+      await this.adapter.query('SELECT 1 FROM call_edges LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE call_edges (
+        id CHAR(36) PRIMARY KEY,
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        module_id CHAR(36) NOT NULL REFERENCES modules (id),
+        caller_id CHAR(36) NOT NULL,
+        caller_name TEXT NOT NULL,
+        callee_name TEXT NOT NULL,
+        qualifier TEXT,
+        call_type TEXT NOT NULL CHECK (call_type IN ('function', 'method', 'constructor', 'static')),
+        line INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+        UNIQUE (caller_id, callee_name, qualifier, call_type)
+      )`);
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_call_edges_module_id ON call_edges (module_id)');
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_call_edges_caller_id ON call_edges (caller_id)');
+    }
+
+    try {
+      await this.adapter.query('SELECT 1 FROM type_references LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE type_references (
+        id CHAR(36) PRIMARY KEY,
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        module_id CHAR(36) NOT NULL REFERENCES modules (id),
+        source_id CHAR(36) NOT NULL,
+        source_kind TEXT NOT NULL CHECK (source_kind IN ('property', 'method', 'parameter')),
+        type_name TEXT NOT NULL,
+        context TEXT NOT NULL CHECK (context IN ('property_type', 'parameter_type', 'return_type', 'generic_argument')),
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+        UNIQUE (source_id, source_kind, type_name, context)
+      )`);
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_type_references_module_id ON type_references (module_id)');
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_type_references_source_id ON type_references (source_id)');
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_type_references_type_name ON type_references (type_name)');
+    }
+
+    try {
+      await this.adapter.query('SELECT 1 FROM tech_debt_markers LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE tech_debt_markers (
+        id CHAR(36) PRIMARY KEY,
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        module_id CHAR(36) NOT NULL REFERENCES modules (id),
+        marker_type TEXT NOT NULL CHECK (marker_type IN ('any_type', 'ts_ignore', 'ts_expect_error', 'type_assertion', 'non_null_assertion', 'todo_comment', 'fixme_comment', 'hack_comment')),
+        line INTEGER NOT NULL,
+        snippet TEXT NOT NULL,
+        severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'error')),
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+        UNIQUE (module_id, marker_type, line, snippet)
+      )`);
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_tech_debt_markers_module_id ON tech_debt_markers (module_id)');
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_tech_debt_markers_marker_type ON tech_debt_markers (marker_type)');
+    }
+
+    // Ensure snapshots table exists (optional — not in requiredTables)
+    try {
+      await this.adapter.query('SELECT 1 FROM snapshots LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE snapshots (
+        id CHAR(36) NOT NULL PRIMARY KEY,
+        repo_path TEXT NOT NULL,
+        commit_hash CHAR(40) NOT NULL,
+        commit_short CHAR(7) NOT NULL,
+        subject TEXT NOT NULL,
+        author_name TEXT NOT NULL,
+        author_email TEXT NOT NULL,
+        commit_at TIMESTAMP NOT NULL,
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        ordinal INTEGER NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+        UNIQUE (repo_path, commit_hash)
+      )`);
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_snapshots_repo_path ON snapshots (repo_path)');
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_snapshots_ordinal ON snapshots (ordinal)');
+    }
   }
 
   /**
@@ -137,6 +221,9 @@ export class Database {
       'functions',
       'class_extends',
       'symbol_references',
+      'call_edges',
+      'type_references',
+      'tech_debt_markers',
       'type_aliases',
       'enums',
       'variables',

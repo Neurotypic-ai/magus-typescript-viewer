@@ -83,7 +83,12 @@ export class ModuleParser {
         interfaceExtends: [],
         symbolUsages: [],
         symbolReferences: [],
-        techDebtMarkers: techDebt.markers,
+        techDebtMarkers: techDebt.markers.map((marker) => ({
+          ...marker,
+          packageId: this.packageId,
+          moduleId,
+          filePath: this.filePath,
+        })),
         moduleMetrics,
         circularDependencies: [],
         callEdges: [],

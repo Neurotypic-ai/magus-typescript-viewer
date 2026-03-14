@@ -91,6 +91,34 @@ export const generateCodeIssueUUID = (moduleId: string, ruleCode: string, entity
 export const generateRelationshipUUID = (sourceId: string, targetId: string, type: string): string =>
   generateUUID('relationship', `rel:${type}:${sourceId}:${targetId}`);
 
+export const generateCallEdgeUUID = (
+  callerId: string,
+  calleeName: string,
+  qualifier: string | undefined,
+  callType: string,
+  line: number | undefined
+): string =>
+  generateUUID(
+    'relationship',
+    `call_edge:${callerId}:${calleeName}:${qualifier ?? ''}:${callType}:${String(line ?? '')}`
+  );
+
+export const generateTypeReferenceUUID = (
+  sourceId: string,
+  sourceKind: string,
+  typeName: string,
+  context: string
+): string =>
+  generateUUID('relationship', `type_ref:${sourceId}:${sourceKind}:${typeName}:${context}`);
+
+export const generateTechDebtMarkerUUID = (
+  moduleId: string,
+  markerType: string,
+  line: number,
+  snippet: string
+): string =>
+  generateUUID('relationship', `tech_debt:${moduleId}:${markerType}:${String(line)}:${snippet}`);
+
 /** Generate a deterministic UUID for a history snapshot (repo_path + commit_hash) */
 export const generateSnapshotUUID = (repoPath: string, commitHash: string): string =>
   generateUUID('snapshot', `${repoPath}#${commitHash}`);

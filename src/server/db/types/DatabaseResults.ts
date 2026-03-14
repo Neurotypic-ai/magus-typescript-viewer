@@ -31,6 +31,7 @@ export interface IPackageRow extends IDatabaseRow {
   name: string;
   version: string;
   path: string;
+  commit_hash?: string;
 }
 
 export interface IDependencyRow extends IDatabaseRow {
@@ -64,4 +65,16 @@ export interface IParameterRow extends IModuleOwnedRow {
   is_optional: number;
   is_rest: number;
   default_value: string | null;
+}
+
+export interface ISnapshotRow extends IDatabaseRow {
+  repo_path: string;
+  commit_hash: string;
+  commit_short: string;
+  subject: string;
+  author_name: string;
+  author_email: string;
+  commit_at: string;
+  package_id: string;
+  ordinal: number;
 }

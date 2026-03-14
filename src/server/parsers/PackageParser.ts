@@ -69,6 +69,7 @@ export class PackageParser {
     private readonly packagePath: string,
     private readonly packageName: string,
     private readonly packageVersion: string,
+    private readonly commitHash?: string,
     config?: Partial<FileDiscoveryConfig>
   ) {
     this.config = { ...DEFAULT_FILE_DISCOVERY_CONFIG, ...config };
@@ -79,7 +80,7 @@ export class PackageParser {
   }
 
   async parse(): Promise<ParseResult> {
-    const packageId = generatePackageUUID(this.packageName, this.packageVersion);
+    const packageId = generatePackageUUID(this.packageName, this.packageVersion, this.commitHash);
 
     // 1. Parse dependencies from package.json
     const depResult = await this.dependencyParser.parseDependencies();
@@ -90,6 +91,7 @@ export class PackageParser {
       name: this.packageName,
       version: this.packageVersion,
       path: this.packagePath,
+      ...(this.commitHash !== undefined ? { commit_hash: this.commitHash } : {}),
       dependencies: depResult.dependencies,
       devDependencies: depResult.devDependencies,
       peerDependencies: depResult.peerDependencies,

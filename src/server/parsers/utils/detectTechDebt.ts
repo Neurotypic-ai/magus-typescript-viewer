@@ -23,6 +23,10 @@ export interface TechDebtMarker {
   snippet: string;
   /** Severity: info, warning, or error */
   severity: 'info' | 'warning' | 'error';
+  /** Optional parser context for downstream persistence */
+  packageId?: string | undefined;
+  moduleId?: string | undefined;
+  filePath?: string | undefined;
 }
 
 export interface TechDebtReport {

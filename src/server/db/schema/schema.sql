@@ -204,6 +204,47 @@ CREATE TABLE symbol_references (
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
+-- Call edges extracted from function/method bodies
+CREATE TABLE call_edges (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  caller_id CHAR(36) NOT NULL,
+  caller_name TEXT NOT NULL,
+  callee_name TEXT NOT NULL,
+  qualifier TEXT,
+  call_type TEXT NOT NULL CHECK (call_type IN ('function', 'method', 'constructor', 'static')),
+  line INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  UNIQUE (caller_id, callee_name, qualifier, call_type)
+);
+
+-- User-defined type references extracted from type annotations
+CREATE TABLE type_references (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  source_id CHAR(36) NOT NULL,
+  source_kind TEXT NOT NULL CHECK (source_kind IN ('property', 'method', 'parameter')),
+  type_name TEXT NOT NULL,
+  context TEXT NOT NULL CHECK (context IN ('property_type', 'parameter_type', 'return_type', 'generic_argument')),
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  UNIQUE (source_id, source_kind, type_name, context)
+);
+
+-- Technical debt markers detected in source files
+CREATE TABLE tech_debt_markers (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  marker_type TEXT NOT NULL CHECK (marker_type IN ('any_type', 'ts_ignore', 'ts_expect_error', 'type_assertion', 'non_null_assertion', 'todo_comment', 'fixme_comment', 'hack_comment')),
+  line INTEGER NOT NULL,
+  snippet TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'error')),
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  UNIQUE (module_id, marker_type, line, snippet)
+);
+
 -- Indexes for classes and interfaces (queried by module_id in ApiServerResponder)
 CREATE INDEX idx_classes_module_id ON classes (module_id);
 CREATE INDEX idx_interfaces_module_id ON interfaces (module_id);
@@ -231,6 +272,15 @@ CREATE INDEX idx_class_extends_class_id ON class_extends (class_id);
 -- Indexes for symbol references
 CREATE INDEX idx_symbol_references_module_id ON symbol_references (module_id);
 CREATE INDEX idx_symbol_references_target_symbol_id ON symbol_references (target_symbol_id);
+
+-- Indexes for call edges, type references, and tech debt markers
+CREATE INDEX idx_call_edges_module_id ON call_edges (module_id);
+CREATE INDEX idx_call_edges_caller_id ON call_edges (caller_id);
+CREATE INDEX idx_type_references_module_id ON type_references (module_id);
+CREATE INDEX idx_type_references_source_id ON type_references (source_id);
+CREATE INDEX idx_type_references_type_name ON type_references (type_name);
+CREATE INDEX idx_tech_debt_markers_module_id ON tech_debt_markers (module_id);
+CREATE INDEX idx_tech_debt_markers_marker_type ON tech_debt_markers (marker_type);
 
 -- Type aliases table for module-level type alias declarations
 CREATE TABLE type_aliases (

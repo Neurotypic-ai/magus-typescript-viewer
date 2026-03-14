@@ -47,6 +47,11 @@ export interface IPackageCreateDTO {
    * The peer dependencies of the package.
    */
   peerDependencies?: Map<string, string>;
+
+  /**
+   * The git commit hash this package snapshot was parsed from.
+   */
+  commit_hash?: string;
 }
 
 interface IPackageUpdateDTO {
@@ -66,10 +71,17 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
   async create(dto: IPackageCreateDTO): Promise<Package> {
     try {
       const now = new Date().toISOString();
+      const columns = dto.commit_hash
+        ? '(id, name, version, path, commit_hash, created_at)'
+        : '(id, name, version, path, created_at)';
+      const placeholders = dto.commit_hash ? '(?, ?, ?, ?, ?, ?)' : '(?, ?, ?, ?, ?)';
+      const values = dto.commit_hash
+        ? [dto.id, dto.name, dto.version, dto.path, dto.commit_hash, now]
+        : [dto.id, dto.name, dto.version, dto.path, now];
       const results = await this.executeQuery<IPackageRow>(
         'create',
-        'INSERT INTO packages (id, name, version, path, created_at) VALUES (?, ?, ?, ?, ?) RETURNING *',
-        [dto.id, dto.name, dto.version, dto.path, now]
+        `INSERT INTO packages ${columns} VALUES ${placeholders} RETURNING *`,
+        values
       );
 
       if (results.length === 0) {
