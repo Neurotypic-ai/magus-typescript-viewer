@@ -1,10 +1,9 @@
 /**
- * Overview graph building: nodes/edges from package graph, folder/SCC transforms, visibility.
+ * Overview graph building: nodes/edges from package graph, folder transforms, visibility.
  */
 
 import { collapseFolders } from './cluster/collapseFolders';
 import { clusterByFolder } from './cluster/folders';
-import { collapseSccs } from './cluster/scc';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
 import { applyEdgeHighways } from './transforms/edgeHighways';
 import { createGraphEdges } from '../utils/createGraphEdges';
@@ -29,36 +28,16 @@ export interface BuildOverviewGraphOptions {
   data: DependencyPackageGraph;
   enabledRelationshipTypes: string[];
   direction: 'LR' | 'RL' | 'TB' | 'BT';
-  clusterByFolder: boolean;
-  collapseScc: boolean;
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
 }
 
-function applyGraphTransforms(
-  graphData: GraphViewData,
-  options: Pick<BuildOverviewGraphOptions, 'clusterByFolder' | 'collapseScc'>
-): GraphViewData {
-  let transformedNodes = graphData.nodes;
-  let transformedEdges = graphData.edges;
-  const folderClusteringEnabled = options.clusterByFolder;
-
-  if (!folderClusteringEnabled && options.collapseScc) {
-    const collapsed = collapseSccs(transformedNodes, transformedEdges);
-    transformedNodes = collapsed.nodes;
-    transformedEdges = collapsed.edges;
-  }
-
-  if (folderClusteringEnabled) {
-    const clustered = clusterByFolder(transformedNodes, transformedEdges);
-    transformedNodes = clustered.nodes;
-    transformedEdges = clustered.edges;
-  }
-
+function applyGraphTransforms(graphData: GraphViewData): GraphViewData {
+  const clustered = clusterByFolder(graphData.nodes, graphData.edges);
   return {
-    nodes: transformedNodes,
-    edges: filterEdgesByNodeSet(transformedNodes, transformedEdges),
+    nodes: clustered.nodes,
+    edges: filterEdgesByNodeSet(clustered.nodes, clustered.edges),
   };
 }
 
@@ -166,7 +145,7 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     includeClasses: false,
     includeClassNodes: false,
     includeInterfaceNodes: false,
-    nestSymbolsInModules: !options.clusterByFolder,
+    nestSymbolsInModules: false,
     direction: options.direction,
   });
 
@@ -185,24 +164,18 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const semanticSnapshot = { nodes: filteredGraph.nodes, edges: filteredGraph.edges };
   validateEdgesAgainstRegistry(semanticSnapshot.nodes, semanticSnapshot.edges);
 
-  const transformedGraph = applyGraphTransforms(filteredGraph, {
-    clusterByFolder: options.clusterByFolder,
-    collapseScc: options.collapseScc,
-  });
+  const transformedGraph = applyGraphTransforms(filteredGraph);
 
-  let projectedGraph = transformedGraph;
-  if (options.clusterByFolder) {
-    projectedGraph = applyEdgeHighways(transformedGraph.nodes, transformedGraph.edges, {
-      direction: options.direction,
-    });
-    if (options.collapsedFolderIds.size > 0) {
-      const folderCollapsed = collapseFolders(
-        projectedGraph.nodes,
-        projectedGraph.edges,
-        options.collapsedFolderIds
-      );
-      projectedGraph = { nodes: folderCollapsed.nodes, edges: folderCollapsed.edges };
-    }
+  let projectedGraph = applyEdgeHighways(transformedGraph.nodes, transformedGraph.edges, {
+    direction: options.direction,
+  });
+  if (options.collapsedFolderIds.size > 0) {
+    const folderCollapsed = collapseFolders(
+      projectedGraph.nodes,
+      projectedGraph.edges,
+      options.collapsedFolderIds
+    );
+    projectedGraph = { nodes: folderCollapsed.nodes, edges: folderCollapsed.edges };
   }
 
   const visibleEdges = applyEdgeVisibility(projectedGraph.edges, options.enabledRelationshipTypes);

@@ -2,7 +2,6 @@ import type { NodeChange } from '@vue-flow/core';
 import type { ComputedRef, Ref } from 'vue';
 
 import type { FolderCollapseActions, NodeActions } from '../components/nodes/utils';
-import type { CollisionResult } from '../layout/collisionResolver';
 import type { useGraphSettings } from '../stores/graphSettings';
 import type { useInsightsStore } from '../stores/insightsStore';
 import type { useIssuesStore } from '../stores/issuesStore';
@@ -64,7 +63,6 @@ export interface DependencyGraphCoreReturn {
   highlightedEdgeIds: Ref<Set<string>>;
   highlightedEdgeIdList: Ref<string[]>;
   renderedEdges: ComputedRef<GraphEdge[]>;
-  lastCollisionResult: Ref<CollisionResult | null>;
   useOnlyRenderVisibleElements: ComputedRef<boolean>;
   defaultEdgeOptions: ComputedRef<Record<string, unknown>>;
   selectedNode: Ref<DependencyNode | null>;
@@ -101,8 +99,6 @@ export interface DependencyGraphCoreReturn {
   onNodeMouseEnter: (params: { node: unknown }) => void;
   onNodeMouseLeave: (params: { node: unknown }) => void;
   handleRelationshipFilterChange: (types: string[]) => Promise<void>;
-  handleCollapseSccToggle: (value: boolean) => Promise<void>;
-  handleClusterByFolderToggle: (value: boolean) => Promise<void>;
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;
   handleOrphanGlobalToggle: (value: boolean) => Promise<void>;
   handleShowFpsToggle: (value: boolean) => void;

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyEdgeVisibility,
-  buildFolderDistributorGraph,
   buildOverviewGraph,
   buildSymbolDrilldownGraph,
   filterNodeChangesForFolderMode,
@@ -13,7 +12,6 @@ import type { NodeChange } from '@vue-flow/core';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { GraphViewData } from '../graph/graphViewShared';
 
 describe('applyEdgeVisibility', () => {
   it('keeps uses edges visible while honoring enabled relationship filters for others', () => {
@@ -96,14 +94,10 @@ describe('buildOverviewGraph', () => {
 
     const result = buildOverviewGraph({
       data,
-      enabledNodeTypes: ['module'],
       enabledRelationshipTypes: ['import'],
       direction: 'LR',
-      clusterByFolder: false,
-      collapseScc: false,
       collapsedFolderIds: new Set(),
       hideTestFiles: true,
-      memberNodeMode: 'compact',
       highlightOrphanGlobal: true,
     });
 
@@ -150,14 +144,10 @@ describe('buildOverviewGraph', () => {
 
     const result = buildOverviewGraph({
       data,
-      enabledNodeTypes: ['module'],
       enabledRelationshipTypes: ['import'],
       direction: 'LR',
-      clusterByFolder: true,
-      collapseScc: false,
       collapsedFolderIds: new Set(),
       hideTestFiles: false,
-      memberNodeMode: 'compact',
       highlightOrphanGlobal: false,
     });
 
@@ -167,57 +157,6 @@ describe('buildOverviewGraph', () => {
   });
 });
 
-describe('buildFolderDistributorGraph export', () => {
-  it('returns empty rendered edges while preserving semantic edges', () => {
-    const data: DependencyPackageGraph = {
-      packages: [
-        {
-          id: 'pkg-1',
-          name: 'pkg',
-          version: '1.0.0',
-          path: '/pkg',
-          created_at: '2024-01-01T00:00:00.000Z',
-          modules: {
-            a: {
-              id: 'module-a',
-              name: 'a.ts',
-              package_id: 'pkg-1',
-              source: { relativePath: 'src/a.ts' },
-              imports: {
-                i1: {
-                  uuid: 'i1',
-                  name: 'b',
-                  path: './b',
-                },
-              },
-            },
-            b: {
-              id: 'module-b',
-              name: 'b.ts',
-              package_id: 'pkg-1',
-              source: { relativePath: 'src/b.ts' },
-              imports: {},
-            },
-          },
-        },
-      ],
-    };
-
-    const result: GraphViewData = buildFolderDistributorGraph({
-      data,
-      enabledNodeTypes: ['module'],
-      enabledRelationshipTypes: ['import'],
-      direction: 'LR',
-      collapsedFolderIds: new Set(),
-      hideTestFiles: false,
-      memberNodeMode: 'compact',
-      highlightOrphanGlobal: false,
-    });
-
-    expect(result.edges).toEqual([]);
-    expect(result.semanticSnapshot?.edges.length).toBeGreaterThan(0);
-  });
-});
 
 describe('buildSymbolDrilldownGraph', () => {
   it('creates uses edges with usageKind metadata from module symbol references', () => {

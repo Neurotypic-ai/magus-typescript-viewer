@@ -15,8 +15,6 @@ function defaultOptions(overrides: Partial<BuildOverviewGraphOptions> = {}): Bui
     data: { packages: [] },
     enabledRelationshipTypes: ['import'],
     direction: 'LR',
-    clusterByFolder: false,
-    collapseScc: false,
     collapsedFolderIds: new Set(),
     hideTestFiles: false,
     highlightOrphanGlobal: false,
@@ -372,9 +370,9 @@ describe('buildOverviewGraph', () => {
       return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
     }
 
-    it('creates group nodes when clusterByFolder is enabled', () => {
+    it('creates group nodes for folders', () => {
       const result = buildOverviewGraph(
-        defaultOptions({ data: multifolderGraph(), clusterByFolder: true })
+        defaultOptions({ data: multifolderGraph() })
       );
 
       const groupNodes = result.nodes.filter((n) => n.type === 'group');
@@ -385,22 +383,12 @@ describe('buildOverviewGraph', () => {
       const result = buildOverviewGraph(
         defaultOptions({
           data: multifolderGraph(),
-          clusterByFolder: true,
           enabledRelationshipTypes: ['import'],
         })
       );
 
       const highwayEdges = result.edges.filter((e) => e.data?.highwaySegment === 'highway');
       expect(highwayEdges.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('does not create group nodes when clusterByFolder is false', () => {
-      const result = buildOverviewGraph(
-        defaultOptions({ data: multifolderGraph(), clusterByFolder: false })
-      );
-
-      const groupNodes = result.nodes.filter((n) => n.type === 'group');
-      expect(groupNodes).toHaveLength(0);
     });
   });
 
@@ -436,7 +424,8 @@ describe('buildOverviewGraph', () => {
 
       for (const direction of ['LR', 'RL', 'TB', 'BT'] as const) {
         const result = buildOverviewGraph(defaultOptions({ data, direction }));
-        expect(result.nodes).toHaveLength(1);
+        // module node + folder group node
+        expect(result.nodes).toHaveLength(2);
       }
     });
   });
@@ -472,8 +461,11 @@ describe('buildOverviewGraph', () => {
         defaultOptions({ data, enabledRelationshipTypes: [] })
       );
 
-      // All edges are hidden, so current = orphan; but globally there is an edge
-      for (const node of result.nodes) {
+      // Only check module nodes — folder group nodes are always orphanGlobal since
+      // they don't exist in the unfiltered pre-cluster graph.
+      const moduleNodes = result.nodes.filter((n) => n.type === 'module');
+      expect(moduleNodes.length).toBeGreaterThanOrEqual(1);
+      for (const node of moduleNodes) {
         expect(node.data?.diagnostics?.orphanCurrent).toBe(true);
         expect(node.data?.diagnostics?.orphanGlobal).toBe(false);
       }

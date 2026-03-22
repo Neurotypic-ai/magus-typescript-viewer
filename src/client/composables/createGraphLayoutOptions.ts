@@ -32,8 +32,6 @@ export interface LayoutOptionsGraphStoreSource {
 
 export interface LayoutOptionsGraphSettingsSource {
   activeRelationshipTypes: string[];
-  clusterByFolder: boolean;
-  collapseScc: boolean;
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
@@ -102,12 +100,6 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
   const graphLayoutSettings: GraphSettings = {
     get activeRelationshipTypes() {
       return graphSettings.activeRelationshipTypes;
-    },
-    get clusterByFolder() {
-      return graphSettings.clusterByFolder;
-    },
-    get collapseScc() {
-      return graphSettings.collapseScc;
     },
     get collapsedFolderIds() {
       return graphSettings.collapsedFolderIds;

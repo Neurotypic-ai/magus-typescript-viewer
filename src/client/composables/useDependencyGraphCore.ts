@@ -1,10 +1,11 @@
 /**
  * useDependencyGraphCore — single composable that wires viewport, search,
- * layout, collision, selection, and isolation mode for the dependency graph.
+ * layout, selection, and isolation mode for the dependency graph.
  * DependencyGraph.vue calls this and uses the returned API.
  */
 
 import { useVueFlow } from '@vue-flow/core';
+import type { NodeChange } from '@vue-flow/core';
 import { computed, ref } from 'vue';
 
 import {
@@ -19,7 +20,6 @@ import { useGraphStore } from '../stores/graphStore';
 import { useInsightsStore } from '../stores/insightsStore';
 import { useIssuesStore } from '../stores/issuesStore';
 import { graphTheme } from '../theme/graphTheme';
-import { useCollisionResolution } from './useCollisionResolution';
 import { useFpsCounter } from './useFpsCounter';
 import { useFpsChart } from './useFpsChart';
 import { useGraphInteractionController } from './useGraphInteractionController';
@@ -38,12 +38,11 @@ import { createGraphNodeActions } from './createGraphNodeActions';
 import { useNodeHoverZIndex } from './useNodeHoverZIndex';
 import { useSearchHighlighting } from './useSearchHighlighting';
 import { useSelectionHighlighting } from './useSelectionHighlighting';
+import { applyNodeChanges } from '../utils/applyNodeChanges';
 import type {
   DependencyGraphCoreReturn,
   UseDependencyGraphCoreOptions,
 } from './dependencyGraphCoreTypes';
-
-import type { DependencyNode } from '../types/DependencyNode';
 
 export { DEFAULT_VIEWPORT };
 export type {
@@ -73,7 +72,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     getViewport,
     setViewport,
     removeSelectedElements,
-    getNodes: vfGetNodes,
   } = useVueFlow();
 
   const contextMenu = ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>(null);
@@ -153,37 +151,12 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const { isLayoutPending, isLayoutMeasuring, layoutConfig } = graphLayout;
 
-  let reconcileSelectedNodeFn: (updatedNodes: DependencyNode[]) => void = (_updatedNodes) => undefined;
-
-  const collisionResolution = useCollisionResolution({
-    nodes,
-    isLayoutPending: graphLayout.isLayoutPending,
-    isLayoutMeasuring: graphLayout.isLayoutMeasuring,
-    clusterByFolder: computed(() => graphSettings.clusterByFolder),
-    getVueFlowNodes: () => vfGetNodes.value as unknown as DependencyNode[],
-    setNodes: (n) => {
-      graphStore.setNodes(n);
-    },
-    updateNodesById: (updates) => {
-      graphStore.updateNodesById(updates);
-    },
-    mergeManualOffsets: (offsets) => {
-      graphStore.mergeManualOffsets(offsets);
-    },
-    reconcileSelectedNodeAfterStructuralChange: (updatedNodes) => {
-      reconcileSelectedNodeFn(updatedNodes);
-    },
-  });
-
-  const { handleNodesChange, lastCollisionResult } = collisionResolution;
-
   const selectionHighlighting = useSelectionHighlighting({
     nodes,
     edges,
     selectedNode,
     scopeMode: interaction.scopeMode,
     searchHighlightState,
-    activeDraggedNodeIds: collisionResolution.activeDraggedNodeIds,
     useCssSelectionHover: env.USE_CSS_SELECTION_HOVER,
     perfMarksEnabled: env.PERF_MARKS_ENABLED,
     graphStore: {
@@ -208,8 +181,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     removeSelectedElements,
     restoreHoverZIndex,
   });
-
-  reconcileSelectedNodeFn = selectionHighlighting.reconcileSelectedNodeAfterStructuralChange;
 
   const {
     visualNodes,
@@ -245,9 +216,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
       restoreOverviewSnapshot: () => graphStore.restoreOverviewSnapshot(),
     },
     graphSettings: {
-      get clusterByFolder() {
-        return graphSettings.clusterByFolder;
-      },
       get activeRelationshipTypes() {
         return graphSettings.activeRelationshipTypes;
       },
@@ -355,8 +323,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const {
     handleRelationshipFilterChange,
-    handleCollapseSccToggle,
-    handleClusterByFolderToggle,
     handleHideTestFilesToggle,
     handleOrphanGlobalToggle,
     handleShowFpsToggle,
@@ -380,10 +346,13 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const highlightOrphanGlobal = computed(() => graphSettings.highlightOrphanGlobal);
 
+  function handleNodesChange(changes: NodeChange[]): void {
+    graphStore.setNodes(applyNodeChanges(changes, nodes.value));
+  }
+
   function dispose() {
     viewport.dispose();
     selectionHighlighting.dispose();
-    collisionResolution.dispose();
     graphLayout.dispose();
     isolationMode.dispose();
     clearHoverState();
@@ -423,7 +392,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     highlightedEdgeIds,
     highlightedEdgeIdList,
     renderedEdges,
-    lastCollisionResult,
     useOnlyRenderVisibleElements,
     defaultEdgeOptions,
     selectedNode,
@@ -474,8 +442,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     onNodeMouseEnter,
     onNodeMouseLeave,
     handleRelationshipFilterChange,
-    handleCollapseSccToggle,
-    handleClusterByFolderToggle,
     handleHideTestFilesToggle,
     handleOrphanGlobalToggle,
     handleShowFpsToggle,

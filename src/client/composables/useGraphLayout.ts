@@ -92,8 +92,6 @@ export interface GraphLayoutStore {
 
 export interface GraphSettings {
   activeRelationshipTypes: string[];
-  clusterByFolder: boolean;
-  collapseScc: boolean;
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
@@ -331,8 +329,6 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         data: propsData.value,
         enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
         direction: layoutConfig.direction,
-        clusterByFolder: graphSettings.clusterByFolder,
-        collapseScc: graphSettings.collapseScc,
         collapsedFolderIds: graphSettings.collapsedFolderIds,
         hideTestFiles: graphSettings.hideTestFiles,
         highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,

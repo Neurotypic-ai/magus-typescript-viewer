@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, shallowRef, toRef } from 'vue';
 
-import { useGraphSettings } from '../../stores/graphSettings';
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import EntityListSection from './EntityListSection.vue';
@@ -34,25 +33,6 @@ const externalDependencies = computed<ExternalDependencyRef[]>(() => {
 const embeddedSymbols = computed<EmbeddedSymbol[]>(() => {
   const symbols = nodeData.value.symbols;
   return Array.isArray(symbols) ? sortEmbeddedSymbols(symbols) : [];
-});
-
-const graphSettings = useGraphSettings();
-
-const moduleEntities = computed<EmbeddedModuleEntity[]>(() => {
-  const entities = nodeData.value.moduleEntities;
-  return Array.isArray(entities) ? sortModuleEntities(entities) : [];
-});
-
-const entitySections = computed(() => {
-  const enabledTypes = new Set(graphSettings.enabledModuleMemberTypes);
-  const sections = ENTITY_TYPE_CONFIGS.filter((config) => enabledTypes.has(config.type))
-    .map((config) => ({
-      ...config,
-      key: `entity-${config.type}`,
-      entities: sortModuleEntities(moduleEntities.value.filter((e) => e.type === config.type)),
-    }))
-    .filter((section) => section.entities.length > 0);
-  return sortSectionsByTitle(sections);
 });
 
 // Symbol expand/collapse
@@ -122,14 +102,28 @@ const contentSections = computed<ModuleContentSection[]>(() => {
     });
   }
 
-  const entityContentSections: EntityContentSection[] = entitySections.value.map((section) => ({
-    kind: 'entity',
-    key: section.key,
-    title: section.title,
-    badgeText: section.badgeText,
-    badgeClass: section.badgeClass,
-    entities: section.entities,
-  }));
+  const rawEntities = Array.isArray(nodeData.value.moduleEntities)
+    ? nodeData.value.moduleEntities
+    : [];
+  const sortedEntities = sortModuleEntities(rawEntities);
+
+  const entitiesByType = new Map<EmbeddedModuleEntity['type'], EmbeddedModuleEntity[]>();
+  for (const entity of sortedEntities) {
+    const group = entitiesByType.get(entity.type) ?? [];
+    group.push(entity);
+    entitiesByType.set(entity.type, group);
+  }
+
+  const entityContentSections: EntityContentSection[] = ENTITY_TYPE_CONFIGS
+    .filter((config) => (entitiesByType.get(config.type)?.length ?? 0) > 0)
+    .map((config) => ({
+      kind: 'entity',
+      key: config.type,
+      title: config.title,
+      badgeText: config.badgeText,
+      badgeClass: config.badgeClass,
+      entities: entitiesByType.get(config.type) ?? [],
+    }));
 
   const sections: ModuleContentSection[] = [
     ...symbolSections,

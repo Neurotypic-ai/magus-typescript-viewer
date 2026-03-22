@@ -43,7 +43,6 @@ export interface IsolateGraphStore {
 
 /** Graph settings used by isolation mode. */
 export interface IsolateGraphSettings {
-  clusterByFolder: boolean;
   activeRelationshipTypes: string[];
 }
 
@@ -258,17 +257,12 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
         (edge) => semanticResult.nodeIds.has(edge.source) && semanticResult.nodeIds.has(edge.target)
       );
 
-      if (graphSettings.clusterByFolder) {
-        const clustered = clusterByFolder(isolatedSemanticNodes, isolatedSemanticEdges);
-        const highwayProjected = applyEdgeHighways(clustered.nodes, clustered.edges, {
-          direction: layoutConfig.direction,
-        });
-        sourceNodes = highwayProjected.nodes;
-        sourceEdges = highwayProjected.edges;
-      } else {
-        sourceNodes = isolatedSemanticNodes;
-        sourceEdges = isolatedSemanticEdges;
-      }
+      const clustered = clusterByFolder(isolatedSemanticNodes, isolatedSemanticEdges);
+      const highwayProjected = applyEdgeHighways(clustered.nodes, clustered.edges, {
+        direction: layoutConfig.direction,
+      });
+      sourceNodes = highwayProjected.nodes;
+      sourceEdges = highwayProjected.edges;
     }
 
     const targetNode = sourceNodes.find((node) => node.id === nodeId);

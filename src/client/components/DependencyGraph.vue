@@ -72,7 +72,6 @@ const {
   issuesStore,
   visualNodes,
   renderedEdges,
-  lastCollisionResult,
   useOnlyRenderVisibleElements,
   defaultEdgeOptions,
   viewportState,
@@ -112,8 +111,6 @@ const {
   onNodeMouseEnter,
   onNodeMouseLeave,
   handleRelationshipFilterChange,
-  handleCollapseSccToggle,
-  handleClusterByFolderToggle,
   handleHideTestFilesToggle,
   handleOrphanGlobalToggle,
   handleShowFpsToggle,
@@ -253,8 +250,6 @@ onUnmounted(() => {
         :relationship-availability="graphSettings.relationshipAvailability"
         :graph-search-context="graphSearchContext"
         @relationship-filter-change="handleRelationshipFilterChange"
-        @toggle-collapse-scc="handleCollapseSccToggle"
-        @toggle-cluster-folder="handleClusterByFolderToggle"
         @toggle-hide-test-files="handleHideTestFilesToggle"
         @toggle-orphan-global="handleOrphanGlobalToggle"
         @toggle-show-fps="handleShowFpsToggle"
@@ -345,28 +340,6 @@ onUnmounted(() => {
             </dl>
 
             <section class="graph-stats-section">
-              <h4>Collision</h4>
-              <ul class="graph-stats-list">
-                <li class="graph-stats-list-row">
-                  <span class="graph-stats-type">Cycles</span>
-                  <span class="graph-stats-count">{{ lastCollisionResult?.cyclesUsed ?? '--' }}</span>
-                </li>
-                <li class="graph-stats-list-row">
-                  <span class="graph-stats-type">Converged</span>
-                  <span class="graph-stats-count">{{ lastCollisionResult ? (lastCollisionResult.converged ? 'yes' : 'no') : '--' }}</span>
-                </li>
-                <li class="graph-stats-list-row">
-                  <span class="graph-stats-type">Moved</span>
-                  <span class="graph-stats-count">{{ lastCollisionResult?.updatedPositions.size ?? 0 }}</span>
-                </li>
-                <li class="graph-stats-list-row">
-                  <span class="graph-stats-type">Resized</span>
-                  <span class="graph-stats-count">{{ lastCollisionResult?.updatedSizes.size ?? 0 }}</span>
-                </li>
-              </ul>
-            </section>
-
-            <section class="graph-stats-section">
               <h4>Node Types</h4>
               <ul class="graph-stats-list">
                 <li v-for="entry in renderedNodeTypeCounts" :key="`node-type-${entry.type}`" class="graph-stats-list-row">
@@ -405,12 +378,10 @@ onUnmounted(() => {
       </Panel>
     </VueFlow>
     <DebugBoundsOverlay
-      v-if="(graphSettings.showDebugBounds || graphSettings.showDebugHandles || graphSettings.showDebugNodeIds) && !isLayoutPending && !isLayoutMeasuring"
+      v-if="graphSettings.showDebugNodeIds && !isLayoutPending && !isLayoutMeasuring"
       :nodes="nodes"
       :edges="renderedEdges"
       :viewport="viewportState"
-      :show-bounds="graphSettings.showDebugBounds"
-      :show-handles="graphSettings.showDebugHandles"
       :show-node-ids="graphSettings.showDebugNodeIds"
       class="absolute inset-0"
     />

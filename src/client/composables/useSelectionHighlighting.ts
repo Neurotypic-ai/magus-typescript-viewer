@@ -37,7 +37,6 @@ export interface UseSelectionHighlightingOptions {
   selectedNode: Ref<DependencyNode | null>;
   scopeMode: Readonly<Ref<ScopeMode>>;
   searchHighlightState: SearchHighlightState;
-  activeDraggedNodeIds: Readonly<Ref<Set<string>>>;
   useCssSelectionHover: boolean;
   perfMarksEnabled: boolean;
   graphStore: {
@@ -76,7 +75,6 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     selectedNode,
     scopeMode,
     searchHighlightState,
-    activeDraggedNodeIds,
     useCssSelectionHover,
     perfMarksEnabled,
     graphStore,
@@ -225,26 +223,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     const nextStyledIds = new Set<string>();
     let nextNodes: DependencyNode[] | null = null;
 
-    // Cache the set of actively-dragged node IDs so we can avoid creating new
-    // object references for them. VueFlow tracks drag state internally on the
-    // node object; if we replace the object reference mid-drag, VueFlow
-    // re-syncs the node from the prop and snaps the position back to the
-    // (potentially stale) store position, causing rubber-banding.
-    const dragging = activeDraggedNodeIds.value;
-
     nodes.value.forEach((node, index) => {
-      // CRITICAL: Never create a new object reference for a node that is actively
-      // being dragged. Doing so resets VueFlow's internal drag tracking and
-      // causes the node to snap back to the store position.
-      if (dragging.size > 0 && dragging.has(node.id)) {
-        // Still track as styled so we re-apply when drag ends.
-        const selectionClass = resolveNodeSelectionClass(node);
-        if (selectionClass) {
-          nextStyledIds.add(node.id);
-        }
-        return;
-      }
-
       const classTokens = getClassTokens(node.class);
       NODE_SELECTION_CLASS_TOKENS.forEach((token) => classTokens.delete(token));
 

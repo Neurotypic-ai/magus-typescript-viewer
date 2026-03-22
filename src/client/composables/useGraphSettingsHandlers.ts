@@ -5,12 +5,8 @@ export interface SettingsHandlerGraphLayout {
 }
 
 export interface SettingsHandlerGraphSettings {
-  collapseScc: boolean;
-  clusterByFolder: boolean;
   showFps: boolean;
   setEnabledRelationshipTypes: (types: string[]) => void;
-  setCollapseScc: (value: boolean) => void;
-  setClusterByFolder: (value: boolean) => void;
   setHideTestFiles: (value: boolean) => void;
   setHighlightOrphanGlobal: (value: boolean) => void;
   setShowFps: (value: boolean) => void;
@@ -26,8 +22,6 @@ export interface UseGraphSettingsHandlersOptions {
 
 export interface GraphSettingsHandlers {
   handleRelationshipFilterChange: (types: string[]) => Promise<void>;
-  handleCollapseSccToggle: (value: boolean) => Promise<void>;
-  handleClusterByFolderToggle: (value: boolean) => Promise<void>;
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;
   handleOrphanGlobalToggle: (value: boolean) => Promise<void>;
   handleShowFpsToggle: (value: boolean) => void;
@@ -39,23 +33,6 @@ export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOption
 
   const handleRelationshipFilterChange = async (types: string[]) => {
     graphSettings.setEnabledRelationshipTypes(types);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleCollapseSccToggle = async (value: boolean) => {
-    if (graphSettings.clusterByFolder && value) {
-      graphSettings.setCollapseScc(false);
-      return;
-    }
-    graphSettings.setCollapseScc(value);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleClusterByFolderToggle = async (value: boolean) => {
-    if (value && graphSettings.collapseScc) {
-      graphSettings.setCollapseScc(false);
-    }
-    graphSettings.setClusterByFolder(value);
     await graphLayout.requestGraphInitialization();
   };
 
@@ -79,8 +56,6 @@ export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOption
 
   return {
     handleRelationshipFilterChange,
-    handleCollapseSccToggle,
-    handleClusterByFolderToggle,
     handleHideTestFilesToggle,
     handleOrphanGlobalToggle,
     handleShowFpsToggle,

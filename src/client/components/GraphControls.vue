@@ -6,12 +6,9 @@ import type { Ref } from 'vue';
 import GraphSearch from './GraphSearch.vue';
 
 import {
-  DEFAULT_MODULE_MEMBER_TYPES,
   DEFAULT_RELATIONSHIP_TYPES,
   useGraphSettings,
 } from '../stores/graphSettings';
-
-import type { ModuleMemberType } from '../stores/graphSettings';
 
 export interface GraphSearchContext {
   searchQuery: Ref<string>;
@@ -31,8 +28,6 @@ const props = withDefaults(defineProps<GraphControlsProps>(), {
 
 const emit = defineEmits<{
   'relationship-filter-change': [types: string[]];
-  'toggle-collapse-scc': [value: boolean];
-  'toggle-cluster-folder': [value: boolean];
   'toggle-hide-test-files': [value: boolean];
   'toggle-orphan-global': [value: boolean];
   'toggle-show-fps': [value: boolean];
@@ -41,30 +36,13 @@ const emit = defineEmits<{
 
 const graphSettings = useGraphSettings();
 
-const collapseSccDisabledReasonId = 'analysis-collapse-scc-disabled-copy';
-
 const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
-
-const moduleMemberTypes = [...DEFAULT_MODULE_MEMBER_TYPES];
-const moduleMemberLabels: Record<ModuleMemberType, string> = {
-  function: 'Functions',
-  type: 'Type Aliases',
-  enum: 'Enums',
-  const: 'Constants',
-  var: 'Variables',
-};
 
 const getRelationshipAvailability = (type: string) => props.relationshipAvailability[type] ?? { available: true };
 const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
 const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
 const relationshipReasonId = (type: string): string =>
   `relationship-reason-${type.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()}`;
-
-const isSccDisabled = computed(() => graphSettings.clusterByFolder);
-
-const handleModuleMemberTypeToggle = (type: ModuleMemberType, checked: boolean) => {
-  graphSettings.toggleModuleMemberType(type, checked);
-};
 
 const toggleListItem = (values: string[], value: string, enabled: boolean): string[] =>
   enabled ? (values.includes(value) ? values : [...values, value]) : values.filter((x) => x !== value);
@@ -74,12 +52,10 @@ const handleRelationshipFilterChange = (type: string, checked: boolean) => {
   emit('relationship-filter-change', toggleListItem(graphSettings.enabledRelationshipTypes, type, checked));
 };
 
-const handleCollapseSccToggle = (checked: boolean) => emit('toggle-collapse-scc', checked);
-const handleClusterByFolderToggle = (checked: boolean) => emit('toggle-cluster-folder', checked);
-const handleHideTestFilesToggle = (checked: boolean) => emit('toggle-hide-test-files', checked);
-const handleOrphanGlobalToggle = (checked: boolean) => emit('toggle-orphan-global', checked);
-const handleShowFpsToggle = (checked: boolean) => emit('toggle-show-fps', checked);
-const handleFpsAdvancedToggle = (checked: boolean) => emit('toggle-fps-advanced', checked);
+const handleHideTestFilesToggle = (checked: boolean) => { emit('toggle-hide-test-files', checked); };
+const handleOrphanGlobalToggle = (checked: boolean) => { emit('toggle-orphan-global', checked); };
+const handleShowFpsToggle = (checked: boolean) => { emit('toggle-show-fps', checked); };
+const handleFpsAdvancedToggle = (checked: boolean) => { emit('toggle-fps-advanced', checked); };
 
 const onSearchQueryUpdate = (v: string) => {
   if (props.graphSearchContext) props.graphSearchContext.searchQuery.value = v;
@@ -109,8 +85,7 @@ const searchQueryValue = computed(
       class="graph-controls-shell bg-background-paper rounded-lg border border-border-default shadow-xl"
       :class="{ 'graph-controls-shell-with-search': !!graphSearchContext }"
     >
-
-      <div class="section">
+<div class="section">
         <div class="section-header-static">
           <span class="section-label">Analysis</span>
         </div>
@@ -118,27 +93,6 @@ const searchQueryValue = computed(
           <fieldset class="control-fieldset">
             <legend class="sr-only">Analysis options</legend>
             <div class="control-group">
-              <label class="control-row" :class="isSccDisabled ? 'control-row-disabled' : 'control-row-interactive'">
-                <input
-                  type="checkbox"
-                  class="control-checkbox"
-                  :checked="graphSettings.collapseScc"
-                  :disabled="isSccDisabled"
-                  :aria-disabled="isSccDisabled"
-                  :aria-describedby="isSccDisabled ? collapseSccDisabledReasonId : undefined"
-                  @change="(e) => handleCollapseSccToggle((e.target as HTMLInputElement).checked)"
-                />
-                <span class="control-label">Collapse cycles (SCC)</span>
-              </label>
-              <label class="control-row control-row-interactive">
-                <input
-                  type="checkbox"
-                  class="control-checkbox"
-                  :checked="graphSettings.clusterByFolder"
-                  @change="(e) => handleClusterByFolderToggle((e.target as HTMLInputElement).checked)"
-                />
-                <span class="control-label">Cluster by folder</span>
-              </label>
               <label class="control-row control-row-interactive">
                 <input
                   type="checkbox"
@@ -156,38 +110,6 @@ const searchQueryValue = computed(
                   @change="(e) => handleOrphanGlobalToggle((e.target as HTMLInputElement).checked)"
                 />
                 <span class="control-label">Highlight global orphans</span>
-              </label>
-            </div>
-          </fieldset>
-          <p v-if="isSccDisabled" :id="collapseSccDisabledReasonId" class="section-helper ml-6 mt-1">
-            Unavailable while folder clustering is active.
-          </p>
-        </div>
-      </div>
-
-      <div class="section section-divider">
-        <div class="section-header-static">
-          <span class="section-label">Module Sections</span>
-        </div>
-        <div class="section-content">
-          <p class="section-description">
-            Toggle which entity types are shown inside module nodes.
-          </p>
-          <fieldset class="control-fieldset">
-            <legend class="sr-only">Module entity type visibility</legend>
-            <div class="control-group">
-              <label
-                v-for="memberType in moduleMemberTypes"
-                :key="memberType"
-                class="control-row control-row-interactive"
-              >
-                <input
-                  type="checkbox"
-                  class="control-checkbox"
-                  :checked="graphSettings.enabledModuleMemberTypes.includes(memberType)"
-                  @change="(e) => handleModuleMemberTypeToggle(memberType, (e.target as HTMLInputElement).checked)"
-                />
-                <span class="control-label">{{ moduleMemberLabels[memberType] }}</span>
               </label>
             </div>
           </fieldset>
@@ -267,24 +189,6 @@ const searchQueryValue = computed(
                 <input
                   type="checkbox"
                   class="control-checkbox"
-                  :checked="graphSettings.showDebugBounds"
-                  @change="(e) => graphSettings.setShowDebugBounds((e.target as HTMLInputElement).checked)"
-                />
-                <span class="control-label">Show collision bounds</span>
-              </label>
-              <label class="control-row control-row-interactive">
-                <input
-                  type="checkbox"
-                  class="control-checkbox"
-                  :checked="graphSettings.showDebugHandles"
-                  @change="(e) => graphSettings.setShowDebugHandles((e.target as HTMLInputElement).checked)"
-                />
-                <span class="control-label">Show handles</span>
-              </label>
-              <label class="control-row control-row-interactive">
-                <input
-                  type="checkbox"
-                  class="control-checkbox"
                   :checked="graphSettings.showDebugNodeIds"
                   @change="(e) => graphSettings.setShowDebugNodeIds((e.target as HTMLInputElement).checked)"
                 />
@@ -360,13 +264,6 @@ const searchQueryValue = computed(
 
 .section-content {
   padding: 0.3rem 0.34rem 0.14rem;
-}
-
-.section-description {
-  margin-bottom: 0.42rem;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  color: var(--color-text-secondary);
 }
 
 .section-helper {
