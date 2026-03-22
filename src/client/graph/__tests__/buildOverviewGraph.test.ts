@@ -92,16 +92,16 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('single module', () => {
-    it('creates a single module node with orphan diagnostics', () => {
+    it('creates a module node with folder group node and no edges', () => {
       const mod = makeModule('mod-1', 'index.ts', 'pkg-1', 'src/index.ts');
       const pkg = makePackage('pkg-1', 'my-app', { 'mod-1': mod });
 
       const result = buildOverviewGraph(defaultOptions({ data: makeGraph([pkg]) }));
 
-      expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]?.id).toBe('mod-1');
-      expect(result.nodes[0]?.type).toBe('module');
-      expect(result.nodes[0]?.data?.label).toBe('index.ts');
+      const moduleNode = result.nodes.find((n) => n.type === 'module');
+      expect(moduleNode).toBeDefined();
+      expect(moduleNode?.id).toBe('mod-1');
+      expect(moduleNode?.data?.label).toBe('index.ts');
       expect(result.edges).toHaveLength(0);
     });
 
@@ -111,9 +111,9 @@ describe('buildOverviewGraph', () => {
 
       const result = buildOverviewGraph(defaultOptions({ data: makeGraph([pkg]) }));
 
-      const node = result.nodes[0];
-      expect(node?.data?.diagnostics?.orphanCurrent).toBe(true);
-      expect(node?.data?.diagnostics?.orphanGlobal).toBe(true);
+      const moduleNode = result.nodes.find((n) => n.type === 'module');
+      expect(moduleNode?.data?.diagnostics?.orphanCurrent).toBe(true);
+      expect(moduleNode?.data?.diagnostics?.orphanGlobal).toBe(true);
     });
   });
 
@@ -135,8 +135,9 @@ describe('buildOverviewGraph', () => {
     it('creates nodes for both modules', () => {
       const result = buildOverviewGraph(defaultOptions({ data: twoModuleGraph() }));
 
-      expect(result.nodes).toHaveLength(2);
-      const nodeIds = result.nodes.map((n) => n.id).sort();
+      const moduleNodes = result.nodes.filter((n) => n.type === 'module');
+      expect(moduleNodes).toHaveLength(2);
+      const nodeIds = moduleNodes.map((n) => n.id).sort();
       expect(nodeIds).toEqual(['mod-a', 'mod-b']);
     });
 
@@ -252,21 +253,7 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('package nodes', () => {
-    it('creates package nodes when "package" is in enabledNodeTypes', () => {
-      const mod = makeModule('mod-1', 'index.ts', 'pkg-1', 'src/index.ts');
-      const pkg = makePackage('pkg-1', 'my-app', { 'mod-1': mod });
-
-      const result = buildOverviewGraph(
-        defaultOptions({ data: makeGraph([pkg]) })
-      );
-
-      const packageNode = result.nodes.find((n) => n.type === 'package');
-      expect(packageNode).toBeDefined();
-      expect(packageNode?.id).toBe('pkg-1');
-      expect(packageNode?.data?.label).toBe('my-app');
-    });
-
-    it('does not create package nodes when "package" is not in enabledNodeTypes', () => {
+    it('never creates package-type VueFlow nodes (packages are not visualized as nodes)', () => {
       const mod = makeModule('mod-1', 'index.ts', 'pkg-1', 'src/index.ts');
       const pkg = makePackage('pkg-1', 'my-app', { 'mod-1': mod });
 
@@ -319,42 +306,6 @@ describe('buildOverviewGraph', () => {
       expect(ifaceNode).toBeUndefined();
     });
 
-    it('creates class/interface VueFlow nodes in graph mode when modules are excluded', () => {
-      // When modules are not in enabledNodeTypes but class/interface are,
-      // memberNodeMode is forced to 'graph' regardless of the option value
-      const result = buildOverviewGraph(
-        defaultOptions({
-          data: graphWithClasses(),
-        })
-      );
-
-      const classNode = result.nodes.find((n) => n.type === 'class');
-      const ifaceNode = result.nodes.find((n) => n.type === 'interface');
-      expect(classNode).toBeDefined();
-      expect(classNode?.id).toBe('cls-1');
-      expect(classNode?.data?.label).toBe('MyClass');
-      expect(ifaceNode).toBeDefined();
-      expect(ifaceNode?.id).toBe('iface-1');
-      expect(ifaceNode?.data?.label).toBe('MyInterface');
-    });
-
-    it('creates class/interface VueFlow nodes in graph mode with module containers', () => {
-      const result = buildOverviewGraph(
-        defaultOptions({
-          data: graphWithClasses(),
-        })
-      );
-
-      const classNode = result.nodes.find((n) => n.type === 'class');
-      const ifaceNode = result.nodes.find((n) => n.type === 'interface');
-      const moduleNode = result.nodes.find((n) => n.type === 'module');
-
-      expect(moduleNode).toBeDefined();
-      expect(classNode).toBeDefined();
-      expect(ifaceNode).toBeDefined();
-      expect(classNode?.parentNode).toBe('mod-1');
-      expect(ifaceNode?.parentNode).toBe('mod-1');
-    });
   });
 
   // -----------------------------------------------------------------------
@@ -397,7 +348,7 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('multiple packages', () => {
-    it('creates nodes from all packages', () => {
+    it('creates nodes from all packages (module + folder group per module)', () => {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts');
       const modB = makeModule('mod-b', 'b.ts', 'pkg-2', 'src/b.ts');
       const pkg1 = makePackage('pkg-1', 'lib-a', { a: modA });
@@ -407,9 +358,11 @@ describe('buildOverviewGraph', () => {
         defaultOptions({ data: makeGraph([pkg1, pkg2]) })
       );
 
-      expect(result.nodes).toHaveLength(2);
-      const nodeIds = result.nodes.map((n) => n.id).sort();
-      expect(nodeIds).toEqual(['mod-a', 'mod-b']);
+      // Folder clustering always runs: each module gets a folder group node.
+      const moduleNodes = result.nodes.filter((n) => n.type === 'module');
+      expect(moduleNodes).toHaveLength(2);
+      const moduleIds = moduleNodes.map((n) => n.id).sort();
+      expect(moduleIds).toEqual(['mod-a', 'mod-b']);
     });
   });
 
@@ -477,13 +430,14 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('node type filtering', () => {
-    it('returns no nodes when enabledRelationshipTypes is empty', () => {
+    it('creates folder group nodes even with no enabled relationship types', () => {
       const mod = makeModule('mod-1', 'index.ts', 'pkg-1', 'src/index.ts');
       const data = makeGraph([makePackage('pkg-1', 'app', { m: mod })]);
 
       const result = buildOverviewGraph(defaultOptions({ data, enabledRelationshipTypes: [] }));
 
-      expect(result.nodes).toHaveLength(0);
+      // Folder clustering always runs: module node + its folder group node are always created.
+      expect(result.nodes).toHaveLength(2);
       expect(result.edges).toHaveLength(0);
     });
   });
