@@ -164,7 +164,3 @@ describe('EDGE_KIND_PRIORITY', () => {
     }
   });
 });
-function expect(arg0: number) {
-  throw new Error('Function not implemented.');
-}
-

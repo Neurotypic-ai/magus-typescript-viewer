@@ -51,6 +51,7 @@ function makeMethodRow(overrides: Partial<IMethodRow> = {}): IMethodRow {
     is_async: false,
     visibility: 'public',
     created_at: '2024-01-01T00:00:00.000Z',
+    ...overrides,
   };
 }
 
@@ -66,6 +67,7 @@ function makeParameterRow(overrides: Partial<IParameterRow> = {}): IParameterRow
     is_rest: 0,
     default_value: null,
     created_at: '2024-01-01T00:00:00.000Z',
+    ...overrides,
   };
 }
 
@@ -289,14 +291,10 @@ describe('MethodRepository', () => {
     it('retrieves all methods when no filters are provided', async () => {
       const row1 = makeMethodRow({ id: 'method-1', name: 'alpha' });
       const row2 = makeMethodRow({ id: 'method-2', name: 'beta' });
-      console.log('DEBUG row1:', JSON.stringify(row1));
-      console.log('DEBUG row2:', JSON.stringify(row2));
       const rows = [row1, row2];
       (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(rows);
 
       const result = await repo.retrieve();
-      console.log('DEBUG result[0].id:', result[0]?.id);
-      console.log('DEBUG result length:', result.length);
 
       expect(result).toHaveLength(2);
       expect(result[0]).toBeInstanceOf(Method);
@@ -726,12 +724,12 @@ describe('MethodRepository', () => {
   // Constructor / initialization
   // -----------------------------------------------------------------------
   describe('constructor', () => {
-    it('sets the table name to "methods"', () => {
+    it('sets the table name to "methods"', async () => {
       // Access the protected tableName through a query that embeds it
       (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       // Trigger an update which uses this.tableName
-      repo.update('x', { name: 'y' }).catch(() => {
+      await repo.update('x', { name: 'y' }).catch(() => {
         // We expect this might fail; we just need the query to fire
       });
 

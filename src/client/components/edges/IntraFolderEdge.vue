@@ -60,11 +60,15 @@ const routeResult = computed(() => {
     v-if="routeResult.path"
     :id="id"
     :path="routeResult.path"
-    :label-x="routeResult.labelX"
-    :label-y="routeResult.labelY"
-    :marker-start="markerStart"
-    :marker-end="markerEnd"
-    :style="style"
-    :interaction-width="interactionWidth"
+    v-bind="
+      {
+        ...(routeResult.labelX === undefined ? {} : { labelX: routeResult.labelX }),
+        ...(routeResult.labelY === undefined ? {} : { labelY: routeResult.labelY }),
+        ...(markerStart === undefined ? {} : { markerStart }),
+        ...(markerEnd === undefined ? {} : { markerEnd }),
+        ...(style === undefined ? {} : { style }),
+        ...(interactionWidth === undefined ? {} : { interactionWidth }),
+      }
+    "
   />
 </template>

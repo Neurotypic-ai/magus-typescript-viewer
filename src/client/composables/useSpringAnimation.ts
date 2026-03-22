@@ -12,7 +12,18 @@
 
 import { ref } from 'vue';
 
+import type { Dimensions, XYPosition } from '@vue-flow/core';
 import type { Ref } from 'vue';
+
+type NodePositionMap = Map<string, XYPosition>;
+type NodeSizeMap = Map<string, Dimensions>;
+type NodeTypeMap = Map<string, string>;
+export type SpringOnFrame = (positions: NodePositionMap, sizes: NodeSizeMap) => void;
+export type SpringSetTargets = (
+  positions: NodePositionMap,
+  sizes: NodeSizeMap,
+  nodeTypes: NodeTypeMap
+) => void;
 
 // ---------------------------------------------------------------------------
 // Spring configuration
@@ -115,10 +126,7 @@ interface SpringNodeState {
 
 export interface UseSpringAnimationOptions {
   /** Called each animation frame with interpolated positions and sizes. */
-  onFrame: (
-    positions: Map<string, { x: number; y: number }>,
-    sizes: Map<string, { width: number; height: number }>
-  ) => void;
+  onFrame: SpringOnFrame;
   /** Called when all springs have settled. */
   onSettle: () => void;
   /** Whether reduced motion is preferred (skip animation, snap immediately). */
@@ -139,11 +147,7 @@ export interface SpringAnimation {
    * @param sizes - Map of nodeId → target size
    * @param nodeTypes - Map of nodeId → node type string (used to pick spring profile)
    */
-  setTargets: (
-    positions: Map<string, { x: number; y: number }>,
-    sizes: Map<string, { width: number; height: number }>,
-    nodeTypes: Map<string, string>
-  ) => void;
+  setTargets: SpringSetTargets;
   /** Remove a node from the spring system (e.g. when it becomes dragged). */
   removeNode: (nodeId: string) => void;
   /** Clear all spring state (e.g. on layout reset). */
@@ -153,9 +157,9 @@ export interface SpringAnimation {
   /** Number of nodes currently animating. */
   settlingCount: Readonly<Ref<number>>;
   /** Read current interpolated positions (for re-resolution during animation). */
-  getCurrentPositions: () => Map<string, { x: number; y: number }>;
+  getCurrentPositions: () => NodePositionMap;
   /** Read current interpolated sizes (for re-resolution during animation). */
-  getCurrentSizes: () => Map<string, { width: number; height: number }>;
+  getCurrentSizes: () => NodeSizeMap;
   /** Stop animation and clean up. */
   dispose: () => void;
 }
@@ -186,8 +190,8 @@ export function useSpringAnimation(options: UseSpringAnimationOptions): SpringAn
     lastFrameTime = now;
 
     let settling = 0;
-    const updatedPositions = new Map<string, { x: number; y: number }>();
-    const updatedSizes = new Map<string, { width: number; height: number }>();
+    const updatedPositions: NodePositionMap = new Map();
+    const updatedSizes: NodeSizeMap = new Map();
 
     for (const [nodeId, state] of springStates) {
       if (!state.isSettling) continue;
@@ -284,11 +288,7 @@ export function useSpringAnimation(options: UseSpringAnimationOptions): SpringAn
 
   // ---- Public API ----
 
-  function setTargets(
-    positions: Map<string, { x: number; y: number }>,
-    sizes: Map<string, { width: number; height: number }>,
-    nodeTypes: Map<string, string>
-  ): void {
+  const setTargets: SpringSetTargets = (positions, sizes, nodeTypes): void => {
     // Reduced motion: snap immediately, no animation
     if (reducedMotion.value) {
       onFrame(positions, sizes);
@@ -348,7 +348,7 @@ export function useSpringAnimation(options: UseSpringAnimationOptions): SpringAn
     if (hasSettling) {
       startLoop();
     }
-  }
+  };
 
   function removeNode(nodeId: string): void {
     springStates.delete(nodeId);
@@ -359,16 +359,16 @@ export function useSpringAnimation(options: UseSpringAnimationOptions): SpringAn
     springStates.clear();
   }
 
-  function getCurrentPositions(): Map<string, { x: number; y: number }> {
-    const result = new Map<string, { x: number; y: number }>();
+  function getCurrentPositions(): NodePositionMap {
+    const result: NodePositionMap = new Map();
     for (const [id, state] of springStates) {
       result.set(id, { x: state.currentX, y: state.currentY });
     }
     return result;
   }
 
-  function getCurrentSizes(): Map<string, { width: number; height: number }> {
-    const result = new Map<string, { width: number; height: number }>();
+  function getCurrentSizes(): NodeSizeMap {
+    const result: NodeSizeMap = new Map();
     for (const [id, state] of springStates) {
       if (state.isGroup) {
         result.set(id, { width: state.currentWidth, height: state.currentHeight });

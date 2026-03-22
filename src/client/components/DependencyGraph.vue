@@ -51,7 +51,9 @@ const env = {
   NODE_VISIBLE_RENDER_THRESHOLD: parseEnvInt('VITE_NODE_VISIBLE_RENDER_THRESHOLD', 320),
   EDGE_RENDERER_MODE: (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'hybrid-canvas',
   EDGE_VIRTUALIZATION_MODE:
-    (import.meta.env['VITE_EDGE_VIRTUALIZATION_MODE'] as string | undefined) === 'main' ? 'main' : 'worker',
+    ((import.meta.env['VITE_EDGE_VIRTUALIZATION_MODE'] as string | undefined) === 'main'
+      ? 'main'
+      : 'worker') as 'main' | 'worker',
   USE_CSS_SELECTION_HOVER: parseEnvBoolean('VITE_USE_CSS_SELECTION_HOVER', true),
   PERF_MARKS_ENABLED: parseEnvBoolean('VITE_PERF_MARKS', false),
   EDGE_VIEWPORT_RECALC_THROTTLE_MS: parseEnvInt('VITE_EDGE_VIEWPORT_RECALC_THROTTLE_MS', 80),
