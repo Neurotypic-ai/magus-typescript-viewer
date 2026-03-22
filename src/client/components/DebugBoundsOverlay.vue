@@ -5,9 +5,10 @@ import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../layout/geometryB
 import { getHandleAnchor } from '../layout/handleAnchors';
 
 import type { Rect } from '../layout/geometryBounds';
-import type { CollisionConfig } from '../layout/collisionResolver';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+
+const GROUP_PADDING = { horizontal: 16, top: 40, bottom: 16 };
 
 interface ViewportState {
   x: number;
@@ -22,7 +23,6 @@ interface DebugBoundsOverlayProps {
   showBounds?: boolean;
   showHandles?: boolean;
   showNodeIds?: boolean;
-  collisionConfig: CollisionConfig;
 }
 
 interface ScreenRect {
@@ -122,7 +122,7 @@ const screenRects = computed<ScreenRect[]>(() => {
     return [];
   }
   const rects: ScreenRect[] = [];
-  const groupPadding = props.collisionConfig.groupPadding;
+  const groupPadding = GROUP_PADDING;
   const bounds = absoluteBoundsById.value;
 
   for (const node of props.nodes) {

@@ -1,12 +1,6 @@
 import { defineStore, type SetupStoreDefinition } from 'pinia';
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 
-import {
-  createDefaultStrategyOptionsById,
-  sanitizeStrategyOptionsById,
-} from '../rendering/strategyRegistry';
-import type { RenderingStrategyId, RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
-
 export const DEFAULT_RELATIONSHIP_TYPES = [
   'import',
   'inheritance',
@@ -32,10 +26,6 @@ function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 interface PersistedGraphSettings {
   collapseScc?: boolean;
   clusterByFolder?: boolean;
@@ -49,8 +39,6 @@ interface PersistedGraphSettings {
   showDebugBounds?: boolean;
   showDebugHandles?: boolean;
   showDebugNodeIds?: boolean;
-  renderingStrategyId?: string;
-  strategyOptionsById?: unknown;
 }
 
 interface GraphSettingsStore {
@@ -96,8 +84,6 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
   const showDebugBounds = ref<boolean>(false);
   const showDebugHandles = ref<boolean>(false);
   const showDebugNodeIds = ref<boolean>(false);
-  const renderingStrategyId = ref<RenderingStrategyId>('vueflow');
-  const strategyOptionsById = ref<RenderingStrategyOptionsById>(createDefaultStrategyOptionsById());
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     return {
@@ -166,13 +152,6 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
       if (typeof parsed.showDebugNodeIds === 'boolean') {
         showDebugNodeIds.value = parsed.showDebugNodeIds;
       }
-      if (typeof parsed.renderingStrategyId === 'string') {
-        const id = parsed.renderingStrategyId as RenderingStrategyId;
-        renderingStrategyId.value = id;
-      }
-      if (isRecord(parsed.strategyOptionsById)) {
-        strategyOptionsById.value = sanitizeStrategyOptionsById(parsed.strategyOptionsById);
-      }
     } catch {
       // Ignore persisted settings parse failures.
     }
@@ -197,8 +176,6 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
         showDebugBounds: showDebugBounds.value,
         showDebugHandles: showDebugHandles.value,
         showDebugNodeIds: showDebugNodeIds.value,
-        renderingStrategyId: renderingStrategyId.value,
-        strategyOptionsById: strategyOptionsById.value,
       };
       localStorage.setItem(GRAPH_SETTINGS_CACHE_KEY, JSON.stringify(payload));
     } catch {
@@ -287,20 +264,6 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
     persistSettings();
   }
 
-  function setRenderingStrategyId(id: RenderingStrategyId): void {
-    renderingStrategyId.value = id;
-    persistSettings();
-  }
-
-  function setRenderingStrategyOption(strategyId: RenderingStrategyId, optionId: string, value: unknown): void {
-    const current = strategyOptionsById.value[strategyId] ?? {};
-    strategyOptionsById.value = {
-      ...strategyOptionsById.value,
-      [strategyId]: { ...current, [optionId]: value },
-    };
-    persistSettings();
-  }
-
   loadSettings();
 
   return {
@@ -331,10 +294,6 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
     setShowDebugHandles,
     showDebugNodeIds,
     setShowDebugNodeIds,
-    renderingStrategyId,
-    strategyOptionsById,
-    setRenderingStrategyId,
-    setRenderingStrategyOption,
   };
 };
 

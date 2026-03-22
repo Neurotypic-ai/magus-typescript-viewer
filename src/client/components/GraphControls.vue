@@ -5,22 +5,12 @@ import type { Ref } from 'vue';
 
 import GraphSearch from './GraphSearch.vue';
 
-import { getActiveCollisionConfig } from '../layout/collisionResolver';
-import { getRenderingStrategies } from '../rendering/strategyRegistry';
 import {
   DEFAULT_MODULE_MEMBER_TYPES,
   DEFAULT_RELATIONSHIP_TYPES,
   useGraphSettings,
 } from '../stores/graphSettings';
 
-import type {
-  RenderingNumberOptionDefinition,
-  RenderingOptionDefinition,
-  RenderingOptionValue,
-  RenderingSelectOptionDefinition,
-  RenderingStrategy,
-  RenderingStrategyId,
-} from '../rendering/RenderingStrategy';
 import type { ModuleMemberType } from '../stores/graphSettings';
 
 export interface GraphSearchContext {
@@ -31,13 +21,11 @@ export interface GraphSearchContext {
 
 interface GraphControlsProps {
   relationshipAvailability?: Record<string, { available: boolean; reason?: string }>;
-  canvasRendererAvailable?: boolean;
   graphSearchContext?: GraphSearchContext | null;
 }
 
 const props = withDefaults(defineProps<GraphControlsProps>(), {
   relationshipAvailability: () => ({}),
-  canvasRendererAvailable: true,
   graphSearchContext: null,
 });
 
@@ -49,21 +37,10 @@ const emit = defineEmits<{
   'toggle-orphan-global': [value: boolean];
   'toggle-show-fps': [value: boolean];
   'toggle-fps-advanced': [value: boolean];
-  'rendering-strategy-change': [id: RenderingStrategyId];
-  'rendering-strategy-option-change': [
-    payload: { strategyId: RenderingStrategyId; optionId: string; value: RenderingOptionValue },
-  ];
 }>();
 
 const graphSettings = useGraphSettings();
 
-const renderingStrategies = getRenderingStrategies();
-const fallbackRenderingStrategy = renderingStrategies[0];
-if (!fallbackRenderingStrategy) {
-  throw new Error('Rendering strategy registry is empty.');
-}
-const canvasUnavailableMessageId = 'rendering-strategy-canvas-unavailable-copy';
-const folderRequiredReasonId = 'node-types-folder-required-copy';
 const collapseSccDisabledReasonId = 'analysis-collapse-scc-disabled-copy';
 
 const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
@@ -83,190 +60,7 @@ const relationshipReason = (type: string) => getRelationshipAvailability(type).r
 const relationshipReasonId = (type: string): string =>
   `relationship-reason-${type.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()}`;
 
-const activeRenderingStrategy = computed<RenderingStrategy>(() => {
-  return (
-    renderingStrategies.find((s) => s.id === graphSettings.renderingStrategyId) ?? fallbackRenderingStrategy
-  );
-});
-
-const forcesClusterByFolder = computed(() => activeRenderingStrategy.value.runtime.forcesClusterByFolder);
-const clusterByFolderEffective = computed(
-  () => graphSettings.clusterByFolder || forcesClusterByFolder.value
-);
-const isSccDisabled = computed(
-  () => graphSettings.clusterByFolder || forcesClusterByFolder.value
-);
-
-const isRenderingStrategyDisabled = (strategyId: RenderingStrategyId): boolean => {
-  return strategyId === 'canvas' && !props.canvasRendererAvailable;
-};
-
-const getEnabledRenderingStrategyIds = (): RenderingStrategyId[] => {
-  return renderingStrategies
-    .filter((s) => !isRenderingStrategyDisabled(s.id))
-    .map((s) => s.id);
-};
-
-const firstEnabledRenderingStrategyId = computed<RenderingStrategyId | null>(
-  () => getEnabledRenderingStrategyIds()[0] ?? null
-);
-
-const getRenderingStrategyTabIndex = (strategyId: RenderingStrategyId): number => {
-  if (isRenderingStrategyDisabled(strategyId)) return -1;
-  const activeId = graphSettings.renderingStrategyId;
-  if (!isRenderingStrategyDisabled(activeId)) return activeId === strategyId ? 0 : -1;
-  return firstEnabledRenderingStrategyId.value === strategyId ? 0 : -1;
-};
-
-const findAdjacentEnabledStrategyId = (
-  currentId: RenderingStrategyId,
-  direction: 1 | -1
-): RenderingStrategyId | null => {
-  const ids = getEnabledRenderingStrategyIds();
-  if (ids.length === 0) return null;
-  const idx = ids.indexOf(currentId);
-  const base = idx >= 0 ? idx : 0;
-  const next = (base + direction + ids.length) % ids.length;
-  return ids[next] ?? null;
-};
-
-const focusRenderingStrategyRadio = (target: EventTarget | null, strategyId: RenderingStrategyId) => {
-  if (!(target instanceof HTMLElement)) return;
-  const group = target.closest('[role="radiogroup"]');
-  const radio = group?.querySelector<HTMLElement>(
-    `[role="radio"][data-rendering-strategy-id="${strategyId}"]`
-  );
-  radio?.focus();
-};
-
-const handleRenderingStrategyChange = (strategyId: RenderingStrategyId) => {
-  if (isRenderingStrategyDisabled(strategyId)) return;
-  emit('rendering-strategy-change', strategyId);
-};
-
-const handleRenderingStrategyRadioKeydown = (
-  event: KeyboardEvent,
-  strategyId: RenderingStrategyId
-) => {
-  if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-    event.preventDefault();
-    const prev = findAdjacentEnabledStrategyId(strategyId, -1);
-    if (prev) {
-      handleRenderingStrategyChange(prev);
-      focusRenderingStrategyRadio(event.currentTarget, prev);
-    }
-    return;
-  }
-  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-    event.preventDefault();
-    const next = findAdjacentEnabledStrategyId(strategyId, 1);
-    if (next) {
-      handleRenderingStrategyChange(next);
-      focusRenderingStrategyRadio(event.currentTarget, next);
-    }
-    return;
-  }
-  if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
-    event.preventDefault();
-    handleRenderingStrategyChange(strategyId);
-  }
-};
-
-const isRenderingOptionVisible = (
-  strategyId: RenderingStrategyId,
-  option: RenderingOptionDefinition
-): boolean =>
-  !option.isVisible ||
-  option.isVisible({
-    strategyId,
-    strategyOptionsById: graphSettings.strategyOptionsById,
-  });
-
-const isRenderingOptionEnabled = (
-  strategyId: RenderingStrategyId,
-  option: RenderingOptionDefinition
-): boolean => {
-  if (isRenderingStrategyDisabled(strategyId)) return false;
-  return !option.isEnabled || option.isEnabled({ strategyId, strategyOptionsById: graphSettings.strategyOptionsById });
-};
-
-const activeRenderingOptions = computed(() => {
-  const id = activeRenderingStrategy.value.id;
-  return activeRenderingStrategy.value.options.filter((o) => isRenderingOptionVisible(id, o));
-});
-
-const getStoredRenderingOptionValue = (
-  strategyId: RenderingStrategyId,
-  option: RenderingOptionDefinition
-): unknown => {
-  const opts = graphSettings.strategyOptionsById[strategyId] ?? {};
-  const v = opts[option.id];
-  return v === undefined ? option.defaultValue : v;
-};
-
-const getBooleanRenderingOptionValue = (
-  strategyId: RenderingStrategyId,
-  option: RenderingOptionDefinition
-): boolean => {
-  const v = getStoredRenderingOptionValue(strategyId, option);
-  return typeof v === 'boolean' ? v : Boolean(option.defaultValue);
-};
-
-const getSelectRenderingOptionValue = (
-  strategyId: RenderingStrategyId,
-  option: RenderingSelectOptionDefinition
-): string => {
-  const v = getStoredRenderingOptionValue(strategyId, option);
-  return typeof v === 'string' ? v : option.defaultValue;
-};
-
-const getNumberRenderingOptionValue = (
-  strategyId: RenderingStrategyId,
-  option: RenderingNumberOptionDefinition
-): number => {
-  const v = getStoredRenderingOptionValue(strategyId, option);
-  return typeof v === 'number' && Number.isFinite(v) ? v : option.defaultValue;
-};
-
-const handleRenderingStrategyOptionChange = (
-  strategyId: RenderingStrategyId,
-  optionId: string,
-  value: RenderingOptionValue
-) => {
-  emit('rendering-strategy-option-change', { strategyId, optionId, value });
-};
-
-const handleBooleanRenderingOptionChange = (
-  strategyId: RenderingStrategyId,
-  option: RenderingOptionDefinition,
-  checked: boolean
-) => handleRenderingStrategyOptionChange(strategyId, option.id, checked);
-
-const handleSelectRenderingOptionChange = (
-  strategyId: RenderingStrategyId,
-  option: RenderingSelectOptionDefinition,
-  value: string
-) => handleRenderingStrategyOptionChange(strategyId, option.id, value);
-
-const normalizeNumberOptionValue = (
-  option: RenderingNumberOptionDefinition,
-  raw: string
-): number => {
-  const n = Number.parseFloat(raw);
-  if (!Number.isFinite(n)) return option.defaultValue;
-  let v = n;
-  if (typeof option.min === 'number') v = Math.max(option.min, v);
-  if (typeof option.max === 'number') v = Math.min(option.max, v);
-  return v;
-};
-
-const handleNumberRenderingOptionChange = (
-  strategyId: RenderingStrategyId,
-  option: RenderingNumberOptionDefinition,
-  raw: string
-) => {
-  handleRenderingStrategyOptionChange(strategyId, option.id, normalizeNumberOptionValue(option, raw));
-};
+const isSccDisabled = computed(() => graphSettings.clusterByFolder);
 
 const handleModuleMemberTypeToggle = (type: ModuleMemberType, checked: boolean) => {
   graphSettings.toggleModuleMemberType(type, checked);
@@ -294,11 +88,6 @@ const onSearchQueryUpdate = (v: string) => {
 const searchQueryValue = computed(
   () => props.graphSearchContext?.searchQuery?.value ?? ''
 );
-
-const activeCollisionConfig = computed(() =>
-  getActiveCollisionConfig(graphSettings.renderingStrategyId, graphSettings.strategyOptionsById)
-);
-const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlapGap);
 </script>
 
 <template>
@@ -323,135 +112,6 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 
       <div class="section">
         <div class="section-header-static">
-          <span class="section-label">Rendering Strategy</span>
-        </div>
-        <div class="section-content">
-          <p class="section-description">
-            Choose a strategy for edge rendering and graph runtime behavior.
-          </p>
-          <div role="radiogroup" aria-label="Rendering strategy" class="flex flex-col gap-1.5">
-            <button
-              v-for="strategy in renderingStrategies"
-              :key="strategy.id"
-              type="button"
-              role="radio"
-              :aria-checked="graphSettings.renderingStrategyId === strategy.id"
-              :aria-disabled="isRenderingStrategyDisabled(strategy.id)"
-              :aria-describedby="
-                isRenderingStrategyDisabled(strategy.id) && strategy.id === 'canvas' ? canvasUnavailableMessageId : undefined
-              "
-              :disabled="isRenderingStrategyDisabled(strategy.id)"
-              :tabindex="getRenderingStrategyTabIndex(strategy.id)"
-              :data-rendering-strategy-id="strategy.id"
-              :class="[
-                'strategy-radio',
-                graphSettings.renderingStrategyId === strategy.id ? 'strategy-radio-active' : 'strategy-radio-inactive',
-                isRenderingStrategyDisabled(strategy.id) ? 'strategy-radio-disabled' : '',
-              ]"
-              @click="handleRenderingStrategyChange(strategy.id)"
-              @keydown="(e) => handleRenderingStrategyRadioKeydown(e, strategy.id)"
-            >
-              <div class="text-xs font-semibold leading-tight">{{ strategy.label }}</div>
-              <div class="mt-1 text-[11px] leading-tight text-text-secondary">{{ strategy.description }}</div>
-            </button>
-          </div>
-          <p
-            v-if="!props.canvasRendererAvailable"
-            :id="canvasUnavailableMessageId"
-            class="section-helper mt-2"
-          >
-            Canvas strategy is unavailable in this browser session.
-          </p>
-          <div v-if="activeRenderingOptions.length > 0" class="mt-2 space-y-1.5" aria-live="polite" aria-atomic="false">
-            <h5 class="text-xs font-semibold text-text-primary">{{ activeRenderingStrategy.label }} options</h5>
-            <div
-              v-for="option in activeRenderingOptions"
-              :key="`${activeRenderingStrategy.id}-${option.id}`"
-              class="option-card"
-            >
-              <label
-                :for="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
-                class="block text-xs font-medium text-text-primary"
-              >
-                {{ option.label }}
-              </label>
-              <p class="option-description">{{ option.description }}</p>
-              <input
-                v-if="option.type === 'boolean'"
-                :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
-                type="checkbox"
-                class="control-checkbox"
-                :checked="getBooleanRenderingOptionValue(activeRenderingStrategy.id, option)"
-                :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
-                :aria-disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
-                @change="
-                  (e) =>
-                    handleBooleanRenderingOptionChange(
-                      activeRenderingStrategy.id,
-                      option,
-                      (e.target as HTMLInputElement).checked
-                    )
-                "
-              />
-              <select
-                v-else-if="option.type === 'select'"
-                :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
-                class="option-select"
-                :value="getSelectRenderingOptionValue(activeRenderingStrategy.id, option)"
-                :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
-                :aria-disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
-                @change="
-                  (e) =>
-                    handleSelectRenderingOptionChange(
-                      activeRenderingStrategy.id,
-                      option,
-                      (e.target as HTMLSelectElement).value
-                    )
-                "
-              >
-                <option
-                  v-for="selectOption in option.options"
-                  :key="selectOption.value"
-                  :value="selectOption.value"
-                >
-                  {{ selectOption.label }}
-                </option>
-              </select>
-              <div v-else class="flex items-center gap-1.5">
-                <input
-                  :id="`rendering-option-${activeRenderingStrategy.id}-${option.id}`"
-                  type="range"
-                  class="option-range"
-                  :min="option.min"
-                  :max="option.max"
-                  :step="option.step ?? 1"
-                  :value="getNumberRenderingOptionValue(activeRenderingStrategy.id, option)"
-                  :disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
-                  :aria-disabled="!isRenderingOptionEnabled(activeRenderingStrategy.id, option)"
-                  :aria-valuemin="typeof option.min === 'number' ? option.min : undefined"
-                  :aria-valuemax="typeof option.max === 'number' ? option.max : undefined"
-                  :aria-valuenow="getNumberRenderingOptionValue(activeRenderingStrategy.id, option)"
-                  :aria-valuetext="String(getNumberRenderingOptionValue(activeRenderingStrategy.id, option))"
-                  @input="
-                    (e) =>
-                      handleNumberRenderingOptionChange(
-                        activeRenderingStrategy.id,
-                        option,
-                        (e.target as HTMLInputElement).value
-                      )
-                  "
-                />
-                <span class="w-8 text-right text-xs tabular-nums text-text-secondary">
-                  {{ getNumberRenderingOptionValue(activeRenderingStrategy.id, option) }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="section section-divider">
-        <div class="section-header-static">
           <span class="section-label">Analysis</span>
         </div>
         <div class="section-content">
@@ -470,18 +130,12 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
                 />
                 <span class="control-label">Collapse cycles (SCC)</span>
               </label>
-              <label
-                class="control-row"
-                :class="clusterByFolderEffective ? 'control-row-disabled' : 'control-row-interactive'"
-              >
+              <label class="control-row control-row-interactive">
                 <input
                   type="checkbox"
                   class="control-checkbox"
-                  :checked="clusterByFolderEffective"
-                  :disabled="forcesClusterByFolder"
-                  :aria-disabled="forcesClusterByFolder"
-                  :aria-describedby="forcesClusterByFolder ? folderRequiredReasonId : undefined"
-                  @change="(e) => !forcesClusterByFolder && handleClusterByFolderToggle((e.target as HTMLInputElement).checked)"
+                  :checked="graphSettings.clusterByFolder"
+                  @change="(e) => handleClusterByFolderToggle((e.target as HTMLInputElement).checked)"
                 />
                 <span class="control-label">Cluster by folder</span>
               </label>
@@ -507,13 +161,6 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
           </fieldset>
           <p v-if="isSccDisabled" :id="collapseSccDisabledReasonId" class="section-helper ml-6 mt-1">
             Unavailable while folder clustering is active.
-          </p>
-          <p
-            v-if="forcesClusterByFolder"
-            :id="folderRequiredReasonId"
-            class="section-helper ml-6 mt-1"
-          >
-            Required by Folder View strategy.
           </p>
         </div>
       </div>
@@ -643,11 +290,6 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
                 />
                 <span class="control-label">Show node IDs</span>
               </label>
-              <div class="debug-summary">
-                <div>Strategy: {{ graphSettings.renderingStrategyId }}</div>
-                <div>Minimum distance: {{ activeMinimumDistance }}px</div>
-                <div>Overlap gap: {{ activeCollisionConfig.overlapGap }}px</div>
-              </div>
             </div>
           </fieldset>
         </div>
@@ -791,104 +433,6 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 .control-checkbox:focus-visible {
   outline: 2px solid var(--focus-ring, #00ffff);
   outline-offset: 2px;
-}
-
-.strategy-radio {
-  width: 100%;
-  border-radius: 0.45rem;
-  border: 1px solid var(--color-border-default);
-  padding: 0.46rem 0.52rem;
-  text-align: left;
-  transition:
-    border-color 150ms ease-out,
-    background-color 150ms ease-out,
-    color 150ms ease-out,
-    box-shadow 150ms ease-out;
-}
-
-.strategy-radio-inactive {
-  color: var(--color-text-primary);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.strategy-radio-inactive:hover {
-  border-color: var(--color-border-hover);
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.strategy-radio-active {
-  color: var(--color-text-primary);
-  border-color: var(--color-primary-main);
-  background: rgba(144, 202, 249, 0.2);
-  box-shadow: 0 0 0 1px rgba(144, 202, 249, 0.2);
-}
-
-.strategy-radio-disabled {
-  cursor: not-allowed;
-  color: var(--color-text-muted);
-  border-color: rgba(var(--border-default-rgb, 64, 64, 64), 0.6);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.strategy-radio:focus-visible {
-  outline: 2px solid var(--focus-ring, #00ffff);
-  outline-offset: 2px;
-}
-
-.option-card {
-  border-radius: 0.45rem;
-  border: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.72);
-  background: rgba(255, 255, 255, 0.09);
-  padding: 0.45rem 0.5rem;
-}
-
-.option-description {
-  margin-bottom: 0.4rem;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  color: var(--color-text-secondary);
-}
-
-.option-select {
-  width: 100%;
-  border-radius: 0.4rem;
-  border: 1px solid var(--color-border-default);
-  background: var(--color-background-paper);
-  color: var(--color-text-primary);
-  font-size: 0.75rem;
-  line-height: 1.3;
-  padding: 0.24rem 0.45rem;
-}
-
-.option-select:focus-visible {
-  outline: 2px solid var(--focus-ring, #00ffff);
-  outline-offset: 2px;
-  border-color: var(--color-primary-main);
-}
-
-.option-range {
-  flex: 1;
-  cursor: pointer;
-  accent-color: var(--color-primary-main);
-}
-
-.option-range:disabled {
-  cursor: not-allowed;
-}
-
-.option-range:focus-visible {
-  outline: 2px solid var(--focus-ring, #00ffff);
-  outline-offset: 2px;
-}
-
-.debug-summary {
-  border-radius: 0.45rem;
-  border: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.72);
-  background: rgba(255, 255, 255, 0.09);
-  padding: 0.42rem 0.5rem;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  color: var(--color-text-secondary);
 }
 
 .sr-only {

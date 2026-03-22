@@ -101,7 +101,6 @@ export interface DependencyGraphCoreReturn {
   onNodeMouseEnter: (params: { node: unknown }) => void;
   onNodeMouseLeave: (params: { node: unknown }) => void;
   handleRelationshipFilterChange: (types: string[]) => Promise<void>;
-  handleNodeTypeFilterChange: (types: string[]) => Promise<void>;
   handleCollapseSccToggle: (value: boolean) => Promise<void>;
   handleClusterByFolderToggle: (value: boolean) => Promise<void>;
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;

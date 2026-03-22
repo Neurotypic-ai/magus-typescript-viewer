@@ -112,7 +112,6 @@ const {
   onNodeMouseEnter,
   onNodeMouseLeave,
   handleRelationshipFilterChange,
-  handleNodeTypeFilterChange,
   handleCollapseSccToggle,
   handleClusterByFolderToggle,
   handleHideTestFilesToggle,
@@ -130,7 +129,6 @@ const {
   renderedNodeTypeCounts,
   renderedEdgeTypeCounts,
   scopeMode,
-  highlightedEdgeIdList,
   startFps,
   stopFps,
   dispose,
@@ -255,7 +253,6 @@ onUnmounted(() => {
         :relationship-availability="graphSettings.relationshipAvailability"
         :graph-search-context="graphSearchContext"
         @relationship-filter-change="handleRelationshipFilterChange"
-        @node-type-filter-change="handleNodeTypeFilterChange"
         @toggle-collapse-scc="handleCollapseSccToggle"
         @toggle-cluster-folder="handleClusterByFolderToggle"
         @toggle-hide-test-files="handleHideTestFilesToggle"
