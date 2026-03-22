@@ -1,6 +1,3 @@
-import { getRenderingStrategy } from '../rendering/strategyRegistry';
-
-import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
 import type { DependencyNode } from '../types/DependencyNode';
 
 export interface SettingsHandlerGraphLayout {
@@ -11,18 +8,14 @@ export interface SettingsHandlerGraphSettings {
   collapseScc: boolean;
   clusterByFolder: boolean;
   showFps: boolean;
-  renderingStrategyId: RenderingStrategyId;
   setEnabledRelationshipTypes: (types: string[]) => void;
   setEnabledNodeTypes: (types: string[]) => void;
   setCollapseScc: (value: boolean) => void;
   setClusterByFolder: (value: boolean) => void;
   setHideTestFiles: (value: boolean) => void;
-  setMemberNodeMode: (value: 'compact' | 'graph') => void;
   setHighlightOrphanGlobal: (value: boolean) => void;
   setShowFps: (value: boolean) => void;
   setShowFpsAdvanced: (value: boolean) => void;
-  setRenderingStrategyId: (value: RenderingStrategyId) => void;
-  setRenderingStrategyOption: (strategyId: RenderingStrategyId, optionId: string, value: unknown) => void;
 }
 
 export interface UseGraphSettingsHandlersOptions {
@@ -30,7 +23,6 @@ export interface UseGraphSettingsHandlersOptions {
   graphSettings: SettingsHandlerGraphSettings;
   setSelectedNode: (node: DependencyNode | null) => void;
   syncViewportState: () => void;
-  requestViewportRecalc: (force?: boolean) => void;
 }
 
 export interface GraphSettingsHandlers {
@@ -39,20 +31,13 @@ export interface GraphSettingsHandlers {
   handleCollapseSccToggle: (value: boolean) => Promise<void>;
   handleClusterByFolderToggle: (value: boolean) => Promise<void>;
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;
-  handleMemberNodeModeChange: (value: 'compact' | 'graph') => Promise<void>;
   handleOrphanGlobalToggle: (value: boolean) => Promise<void>;
   handleShowFpsToggle: (value: boolean) => void;
   handleFpsAdvancedToggle: (value: boolean) => void;
-  handleRenderingStrategyChange: (id: RenderingStrategyId) => Promise<void>;
-  handleRenderingStrategyOptionChange: (payload: {
-    strategyId: RenderingStrategyId;
-    optionId: string;
-    value: unknown;
-  }) => Promise<void>;
 }
 
 export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOptions): GraphSettingsHandlers {
-  const { graphLayout, graphSettings, setSelectedNode, syncViewportState, requestViewportRecalc } = options;
+  const { graphLayout, graphSettings, setSelectedNode } = options;
 
   const handleRelationshipFilterChange = async (types: string[]) => {
     graphSettings.setEnabledRelationshipTypes(types);
@@ -66,8 +51,7 @@ export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOption
   };
 
   const handleCollapseSccToggle = async (value: boolean) => {
-    const strategyForScc = getRenderingStrategy(graphSettings.renderingStrategyId);
-    if ((graphSettings.clusterByFolder || strategyForScc.runtime.forcesClusterByFolder) && value) {
+    if (graphSettings.clusterByFolder && value) {
       graphSettings.setCollapseScc(false);
       return;
     }
@@ -76,15 +60,6 @@ export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOption
   };
 
   const handleClusterByFolderToggle = async (value: boolean) => {
-    const activeStrategy = getRenderingStrategy(graphSettings.renderingStrategyId);
-    if (activeStrategy.runtime.forcesClusterByFolder && !value) {
-      graphSettings.setClusterByFolder(true);
-      if (graphSettings.collapseScc) {
-        graphSettings.setCollapseScc(false);
-      }
-      await graphLayout.requestGraphInitialization();
-      return;
-    }
     if (value && graphSettings.collapseScc) {
       graphSettings.setCollapseScc(false);
     }
@@ -94,11 +69,6 @@ export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOption
 
   const handleHideTestFilesToggle = async (value: boolean) => {
     graphSettings.setHideTestFiles(value);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleMemberNodeModeChange = async (value: 'compact' | 'graph') => {
-    graphSettings.setMemberNodeMode(value);
     await graphLayout.requestGraphInitialization();
   };
 
@@ -115,47 +85,14 @@ export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOption
     graphSettings.setShowFpsAdvanced(value);
   };
 
-  const handleRenderingStrategyChange = async (id: RenderingStrategyId): Promise<void> => {
-    const strategy = getRenderingStrategy(id);
-    if (strategy.runtime.forcesClusterByFolder) {
-      graphSettings.setClusterByFolder(true);
-      if (graphSettings.collapseScc) {
-        graphSettings.setCollapseScc(false);
-      }
-    }
-    if (graphSettings.renderingStrategyId !== id) {
-      graphSettings.setRenderingStrategyId(id);
-      await graphLayout.requestGraphInitialization();
-    }
-    syncViewportState();
-    requestViewportRecalc(true);
-  };
-
-  const handleRenderingStrategyOptionChange = async (payload: {
-    strategyId: RenderingStrategyId;
-    optionId: string;
-    value: unknown;
-  }): Promise<void> => {
-    const optionTargetsActiveStrategy = payload.strategyId === graphSettings.renderingStrategyId;
-    graphSettings.setRenderingStrategyOption(payload.strategyId, payload.optionId, payload.value);
-    if (optionTargetsActiveStrategy) {
-      await graphLayout.requestGraphInitialization();
-    }
-    syncViewportState();
-    requestViewportRecalc(true);
-  };
-
   return {
     handleRelationshipFilterChange,
     handleNodeTypeFilterChange,
     handleCollapseSccToggle,
     handleClusterByFolderToggle,
     handleHideTestFilesToggle,
-    handleMemberNodeModeChange,
     handleOrphanGlobalToggle,
     handleShowFpsToggle,
     handleFpsAdvancedToggle,
-    handleRenderingStrategyChange,
-    handleRenderingStrategyOptionChange,
   };
 }

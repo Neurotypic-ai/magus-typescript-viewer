@@ -4,7 +4,6 @@ import { traverseGraph } from '../graph/traversal';
 import type { Ref } from 'vue';
 import type { CameraMode } from './useGraphInteractionController';
 import type { FitView } from './useGraphLayout';
-import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
@@ -29,11 +28,6 @@ export interface NavigationHandlerGraphStore {
   semanticSnapshot: NavigationHandlerGraphSnapshot | null;
 }
 
-export interface NavigationHandlerGraphSettings {
-  renderingStrategyId: RenderingStrategyId;
-  setRenderingStrategyId: (id: RenderingStrategyId) => void;
-}
-
 export interface NavigationHandlerGraphLayout {
   requestGraphInitialization: () => Promise<void>;
 }
@@ -44,9 +38,7 @@ export interface UseGraphNavigationHandlersOptions {
   fitView: FitView;
   interaction: NavigationHandlerInteraction;
   graphStore: NavigationHandlerGraphStore;
-  graphSettings: NavigationHandlerGraphSettings;
   graphLayout: NavigationHandlerGraphLayout;
-  canvasRendererAvailable: Ref<boolean>;
   viewport: NavigationHandlerViewport;
   edgeVirtualization: NavigationHandlerEdgeVirtualization;
   syncViewportState: () => void;
@@ -55,24 +47,12 @@ export interface UseGraphNavigationHandlersOptions {
 export interface GraphNavigationHandlers {
   handleFocusNode: (nodeId: string) => Promise<void>;
   handleMinimapNodeClick: (params: { node: { id: string } }) => void;
-  handleCanvasUnavailable: () => void;
   onMoveEnd: () => void;
 }
 
 export function useGraphNavigationHandlers(options: UseGraphNavigationHandlersOptions): GraphNavigationHandlers {
-  const {
-    nodes,
-    setSelectedNode,
-    fitView,
-    interaction,
-    graphStore,
-    graphSettings,
-    graphLayout,
-    canvasRendererAvailable,
-    viewport,
-    edgeVirtualization,
-    syncViewportState,
-  } = options;
+  const { nodes, setSelectedNode, fitView, interaction, graphStore, viewport, edgeVirtualization, syncViewportState } =
+    options;
 
   const handleFocusNode = async (nodeId: string): Promise<void> => {
     const targetNode = nodes.value.find((node: DependencyNode) => node.id === nodeId);
@@ -101,17 +81,6 @@ export function useGraphNavigationHandlers(options: UseGraphNavigationHandlersOp
     void handleFocusNode(params.node.id);
   };
 
-  const handleCanvasUnavailable = (): void => {
-    if (!canvasRendererAvailable.value) return;
-    canvasRendererAvailable.value = false;
-    if (graphSettings.renderingStrategyId === 'canvas') {
-      graphSettings.setRenderingStrategyId('vueflow');
-      void graphLayout.requestGraphInitialization();
-    }
-    syncViewportState();
-    edgeVirtualization.requestViewportRecalc(true);
-  };
-
   const onMoveEnd = (): void => {
     viewport.onMoveEnd();
     edgeVirtualization.requestViewportRecalc(true);
@@ -120,7 +89,6 @@ export function useGraphNavigationHandlers(options: UseGraphNavigationHandlersOp
   return {
     handleFocusNode,
     handleMinimapNodeClick,
-    handleCanvasUnavailable,
     onMoveEnd,
   };
 }

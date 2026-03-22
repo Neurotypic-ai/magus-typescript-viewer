@@ -1,9 +1,8 @@
-import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
+import type { NodeChange } from '@vue-flow/core';
 import type { ComputedRef, Ref } from 'vue';
 
 import type { FolderCollapseActions, NodeActions } from '../components/nodes/utils';
-import type { CollisionConfig, CollisionResult } from '../layout/collisionResolver';
-import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
+import type { CollisionResult } from '../layout/collisionResolver';
 import type { useGraphSettings } from '../stores/graphSettings';
 import type { useInsightsStore } from '../stores/insightsStore';
 import type { useIssuesStore } from '../stores/issuesStore';
@@ -25,9 +24,7 @@ export interface DependencyGraphCoreEnv {
   HEAVY_EDGE_STYLE_THRESHOLD: number;
   HIGH_EDGE_MARKER_THRESHOLD: number;
   LOW_DETAIL_EDGE_ZOOM_THRESHOLD: number;
-  EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD: number;
   NODE_VISIBLE_RENDER_THRESHOLD: number;
-  EDGE_RENDERER_MODE: string;
   EDGE_VIRTUALIZATION_MODE: 'main' | 'worker';
   USE_CSS_SELECTION_HOVER: boolean;
   PERF_MARKS_ENABLED: boolean;
@@ -73,18 +70,14 @@ export interface DependencyGraphCoreReturn {
   highlightedEdgeIds: Ref<Set<string>>;
   highlightedEdgeIdList: Ref<string[]>;
   renderedEdges: ComputedRef<GraphEdge[]>;
-  activeCollisionConfig: ComputedRef<CollisionConfig>;
   lastCollisionResult: Ref<CollisionResult | null>;
   useOnlyRenderVisibleElements: ComputedRef<boolean>;
-  defaultEdgeOptions: ComputedRef<DefaultEdgeOptions>;
+  defaultEdgeOptions: ComputedRef<Record<string, unknown>>;
   selectedNode: Ref<DependencyNode | null>;
   hoveredNodeId: Ref<string | null>;
   setSelectedNode: (node: DependencyNode | null) => void;
   clearHoverState: () => void;
   contextMenu: Ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>;
-  canvasRendererAvailable: Ref<boolean>;
-  isCanvasModeRequested: ComputedRef<boolean>;
-  isHybridCanvasMode: ComputedRef<boolean>;
   isHeavyEdgeMode: ComputedRef<boolean>;
   minimapAutoHidden: ComputedRef<boolean>;
   showMiniMap: ComputedRef<boolean>;
@@ -107,7 +100,6 @@ export interface DependencyGraphCoreReturn {
   handleSearchResult: (result: SearchResult) => void;
   handleFocusNode: (nodeId: string) => Promise<void>;
   handleMinimapNodeClick: (params: { node: { id: string } }) => void;
-  handleCanvasUnavailable: () => void;
   onMoveEnd: () => void;
   onNodeClick: (params: { node: unknown }) => void;
   onPaneClick: () => void;
@@ -119,16 +111,9 @@ export interface DependencyGraphCoreReturn {
   handleCollapseSccToggle: (value: boolean) => Promise<void>;
   handleClusterByFolderToggle: (value: boolean) => Promise<void>;
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;
-  handleMemberNodeModeChange: (value: 'compact' | 'graph') => Promise<void>;
   handleOrphanGlobalToggle: (value: boolean) => Promise<void>;
   handleShowFpsToggle: (value: boolean) => void;
   handleFpsAdvancedToggle: (value: boolean) => void;
-  handleRenderingStrategyChange: (id: RenderingStrategyId) => Promise<void>;
-  handleRenderingStrategyOptionChange: (payload: {
-    strategyId: RenderingStrategyId;
-    optionId: string;
-    value: unknown;
-  }) => Promise<void>;
   nodeActions: NodeActions;
   highlightOrphanGlobal: ComputedRef<boolean>;
   folderCollapseActions: FolderCollapseActions;

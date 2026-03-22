@@ -53,11 +53,11 @@ const props = defineProps<DependencyGraphProps>();
 // Get the singleton instance of PerformanceMetrics
 const metrics = PerformanceMetrics.getInstance();
 const enableInteractionMetrics =
-  import.meta.env.DEV && import.meta.env['VITE_GRAPH_INTERACTION_METRICS'] === 'true';
+  import.meta.env.DEV && import.meta.env.VITE_GRAPH_INTERACTION_METRICS === 'true';
 
 onMounted(() => {
   // Create a mark for the start of component rendering
-  performance.mark('graph-render-start');
+  // performance.mark('graph-render-start');
 
   if (!enableInteractionMetrics) {
     return;
@@ -100,8 +100,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   // Measure render time on component unmount
-  performance.mark('graph-render-end');
-  performance.measure('graph-render', 'graph-render-start', 'graph-render-end');
+  // performance.mark('graph-render-end');
+  // performance.measure('graph-render', 'graph-render-start', 'graph-render-end');
 
   const entries = performance.getEntriesByName('graph-render');
   if (entries.length > 0) {

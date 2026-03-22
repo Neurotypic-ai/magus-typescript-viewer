@@ -39,9 +39,6 @@ import { createGraphNodeActions } from './createGraphNodeActions';
 import { useNodeHoverZIndex } from './useNodeHoverZIndex';
 import { useSearchHighlighting } from './useSearchHighlighting';
 import { useSelectionHighlighting } from './useSelectionHighlighting';
-import { getActiveCollisionConfig } from '../layout/collisionResolver';
-import { getRenderingStrategy } from '../rendering/strategyRegistry';
-import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
 import type {
   DependencyGraphCoreReturn,
   UseDependencyGraphCoreOptions,
@@ -63,15 +60,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const graphStore = useGraphStore();
   const graphSettings = useGraphSettings();
-  const envDefaultRendererMode: RenderingStrategyId = env.EDGE_RENDERER_MODE === 'vue-flow' ? 'vueflow' : 'canvas';
-  graphSettings.initializeRenderingStrategyId(envDefaultRendererMode);
-  const startupStrategy = getRenderingStrategy(graphSettings.renderingStrategyId);
-  if (startupStrategy.runtime.forcesClusterByFolder && !graphSettings.clusterByFolder) {
-    graphSettings.setClusterByFolder(true);
-  }
-  if (startupStrategy.runtime.forcesClusterByFolder && graphSettings.collapseScc) {
-    graphSettings.setCollapseScc(false);
-  }
   const issuesStore = useIssuesStore();
   const insightsStore = useInsightsStore();
   const interaction = useGraphInteractionController();
@@ -90,7 +78,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   } = useVueFlow();
 
   const contextMenu = ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>(null);
-  const canvasRendererAvailable = ref(true);
   const nodeDimensionTracker = createNodeDimensionTracker();
 
   const showFps = computed(() => graphSettings.showFps);
@@ -191,9 +178,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   );
 
   const { isLayoutPending, isLayoutMeasuring, layoutConfig } = graphLayout;
-  const activeCollisionConfig = computed(() =>
-    getActiveCollisionConfig(graphSettings.renderingStrategyId, graphSettings.strategyOptionsById)
-  );
 
   let reconcileSelectedNodeFn: (updatedNodes: DependencyNode[]) => void = (_updatedNodes) => undefined;
 
@@ -214,10 +198,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     },
     reconcileSelectedNodeAfterStructuralChange: (updatedNodes) => {
       reconcileSelectedNodeFn(updatedNodes);
-    },
-    collisionConfigInputs: {
-      renderingStrategyId: computed(() => graphSettings.renderingStrategyId),
-      strategyOptionsById: computed(() => graphSettings.strategyOptionsById),
     },
   });
 
@@ -323,8 +303,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     isolationMode;
 
   const {
-    isCanvasModeRequested,
-    isHybridCanvasMode,
     renderedEdges,
     useOnlyRenderVisibleElements,
     isHeavyEdgeMode,
@@ -336,13 +314,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     nodes,
     edges,
     viewportState,
-    isLayoutMeasuring,
     visualEdges,
-    highlightedEdgeIds,
-    edgeVirtualizationEnabled,
     isFirefox,
-    canvasRendererAvailable,
-    renderingStrategyId: computed(() => graphSettings.renderingStrategyId),
   });
 
   const { renderedNodeCount, renderedEdgeCount, renderedNodeTypeCounts, renderedEdgeTypeCounts } = useGraphRenderedStats({
@@ -352,7 +325,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const { minimapNodeColor, minimapNodeStrokeColor } = useMinimapHelpers({ selectedNode });
 
-  const { handleFocusNode, handleMinimapNodeClick, handleCanvasUnavailable, onMoveEnd } = useGraphNavigationHandlers({
+  const { handleFocusNode, handleMinimapNodeClick, onMoveEnd } = useGraphNavigationHandlers({
     nodes,
     setSelectedNode,
     fitView,
@@ -366,18 +339,9 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
         return graphStore.semanticSnapshot;
       },
     },
-    graphSettings: {
-      get renderingStrategyId() {
-        return graphSettings.renderingStrategyId;
-      },
-      setRenderingStrategyId: (id) => {
-        graphSettings.setRenderingStrategyId(id);
-      },
-    },
     graphLayout: {
       requestGraphInitialization: () => graphLayout.requestGraphInitialization(),
     },
-    canvasRendererAvailable,
     viewport: {
       onMoveEnd: () => {
         viewport.onMoveEnd();
@@ -432,20 +396,14 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     handleCollapseSccToggle,
     handleClusterByFolderToggle,
     handleHideTestFilesToggle,
-    handleMemberNodeModeChange,
     handleOrphanGlobalToggle,
     handleShowFpsToggle,
     handleFpsAdvancedToggle,
-    handleRenderingStrategyChange,
-    handleRenderingStrategyOptionChange,
   } = useGraphSettingsHandlers({
     graphLayout,
     graphSettings,
     setSelectedNode,
     syncViewportState,
-    requestViewportRecalc: (force) => {
-      edgeVirtualization.requestViewportRecalc(force);
-    },
   });
 
   const { nodeActions, folderCollapseActions } = createGraphNodeActions({
@@ -510,7 +468,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     highlightedEdgeIds,
     highlightedEdgeIdList,
     renderedEdges,
-    activeCollisionConfig,
     lastCollisionResult,
     useOnlyRenderVisibleElements,
     defaultEdgeOptions,
@@ -527,9 +484,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
     // UI state
     contextMenu,
-    canvasRendererAvailable,
-    isCanvasModeRequested,
-    isHybridCanvasMode,
     isHeavyEdgeMode,
     minimapAutoHidden,
     showMiniMap,
@@ -558,7 +512,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     handleSearchResult,
     handleFocusNode,
     handleMinimapNodeClick,
-    handleCanvasUnavailable,
     onMoveEnd,
     onNodeClick,
     onPaneClick,
@@ -570,12 +523,9 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     handleCollapseSccToggle,
     handleClusterByFolderToggle,
     handleHideTestFilesToggle,
-    handleMemberNodeModeChange,
     handleOrphanGlobalToggle,
     handleShowFpsToggle,
     handleFpsAdvancedToggle,
-    handleRenderingStrategyChange,
-    handleRenderingStrategyOptionChange,
 
     // Provide values
     nodeActions,
