@@ -260,9 +260,11 @@ useExpandCollapseState(
           class="external-dependency"
         >
           <div class="external-dependency-name">{{ dependency.packageName }}</div>
-          <div class="external-dependency-symbols">
-            {{ dependency.symbols.join(', ') }}
-          </div>
+          <ul class="external-dependency-symbols" role="list">
+            <li v-for="(sym, symIdx) in dependency.symbols" :key="`${dependency.packageName}-${symIdx}-${sym}`" role="listitem">
+              <code class="external-dependency-symbol">{{ sym }}</code>
+            </li>
+          </ul>
         </div>
       </CollapsibleSection>
 
@@ -340,11 +342,23 @@ useExpandCollapseState(
 }
 
 .external-dependency-symbols {
+  list-style: none;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.external-dependency-symbol {
+  display: block;
   color: var(--text-secondary);
   font-size: 0.68rem;
-  line-height: 1.1;
-  margin-top: 0.15rem;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
 .module-empty-state,

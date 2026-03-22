@@ -72,6 +72,11 @@ function toStringField(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
 }
 
+/** Avoid `(): : void` when the parser already includes a leading `: ` on return/type strings. */
+function stripLeadingColonType(value: string): string {
+  return value.replace(/^:\s*/, '').trim();
+}
+
 function toNodeProperty(property: NodeProperty | Record<string, unknown>): NodeProperty {
   return {
     id: typeof property.id === 'string' ? property.id : undefined,
@@ -284,7 +289,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           id: fn.id,
           type: 'function',
           name: fn.name,
-          detail: `(): ${fn.returnType}`,
+          detail: `(): ${stripLeadingColonType(toStringField(fn.returnType, 'void'))}`,
           tags: fn.isAsync ? ['async'] : undefined,
         });
       });
@@ -322,7 +327,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
           id: v.id,
           type: v.kind === 'const' ? 'const' : 'var',
           name: v.name,
-          detail: v.type,
+          detail: stripLeadingColonType(toStringField(v.type, 'unknown')),
         });
       });
     }

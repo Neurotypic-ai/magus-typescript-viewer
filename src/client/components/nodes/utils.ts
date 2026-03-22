@@ -7,6 +7,8 @@ import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
 import type { NodeMethod } from '../../types/NodeMethod';
 import type { NodeProperty } from '../../types/NodeProperty';
 
+import { buildTypeDisplayModel, type TypeDisplayModel } from './typeDisplay';
+
 /**
  * Injection key for node actions provided by the graph root.
  * Consumed by BaseNode via inject().
@@ -111,6 +113,7 @@ export interface FormattedMember {
   key: string;
   name: string;
   typeAnnotation: string;
+  typeDisplay: TypeDisplayModel;
   indicator: string;
 }
 
@@ -133,20 +136,24 @@ export function visibilityIndicator(visibility: string): string {
 }
 
 export function formatProperty(prop: NodeProperty): FormattedMember {
+  const typeAnnotation = normalizeTypeAnnotation(prop.type, 'unknown');
   return {
     key: `${prop.name}:${prop.type || 'unknown'}:${prop.visibility || 'default'}`,
     indicator: visibilityIndicator(prop.visibility),
     name: prop.name,
-    typeAnnotation: normalizeTypeAnnotation(prop.type, 'unknown'),
+    typeAnnotation,
+    typeDisplay: buildTypeDisplayModel(typeAnnotation),
   };
 }
 
 export function formatMethod(method: NodeMethod): FormattedMember {
+  const typeAnnotation = normalizeTypeAnnotation(method.returnType, 'void');
   return {
     key: `${method.name}:${method.returnType || 'void'}:${method.visibility || 'default'}`,
     indicator: visibilityIndicator(method.visibility),
     name: method.name,
-    typeAnnotation: normalizeTypeAnnotation(method.returnType, 'void'),
+    typeAnnotation,
+    typeDisplay: buildTypeDisplayModel(typeAnnotation),
   };
 }
 

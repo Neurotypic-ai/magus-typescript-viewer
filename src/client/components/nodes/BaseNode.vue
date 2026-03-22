@@ -259,7 +259,6 @@ const containerStyle = computed(() => {
 }
 
 .base-node-container--container {
-  contain: layout style; /* no paint containment since overflow is visible */
   border-radius: 0.625rem;
   overflow: visible;
   transition:

@@ -259,16 +259,20 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     graphStore.suspendCacheWrites();
 
     try {
-      // Compute positions synchronously using the simple hierarchical layout
-      const positionMap = computeSimpleHierarchicalLayout(graphData.nodes, graphData.edges);
+      // Compute positions and parent sizes synchronously using the simple hierarchical layout
+      const { positions, sizes } = computeSimpleHierarchicalLayout(graphData.nodes, graphData.edges);
 
-      // Apply computed positions to nodes (only root nodes get new positions from the map)
+      // Apply computed positions and explicit sizes to nodes.
+      // Children get relative positions within their parent; parents get explicit
+      // width/height so Vue Flow renders them large enough to enclose children.
       const positionedNodes = graphData.nodes.map((node) => {
-        const pos = positionMap.get(node.id);
-        if (pos) {
-          return { ...node, position: pos };
-        }
-        return node;
+        const pos = positions.get(node.id);
+        const sz = sizes.get(node.id);
+        return {
+          ...node,
+          ...(pos ? { position: pos } : {}),
+          ...(sz ? { style: { ...node.style, width: sz.width, height: sz.height } } : {}),
+        };
       });
 
       const normalized = normalizeLayoutResult(positionedNodes, graphData.edges);

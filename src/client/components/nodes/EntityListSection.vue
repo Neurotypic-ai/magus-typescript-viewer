@@ -2,6 +2,9 @@
 import { computed } from 'vue';
 
 import CollapsibleSection from './CollapsibleSection.vue';
+import TypeAnnotationDisplay from './TypeAnnotationDisplay.vue';
+
+import { buildDetailDisplayModel, type TypeDisplayModel } from './typeDisplay';
 
 import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
 
@@ -17,7 +20,16 @@ const props = withDefaults(defineProps<EntityListSectionProps>(), {
   defaultOpen: false,
 });
 
-const visibleEntities = computed(() => props.entities);
+const rows = computed(() =>
+  props.entities.map((entity) => ({
+    entity,
+    model: buildDetailDisplayModel(entity.detail),
+  })),
+);
+
+function isRichDetail(model: TypeDisplayModel): boolean {
+  return model.kind !== 'plain';
+}
 </script>
 
 <template>
@@ -28,14 +40,22 @@ const visibleEntities = computed(() => props.entities);
     :default-open="defaultOpen"
   >
     <div
-      v-for="entity in visibleEntities"
+      v-for="({ entity, model }) in rows"
       :key="entity.id"
       class="entity-item"
+      :class="{ 'entity-item--rich': isRichDetail(model) }"
     >
-      <span :class="['entity-badge', badgeClass]">{{ badgeText }}</span>
-      <span class="entity-name">{{ entity.name }}</span>
-      <span class="entity-detail">{{ entity.detail }}</span>
-      <span v-if="entity.tags?.includes('async')" class="entity-tag">async</span>
+      <div class="entity-row-main">
+        <span :class="['entity-badge', badgeClass]">{{ badgeText }}</span>
+        <span class="entity-name">{{ entity.name }}</span>
+        <span v-if="model.kind === 'plain'" class="entity-detail">{{ entity.detail }}</span>
+        <span v-if="entity.tags?.includes('async')" class="entity-tag">async</span>
+      </div>
+      <TypeAnnotationDisplay
+        v-if="model.kind !== 'plain'"
+        text-align="left"
+        :model="model"
+      />
     </div>
   </CollapsibleSection>
 </template>
@@ -43,12 +63,31 @@ const visibleEntities = computed(() => props.entities);
 <style scoped>
 .entity-item {
   display: flex;
-  align-items: baseline;
-  gap: 0.3rem;
+  flex-direction: column;
+  gap: 0.2rem;
   padding: 0.2rem 0.35rem;
   border-radius: 0.25rem;
   font-size: 0.68rem;
   line-height: 1.3;
+}
+
+.entity-item:not(.entity-item--rich) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.entity-item:not(.entity-item--rich) .entity-row-main {
+  display: contents;
+}
+
+.entity-item--rich .entity-row-main {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem;
 }
 
 .entity-item:hover {
@@ -74,7 +113,17 @@ const visibleEntities = computed(() => props.entities);
 
 .entity-detail {
   color: var(--text-secondary);
-  opacity: 0.8;
+  opacity: 0.85;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  margin-left: auto;
+  text-align: right;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.entity-item--rich .entity-detail {
+  margin-left: 0;
 }
 
 .entity-tag {
@@ -85,6 +134,11 @@ const visibleEntities = computed(() => props.entities);
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-secondary);
   flex-shrink: 0;
+}
+
+.entity-item--rich > :deep(.type-annotation-root) {
+  width: 100%;
+  min-width: 0;
 }
 
 .entity-function {

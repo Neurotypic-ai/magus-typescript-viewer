@@ -2,6 +2,8 @@
 import { computed, ref, watch } from 'vue';
 
 import { GraphDataAssembler } from '../assemblers/GraphDataAssembler';
+import TypeAnnotationDisplay from './nodes/TypeAnnotationDisplay.vue';
+import { buildTypeDisplayModel } from './nodes/typeDisplay';
 import { mapTypeCollection } from '../utils/collections';
 
 import type { DependencyNode } from '../types/DependencyNode';
@@ -518,6 +520,14 @@ const canOpenSymbolUsageGraph = computed(() => ['module', 'class', 'interface'].
 const openSymbolUsageGraph = () => {
   emit('open-symbol-usage', props.node.id);
 };
+
+function typeModel(typeText: string) {
+  return buildTypeDisplayModel(typeText);
+}
+
+function isRichType(typeText: string): boolean {
+  return buildTypeDisplayModel(typeText).kind !== 'plain';
+}
 </script>
 
 <template>
@@ -567,17 +577,52 @@ const openSymbolUsageGraph = () => {
         <details v-for="cls in moduleClasses" :key="cls.id" class="ml-2 mb-2">
           <summary class="cursor-pointer text-sm text-text-primary">{{ cls.name }}</summary>
           <div class="ml-3 mt-1 space-y-1">
-            <div v-if="cls.properties.length > 0" class="text-xs text-text-secondary">
-              <div v-for="(prop, propIndex) in cls.properties" :key="prop.id ?? `${cls.id}-p-${propIndex}`">
-                {{ prop.name }}: {{ prop.type }}
+            <div v-if="cls.properties.length > 0" class="text-xs text-text-secondary space-y-2">
+              <div
+                v-for="(prop, propIndex) in cls.properties"
+                :key="prop.id ?? `${cls.id}-p-${propIndex}`"
+                class="space-y-1"
+              >
+                <div
+                  v-if="isRichType(prop.type)"
+                  class="flex flex-col gap-1"
+                >
+                  <span
+                    ><span class="text-text-primary font-semibold">{{ prop.name }}</span
+                    ><span class="text-text-muted">:</span></span
+                  >
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(prop.type)" />
+                </div>
+                <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+                  <span
+                    ><span class="text-text-primary font-semibold">{{ prop.name }}</span
+                    ><span class="text-text-muted">:</span></span
+                  >
+                  <code class="wrap-break-word text-text-secondary">{{ prop.type }}</code>
+                </div>
                 <div v-if="prop.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ prop.usedBy.join(', ') }}
                 </div>
               </div>
             </div>
-            <div v-if="cls.methods.length > 0" class="text-xs text-text-secondary">
-              <div v-for="(method, methodIndex) in cls.methods" :key="method.id ?? `${cls.id}-m-${methodIndex}`">
-                {{ method.name }}(): {{ method.returnType }}
+            <div v-if="cls.methods.length > 0" class="text-xs text-text-secondary space-y-2">
+              <div
+                v-for="(method, methodIndex) in cls.methods"
+                :key="method.id ?? `${cls.id}-m-${methodIndex}`"
+                class="space-y-1"
+              >
+                <div
+                  v-if="isRichType(method.returnType)"
+                  class="flex flex-col gap-1"
+                >
+                  <span class="text-text-primary font-semibold">{{ method.name }}()</span>
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(method.returnType)" />
+                </div>
+                <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+                  <span class="text-text-primary font-semibold">{{ method.name }}()</span>
+                  <span class="text-text-muted">:</span>
+                  <code class="wrap-break-word text-text-secondary">{{ method.returnType }}</code>
+                </div>
                 <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ method.usedBy.join(', ') }}
                 </div>
@@ -592,17 +637,52 @@ const openSymbolUsageGraph = () => {
         <details v-for="iface in moduleInterfaces" :key="iface.id" class="ml-2 mb-2">
           <summary class="cursor-pointer text-sm text-text-primary">{{ iface.name }}</summary>
           <div class="ml-3 mt-1 space-y-1">
-            <div v-if="iface.properties.length > 0" class="text-xs text-text-secondary">
-              <div v-for="(prop, propIndex) in iface.properties" :key="prop.id ?? `${iface.id}-p-${propIndex}`">
-                {{ prop.name }}: {{ prop.type }}
+            <div v-if="iface.properties.length > 0" class="text-xs text-text-secondary space-y-2">
+              <div
+                v-for="(prop, propIndex) in iface.properties"
+                :key="prop.id ?? `${iface.id}-p-${propIndex}`"
+                class="space-y-1"
+              >
+                <div
+                  v-if="isRichType(prop.type)"
+                  class="flex flex-col gap-1"
+                >
+                  <span
+                    ><span class="text-text-primary font-semibold">{{ prop.name }}</span
+                    ><span class="text-text-muted">:</span></span
+                  >
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(prop.type)" />
+                </div>
+                <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+                  <span
+                    ><span class="text-text-primary font-semibold">{{ prop.name }}</span
+                    ><span class="text-text-muted">:</span></span
+                  >
+                  <code class="wrap-break-word text-text-secondary">{{ prop.type }}</code>
+                </div>
                 <div v-if="prop.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ prop.usedBy.join(', ') }}
                 </div>
               </div>
             </div>
-            <div v-if="iface.methods.length > 0" class="text-xs text-text-secondary">
-              <div v-for="(method, methodIndex) in iface.methods" :key="method.id ?? `${iface.id}-m-${methodIndex}`">
-                {{ method.name }}(): {{ method.returnType }}
+            <div v-if="iface.methods.length > 0" class="text-xs text-text-secondary space-y-2">
+              <div
+                v-for="(method, methodIndex) in iface.methods"
+                :key="method.id ?? `${iface.id}-m-${methodIndex}`"
+                class="space-y-1"
+              >
+                <div
+                  v-if="isRichType(method.returnType)"
+                  class="flex flex-col gap-1"
+                >
+                  <span class="text-text-primary font-semibold">{{ method.name }}()</span>
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(method.returnType)" />
+                </div>
+                <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+                  <span class="text-text-primary font-semibold">{{ method.name }}()</span>
+                  <span class="text-text-muted">:</span>
+                  <code class="wrap-break-word text-text-secondary">{{ method.returnType }}</code>
+                </div>
                 <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ method.usedBy.join(', ') }}
                 </div>
@@ -619,10 +699,23 @@ const openSymbolUsageGraph = () => {
         <div
           v-for="(prop, index) in nodeProperties"
           :key="prop.id ?? `prop-${index}`"
-          class="text-sm text-text-secondary ml-3 font-mono"
+          class="text-sm text-text-secondary ml-3 font-mono space-y-1"
         >
-          <span class="text-primary-main">{{ prop.name }}</span><span class="text-text-muted">:</span>
-          {{ prop.type }}
+          <div
+            v-if="isRichType(prop.type)"
+            class="flex flex-col gap-1"
+          >
+            <span
+              ><span class="text-primary-main">{{ prop.name }}</span><span class="text-text-muted">:</span></span
+            >
+            <TypeAnnotationDisplay text-align="left" :model="typeModel(prop.type)" />
+          </div>
+          <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+            <span
+              ><span class="text-primary-main">{{ prop.name }}</span><span class="text-text-muted">:</span></span
+            >
+            <code class="wrap-break-word">{{ prop.type }}</code>
+          </div>
           <div v-if="prop.usedBy.length > 0" class="text-xs text-text-muted ml-1">
             used by: {{ prop.usedBy.join(', ') }}
           </div>
@@ -636,10 +729,25 @@ const openSymbolUsageGraph = () => {
         <div
           v-for="(method, index) in nodeMethods"
           :key="method.id ?? `method-${index}`"
-          class="text-sm text-text-secondary ml-3 font-mono"
+          class="text-sm text-text-secondary ml-3 font-mono space-y-1"
         >
-          <span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
-          ><span class="text-text-muted">:</span> {{ method.returnType }}
+          <div
+            v-if="isRichType(method.returnType)"
+            class="flex flex-col gap-1"
+          >
+            <span
+              ><span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
+              ><span class="text-text-muted">:</span></span
+            >
+            <TypeAnnotationDisplay text-align="left" :model="typeModel(method.returnType)" />
+          </div>
+          <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+            <span
+              ><span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
+              ><span class="text-text-muted">:</span></span
+            >
+            <code class="wrap-break-word">{{ method.returnType }}</code>
+          </div>
           <div v-if="method.usedBy.length > 0" class="text-xs text-text-muted ml-1">
             used by: {{ method.usedBy.join(', ') }}
           </div>
@@ -699,9 +807,11 @@ const openSymbolUsageGraph = () => {
       <div class="space-y-2">
         <div v-for="group in externalImports" :key="group.packageName" class="ml-2">
           <div class="text-xs font-semibold text-primary-main">{{ group.packageName }}</div>
-          <div class="text-xs text-text-secondary ml-2">
-            {{ group.specifiers.join(', ') }}
-          </div>
+          <ul class="text-xs text-text-secondary ml-2 mt-1 list-none p-0 space-y-0.5" role="list">
+            <li v-for="(spec, sIdx) in group.specifiers" :key="`${group.packageName}-${sIdx}-${spec}`" role="listitem">
+              <code class="block font-mono wrap-break-word whitespace-pre-wrap">{{ spec }}</code>
+            </li>
+          </ul>
         </div>
       </div>
     </div>

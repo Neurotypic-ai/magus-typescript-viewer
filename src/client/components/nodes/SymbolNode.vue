@@ -4,6 +4,7 @@ import { computed, nextTick, ref, toRef, watch } from 'vue';
 
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
+import TypeAnnotationDisplay from './TypeAnnotationDisplay.vue';
 import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import { buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 
@@ -131,10 +132,13 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
                 v-for="prop in formattedProperties"
                 :key="`prop-${prop.key}`"
                 class="member-item"
+                :class="{ 'member-item--rich': prop.typeDisplay.kind !== 'plain' }"
               >
                 <span class="member-visibility">{{ prop.indicator }}</span>
                 <span class="member-name">{{ prop.name }}</span>
-                <span class="member-type-annotation">: {{ prop.typeAnnotation }}</span>
+                <span class="member-type-colon" aria-hidden="true">:</span>
+                <span v-if="prop.typeDisplay.kind === 'plain'" class="member-type-annotation">{{ prop.typeAnnotation }}</span>
+                <TypeAnnotationDisplay v-else :model="prop.typeDisplay" />
               </div>
             </CollapsibleSection>
 
@@ -149,10 +153,13 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
                 v-for="method in formattedMethods"
                 :key="`method-${method.key}`"
                 class="member-item"
+                :class="{ 'member-item--rich': method.typeDisplay.kind !== 'plain' }"
               >
                 <span class="member-visibility">{{ method.indicator }}</span>
                 <span class="member-name">{{ method.name }}()</span>
-                <span class="member-type-annotation">: {{ method.typeAnnotation }}</span>
+                <span class="member-type-colon" aria-hidden="true">:</span>
+                <span v-if="method.typeDisplay.kind === 'plain'" class="member-type-annotation">{{ method.typeAnnotation }}</span>
+                <TypeAnnotationDisplay v-else :model="method.typeDisplay" />
               </div>
             </CollapsibleSection>
           </div>
@@ -212,13 +219,36 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
 
 .member-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.2rem;
+  gap: 0.15rem 0.25rem;
   padding: 0.2rem 0.35rem;
   border-radius: 0.25rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.68rem;
   line-height: 1.3;
+}
+
+.member-type-colon {
+  color: var(--text-secondary);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+.member-type-annotation {
+  color: var(--text-secondary);
+  opacity: 0.85;
+  margin-left: auto;
+  text-align: right;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.member-item--rich > :deep(.type-annotation-root) {
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 .member-item:hover {
@@ -237,12 +267,7 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
   color: var(--text-primary);
   font-weight: 700;
   white-space: nowrap;
-}
-
-.member-type-annotation {
-  color: var(--text-secondary);
-  opacity: 0.8;
-  white-space: nowrap;
+  align-self: flex-start;
 }
 
 .member-overflow {

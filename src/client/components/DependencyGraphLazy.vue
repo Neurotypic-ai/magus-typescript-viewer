@@ -50,8 +50,7 @@ class PerformanceMetrics {
 
 const props = withDefaults(defineProps<DependencyGraphProps>(), {
   data: () => ({
-    nodes: [],
-    edges: [],
+    packages: [],
   }),
 });
 
