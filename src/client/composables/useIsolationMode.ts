@@ -15,11 +15,11 @@ import type {
   FitView,
   FitViewOptions,
   GraphSnapshot,
+  LayoutConfig,
   MeasureAllNodeDimensions,
   ProcessGraphLayout,
   ShouldRunTwoPassMeasure,
 } from './useGraphLayout';
-import type { LayoutConfig } from '../layout/config';
 import type { ScopeMode } from './useGraphInteractionController';
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
@@ -53,9 +53,6 @@ export interface IsolateInteraction {
   scopeMode: Readonly<Ref<ScopeMode>>;
 }
 
-/** Requests edge virtualization to recalc viewport (optionally force). */
-export type RequestEdgeVirtualizationViewportRecalc = (force?: boolean) => void;
-
 /** Sets the currently selected node (or null). */
 export type SetSelectedNode = (node: DependencyNode | null) => void;
 
@@ -80,7 +77,6 @@ export interface UseIsolationModeOptions {
   fitView: FitView;
   updateNodeInternals: (ids: string[]) => void;
   syncViewportState: () => void;
-  requestEdgeVirtualizationViewportRecalc: RequestEdgeVirtualizationViewportRecalc;
   setSelectedNode: SetSelectedNode;
   processGraphLayout: ProcessGraphLayout;
   measureAllNodeDimensions: MeasureAllNodeDimensions;
@@ -120,7 +116,6 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     fitView,
     updateNodeInternals,
     syncViewportState,
-    requestEdgeVirtualizationViewportRecalc,
     setSelectedNode,
     processGraphLayout,
     measureAllNodeDimensions,
@@ -437,7 +432,6 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     };
     await fitView(fitOpts);
     syncViewportState();
-    requestEdgeVirtualizationViewportRecalc(true);
   };
 
   const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
@@ -474,7 +468,6 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
       startIsolateAnimation();
       await fitView({ duration: 350, padding: 0.1 });
       syncViewportState();
-      requestEdgeVirtualizationViewportRecalc(true);
       return;
     }
 

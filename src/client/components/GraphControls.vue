@@ -21,7 +21,7 @@ import type {
   RenderingStrategy,
   RenderingStrategyId,
 } from '../rendering/RenderingStrategy';
-import type { GraphControlSectionKey, ModuleMemberType } from '../stores/graphSettings';
+import type { ModuleMemberType } from '../stores/graphSettings';
 
 export interface GraphSearchContext {
   searchQuery: Ref<string>;
@@ -43,11 +43,9 @@ const props = withDefaults(defineProps<GraphControlsProps>(), {
 
 const emit = defineEmits<{
   'relationship-filter-change': [types: string[]];
-  'node-type-filter-change': [types: string[]];
   'toggle-collapse-scc': [value: boolean];
   'toggle-cluster-folder': [value: boolean];
   'toggle-hide-test-files': [value: boolean];
-  'member-node-mode-change': [value: 'compact' | 'graph'];
   'toggle-orphan-global': [value: boolean];
   'toggle-show-fps': [value: boolean];
   'toggle-fps-advanced': [value: boolean];
@@ -59,19 +57,6 @@ const emit = defineEmits<{
 
 const graphSettings = useGraphSettings();
 
-const toggleSection = (key: GraphControlSectionKey) => {
-  graphSettings.setCollapsedSection(key, !graphSettings.collapsedSections[key]);
-};
-
-const isSectionCollapsed = (key: GraphControlSectionKey): boolean => graphSettings.collapsedSections[key];
-
-const onSectionHeaderKeydown = (event: KeyboardEvent, key: GraphControlSectionKey) => {
-  if (event.key === 'Enter' || event.key === ' ') {
-    event.preventDefault();
-    toggleSection(key);
-  }
-};
-
 const renderingStrategies = getRenderingStrategies();
 const fallbackRenderingStrategy = renderingStrategies[0];
 if (!fallbackRenderingStrategy) {
@@ -82,13 +67,6 @@ const folderRequiredReasonId = 'node-types-folder-required-copy';
 const collapseSccDisabledReasonId = 'analysis-collapse-scc-disabled-copy';
 
 const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
-const nodeTypes = ['module', 'class', 'interface', 'package'] as const;
-const nodeTypeLabels: Record<(typeof nodeTypes)[number], string> = {
-  module: 'Module',
-  class: 'Class',
-  interface: 'Interface',
-  package: 'Package',
-};
 
 const moduleMemberTypes = [...DEFAULT_MODULE_MEMBER_TYPES];
 const moduleMemberLabels: Record<ModuleMemberType, string> = {
@@ -104,9 +82,6 @@ const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(ty
 const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
 const relationshipReasonId = (type: string): string =>
   `relationship-reason-${type.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()}`;
-
-type MemberDisplayMode = 'compact' | 'graph';
-const memberDisplayModes: MemberDisplayMode[] = ['compact', 'graph'];
 
 const activeRenderingStrategy = computed<RenderingStrategy>(() => {
   return (
@@ -293,26 +268,6 @@ const handleNumberRenderingOptionChange = (
   handleRenderingStrategyOptionChange(strategyId, option.id, normalizeNumberOptionValue(option, raw));
 };
 
-const getMemberDisplayTabIndex = (mode: MemberDisplayMode): number =>
-  graphSettings.memberNodeMode === mode ? 0 : -1;
-
-const findAdjacentMemberDisplayMode = (
-  currentMode: MemberDisplayMode,
-  direction: 1 | -1
-): MemberDisplayMode => {
-  const currentIdx = memberDisplayModes.indexOf(currentMode);
-  const baseIdx = currentIdx >= 0 ? currentIdx : 0;
-  const nextIdx = (baseIdx + direction + memberDisplayModes.length) % memberDisplayModes.length;
-  return memberDisplayModes[nextIdx] ?? currentMode;
-};
-
-const focusMemberDisplayRadio = (target: EventTarget | null, mode: MemberDisplayMode) => {
-  if (!(target instanceof HTMLElement)) return;
-  const group = target.closest('[role="radiogroup"]');
-  const radio = group?.querySelector<HTMLElement>(`[role="radio"][data-member-display-mode="${mode}"]`);
-  radio?.focus();
-};
-
 const handleModuleMemberTypeToggle = (type: ModuleMemberType, checked: boolean) => {
   graphSettings.toggleModuleMemberType(type, checked);
 };
@@ -325,38 +280,12 @@ const handleRelationshipFilterChange = (type: string, checked: boolean) => {
   emit('relationship-filter-change', toggleListItem(graphSettings.enabledRelationshipTypes, type, checked));
 };
 
-const handleNodeTypeFilterChange = (type: (typeof nodeTypes)[number], checked: boolean) => {
-  emit('node-type-filter-change', toggleListItem(graphSettings.enabledNodeTypes, type, checked));
-};
-
 const handleCollapseSccToggle = (checked: boolean) => emit('toggle-collapse-scc', checked);
 const handleClusterByFolderToggle = (checked: boolean) => emit('toggle-cluster-folder', checked);
 const handleHideTestFilesToggle = (checked: boolean) => emit('toggle-hide-test-files', checked);
-const handleMemberNodeModeChange = (mode: MemberDisplayMode) => emit('member-node-mode-change', mode);
 const handleOrphanGlobalToggle = (checked: boolean) => emit('toggle-orphan-global', checked);
 const handleShowFpsToggle = (checked: boolean) => emit('toggle-show-fps', checked);
 const handleFpsAdvancedToggle = (checked: boolean) => emit('toggle-fps-advanced', checked);
-
-const handleMemberDisplayModeKeydown = (event: KeyboardEvent, mode: MemberDisplayMode) => {
-  if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-    event.preventDefault();
-    const prev = findAdjacentMemberDisplayMode(mode, -1);
-    handleMemberNodeModeChange(prev);
-    focusMemberDisplayRadio(event.currentTarget, prev);
-    return;
-  }
-  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-    event.preventDefault();
-    const next = findAdjacentMemberDisplayMode(mode, 1);
-    handleMemberNodeModeChange(next);
-    focusMemberDisplayRadio(event.currentTarget, next);
-    return;
-  }
-  if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
-    event.preventDefault();
-    handleMemberNodeModeChange(mode);
-  }
-};
 
 const onSearchQueryUpdate = (v: string) => {
   if (props.graphSearchContext) props.graphSearchContext.searchQuery.value = v;
@@ -392,83 +321,11 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
       :class="{ 'graph-controls-shell-with-search': !!graphSearchContext }"
     >
 
-      <div class="section-collapse">
-        <button
-          type="button"
-          class="section-header"
-          :aria-expanded="!isSectionCollapsed('nodeTypes')"
-          :aria-controls="'section-nodeTypes'"
-          @click="toggleSection('nodeTypes')"
-          @keydown="(e) => onSectionHeaderKeydown(e, 'nodeTypes')"
-        >
-          <span class="section-label">Node Types</span>
-          <span class="section-chevron" aria-hidden="true">{{ isSectionCollapsed('nodeTypes') ? '▸' : '▾' }}</span>
-        </button>
-        <div
-          v-show="!isSectionCollapsed('nodeTypes')"
-          :id="'section-nodeTypes'"
-          class="section-content"
-        >
-          <fieldset class="control-fieldset">
-            <legend class="sr-only">Node type filters</legend>
-            <div class="control-group">
-              <label
-                v-for="nodeType in nodeTypes"
-                :key="nodeType"
-                class="control-row control-row-interactive"
-              >
-                <input
-                  type="checkbox"
-                  class="control-checkbox"
-                  :checked="graphSettings.enabledNodeTypes.includes(nodeType)"
-                  @change="(e) => handleNodeTypeFilterChange(nodeType, (e.target as HTMLInputElement).checked)"
-                />
-                <span class="control-label">{{ nodeTypeLabels[nodeType] }}</span>
-              </label>
-              <label
-                class="control-row"
-                :class="clusterByFolderEffective ? 'control-row-disabled' : 'control-row-interactive'"
-              >
-                <input
-                  type="checkbox"
-                  class="control-checkbox"
-                  :checked="clusterByFolderEffective"
-                  :disabled="forcesClusterByFolder"
-                  :aria-disabled="forcesClusterByFolder"
-                  :aria-describedby="forcesClusterByFolder ? folderRequiredReasonId : undefined"
-                  @change="(e) => !forcesClusterByFolder && handleClusterByFolderToggle((e.target as HTMLInputElement).checked)"
-                />
-                <span class="control-label">Folder</span>
-              </label>
-            </div>
-          </fieldset>
-          <p
-            v-if="forcesClusterByFolder"
-            :id="folderRequiredReasonId"
-            class="section-helper ml-6 mt-1"
-          >
-            Required by Folder View strategy.
-          </p>
-        </div>
-      </div>
-
-      <div class="section-collapse section-divider">
-        <button
-          type="button"
-          class="section-header"
-          :aria-expanded="!isSectionCollapsed('renderingStrategy')"
-          :aria-controls="'section-renderingStrategy'"
-          @click="toggleSection('renderingStrategy')"
-          @keydown="(e) => onSectionHeaderKeydown(e, 'renderingStrategy')"
-        >
+      <div class="section">
+        <div class="section-header-static">
           <span class="section-label">Rendering Strategy</span>
-          <span class="section-chevron" aria-hidden="true">{{ isSectionCollapsed('renderingStrategy') ? '▸' : '▾' }}</span>
-        </button>
-        <div
-          v-show="!isSectionCollapsed('renderingStrategy')"
-          :id="'section-renderingStrategy'"
-          class="section-content"
-        >
+        </div>
+        <div class="section-content">
           <p class="section-description">
             Choose a strategy for edge rendering and graph runtime behavior.
           </p>
@@ -593,23 +450,11 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         </div>
       </div>
 
-      <div class="section-collapse section-divider">
-        <button
-          type="button"
-          class="section-header"
-          :aria-expanded="!isSectionCollapsed('analysis')"
-          :aria-controls="'section-analysis'"
-          @click="toggleSection('analysis')"
-          @keydown="(e) => onSectionHeaderKeydown(e, 'analysis')"
-        >
+      <div class="section section-divider">
+        <div class="section-header-static">
           <span class="section-label">Analysis</span>
-          <span class="section-chevron" aria-hidden="true">{{ isSectionCollapsed('analysis') ? '▸' : '▾' }}</span>
-        </button>
-        <div
-          v-show="!isSectionCollapsed('analysis')"
-          :id="'section-analysis'"
-          class="section-content"
-        >
+        </div>
+        <div class="section-content">
           <fieldset class="control-fieldset">
             <legend class="sr-only">Analysis options</legend>
             <div class="control-group">
@@ -624,6 +469,21 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
                   @change="(e) => handleCollapseSccToggle((e.target as HTMLInputElement).checked)"
                 />
                 <span class="control-label">Collapse cycles (SCC)</span>
+              </label>
+              <label
+                class="control-row"
+                :class="clusterByFolderEffective ? 'control-row-disabled' : 'control-row-interactive'"
+              >
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="clusterByFolderEffective"
+                  :disabled="forcesClusterByFolder"
+                  :aria-disabled="forcesClusterByFolder"
+                  :aria-describedby="forcesClusterByFolder ? folderRequiredReasonId : undefined"
+                  @change="(e) => !forcesClusterByFolder && handleClusterByFolderToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Cluster by folder</span>
               </label>
               <label class="control-row control-row-interactive">
                 <input
@@ -648,26 +508,21 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
           <p v-if="isSccDisabled" :id="collapseSccDisabledReasonId" class="section-helper ml-6 mt-1">
             Unavailable while folder clustering is active.
           </p>
+          <p
+            v-if="forcesClusterByFolder"
+            :id="folderRequiredReasonId"
+            class="section-helper ml-6 mt-1"
+          >
+            Required by Folder View strategy.
+          </p>
         </div>
       </div>
 
-      <div class="section-collapse section-divider">
-        <button
-          type="button"
-          class="section-header"
-          :aria-expanded="!isSectionCollapsed('moduleSections')"
-          :aria-controls="'section-moduleSections'"
-          @click="toggleSection('moduleSections')"
-          @keydown="(e) => onSectionHeaderKeydown(e, 'moduleSections')"
-        >
+      <div class="section section-divider">
+        <div class="section-header-static">
           <span class="section-label">Module Sections</span>
-          <span class="section-chevron" aria-hidden="true">{{ isSectionCollapsed('moduleSections') ? '▸' : '▾' }}</span>
-        </button>
-        <div
-          v-show="!isSectionCollapsed('moduleSections')"
-          :id="'section-moduleSections'"
-          class="section-content"
-        >
+        </div>
+        <div class="section-content">
           <p class="section-description">
             Toggle which entity types are shown inside module nodes.
           </p>
@@ -692,78 +547,11 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         </div>
       </div>
 
-      <div class="section-collapse section-divider">
-        <button
-          type="button"
-          class="section-header"
-          :aria-expanded="!isSectionCollapsed('memberDisplay')"
-          :aria-controls="'section-memberDisplay'"
-          @click="toggleSection('memberDisplay')"
-          @keydown="(e) => onSectionHeaderKeydown(e, 'memberDisplay')"
-        >
-          <span class="section-label">Member Display</span>
-          <span class="section-chevron" aria-hidden="true">{{ isSectionCollapsed('memberDisplay') ? '▸' : '▾' }}</span>
-        </button>
-        <div
-          v-show="!isSectionCollapsed('memberDisplay')"
-          :id="'section-memberDisplay'"
-          class="section-content"
-        >
-          <p class="section-description">
-            How properties and methods render within class/interface nodes.
-          </p>
-          <div role="radiogroup" aria-label="Member display mode" class="grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              role="radio"
-              data-member-display-mode="compact"
-              :aria-checked="graphSettings.memberNodeMode === 'compact'"
-              :tabindex="getMemberDisplayTabIndex('compact')"
-              :class="[
-                'strategy-radio member-mode-radio',
-                graphSettings.memberNodeMode === 'compact' ? 'strategy-radio-active' : 'strategy-radio-inactive',
-              ]"
-              @click="handleMemberNodeModeChange('compact')"
-              @keydown="(e) => handleMemberDisplayModeKeydown(e, 'compact')"
-            >
-              Compact
-            </button>
-            <button
-              type="button"
-              role="radio"
-              data-member-display-mode="graph"
-              :aria-checked="graphSettings.memberNodeMode === 'graph'"
-              :tabindex="getMemberDisplayTabIndex('graph')"
-              :class="[
-                'strategy-radio member-mode-radio',
-                graphSettings.memberNodeMode === 'graph' ? 'strategy-radio-active' : 'strategy-radio-inactive',
-              ]"
-              @click="handleMemberNodeModeChange('graph')"
-              @keydown="(e) => handleMemberDisplayModeKeydown(e, 'graph')"
-            >
-              Separate Nodes
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-collapse section-divider">
-        <button
-          type="button"
-          class="section-header"
-          :aria-expanded="!isSectionCollapsed('relationshipTypes')"
-          :aria-controls="'section-relationshipTypes'"
-          @click="toggleSection('relationshipTypes')"
-          @keydown="(e) => onSectionHeaderKeydown(e, 'relationshipTypes')"
-        >
+      <div class="section section-divider">
+        <div class="section-header-static">
           <span class="section-label">Relationship Types</span>
-          <span class="section-chevron" aria-hidden="true">{{ isSectionCollapsed('relationshipTypes') ? '▸' : '▾' }}</span>
-        </button>
-        <div
-          v-show="!isSectionCollapsed('relationshipTypes')"
-          :id="'section-relationshipTypes'"
-          class="section-content"
-        >
+        </div>
+        <div class="section-content">
           <fieldset class="control-fieldset">
             <legend class="sr-only">Relationship visibility filters</legend>
             <div class="control-group">
@@ -789,23 +577,11 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         </div>
       </div>
 
-      <div class="section-collapse section-divider">
-        <button
-          type="button"
-          class="section-header"
-          :aria-expanded="!isSectionCollapsed('performance')"
-          :aria-controls="'section-performance'"
-          @click="toggleSection('performance')"
-          @keydown="(e) => onSectionHeaderKeydown(e, 'performance')"
-        >
+      <div class="section section-divider">
+        <div class="section-header-static">
           <span class="section-label">Performance</span>
-          <span class="section-chevron" aria-hidden="true">{{ isSectionCollapsed('performance') ? '▸' : '▾' }}</span>
-        </button>
-        <div
-          v-show="!isSectionCollapsed('performance')"
-          :id="'section-performance'"
-          class="section-content"
-        >
+        </div>
+        <div class="section-content">
           <fieldset class="control-fieldset">
             <legend class="sr-only">Performance options</legend>
             <div class="control-group">
@@ -832,23 +608,11 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
         </div>
       </div>
 
-      <div class="section-collapse section-divider">
-        <button
-          type="button"
-          class="section-header"
-          :aria-expanded="!isSectionCollapsed('debug')"
-          :aria-controls="'section-debug'"
-          @click="toggleSection('debug')"
-          @keydown="(e) => onSectionHeaderKeydown(e, 'debug')"
-        >
+      <div class="section section-divider">
+        <div class="section-header-static">
           <span class="section-label">Debug</span>
-          <span class="section-chevron" aria-hidden="true">{{ isSectionCollapsed('debug') ? '▸' : '▾' }}</span>
-        </button>
-        <div
-          v-show="!isSectionCollapsed('debug')"
-          :id="'section-debug'"
-          class="section-content"
-        >
+        </div>
+        <div class="section-content">
           <fieldset class="control-fieldset">
             <legend class="sr-only">Debug rendering options</legend>
             <div class="control-group">
@@ -928,7 +692,7 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   background: transparent;
 }
 
-.section-collapse {
+.section {
   margin: 0;
 }
 
@@ -938,34 +702,11 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   border-top: 1px solid rgba(var(--border-default-rgb, 64, 64, 64), 0.7);
 }
 
-.section-header {
+.section-header-static {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
   min-height: 1.8rem;
-  margin: 0;
   padding: 0.28rem 0.34rem;
-  background: none;
-  border: none;
-  border-radius: 0.4rem;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background-color 150ms ease-out,
-    color 150ms ease-out;
-}
-
-.section-header:hover {
-  color: var(--color-text-primary, currentColor);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.section-header:focus-visible {
-  outline: 2px solid var(--focus-ring, #00ffff);
-  outline-offset: 2px;
 }
 
 .section-label {
@@ -973,11 +714,6 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
   font-weight: 650;
   color: var(--color-text-primary, currentColor);
   letter-spacing: 0.01em;
-}
-
-.section-chevron {
-  font-size: 0.68rem;
-  opacity: 0.9;
 }
 
 .section-content {
@@ -1097,12 +833,6 @@ const activeMinimumDistance = computed(() => activeCollisionConfig.value.overlap
 .strategy-radio:focus-visible {
   outline: 2px solid var(--focus-ring, #00ffff);
   outline-offset: 2px;
-}
-
-.member-mode-radio {
-  text-align: center;
-  font-size: 0.75rem;
-  font-weight: 650;
 }
 
 .option-card {

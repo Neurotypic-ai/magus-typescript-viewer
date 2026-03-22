@@ -36,7 +36,6 @@ export interface UseGraphSelectionHandlersOptions {
   edges: Ref<GraphEdge[]>;
   fitView: FitView;
   syncViewportState: () => void;
-  requestViewportRecalc: (force?: boolean) => void;
 }
 
 export interface GraphSelectionHandlers {
@@ -48,8 +47,7 @@ export interface GraphSelectionHandlers {
 }
 
 export function useGraphSelectionHandlers(options: UseGraphSelectionHandlersOptions): GraphSelectionHandlers {
-  const { state, actions, graphSettings, interaction, nodes, edges, fitView, syncViewportState, requestViewportRecalc } =
-    options;
+  const { state, actions, graphSettings, interaction, nodes, edges, fitView, syncViewportState } = options;
 
   const onNodeClick = ({ node }: { node: unknown }): void => {
     const clickedNode = node as DependencyNode;
@@ -97,7 +95,6 @@ export function useGraphSelectionHandlers(options: UseGraphSelectionHandlersOpti
             actions.setSelectedNode(nextNode);
             void fitView({ nodes: [nextNode.id], duration: 150, padding: 0.5 }).then(() => {
               syncViewportState();
-              requestViewportRecalc(true);
             });
           }
         }

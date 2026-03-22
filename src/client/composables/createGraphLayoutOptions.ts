@@ -7,8 +7,6 @@ import type {
   GraphSettings,
   NodeDimensionTracker,
   ResetSearchHighlightState,
-  ResumeEdgeVirtualization,
-  SuspendEdgeVirtualization,
   SyncViewportState,
   UpdateNodeInternals,
   UseGraphLayoutOptions,
@@ -18,7 +16,6 @@ import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { GraphViewMode } from '../stores/graphStore';
-import type { RenderingStrategyId, RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
 
 export interface LayoutOptionsGraphStoreSource {
   nodes: DependencyNode[];
@@ -34,16 +31,12 @@ export interface LayoutOptionsGraphStoreSource {
 }
 
 export interface LayoutOptionsGraphSettingsSource {
-  enabledNodeTypes: string[];
   activeRelationshipTypes: string[];
   clusterByFolder: boolean;
   collapseScc: boolean;
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
-  memberNodeMode: 'compact' | 'graph';
   highlightOrphanGlobal: boolean;
-  renderingStrategyId: RenderingStrategyId;
-  strategyOptionsById: RenderingStrategyOptionsById;
 }
 
 export interface CreateGraphLayoutOptionsOptions {
@@ -53,8 +46,6 @@ export interface CreateGraphLayoutOptionsOptions {
   interaction: GraphLayoutInteraction;
   fitView: FitView;
   updateNodeInternals: UpdateNodeInternals;
-  suspendEdgeVirtualization: SuspendEdgeVirtualization;
-  resumeEdgeVirtualization: ResumeEdgeVirtualization;
   syncViewportState: SyncViewportState;
   nodeDimensionTracker: NodeDimensionTracker;
   resetSearchHighlightState: ResetSearchHighlightState;
@@ -70,8 +61,6 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
     interaction,
     fitView,
     updateNodeInternals,
-    suspendEdgeVirtualization,
-    resumeEdgeVirtualization,
     syncViewportState,
     nodeDimensionTracker,
     resetSearchHighlightState,
@@ -111,9 +100,6 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
   };
 
   const graphLayoutSettings: GraphSettings = {
-    get enabledNodeTypes() {
-      return graphSettings.enabledNodeTypes;
-    },
     get activeRelationshipTypes() {
       return graphSettings.activeRelationshipTypes;
     },
@@ -129,17 +115,8 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
     get hideTestFiles() {
       return graphSettings.hideTestFiles;
     },
-    get memberNodeMode() {
-      return graphSettings.memberNodeMode;
-    },
     get highlightOrphanGlobal() {
       return graphSettings.highlightOrphanGlobal;
-    },
-    get renderingStrategyId() {
-      return graphSettings.renderingStrategyId;
-    },
-    get strategyOptionsById() {
-      return graphSettings.strategyOptionsById;
     },
   };
 
@@ -150,8 +127,6 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
     interaction,
     fitView,
     updateNodeInternals,
-    suspendEdgeVirtualization,
-    resumeEdgeVirtualization,
     syncViewportState,
     nodeDimensionTracker,
     resetSearchHighlightState,

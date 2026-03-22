@@ -31,7 +31,6 @@ export interface GraphStore {
   setEdges: (newEdges: GraphEdge[]) => void;
   updateNodesById: (updates: Map<string, DependencyNode>) => void;
   updateEdgesById: (updates: Map<string, GraphEdge>) => void;
-  setEdgeVisibility: (visibilityMap: Map<string, boolean>) => void;
   setSelectedNode: (node: DependencyNode | null) => void;
   setCacheKey: (key: string | null) => void;
   setViewMode: (mode: GraphViewMode) => void;
@@ -188,38 +187,6 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
     }
   };
 
-  const setEdgeVisibility = (visibilityMap: Map<string, boolean>) => {
-    if (visibilityMap.size === 0 || edges.value.length === 0) {
-      return;
-    }
-
-    const currentEdges = edges.value as unknown as Array<{ id: string; hidden?: boolean }>;
-    const updated = [...currentEdges];
-    const edgeIndexById = new Map<string, number>();
-    currentEdges.forEach((edge, index) => {
-      edgeIndexById.set(edge.id, index);
-    });
-
-    let changed = false;
-    for (const [edgeId, hidden] of visibilityMap) {
-      const edgeIndex = edgeIndexById.get(edgeId);
-      if (edgeIndex !== undefined) {
-        const current = updated[edgeIndex];
-        if (current && current.hidden !== hidden) {
-          updated[edgeIndex] = {
-            ...current,
-            hidden,
-          };
-          changed = true;
-        }
-      }
-    }
-
-    if (changed) {
-      edges.value = updated as unknown as GraphEdge[];
-    }
-  };
-
   const setSelectedNode = (node: DependencyNode | null) => {
     selectedNode.value = node;
   };
@@ -324,7 +291,6 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
     setEdges,
     updateNodesById,
     updateEdgesById,
-    setEdgeVisibility,
     setSelectedNode,
     setCacheKey,
     setViewMode,

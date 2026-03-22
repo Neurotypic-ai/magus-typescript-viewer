@@ -1,23 +1,13 @@
 import { nextTick, ref } from 'vue';
 
-import { buildFolderDistributorGraph, buildOverviewGraph } from '../graph/buildGraphView';
+import { buildOverviewGraph } from '../graph/buildGraphView';
 import { getHandlePositions } from '../graph/handleRouting';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { optimizeHighwayHandleRouting } from '../graph/transforms/edgeHighways';
-import { WebWorkerLayoutProcessor } from '../layout/WebWorkerLayoutProcessor';
-import { defaultLayoutConfig } from '../layout/config';
-import { GROUP_EXCLUSION_ZONE_PX } from '../layout/edgeGeometryPolicy';
-import { getRenderingStrategy } from '../rendering/strategyRegistry';
-import { waitForNextPaint } from '../utils/dom';
-import { simpleHash } from '../utils/hash';
-import { measurePerformance } from '../utils/performanceMonitoring';
-import { isContainerNode } from './useNodeDimensions';
+import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
 
 import type { Ref } from 'vue';
 
-import type { WebWorkerLayoutConfig } from '../layout/WebWorkerLayoutProcessor';
-import type { LayoutConfig } from '../layout/config';
-import type { RenderingStrategyId, RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
@@ -40,34 +30,17 @@ export interface LayoutCacheEntry {
   weight: number;
 }
 
-/** Internal: one measurement entry (width, height, header/body/subnodes, isContainer). */
-interface NodeMeasurementEntry {
-  width: number;
-  height: number;
-  headerH: number;
-  bodyH: number;
-  subnodesH: number;
-  isContainer: boolean;
-}
-
 /** Measured width/height on a node (node.measured). */
 export interface NodeMeasuredData {
   width?: number;
   height?: number;
 }
 
-const MAX_LAYOUT_CACHE_ENTRIES = 8;
-const MAX_LAYOUT_CACHE_WEIGHT = 220_000;
-const MAX_NODE_MEASUREMENT_CACHE_ENTRIES = 4_000;
-let perfMarkSequence = 0;
-
-const createPerfMarkNames = (scope: string): { start: string; end: string } => {
-  const id = `${String(Date.now())}-${String(++perfMarkSequence)}`;
-  return {
-    start: `${scope}-start-${id}`,
-    end: `${scope}-end-${id}`,
-  };
-};
+/** Result of measureAllNodeDimensions. */
+export interface MeasureNodesResult {
+  nodes: DependencyNode[];
+  hasChanges: boolean;
+}
 
 // ── Types ──
 
@@ -89,9 +62,6 @@ export type ManualOffsetsMap = Map<string, ManualOffset>;
 /** Applies manual offsets to a list of nodes; returns new array. */
 export type ApplyManualOffsets = (nodes: DependencyNode[]) => DependencyNode[];
 
-/** How member nodes are displayed inside container nodes. */
-export type MemberNodeMode = 'compact' | 'graph';
-
 /** Sets the nodes array in the graph store. */
 export type SetNodes = (nodes: DependencyNode[]) => void;
 
@@ -107,14 +77,6 @@ export type SuspendCacheWrites = () => void;
 /** Resumes cache writes. */
 export type ResumeCacheWrites = () => void;
 
-function getActiveDegreeWeightedLayers(
-  strategyId: RenderingStrategyId,
-  strategyOptionsById: RenderingStrategyOptionsById
-): boolean {
-  const opts = strategyOptionsById[strategyId];
-  return typeof opts['degreeWeightedLayers'] === 'boolean' ? opts['degreeWeightedLayers'] : false;
-}
-
 export interface GraphLayoutStore {
   nodes: DependencyNode[];
   setNodes: SetNodes;
@@ -129,16 +91,12 @@ export interface GraphLayoutStore {
 }
 
 export interface GraphSettings {
-  enabledNodeTypes: string[];
   activeRelationshipTypes: string[];
   clusterByFolder: boolean;
   collapseScc: boolean;
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
-  memberNodeMode: MemberNodeMode;
   highlightOrphanGlobal: boolean;
-  renderingStrategyId: RenderingStrategyId;
-  strategyOptionsById: RenderingStrategyOptionsById;
 }
 
 /** Options passed to fitView (duration, padding, node ids to fit). */
@@ -158,12 +116,6 @@ export type ResetInteraction = () => void;
 
 /** Updates Vue Flow node internals for given node ids. */
 export type UpdateNodeInternals = (ids: string[]) => void;
-
-/** Suspends edge virtualization (e.g. during layout). */
-export type SuspendEdgeVirtualization = () => void;
-
-/** Resumes edge virtualization. */
-export type ResumeEdgeVirtualization = () => void;
 
 /** Syncs viewport state to external store. */
 export type SyncViewportState = () => void;
@@ -202,12 +154,6 @@ export interface NodeMeasurementCacheEntry {
   topInset: number;
 }
 
-/** Result of measureAllNodeDimensions. */
-export interface MeasureNodesResult {
-  nodes: DependencyNode[];
-  hasChanges: boolean;
-}
-
 export interface UseGraphLayoutOptions {
   propsData: Ref<DependencyPackageGraph>;
   graphStore: GraphLayoutStore;
@@ -215,8 +161,6 @@ export interface UseGraphLayoutOptions {
   interaction: GraphLayoutInteraction;
   fitView: FitView;
   updateNodeInternals: UpdateNodeInternals;
-  suspendEdgeVirtualization: SuspendEdgeVirtualization;
-  resumeEdgeVirtualization: ResumeEdgeVirtualization;
   syncViewportState: SyncViewportState;
   nodeDimensionTracker: NodeDimensionTracker;
   resetSearchHighlightState: ResetSearchHighlightState;
@@ -236,6 +180,11 @@ export type MeasureAllNodeDimensions = (layoutedNodes: DependencyNode[]) => Meas
 /** Returns whether two-pass measurement should run for the given node count. */
 export type ShouldRunTwoPassMeasure = (nodeCount: number) => boolean;
 
+/** Simplified layout config; direction is always 'LR'. */
+export interface LayoutConfig {
+  direction: 'TB' | 'LR' | 'BT' | 'RL';
+}
+
 export interface GraphLayout {
   isLayoutPending: Readonly<Ref<boolean>>;
   isLayoutMeasuring: Readonly<Ref<boolean>>;
@@ -248,6 +197,8 @@ export interface GraphLayout {
   dispose: () => void;
 }
 
+const HARDCODED_LAYOUT_CONFIG: LayoutConfig = { direction: 'LR' };
+
 export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   const {
     propsData,
@@ -256,246 +207,28 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     interaction,
     fitView,
     updateNodeInternals,
-    suspendEdgeVirtualization,
-    resumeEdgeVirtualization,
     syncViewportState,
-    nodeDimensionTracker,
     resetSearchHighlightState,
     isFirefox,
     graphRootRef,
   } = options;
 
+  const layoutConfig = HARDCODED_LAYOUT_CONFIG;
+
   const isLayoutPending = ref(false);
+  // Always false — no two-pass measurement in the simple layout.
   const isLayoutMeasuring = ref(false);
 
-  let layoutProcessor: WebWorkerLayoutProcessor | null = null;
-  let layoutRequestVersion = 0;
   let graphInitPromise: Promise<void> | null = null;
   let graphInitQueued = false;
   let queuedGraphInitOverrides: LayoutProcessOptions | undefined;
-  const nodeMeasurementCache = new Map<string, NodeMeasurementCacheEntry>();
-  const layoutCache = new Map<string, LayoutCacheEntry>();
-  let layoutCacheWeight = 0;
 
-  const layoutConfig = defaultLayoutConfig;
+  // ── Stub measurement functions (kept for API compatibility with useIsolationMode) ──
 
-  // ── Layout processor config ──
-
-  const getLayoutProcessorConfig = (): WebWorkerLayoutConfig => {
-    const degreeWeightedLayers = getActiveDegreeWeightedLayers(
-      graphSettings.renderingStrategyId,
-      graphSettings.strategyOptionsById
-    );
-    return {
-      algorithm: layoutConfig.algorithm,
-      direction: layoutConfig.direction,
-      nodeSpacing: layoutConfig.nodeSpacing,
-      rankSpacing: layoutConfig.rankSpacing,
-      edgeSpacing: layoutConfig.edgeSpacing,
-      degreeWeightedLayers,
-      theme: layoutConfig.theme,
-      animationDuration: layoutConfig.animationDuration,
-    };
-  };
-
-  const initializeLayoutProcessor = () => {
-    layoutRequestVersion += 1;
-
-    if (!layoutProcessor) {
-      layoutProcessor = new WebWorkerLayoutProcessor(getLayoutProcessorConfig());
-      return;
-    }
-
-    layoutProcessor.updateConfig(getLayoutProcessorConfig());
-  };
-
-  // ── Cache helpers ──
-
-  const computeLayoutCacheKey = (cacheNodes: DependencyNode[], edgeList: GraphEdge[]): string => {
-    const nodeIds = cacheNodes
-      .map((n) => n.id)
-      .sort()
-      .join(',');
-    const edgeIds = edgeList
-      .map((e) => e.id)
-      .sort()
-      .join(',');
-    const dwl = getActiveDegreeWeightedLayers(graphSettings.renderingStrategyId, graphSettings.strategyOptionsById)
-      ? 1
-      : 0;
-    return `${layoutConfig.algorithm}:${layoutConfig.direction}:${String(layoutConfig.nodeSpacing)}:${String(layoutConfig.rankSpacing)}:${String(layoutConfig.edgeSpacing)}:dwl${String(dwl)}:${String(nodeIds.length)}:${String(edgeIds.length)}:${String(simpleHash(nodeIds))}:${String(simpleHash(edgeIds))}`;
-  };
-
-  const estimateLayoutCacheWeight = (cacheNodes: DependencyNode[], edgeList: GraphEdge[]): number => {
-    return cacheNodes.length * 18 + edgeList.length * 10;
-  };
-
-  const trimLayoutCache = (nextEntryWeight: number): void => {
-    while (
-      layoutCache.size >= MAX_LAYOUT_CACHE_ENTRIES ||
-      layoutCacheWeight + nextEntryWeight > MAX_LAYOUT_CACHE_WEIGHT
-    ) {
-      const oldestKey = layoutCache.keys().next().value;
-      if (!oldestKey) {
-        break;
-      }
-      const removed = layoutCache.get(oldestKey);
-      if (removed) {
-        layoutCacheWeight = Math.max(0, layoutCacheWeight - removed.weight);
-      }
-      layoutCache.delete(oldestKey);
-    }
-  };
-
-  const pruneNodeMeasurementCache = (liveNodes: DependencyNode[]): void => {
-    if (nodeMeasurementCache.size === 0) {
-      return;
-    }
-
-    const liveIds = new Set(liveNodes.map((node) => node.id));
-    for (const cachedId of nodeMeasurementCache.keys()) {
-      if (!liveIds.has(cachedId)) {
-        nodeMeasurementCache.delete(cachedId);
-      }
-    }
-
-    while (nodeMeasurementCache.size > MAX_NODE_MEASUREMENT_CACHE_ENTRIES) {
-      const oldest = nodeMeasurementCache.keys().next().value;
-      if (!oldest) {
-        break;
-      }
-      nodeMeasurementCache.delete(oldest);
-    }
-  };
-
-  // ── Measurement ──
-
-  const shouldRunTwoPassMeasure = (_nodeCount: number): boolean => true;
+  const shouldRunTwoPassMeasure = (_nodeCount: number): boolean => false;
 
   const measureAllNodeDimensions = (layoutedNodes: DependencyNode[]): MeasureNodesResult => {
-    if (layoutedNodes.length === 0) {
-      return { nodes: layoutedNodes, hasChanges: false };
-    }
-
-    nodeDimensionTracker.refresh();
-    const fallbackElementMap = new Map<string, HTMLElement>();
-
-    const measurements = new Map<string, NodeMeasurementEntry>();
-
-    layoutedNodes.forEach((node) => {
-      const tracked = nodeDimensionTracker.get(node.id);
-      if (tracked) {
-        measurements.set(node.id, {
-          width: tracked.width,
-          height: tracked.height,
-          headerH: tracked.headerHeight,
-          bodyH: tracked.bodyHeight,
-          subnodesH: tracked.subnodesHeight,
-          isContainer: isContainerNode(node),
-        });
-        return;
-      }
-
-      if (fallbackElementMap.size === 0) {
-        const nodeElements = document.querySelectorAll<HTMLElement>('.vue-flow__node');
-        nodeElements.forEach((el) => {
-          const id = el.dataset['id'];
-          if (id) {
-            fallbackElementMap.set(id, el);
-          }
-        });
-      }
-
-      const element = fallbackElementMap.get(node.id);
-      if (!element) {
-        return;
-      }
-
-      const isContainer = isContainerNode(node);
-
-      const measurement = {
-        width: element.offsetWidth,
-        height: element.offsetHeight,
-        headerH: 0,
-        bodyH: 0,
-        subnodesH: 0,
-        isContainer,
-      };
-
-      if (isContainer) {
-        measurement.headerH = element.querySelector<HTMLElement>('.base-node-header')?.offsetHeight ?? 0;
-        measurement.bodyH = element.querySelector<HTMLElement>('.base-node-body')?.offsetHeight ?? 0;
-        measurement.subnodesH = element.querySelector<HTMLElement>('.base-node-subnodes')?.offsetHeight ?? 0;
-      }
-
-      measurements.set(node.id, measurement);
-    });
-
-    let hasChanges = false;
-    const measuredNodes = layoutedNodes.map((node) => {
-      const m = measurements.get(node.id);
-      if (!m) {
-        return node;
-      }
-
-      const currentMeasured = (node as unknown as { measured?: NodeMeasuredData }).measured;
-      const widthDelta = Math.abs((currentMeasured?.width ?? 0) - m.width);
-      const heightDelta = Math.abs((currentMeasured?.height ?? 0) - m.height);
-      const cached = nodeMeasurementCache.get(node.id);
-      const cacheDeltaWidth = Math.abs((cached?.width ?? 0) - m.width);
-      const cacheDeltaHeight = Math.abs((cached?.height ?? 0) - m.height);
-
-      let insetChanged = false;
-      let measuredTopInset = 0;
-
-      if (m.isContainer) {
-        measuredTopInset =
-          node.type === 'group'
-            ? GROUP_EXCLUSION_ZONE_PX
-            : Math.max(96, Math.round(m.headerH + m.bodyH + m.subnodesH + 12));
-        const currentTopInset = node.data?.layoutInsets?.top ?? 0;
-        const insetDelta = Math.abs(currentTopInset - measuredTopInset);
-        const cacheDeltaInset = Math.abs((cached?.topInset ?? 0) - measuredTopInset);
-        insetChanged = insetDelta > 1 || cacheDeltaInset > 1;
-      }
-
-      const sizeChanged = widthDelta > 1 || heightDelta > 1 || cacheDeltaWidth > 1 || cacheDeltaHeight > 1;
-      if (!sizeChanged && !insetChanged) {
-        return node;
-      }
-
-      hasChanges = true;
-      nodeMeasurementCache.set(node.id, { width: m.width, height: m.height, topInset: measuredTopInset });
-      if (nodeMeasurementCache.size > MAX_NODE_MEASUREMENT_CACHE_ENTRIES) {
-        const oldest = nodeMeasurementCache.keys().next().value;
-        if (oldest) {
-          nodeMeasurementCache.delete(oldest);
-        }
-      }
-
-      const updatedNode = {
-        ...node,
-        measured: {
-          width: m.width,
-          height: m.height,
-        },
-        ...(m.isContainer && measuredTopInset > 0
-          ? {
-              data: {
-                ...node.data,
-                layoutInsets: { top: measuredTopInset },
-              },
-            }
-          : {}),
-      };
-
-      return updatedNode as DependencyNode;
-    });
-
-    return {
-      nodes: measuredNodes,
-      hasChanges,
-    };
+    return { nodes: layoutedNodes, hasChanges: false };
   };
 
   // ── Layout normalization ──
@@ -521,170 +254,63 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     graphData: GraphSnapshot,
     layoutOptions: LayoutProcessOptions = {}
   ): Promise<GraphSnapshot | null> => {
-    if (!layoutProcessor) {
-      return null;
-    }
-
-    const requestVersion = ++layoutRequestVersion;
     const fitViewToResult = layoutOptions.fitViewToResult ?? true;
     const fitPadding = layoutOptions.fitPadding ?? 0.1;
-    const twoPassMeasure = layoutOptions.twoPassMeasure ?? shouldRunTwoPassMeasure(graphData.nodes.length);
-    const layoutPerfMarks = createPerfMarkNames('layout');
-    let didMeasureLayout = false;
 
     isLayoutPending.value = true;
-    if (twoPassMeasure) {
-      isLayoutMeasuring.value = true;
-    }
-
-    suspendEdgeVirtualization();
     graphStore.suspendCacheWrites();
-    nodeDimensionTracker.pause();
 
     try {
-      performance.mark(layoutPerfMarks.start);
+      // Compute positions synchronously using the simple hierarchical layout
+      const positionMap = computeSimpleHierarchicalLayout(graphData.nodes, graphData.edges);
 
-      // Check layout cache
-      const cacheKey = computeLayoutCacheKey(graphData.nodes, graphData.edges);
-      const cachedEntry = layoutCache.get(cacheKey);
-      if (cachedEntry) {
-        layoutCache.delete(cacheKey);
-        layoutCache.set(cacheKey, cachedEntry);
-
-        const previousNodes = graphStore.nodes;
-        const cachedNodes =
-          graphStore.manualOffsets.size > 0 ? graphStore.applyManualOffsets(cachedEntry.nodes) : cachedEntry.nodes;
-        graphStore.setNodes(cachedNodes);
-        graphStore.setEdges(cachedEntry.edges);
-        pruneNodeMeasurementCache(cachedNodes);
-        await nextTick();
-        const changedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, cachedNodes);
-        if (changedNodeIds.length > 0) {
-          updateNodeInternals(changedNodeIds);
+      // Apply computed positions to nodes (only root nodes get new positions from the map)
+      const positionedNodes = graphData.nodes.map((node) => {
+        const pos = positionMap.get(node.id);
+        if (pos) {
+          return { ...node, position: pos };
         }
+        return node;
+      });
 
-        if (fitViewToResult) {
-          const fitDuration = isFirefox.value ? 0 : 180;
-          await fitView({
-            duration: fitDuration,
-            padding: fitPadding,
-            ...(layoutOptions.fitNodes?.length ? { nodes: layoutOptions.fitNodes } : {}),
-          });
-        }
-        syncViewportState();
-        resumeEdgeVirtualization();
-
-        performance.mark(layoutPerfMarks.end);
-        measurePerformance('graph-layout', layoutPerfMarks.start, layoutPerfMarks.end);
-        didMeasureLayout = true;
-        return { nodes: cachedEntry.nodes, edges: cachedEntry.edges };
-      }
-
-      const firstPassResult = await layoutProcessor.processLayout(graphData);
-      if (requestVersion !== layoutRequestVersion) {
-        return null;
-      }
-
-      let normalized = normalizeLayoutResult(
-        firstPassResult.nodes as unknown as DependencyNode[],
-        firstPassResult.edges as unknown as GraphEdge[]
-      );
-      const pendingNodeInternalUpdates = new Set<string>();
+      const normalized = normalizeLayoutResult(positionedNodes, graphData.edges);
 
       const previousNodes = graphStore.nodes;
-      graphStore.setNodes(normalized.nodes);
+
+      const finalNodes =
+        graphStore.manualOffsets.size > 0
+          ? graphStore.applyManualOffsets(normalized.nodes)
+          : normalized.nodes;
+
+      graphStore.setNodes(finalNodes);
       graphStore.setEdges(normalized.edges);
-      pruneNodeMeasurementCache(normalized.nodes);
 
       await nextTick();
-      const firstPassChangedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, normalized.nodes);
-      firstPassChangedNodeIds.forEach((id) => pendingNodeInternalUpdates.add(id));
 
-      if (twoPassMeasure) {
-        await waitForNextPaint();
-        const measured = measureAllNodeDimensions(normalized.nodes);
-        if (measured.hasChanges) {
-          const firstPassNodes = normalized.nodes;
-          const secondPassResult = await layoutProcessor.processLayout({
-            nodes: measured.nodes,
-            edges: normalized.edges,
-          });
-          if (requestVersion !== layoutRequestVersion) {
-            return null;
-          }
-
-          normalized = normalizeLayoutResult(
-            secondPassResult.nodes as unknown as DependencyNode[],
-            secondPassResult.edges as unknown as GraphEdge[]
-          );
-
-          graphStore.setNodes(normalized.nodes);
-          graphStore.setEdges(normalized.edges);
-          pruneNodeMeasurementCache(normalized.nodes);
-          await nextTick();
-          const secondPassChangedNodeIds = collectNodesNeedingInternalsUpdate(firstPassNodes, normalized.nodes);
-          secondPassChangedNodeIds.forEach((id) => pendingNodeInternalUpdates.add(id));
-        }
-      }
-
-      if (pendingNodeInternalUpdates.size > 0) {
-        updateNodeInternals(Array.from(pendingNodeInternalUpdates));
-      }
-
-      if (graphStore.manualOffsets.size > 0) {
-        const offsetNodes = graphStore.applyManualOffsets(normalized.nodes);
-        graphStore.setNodes(offsetNodes);
-        normalized = { nodes: offsetNodes, edges: normalized.edges };
+      const changedNodeIds = collectNodesNeedingInternalsUpdate(previousNodes, finalNodes);
+      if (changedNodeIds.length > 0) {
+        updateNodeInternals(changedNodeIds);
       }
 
       if (fitViewToResult) {
         const fitDuration = isFirefox.value ? 0 : 180;
-        if (layoutOptions.fitNodes && layoutOptions.fitNodes.length > 0) {
-          await fitView({
-            duration: fitDuration,
-            padding: fitPadding,
-            nodes: layoutOptions.fitNodes,
-          });
-        } else {
-          await fitView({
-            duration: fitDuration,
-            padding: fitPadding,
-          });
-        }
+        await fitView({
+          duration: fitDuration,
+          padding: fitPadding,
+          ...(layoutOptions.fitNodes?.length ? { nodes: layoutOptions.fitNodes } : {}),
+        });
       }
+
       syncViewportState();
-      resumeEdgeVirtualization();
 
-      const cacheEntryWeight = estimateLayoutCacheWeight(normalized.nodes, normalized.edges);
-      trimLayoutCache(cacheEntryWeight);
-      layoutCache.set(cacheKey, {
-        nodes: normalized.nodes,
-        edges: normalized.edges,
-        weight: cacheEntryWeight,
-      });
-      layoutCacheWeight += cacheEntryWeight;
-
-      performance.mark(layoutPerfMarks.end);
-      measurePerformance('graph-layout', layoutPerfMarks.start, layoutPerfMarks.end);
-      didMeasureLayout = true;
-
-      return normalized;
+      return { nodes: finalNodes, edges: normalized.edges };
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error during layout processing');
       console.error('Layout processing failed:', error);
       return null;
     } finally {
-      if (!didMeasureLayout) {
-        performance.clearMarks(layoutPerfMarks.start);
-        performance.clearMarks(layoutPerfMarks.end);
-      }
-      isLayoutMeasuring.value = false;
-      nodeDimensionTracker.resume();
       graphStore.resumeCacheWrites();
-      resumeEdgeVirtualization();
-      if (requestVersion === layoutRequestVersion) {
-        isLayoutPending.value = false;
-      }
+      isLayoutPending.value = false;
       // Enable content-visibility culling after layout stabilizes (skipped
       // on Firefox where the feature causes severe toggle-thrash regressions).
       if (!isFirefox.value) {
@@ -696,52 +322,36 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   // ── Graph initialization ──
 
   const initializeGraph = async (overrides: LayoutProcessOptions = {}) => {
-    const graphInitPerfMarks = createPerfMarkNames('graph-init');
-    performance.mark(graphInitPerfMarks.start);
     try {
       resetSearchHighlightState();
       interaction.resetInteraction();
       graphStore.setViewMode('overview');
-      initializeLayoutProcessor();
 
-      const strategy = getRenderingStrategy(graphSettings.renderingStrategyId);
-      const strategyOptions = graphSettings.strategyOptionsById[strategy.id];
-      const sharedBuildOptions = {
+      const overviewGraph = buildOverviewGraph({
         data: propsData.value,
-        enabledNodeTypes: new Set(graphSettings.enabledNodeTypes),
         enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
         direction: layoutConfig.direction,
         clusterByFolder: graphSettings.clusterByFolder,
         collapseScc: graphSettings.collapseScc,
         collapsedFolderIds: graphSettings.collapsedFolderIds,
         hideTestFiles: graphSettings.hideTestFiles,
-        memberNodeMode: graphSettings.memberNodeMode,
         highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
-      };
-      const overviewGraph =
-        strategy.runtime.buildMode === 'folderDistributor'
-          ? buildFolderDistributorGraph({
-              ...sharedBuildOptions,
-              strategyOptions,
-            })
-          : buildOverviewGraph(sharedBuildOptions);
+      });
       graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 
       const fitViewToResult = overrides.fitViewToResult ?? true;
       const fitPadding = overrides.fitPadding ?? 0.1;
-      const twoPassMeasure = overrides.twoPassMeasure ?? shouldRunTwoPassMeasure(overviewGraph.nodes.length);
       const layoutResult = await processGraphLayout(overviewGraph, {
         fitViewToResult,
         fitPadding,
         ...(overrides.fitNodes ? { fitNodes: overrides.fitNodes } : {}),
-        twoPassMeasure,
       });
       if (layoutResult) {
         graphStore.setOverviewSnapshot(layoutResult);
       }
-    } finally {
-      performance.mark(graphInitPerfMarks.end);
-      measurePerformance('graph-initialization', graphInitPerfMarks.start, graphInitPerfMarks.end);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error during graph initialization');
+      console.error('Graph initialization failed:', error);
     }
   };
 
@@ -772,13 +382,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   // ── Cleanup ──
 
   const dispose = (): void => {
-    if (layoutProcessor) {
-      layoutProcessor.dispose();
-      layoutProcessor = null;
-    }
-    layoutCache.clear();
-    layoutCacheWeight = 0;
-    nodeMeasurementCache.clear();
+    // Nothing to dispose in the simple synchronous layout.
   };
 
   return {

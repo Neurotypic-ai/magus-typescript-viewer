@@ -9,7 +9,6 @@ export interface SettingsHandlerGraphSettings {
   clusterByFolder: boolean;
   showFps: boolean;
   setEnabledRelationshipTypes: (types: string[]) => void;
-  setEnabledNodeTypes: (types: string[]) => void;
   setCollapseScc: (value: boolean) => void;
   setClusterByFolder: (value: boolean) => void;
   setHideTestFiles: (value: boolean) => void;
@@ -27,7 +26,6 @@ export interface UseGraphSettingsHandlersOptions {
 
 export interface GraphSettingsHandlers {
   handleRelationshipFilterChange: (types: string[]) => Promise<void>;
-  handleNodeTypeFilterChange: (types: string[]) => Promise<void>;
   handleCollapseSccToggle: (value: boolean) => Promise<void>;
   handleClusterByFolderToggle: (value: boolean) => Promise<void>;
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;
@@ -37,16 +35,10 @@ export interface GraphSettingsHandlers {
 }
 
 export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOptions): GraphSettingsHandlers {
-  const { graphLayout, graphSettings, setSelectedNode } = options;
+  const { graphLayout, graphSettings } = options;
 
   const handleRelationshipFilterChange = async (types: string[]) => {
     graphSettings.setEnabledRelationshipTypes(types);
-    await graphLayout.requestGraphInitialization();
-  };
-
-  const handleNodeTypeFilterChange = async (types: string[]) => {
-    graphSettings.setEnabledNodeTypes(types);
-    setSelectedNode(null);
     await graphLayout.requestGraphInitialization();
   };
 
@@ -87,7 +79,6 @@ export function useGraphSettingsHandlers(options: UseGraphSettingsHandlersOption
 
   return {
     handleRelationshipFilterChange,
-    handleNodeTypeFilterChange,
     handleCollapseSccToggle,
     handleClusterByFolderToggle,
     handleHideTestFilesToggle,

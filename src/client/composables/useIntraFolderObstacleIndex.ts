@@ -1,6 +1,13 @@
 import { computed } from 'vue';
 import { useVueFlow } from '@vue-flow/core';
-import type { ObstacleRect } from '../layout/orthogonalPathfinder';
+
+/** Axis-aligned bounding rectangle used for obstacle-aware routing. */
+export interface ObstacleRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 export interface FolderObstacleSnapshot {
   folderId: string;

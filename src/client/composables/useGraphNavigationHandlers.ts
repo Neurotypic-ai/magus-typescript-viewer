@@ -11,10 +11,6 @@ export interface NavigationHandlerViewport {
   onMoveEnd: () => void;
 }
 
-export interface NavigationHandlerEdgeVirtualization {
-  requestViewportRecalc: (force?: boolean) => void;
-}
-
 export interface NavigationHandlerInteraction {
   setCameraMode: (mode: CameraMode) => void;
 }
@@ -40,7 +36,6 @@ export interface UseGraphNavigationHandlersOptions {
   graphStore: NavigationHandlerGraphStore;
   graphLayout: NavigationHandlerGraphLayout;
   viewport: NavigationHandlerViewport;
-  edgeVirtualization: NavigationHandlerEdgeVirtualization;
   syncViewportState: () => void;
 }
 
@@ -51,8 +46,7 @@ export interface GraphNavigationHandlers {
 }
 
 export function useGraphNavigationHandlers(options: UseGraphNavigationHandlersOptions): GraphNavigationHandlers {
-  const { nodes, setSelectedNode, fitView, interaction, graphStore, viewport, edgeVirtualization, syncViewportState } =
-    options;
+  const { nodes, setSelectedNode, fitView, interaction, graphStore, viewport, syncViewportState } = options;
 
   const handleFocusNode = async (nodeId: string): Promise<void> => {
     const targetNode = nodes.value.find((node: DependencyNode) => node.id === nodeId);
@@ -74,7 +68,6 @@ export function useGraphNavigationHandlers(options: UseGraphNavigationHandlersOp
     }
 
     syncViewportState();
-    edgeVirtualization.requestViewportRecalc(true);
   };
 
   const handleMinimapNodeClick = (params: { node: { id: string } }): void => {
@@ -83,7 +76,6 @@ export function useGraphNavigationHandlers(options: UseGraphNavigationHandlersOp
 
   const onMoveEnd = (): void => {
     viewport.onMoveEnd();
-    edgeVirtualization.requestViewportRecalc(true);
   };
 
   return {

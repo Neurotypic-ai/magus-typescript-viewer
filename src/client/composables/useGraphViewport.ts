@@ -18,7 +18,7 @@ export interface UseGraphViewportOptions {
   zoomTo: (zoom: number, opts?: { duration: number }) => Promise<boolean>;
   panBy: (delta: { x: number; y: number }) => void;
   trackpadPanSpeed?: number;
-  onViewportChange: () => void;
+  onViewportChange?: () => void;
 }
 
 export interface GraphViewport {
@@ -116,7 +116,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
       syncViewportState();
     }
 
-    onViewportChange();
+    onViewportChange?.();
   };
 
   const applyPanDelta = (delta: { x: number; y: number }): void => {
@@ -138,7 +138,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
 
   const onMove = (): void => {
     syncViewportState();
-    onViewportChange();
+    onViewportChange?.();
   };
 
   const onMoveEnd = (): void => {
@@ -146,7 +146,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
     panEndTimer = setTimeout(() => {
       isPanning.value = false;
       syncViewportState();
-      onViewportChange();
+      onViewportChange?.();
     }, 120);
   };
 

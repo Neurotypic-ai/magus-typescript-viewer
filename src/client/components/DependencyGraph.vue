@@ -18,7 +18,6 @@ import ModuleNode from './nodes/ModuleNode.vue';
 import PackageNode from './nodes/PackageNode.vue';
 import SymbolNode from './nodes/SymbolNode.vue';
 import { useDependencyGraphCore, DEFAULT_VIEWPORT } from '../composables/useDependencyGraphCore';
-import CanvasEdgeLayer from './CanvasEdgeLayer.vue';
 import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
 import { useGraphSearch } from '../composables/useGraphSearch';
 import GraphControls from './GraphControls.vue';
@@ -47,16 +46,9 @@ const env = {
   HEAVY_EDGE_STYLE_THRESHOLD: 2200,
   HIGH_EDGE_MARKER_THRESHOLD: 1800,
   LOW_DETAIL_EDGE_ZOOM_THRESHOLD: 0.35,
-  EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD: parseEnvInt('VITE_CANVAS_EDGE_THRESHOLD', 0),
   NODE_VISIBLE_RENDER_THRESHOLD: parseEnvInt('VITE_NODE_VISIBLE_RENDER_THRESHOLD', 320),
-  EDGE_RENDERER_MODE: (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'hybrid-canvas',
-  EDGE_VIRTUALIZATION_MODE:
-    ((import.meta.env['VITE_EDGE_VIRTUALIZATION_MODE'] as string | undefined) === 'main'
-      ? 'main'
-      : 'worker') as 'main' | 'worker',
   USE_CSS_SELECTION_HOVER: parseEnvBoolean('VITE_USE_CSS_SELECTION_HOVER', true),
   PERF_MARKS_ENABLED: parseEnvBoolean('VITE_PERF_MARKS', false),
-  EDGE_VIEWPORT_RECALC_THROTTLE_MS: parseEnvInt('VITE_EDGE_VIEWPORT_RECALC_THROTTLE_MS', 80),
   MAC_TRACKPAD_PAN_SPEED: parseEnvFloat('VITE_MAC_TRACKPAD_PAN_SPEED', 1.6),
 };
 
@@ -80,7 +72,6 @@ const {
   issuesStore,
   visualNodes,
   renderedEdges,
-  activeCollisionConfig,
   lastCollisionResult,
   useOnlyRenderVisibleElements,
   defaultEdgeOptions,
@@ -92,15 +83,11 @@ const {
   onMove,
   syncViewportState,
   initContainerCache,
-  edgeVirtualizationRuntimeMode,
-  edgeVirtualizationWorkerStats,
   isLayoutPending,
   isLayoutMeasuring,
   selectedNode,
   hoveredNodeId,
   contextMenu,
-  canvasRendererAvailable,
-  isHybridCanvasMode,
   isHeavyEdgeMode,
   minimapAutoHidden,
   showMiniMap,
@@ -118,7 +105,6 @@ const {
   handleNodesChange,
   handleFocusNode,
   handleMinimapNodeClick,
-  handleCanvasUnavailable,
   onMoveEnd,
   onNodeClick,
   onPaneClick,
@@ -130,12 +116,9 @@ const {
   handleCollapseSccToggle,
   handleClusterByFolderToggle,
   handleHideTestFilesToggle,
-  handleMemberNodeModeChange,
   handleOrphanGlobalToggle,
   handleShowFpsToggle,
   handleFpsAdvancedToggle,
-  handleRenderingStrategyChange,
-  handleRenderingStrategyOptionChange,
   nodeActions,
   highlightOrphanGlobal,
   folderCollapseActions,
@@ -270,19 +253,15 @@ onUnmounted(() => {
       <Background />
       <GraphControls
         :relationship-availability="graphSettings.relationshipAvailability"
-        :canvas-renderer-available="canvasRendererAvailable"
         :graph-search-context="graphSearchContext"
         @relationship-filter-change="handleRelationshipFilterChange"
         @node-type-filter-change="handleNodeTypeFilterChange"
         @toggle-collapse-scc="handleCollapseSccToggle"
         @toggle-cluster-folder="handleClusterByFolderToggle"
         @toggle-hide-test-files="handleHideTestFilesToggle"
-        @member-node-mode-change="handleMemberNodeModeChange"
         @toggle-orphan-global="handleOrphanGlobalToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
-        @rendering-strategy-change="handleRenderingStrategyChange"
-        @rendering-strategy-option-change="handleRenderingStrategyOptionChange"
       />
       <MiniMap
         v-if="showMiniMap && !isLayoutPending && !isLayoutMeasuring"
@@ -346,25 +325,10 @@ onUnmounted(() => {
                 <polyline v-if="fpsChartPoints" :points="fpsChartPoints" class="fps-chart-line" />
               </svg>
               <div class="fps-chart-caption">Last {{ fpsStats.sampleCount }} samples</div>
-              <div class="fps-chart-caption">
-                Edge virtualization:
-                <template v-if="edgeVirtualizationRuntimeMode === 'worker'">
-                  worker (visible {{ edgeVirtualizationWorkerStats.lastVisibleCount }}, hidden
-                  {{ edgeVirtualizationWorkerStats.lastHiddenCount }}, stale
-                  {{ edgeVirtualizationWorkerStats.staleResponses }})
-                </template>
-                <template v-else>
-                  main-thread
-                </template>
-              </div>
             </div>
           </template>
         </div>
       </Panel>
-      <Panel v-if="isHybridCanvasMode" position="top-right" class="renderer-mode-panel">
-        <div class="renderer-mode-copy">Hybrid canvas edge renderer active</div>
-      </Panel>
-
       <Panel position="top-right" class="graph-stats-panel graph-stats-panel-slot">
         <details class="graph-stats-shell">
           <summary class="graph-stats-summary">
@@ -443,16 +407,6 @@ onUnmounted(() => {
         <InsightsDashboard />
       </Panel>
     </VueFlow>
-    <CanvasEdgeLayer
-      v-if="isHybridCanvasMode"
-      :edges="edges"
-      :nodes="nodes"
-      :viewport="viewportState"
-      :highlighted-edge-ids="highlightedEdgeIdList"
-      :dim-non-highlighted="true"
-      class="absolute inset-0"
-      @canvas-unavailable="handleCanvasUnavailable"
-    />
     <DebugBoundsOverlay
       v-if="(graphSettings.showDebugBounds || graphSettings.showDebugHandles || graphSettings.showDebugNodeIds) && !isLayoutPending && !isLayoutMeasuring"
       :nodes="nodes"
@@ -461,7 +415,6 @@ onUnmounted(() => {
       :show-bounds="graphSettings.showDebugBounds"
       :show-handles="graphSettings.showDebugHandles"
       :show-node-ids="graphSettings.showDebugNodeIds"
-      :collision-config="activeCollisionConfig"
       class="absolute inset-0"
     />
     <NodeDetails

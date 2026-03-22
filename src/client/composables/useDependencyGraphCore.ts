@@ -1,6 +1,6 @@
 /**
- * useDependencyGraphCore — single composable that wires viewport, edge virtualization,
- * search, layout, collision, selection, and isolation mode for the dependency graph.
+ * useDependencyGraphCore — single composable that wires viewport, search,
+ * layout, collision, selection, and isolation mode for the dependency graph.
  * DependencyGraph.vue calls this and uses the returned API.
  */
 
@@ -20,7 +20,6 @@ import { useInsightsStore } from '../stores/insightsStore';
 import { useIssuesStore } from '../stores/issuesStore';
 import { graphTheme } from '../theme/graphTheme';
 import { useCollisionResolution } from './useCollisionResolution';
-import { useEdgeVirtualizationOrchestrator } from './useEdgeVirtualizationOrchestrator';
 import { useFpsCounter } from './useFpsCounter';
 import { useFpsChart } from './useFpsChart';
 import { useGraphInteractionController } from './useGraphInteractionController';
@@ -92,9 +91,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     zoomTo,
     panBy,
     trackpadPanSpeed: env.MAC_TRACKPAD_PAN_SPEED,
-    onViewportChange: () => {
-      edgeVirtualization.requestViewportRecalc();
-    },
   });
 
   const {
@@ -107,28 +103,12 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     onMove,
     syncViewportState,
     initContainerCache,
-  } =
-    viewport;
+  } = viewport;
 
   // Tag <html> so CSS can apply Firefox-specific overrides (e.g. text-rendering).
   if (isFirefox.value) {
     document.documentElement.setAttribute('data-firefox', '');
   }
-
-  const edgeVirtualization = useEdgeVirtualizationOrchestrator({
-    nodes,
-    edges,
-    getViewport,
-    getContainerRect: () => viewport.getContainerRect(),
-    setEdgeVisibility: (map) => {
-      graphStore.setEdgeVisibility(map);
-    },
-    initialMode: env.EDGE_VIRTUALIZATION_MODE,
-    throttleMs: env.EDGE_VIEWPORT_RECALC_THROTTLE_MS,
-    perfMarksEnabled: env.PERF_MARKS_ENABLED,
-  });
-
-  const { edgeVirtualizationEnabled, edgeVirtualizationRuntimeMode, edgeVirtualizationWorkerStats } = edgeVirtualization;
 
   const searchHighlighting = useSearchHighlighting({
     nodes,
@@ -161,12 +141,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
       },
       fitView,
       updateNodeInternals,
-      suspendEdgeVirtualization: () => {
-        edgeVirtualization.suspend();
-      },
-      resumeEdgeVirtualization: () => {
-        edgeVirtualization.resume();
-      },
       syncViewportState,
       nodeDimensionTracker,
       resetSearchHighlightState: () => {
@@ -289,9 +263,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     fitView,
     updateNodeInternals,
     syncViewportState,
-    requestEdgeVirtualizationViewportRecalc: (force) => {
-      edgeVirtualization.requestViewportRecalc(force);
-    },
     setSelectedNode,
     processGraphLayout: graphLayout.processGraphLayout,
     measureAllNodeDimensions: graphLayout.measureAllNodeDimensions,
@@ -347,11 +318,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
         viewport.onMoveEnd();
       },
     },
-    edgeVirtualization: {
-      requestViewportRecalc: (force) => {
-        edgeVirtualization.requestViewportRecalc(force);
-      },
-    },
     syncViewportState,
   });
 
@@ -385,14 +351,10 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     edges,
     fitView,
     syncViewportState,
-    requestViewportRecalc: (force) => {
-      edgeVirtualization.requestViewportRecalc(force);
-    },
   });
 
   const {
     handleRelationshipFilterChange,
-    handleNodeTypeFilterChange,
     handleCollapseSccToggle,
     handleClusterByFolderToggle,
     handleHideTestFilesToggle,
@@ -420,7 +382,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   function dispose() {
     viewport.dispose();
-    edgeVirtualization.dispose();
     selectionHighlighting.dispose();
     collisionResolution.dispose();
     graphLayout.dispose();
@@ -449,12 +410,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     syncViewportState,
     initContainerCache,
     viewport,
-
-    // Edge virtualization
-    edgeVirtualization,
-    edgeVirtualizationEnabled,
-    edgeVirtualizationRuntimeMode,
-    edgeVirtualizationWorkerStats,
 
     // Layout
     graphLayout,
@@ -519,7 +474,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     onNodeMouseEnter,
     onNodeMouseLeave,
     handleRelationshipFilterChange,
-    handleNodeTypeFilterChange,
     handleCollapseSccToggle,
     handleClusterByFolderToggle,
     handleHideTestFilesToggle,

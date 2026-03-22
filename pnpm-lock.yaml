@@ -41,9 +41,6 @@ importers:
       consola:
         specifier: ^3.4.2
         version: 3.4.2
-      elkjs:
-        specifier: ^0.11.0
-        version: 0.11.0
       jscodeshift:
         specifier: ^17.3.0
         version: 17.3.0
@@ -2014,9 +2011,6 @@ packages:
 
   electron-to-chromium@1.5.286:
     resolution: {integrity: sha512-9tfDXhJ4RKFNerfjdCcZfufu49vg620741MNs26a9+bhLThdB+plgMeou98CAaHu/WATj2iHOOHTp1hWtABj2A==}
-
-  elkjs@0.11.0:
-    resolution: {integrity: sha512-u4J8h9mwEDaYMqo0RYJpqNMFDoMK7f+pu4GjcV+N8jIC7TRdORgzkfSjTJemhqONFfH6fBI3wpysgWbhgVWIXw==}
 
   elliptic@6.6.1:
     resolution: {integrity: sha512-RaddvvMatK2LJHqFJ+YA4WysVN5Ita9E35botqIYspQ4TkRAlCicdzKOjlyv/1Za5RyTNn7di//eEV0uTAfe3g==}
@@ -5570,8 +5564,6 @@ snapshots:
       gopd: 1.2.0
 
   electron-to-chromium@1.5.286: {}
-
-  elkjs@0.11.0: {}
 
   elliptic@6.6.1:
     dependencies:

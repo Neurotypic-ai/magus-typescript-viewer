@@ -25,10 +25,8 @@ export interface DependencyGraphCoreEnv {
   HIGH_EDGE_MARKER_THRESHOLD: number;
   LOW_DETAIL_EDGE_ZOOM_THRESHOLD: number;
   NODE_VISIBLE_RENDER_THRESHOLD: number;
-  EDGE_VIRTUALIZATION_MODE: 'main' | 'worker';
   USE_CSS_SELECTION_HOVER: boolean;
   PERF_MARKS_ENABLED: boolean;
-  EDGE_VIEWPORT_RECALC_THROTTLE_MS: number;
   MAC_TRACKPAD_PAN_SPEED: number;
 }
 
@@ -57,10 +55,6 @@ export interface DependencyGraphCoreReturn {
   syncViewportState: () => void;
   initContainerCache: (el: HTMLElement) => void;
   viewport: unknown;
-  edgeVirtualization: unknown;
-  edgeVirtualizationEnabled: Ref<boolean>;
-  edgeVirtualizationRuntimeMode: Ref<string>;
-  edgeVirtualizationWorkerStats: Ref<{ lastVisibleCount: number; lastHiddenCount: number; staleResponses: number }>;
   graphLayout: { requestGraphInitialization: (options?: LayoutProcessOptions) => void | Promise<void> };
   isLayoutPending: Ref<boolean>;
   isLayoutMeasuring: Ref<boolean>;

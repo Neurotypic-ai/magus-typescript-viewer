@@ -27,14 +27,12 @@ const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
 
 export interface BuildOverviewGraphOptions {
   data: DependencyPackageGraph;
-  enabledNodeTypes: Iterable<string>;
   enabledRelationshipTypes: string[];
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   clusterByFolder: boolean;
   collapseScc: boolean;
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
-  memberNodeMode: 'compact' | 'graph';
   highlightOrphanGlobal: boolean;
 }
 
@@ -162,32 +160,20 @@ function annotateOrphanDiagnostics(
 }
 
 export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphViewData {
-  const enabledNodeTypeSet = new Set(options.enabledNodeTypes);
-  const includePackages = enabledNodeTypeSet.has('package');
-  const includeModules = enabledNodeTypeSet.has('module');
-  const includeClassNodes = enabledNodeTypeSet.has('class');
-  const includeInterfaceNodes = enabledNodeTypeSet.has('interface');
-  const includeClassEdges = includeClassNodes || includeInterfaceNodes;
-  const symbolNodesRequested = includeClassNodes || includeInterfaceNodes;
-  const resolvedMemberNodeMode: 'compact' | 'graph' =
-    !includeModules && symbolNodesRequested ? 'graph' : options.memberNodeMode;
-
   const graphNodes = createGraphNodes(options.data, {
-    includePackages,
-    includeModules,
-    includeClasses: includeClassEdges,
-    includeClassNodes,
-    includeInterfaceNodes,
+    includePackages: false,
+    includeModules: true,
+    includeClasses: false,
+    includeClassNodes: false,
+    includeInterfaceNodes: false,
     nestSymbolsInModules: !options.clusterByFolder,
-    memberNodeMode: resolvedMemberNodeMode,
     direction: options.direction,
   });
 
-  const includeClassEdgesInGraph = includeClassEdges && resolvedMemberNodeMode === 'graph';
   const graphEdges = createGraphEdges(options.data, {
-    includePackageEdges: includePackages,
-    includeClassEdges: includeClassEdgesInGraph,
-    liftClassEdgesToModuleLevel: !includeClassEdgesInGraph,
+    includePackageEdges: false,
+    includeClassEdges: false,
+    liftClassEdgesToModuleLevel: true,
     importDirection: 'importer-to-imported',
   }) as unknown as GraphEdge[];
 
