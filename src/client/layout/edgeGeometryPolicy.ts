@@ -29,10 +29,10 @@ export interface RoundedPolylinePath {
 }
 
 // Single source of truth for arrow-driven geometry.
-export const EDGE_ARROW_SIZE_PX: number = 12;
+export const EDGE_ARROW_SIZE_PX = 12;
 export const EDGE_MARKER_WIDTH_PX: number = EDGE_ARROW_SIZE_PX;
 export const EDGE_MARKER_HEIGHT_PX: number = EDGE_ARROW_SIZE_PX;
-export const DEFAULT_CANVAS_EDGE_CORNER_RADIUS_PX: number = 10;
+export const DEFAULT_CANVAS_EDGE_CORNER_RADIUS_PX = 10;
 
 export const GROUP_EXCLUSION_ZONE_PX: number = EDGE_ARROW_SIZE_PX * 4;
 export const GROUP_ENTRY_STUB_PX: number = EDGE_ARROW_SIZE_PX;

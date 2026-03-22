@@ -4,6 +4,7 @@ import type { BuildOverviewGraphOptions } from '../buildOverviewGraph';
 import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
 import type { ModuleStructure } from '../../types/ModuleStructure';
 import type { PackageStructure } from '../../types/PackageStructure';
+import { describe, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -12,14 +13,12 @@ import type { PackageStructure } from '../../types/PackageStructure';
 function defaultOptions(overrides: Partial<BuildOverviewGraphOptions> = {}): BuildOverviewGraphOptions {
   return {
     data: { packages: [] },
-    enabledNodeTypes: ['module'],
     enabledRelationshipTypes: ['import'],
     direction: 'LR',
     clusterByFolder: false,
     collapseScc: false,
     collapsedFolderIds: new Set(),
     hideTestFiles: false,
-    memberNodeMode: 'compact',
     highlightOrphanGlobal: false,
     ...overrides,
   };
@@ -260,7 +259,7 @@ describe('buildOverviewGraph', () => {
       const pkg = makePackage('pkg-1', 'my-app', { 'mod-1': mod });
 
       const result = buildOverviewGraph(
-        defaultOptions({ data: makeGraph([pkg]), enabledNodeTypes: ['package', 'module'] })
+        defaultOptions({ data: makeGraph([pkg]) })
       );
 
       const packageNode = result.nodes.find((n) => n.type === 'package');
@@ -274,7 +273,7 @@ describe('buildOverviewGraph', () => {
       const pkg = makePackage('pkg-1', 'my-app', { 'mod-1': mod });
 
       const result = buildOverviewGraph(
-        defaultOptions({ data: makeGraph([pkg]), enabledNodeTypes: ['module'] })
+        defaultOptions({ data: makeGraph([pkg]) })
       );
 
       const packageNode = result.nodes.find((n) => n.type === 'package');
@@ -313,8 +312,6 @@ describe('buildOverviewGraph', () => {
       const result = buildOverviewGraph(
         defaultOptions({
           data: graphWithClasses(),
-          enabledNodeTypes: ['module', 'class', 'interface'],
-          memberNodeMode: 'compact',
         })
       );
 
@@ -330,8 +327,6 @@ describe('buildOverviewGraph', () => {
       const result = buildOverviewGraph(
         defaultOptions({
           data: graphWithClasses(),
-          enabledNodeTypes: ['class', 'interface'],
-          memberNodeMode: 'compact',
         })
       );
 
@@ -349,8 +344,6 @@ describe('buildOverviewGraph', () => {
       const result = buildOverviewGraph(
         defaultOptions({
           data: graphWithClasses(),
-          enabledNodeTypes: ['module', 'class', 'interface'],
-          memberNodeMode: 'graph',
         })
       );
 
@@ -492,11 +485,11 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('node type filtering', () => {
-    it('returns no nodes when enabledNodeTypes is empty', () => {
+    it('returns no nodes when enabledRelationshipTypes is empty', () => {
       const mod = makeModule('mod-1', 'index.ts', 'pkg-1', 'src/index.ts');
       const data = makeGraph([makePackage('pkg-1', 'app', { m: mod })]);
 
-      const result = buildOverviewGraph(defaultOptions({ data, enabledNodeTypes: [] }));
+      const result = buildOverviewGraph(defaultOptions({ data, enabledRelationshipTypes: [] }));
 
       expect(result.nodes).toHaveLength(0);
       expect(result.edges).toHaveLength(0);

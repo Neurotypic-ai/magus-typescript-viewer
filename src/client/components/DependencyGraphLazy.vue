@@ -48,7 +48,12 @@ class PerformanceMetrics {
   }
 }
 
-const props = defineProps<DependencyGraphProps>();
+const props = withDefaults(defineProps<DependencyGraphProps>(), {
+  data: () => ({
+    nodes: [],
+    edges: [],
+  }),
+});
 
 // Get the singleton instance of PerformanceMetrics
 const metrics = PerformanceMetrics.getInstance();

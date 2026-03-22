@@ -141,7 +141,7 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
       return;
     }
 
-    const currentNodes = nodes.value as unknown as Array<{ id: string }>;
+    const currentNodes = nodes.value as unknown as { id: string }[];
     const nextNodes = [...currentNodes];
     let changed = false;
     for (let index = 0; index < nextNodes.length; index += 1) {
@@ -163,7 +163,7 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
       return;
     }
 
-    const currentEdges = edges.value as unknown as Array<{ id: string }>;
+    const currentEdges = edges.value as unknown as { id: string }[];
     const nextEdges = [...currentEdges];
     const edgeIndexById = new Map<string, number>();
     currentEdges.forEach((edge, index) => {
