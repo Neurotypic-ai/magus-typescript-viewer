@@ -6,9 +6,7 @@ import { defineConfig } from 'vite';
 import type { UserConfigExport } from 'vite';
 
 const config: UserConfigExport = defineConfig({
-  plugins: [
-    vue(),
-  ],
+  plugins: [vue()],
   server: {
     port: 4000,
     strictPort: true,
@@ -37,16 +35,25 @@ const config: UserConfigExport = defineConfig({
     sourcemap: 'hidden',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vue-vendor': ['vue', 'pinia'],
-          'flow-vendor': ['@vue-flow/core', '@vue-flow/background', '@vue-flow/controls', '@vue-flow/minimap', '@vue-flow/node-toolbar'],
-          'elk-vendor': ['elkjs'],
+        manualChunks(id) {
+          if (id.includes('node_modules/elkjs')) return 'elk-vendor';
+          if (id.includes('node_modules/@vue-flow')) return 'flow-vendor';
+          if (id.includes('node_modules/vue') || id.includes('node_modules/pinia')) return 'vue-vendor';
+          return undefined;
         },
       },
     },
   },
   optimizeDeps: {
-    include: ['vue', 'pinia', '@vue-flow/core', '@vue-flow/background', '@vue-flow/controls', '@vue-flow/minimap', '@vue-flow/node-toolbar'],
+    include: [
+      'vue',
+      'pinia',
+      '@vue-flow/core',
+      '@vue-flow/background',
+      '@vue-flow/controls',
+      '@vue-flow/minimap',
+      '@vue-flow/node-toolbar',
+    ],
   },
   resolve: {
     dedupe: ['vue'],

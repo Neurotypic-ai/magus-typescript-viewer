@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { buildOverviewGraph } from '../buildOverviewGraph';
 
+import type { IClass } from '../../../shared/types/Class';
+import type { IInterface } from '../../../shared/types/Interface';
 import type { IModule, Module } from '../../../shared/types/Module';
 import type { Package, PackageGraph } from '../../../shared/types/Package';
 import type { BuildOverviewGraphOptions } from '../buildOverviewGraph';
@@ -89,8 +91,17 @@ describe('buildOverviewGraph', () => {
     });
 
     it('returns empty nodes and edges when the package has no modules', () => {
-      const pkg = makePackage('pkg-1', 'empty-pkg');
-      delete pkg.modules;
+      const pkg = {
+        id: 'pkg-1',
+        name: 'empty-pkg',
+        version: '1.0.0',
+        path: '/empty-pkg',
+        created_at: '2024-01-01T00:00:00.000Z',
+        dependencies: new Map(),
+        devDependencies: new Map(),
+        peerDependencies: new Map(),
+        modules: undefined,
+      } as unknown as Package;
 
       const result = buildOverviewGraph(defaultOptions({ data: makeGraph([pkg]) }));
 
@@ -146,7 +157,7 @@ describe('buildOverviewGraph', () => {
     function twoModuleGraph(): PackageGraph {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
         imports: {
-          i1: { uuid: 'i1', name: 'b', path: './b' },
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
         },
       });
       const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts');
@@ -201,7 +212,9 @@ describe('buildOverviewGraph', () => {
   describe('edge visibility', () => {
     function graphWithImportEdge(): PackageGraph {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
-        imports: { i1: { uuid: 'i1', name: 'b', path: './b' } },
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+        },
       });
       const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts');
       return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
@@ -292,19 +305,27 @@ describe('buildOverviewGraph', () => {
           MyClass: {
             id: 'cls-1',
             name: 'MyClass',
+            package_id: 'pkg-1',
+            module_id: 'mod-1',
+            created_at: '2024-01-01T00:00:00.000Z',
+            implemented_interfaces: {},
             properties: [{ id: 'prop-1', name: 'value', type: 'string', visibility: 'public' }],
             methods: [
               { id: 'meth-1', name: 'run', returnType: 'void', visibility: 'public', signature: 'run(): void' },
             ],
-          },
+          } as unknown as IClass,
         },
         interfaces: {
           MyInterface: {
             id: 'iface-1',
             name: 'MyInterface',
+            package_id: 'pkg-1',
+            module_id: 'mod-1',
+            created_at: '2024-01-01T00:00:00.000Z',
+            extended_interfaces: {},
             properties: [{ id: 'iprop-1', name: 'id', type: 'number', visibility: 'public' }],
             methods: [],
-          },
+          } as unknown as IInterface,
         },
       });
       return makeGraph([makePackage('pkg-1', 'app', { mod: mod })]);
@@ -331,7 +352,7 @@ describe('buildOverviewGraph', () => {
   describe('folder clustering', () => {
     function multifolderGraph(): PackageGraph {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a/a.ts', {
-        imports: { i1: { uuid: 'i1', name: 'b', path: '../b/b' } },
+        imports: { i1: { uuid: 'i1', name: 'b', fullPath: '../b/b', relativePath: '../b/b', specifiers: new Map(), depth: 0 } },
       });
       const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b/b.ts');
       return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
@@ -417,7 +438,9 @@ describe('buildOverviewGraph', () => {
       // Two modules with an import relationship. If the relationship type is disabled,
       // orphanCurrent should be true but orphanGlobal should be false.
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
-        imports: { i1: { uuid: 'i1', name: 'b', path: './b' } },
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+        },
       });
       const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts');
       const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);

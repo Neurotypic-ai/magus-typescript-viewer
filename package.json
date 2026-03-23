@@ -18,9 +18,7 @@
     "jscodeshift": "^17.3.0",
     "ora": "^9.3.0",
     "pinia": "^3.0.4",
-    "read-package-up": "^12.0.0",
     "read-pkg": "^10.1.0",
-    "recast": "^0.23.11",
     "tsx": "^4.21.0",
     "uuid": "^13.0.0",
     "vitest": "^4.1.0",
@@ -51,7 +49,6 @@
     "tailwindcss": "^4.2.2",
     "typescript": "5.9.3",
     "vite": "^8.0.1",
-    "vite-plugin-node-polyfills": "^0.25.0",
     "vue-tsc": "^3.2.6"
   },
   "keywords": [

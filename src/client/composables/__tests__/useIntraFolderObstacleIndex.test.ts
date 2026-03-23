@@ -25,7 +25,7 @@ function makeNode(
 ): MockNode {
   return {
     id,
-    parentNode,
+    ...(parentNode !== undefined ? { parentNode } : {}),
     computedPosition: position ?? { x: 0, y: 0 },
     dimensions: dimensions ?? { width: 0, height: 0 },
   };

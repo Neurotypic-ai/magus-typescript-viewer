@@ -193,7 +193,7 @@ describe('RulesEngine', () => {
       await engine.analyze(parseResult);
 
       expect(rule.check).toHaveBeenCalledTimes(1);
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0][0] as RuleContext;
+      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
 
       expect(context.filePath).toBe('/fake/test.ts');
       expect(context.moduleId).toBe('mod-1');
@@ -451,7 +451,7 @@ describe('RulesEngine', () => {
 
       await engine.analyze(parseResult);
 
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0][0] as RuleContext;
+      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
       expect(context.config).toEqual(defaultRulesConfig);
     });
 
@@ -465,7 +465,7 @@ describe('RulesEngine', () => {
 
       await engine.analyze(parseResult);
 
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0][0] as RuleContext;
+      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
       expect(context.config.typeUnionWithoutAlias.memberThreshold).toBe(99);
     });
   });
@@ -482,7 +482,7 @@ describe('RulesEngine', () => {
 
       await engine.analyze(parseResult);
 
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0][0] as RuleContext;
+      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
       expect(context.packageId).toBe('my-pkg');
     });
 
@@ -503,7 +503,7 @@ describe('RulesEngine', () => {
       const engine = new RulesEngine([rule]);
       await engine.analyze(parseResult);
 
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0][0] as RuleContext;
+      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
       expect(context.packageId).toBe('');
     });
   });

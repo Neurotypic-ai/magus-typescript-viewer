@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InsightEngine } from '../InsightEngine';
 
-import type { DatabaseRow, IDatabaseAdapter, QueryParams, QueryResult } from '../../db/adapter/IDatabaseAdapter';
+import type { DatabaseRow, IDatabaseAdapter } from '../../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from '../import-graph';
 
 // ── Mock buildImportGraph ────────────────────────────────────────────────────
@@ -33,11 +33,9 @@ function createMockAdapter(queryResponses?: Map<string, DatabaseRow[]>): IDataba
     init: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     close: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     getDbPath: vi.fn<() => string>().mockReturnValue(':memory:'),
-    transaction: vi
-      .fn<(cb: () => Promise<unknown>) => Promise<unknown>>()
-      .mockImplementation(async (cb: () => Promise<unknown>) => cb()),
+    transaction: vi.fn(async <T,>(cb: () => Promise<T>) => cb()) as IDatabaseAdapter['transaction'],
     query: vi
-      .fn<(sql: string, params?: QueryParams) => Promise<QueryResult>>()
+      .fn()
       .mockImplementation(async (sql: string) => {
         if (queryResponses) {
           for (const [pattern, rows] of queryResponses) {
@@ -45,7 +43,7 @@ function createMockAdapter(queryResponses?: Map<string, DatabaseRow[]>): IDataba
           }
         }
         return [];
-      }),
+      }) as IDatabaseAdapter['query'],
   };
 }
 
@@ -381,12 +379,10 @@ describe('InsightEngine', () => {
       // Make the adapter throw on certain queries but succeed on others
       const failAdapter: IDatabaseAdapter = {
         ...createMockAdapter(),
-        query: vi
-          .fn<(sql: string, params?: QueryParams) => Promise<QueryResult>>()
-          .mockImplementation(async (sql: string) => {
-            if (sql.includes('classes')) throw new Error('DB error for classes');
-            return [];
-          }),
+        query: vi.fn().mockImplementation(async (sql: string) => {
+          if (sql.includes('classes')) throw new Error('DB error for classes');
+          return [];
+        }) as IDatabaseAdapter['query'],
       };
 
       const failEngine = new InsightEngine(failAdapter);

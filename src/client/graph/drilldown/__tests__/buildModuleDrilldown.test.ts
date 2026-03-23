@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { buildModuleDrilldownGraph } from '../buildModuleDrilldown';
 
+import type { IClass } from '../../../../shared/types/Class';
+import type { IInterface } from '../../../../shared/types/Interface';
 import type { Module } from '../../../../shared/types/Module';
 import type { Package, PackageGraph } from '../../../../shared/types/Package';
 import type { DependencyNode } from '../../../types/DependencyNode';
@@ -13,12 +15,35 @@ import type { BuildModuleDrilldownGraphOptions } from '../buildModuleDrilldown';
 /*  Helpers to build minimal test data                                 */
 /* ------------------------------------------------------------------ */
 
+const testClassDefaults = {
+  package_id: 'pkg-1',
+  module_id: 'mod-1',
+  created_at: '2024-01-01T00:00:00.000Z',
+  methods: new Map(),
+  properties: new Map(),
+  implemented_interfaces: new Map(),
+};
+
+const testInterfaceDefaults = {
+  package_id: 'pkg-1',
+  module_id: 'mod-1',
+  created_at: '2024-01-01T00:00:00.000Z',
+  methods: new Map(),
+  properties: new Map(),
+  extended_interfaces: new Map(),
+};
+
 function makeModule(overrides: Partial<Module> & { id: string; name: string }): Module {
   return {
     package_id: 'pkg-1',
-    source: { relativePath: 'src/index.ts' },
+    source: {
+      relativePath: 'src/index.ts',
+      directory: 'src',
+      name: 'index.ts',
+      filename: 'src/index.ts',
+    },
     ...overrides,
-  };
+  } as Module;
 }
 
 function makePackage(modules: Record<string, Module>): Package {
@@ -28,8 +53,11 @@ function makePackage(modules: Record<string, Module>): Package {
     version: '1.0.0',
     path: '/test',
     created_at: '2024-01-01',
+    dependencies: new Map(),
+    devDependencies: new Map(),
+    peerDependencies: new Map(),
     modules,
-  };
+  } as Package;
 }
 
 function makeGraph(modules: Record<string, Module>): PackageGraph {
@@ -113,11 +141,12 @@ describe('buildModuleDrilldownGraph', () => {
         name: 'models.ts',
         classes: {
           'cls-1': {
+            ...testClassDefaults,
             id: 'cls-1',
             name: 'UserModel',
             properties: [{ name: 'name', type: 'string', visibility: 'public' }],
             methods: [{ name: 'save', returnType: 'void', visibility: 'public', signature: 'save(): void' }],
-          },
+          } as unknown as IClass,
         },
       });
 
@@ -133,9 +162,9 @@ describe('buildModuleDrilldownGraph', () => {
       const classNode = result.nodes.find((n) => n.id === 'cls-1');
       expect(classNode).toBeDefined();
       expect(classNode!.type).toBe('class');
-      expect(classNode!.data.label).toBe('UserModel');
-      expect(classNode!.data.properties).toEqual([expect.objectContaining({ name: 'name', type: 'string' })]);
-      expect(classNode!.data.methods).toEqual([expect.objectContaining({ name: 'save', return_type: 'void' })]);
+      expect(classNode?.data?.label).toBe('UserModel');
+      expect(classNode?.data?.properties).toEqual([expect.objectContaining({ name: 'name', type: 'string' })]);
+      expect(classNode?.data?.methods).toEqual([expect.objectContaining({ name: 'save', return_type: 'void' })]);
     });
 
     it('adds inheritance edge when class has extends_id', () => {
@@ -143,8 +172,8 @@ describe('buildModuleDrilldownGraph', () => {
         id: 'mod-1',
         name: 'models.ts',
         classes: {
-          'cls-1': { id: 'cls-1', name: 'Child', extends_id: 'cls-parent' },
-          'cls-parent': { id: 'cls-parent', name: 'Parent' },
+          'cls-1': { ...testClassDefaults, id: 'cls-1', name: 'Child', extends_id: 'cls-parent' },
+          'cls-parent': { ...testClassDefaults, id: 'cls-parent', name: 'Parent' },
         },
       });
 
@@ -157,8 +186,8 @@ describe('buildModuleDrilldownGraph', () => {
 
       const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'inheritance');
       expect(inheritanceEdges).toHaveLength(1);
-      expect(inheritanceEdges[0]!.source).toBe('cls-1');
-      expect(inheritanceEdges[0]!.target).toBe('cls-parent');
+      expect(inheritanceEdges[0]?.source).toBe('cls-1');
+      expect(inheritanceEdges[0]?.target).toBe('cls-parent');
     });
 
     it('adds implements edges for implemented interfaces', () => {
@@ -167,17 +196,18 @@ describe('buildModuleDrilldownGraph', () => {
         name: 'models.ts',
         classes: {
           'cls-1': {
+            ...testClassDefaults,
             id: 'cls-1',
             name: 'Service',
             implemented_interfaces: {
-              'iface-1': { id: 'iface-1', name: 'IService' },
-              'iface-2': { id: 'iface-2', name: 'IDisposable' },
+              'iface-1': { ...testInterfaceDefaults, id: 'iface-1', name: 'IService' },
+              'iface-2': { ...testInterfaceDefaults, id: 'iface-2', name: 'IDisposable' },
             },
           },
         },
         interfaces: {
-          'iface-1': { id: 'iface-1', name: 'IService' },
-          'iface-2': { id: 'iface-2', name: 'IDisposable' },
+          'iface-1': { ...testInterfaceDefaults, id: 'iface-1', name: 'IService' },
+          'iface-2': { ...testInterfaceDefaults, id: 'iface-2', name: 'IDisposable' },
         },
       });
 
@@ -202,10 +232,11 @@ describe('buildModuleDrilldownGraph', () => {
         name: 'types.ts',
         interfaces: {
           'iface-1': {
+            ...testInterfaceDefaults,
             id: 'iface-1',
             name: 'IUser',
             properties: [{ name: 'email', type: 'string', visibility: 'public' }],
-          },
+          } as unknown as IInterface,
         },
       });
 
@@ -220,7 +251,7 @@ describe('buildModuleDrilldownGraph', () => {
       const ifaceNode = result.nodes.find((n) => n.id === 'iface-1');
       expect(ifaceNode).toBeDefined();
       expect(ifaceNode!.type).toBe('interface');
-      expect(ifaceNode!.data.label).toBe('IUser');
+      expect(ifaceNode?.data?.label).toBe('IUser');
     });
 
     it('adds inheritance edges for extended interfaces', () => {
@@ -229,13 +260,14 @@ describe('buildModuleDrilldownGraph', () => {
         name: 'types.ts',
         interfaces: {
           'iface-1': {
+            ...testInterfaceDefaults,
             id: 'iface-1',
             name: 'IExtended',
             extended_interfaces: {
-              'iface-base': { id: 'iface-base', name: 'IBase' },
+              'iface-base': { ...testInterfaceDefaults, id: 'iface-base', name: 'IBase' },
             },
           },
-          'iface-base': { id: 'iface-base', name: 'IBase' },
+          'iface-base': { ...testInterfaceDefaults, id: 'iface-base', name: 'IBase' },
         },
       });
 
@@ -337,8 +369,8 @@ describe('buildModuleDrilldownGraph', () => {
         id: 'mod-1',
         name: 'models.ts',
         classes: {
-          'cls-1': { id: 'cls-1', name: 'Child', extends_id: 'cls-parent' },
-          'cls-parent': { id: 'cls-parent', name: 'Parent' },
+          'cls-1': { ...testClassDefaults, id: 'cls-1', name: 'Child', extends_id: 'cls-parent' },
+          'cls-parent': { ...testClassDefaults, id: 'cls-parent', name: 'Parent' },
         },
       });
 
@@ -361,8 +393,8 @@ describe('buildModuleDrilldownGraph', () => {
         id: 'mod-1',
         name: 'models.ts',
         classes: {
-          'cls-1': { id: 'cls-1', name: 'Child', extends_id: 'cls-parent' },
-          'cls-parent': { id: 'cls-parent', name: 'Parent' },
+          'cls-1': { ...testClassDefaults, id: 'cls-1', name: 'Child', extends_id: 'cls-parent' },
+          'cls-parent': { ...testClassDefaults, id: 'cls-parent', name: 'Parent' },
         },
       });
 
@@ -404,35 +436,39 @@ describe('buildModuleDrilldownGraph', () => {
         name: 'app.ts',
         classes: {
           'cls-1': {
+            ...testClassDefaults,
             id: 'cls-1',
             name: 'AppService',
             extends_id: 'cls-2',
             implemented_interfaces: {
-              'iface-1': { id: 'iface-1', name: 'IApp' },
+              'iface-1': { ...testInterfaceDefaults, id: 'iface-1', name: 'IApp' },
             },
             properties: [{ name: 'config', type: 'Config', visibility: 'private' }],
             methods: [
               { name: 'start', returnType: 'Promise<void>', visibility: 'public', signature: 'start(): Promise<void>' },
             ],
-          },
+          } as unknown as IClass,
           'cls-2': {
+            ...testClassDefaults,
             id: 'cls-2',
             name: 'BaseService',
-          },
+          } as unknown as IClass,
         },
         interfaces: {
           'iface-1': {
+            ...testInterfaceDefaults,
             id: 'iface-1',
             name: 'IApp',
             extended_interfaces: {
-              'iface-2': { id: 'iface-2', name: 'IBase' },
+              'iface-2': { ...testInterfaceDefaults, id: 'iface-2', name: 'IBase' },
             },
             properties: [{ name: 'version', type: 'string', visibility: 'public' }],
-          },
+          } as unknown as IInterface,
           'iface-2': {
+            ...testInterfaceDefaults,
             id: 'iface-2',
             name: 'IBase',
-          },
+          } as unknown as IInterface,
         },
       });
 

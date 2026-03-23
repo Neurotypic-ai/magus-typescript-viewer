@@ -154,8 +154,8 @@ describe('collapseFolders', () => {
       const folderNode = result.nodes.find((n) => n.id === 'folder-a');
 
       expect(folderNode).toBeDefined();
-      expect(folderNode?.data.isCollapsed).toBe(true);
-      expect(folderNode?.data.childCount).toBe(2);
+      expect(folderNode?.data?.['isCollapsed']).toBe(true);
+      expect(folderNode?.data?.['childCount']).toBe(2);
     });
 
     it('records child IDs in collapsedMeta', () => {
