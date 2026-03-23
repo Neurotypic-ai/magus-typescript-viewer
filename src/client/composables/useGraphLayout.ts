@@ -6,8 +6,8 @@ import { buildOverviewGraph } from '../graph/buildGraphView';
 import { getHandlePositions } from '../graph/handleRouting';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { optimizeHighwayHandleRouting } from '../graph/transforms/edgeHighways';
-import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
 import { parseDimension } from '../layout/geometryBounds';
+import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
 
 import type { Ref } from 'vue';
 
@@ -70,6 +70,7 @@ export type ResumeCacheWrites = () => void;
 
 export interface GraphLayoutStore {
   nodes: DependencyNode[];
+  edges: GraphEdge[];
   setNodes: SetNodes;
   setEdges: SetEdges;
   setOverviewSnapshot: SetOverviewSnapshot;
@@ -208,6 +209,8 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   let graphInitPromise: Promise<void> | null = null;
   let graphInitQueued = false;
   let queuedGraphInitOverrides: LayoutProcessOptions | undefined;
+  let nodeMeasurementRelayoutRafId: number | null = null;
+  let hasPendingMeasurementRelayout = false;
 
   // ── Stub measurement functions (kept for API compatibility with useIsolationMode) ──
 
@@ -271,6 +274,51 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
     return { nodes, hasChanges };
   };
+
+  const scheduleMeasurementDrivenRelayout = (): void => {
+    if (isLayoutPending.value || isLayoutMeasuring.value) {
+      hasPendingMeasurementRelayout = true;
+      return;
+    }
+
+    if (nodeMeasurementRelayoutRafId !== null) {
+      return;
+    }
+
+    nodeMeasurementRelayoutRafId = requestAnimationFrame(async () => {
+      nodeMeasurementRelayoutRafId = null;
+      if (isLayoutPending.value || isLayoutMeasuring.value || graphStore.nodes.length === 0) {
+        return;
+      }
+
+      const measuredNodes = measureAllNodeDimensions(graphStore.nodes);
+      if (!measuredNodes.hasChanges) {
+        return;
+      }
+
+      const previousLayoutMeasuring = isLayoutMeasuring.value;
+      isLayoutMeasuring.value = true;
+      try {
+        await processGraphLayout(
+          {
+            nodes: measuredNodes.nodes,
+            edges: graphStore.edges,
+          },
+          { fitViewToResult: false }
+        );
+      } finally {
+        isLayoutMeasuring.value = previousLayoutMeasuring;
+        if (hasPendingMeasurementRelayout) {
+          hasPendingMeasurementRelayout = false;
+          scheduleMeasurementDrivenRelayout();
+        }
+      }
+    });
+  };
+
+  nodeDimensionTracker.subscribe?.(() => {
+    scheduleMeasurementDrivenRelayout();
+  });
 
   // ── Layout normalization ──
 
@@ -417,6 +465,10 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         } finally {
           nodePremeasure.clearBatch();
           isLayoutMeasuring.value = previousLayoutMeasuring;
+          if (hasPendingMeasurementRelayout) {
+            hasPendingMeasurementRelayout = false;
+            scheduleMeasurementDrivenRelayout();
+          }
         }
       }
 
@@ -463,7 +515,11 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   // ── Cleanup ──
 
   const dispose = (): void => {
-    // Nothing to dispose in the simple synchronous layout.
+    if (nodeMeasurementRelayoutRafId !== null) {
+      cancelAnimationFrame(nodeMeasurementRelayoutRafId);
+      nodeMeasurementRelayoutRafId = null;
+    }
+    hasPendingMeasurementRelayout = false;
   };
 
   return {

@@ -13,6 +13,7 @@ interface NodeDimensionTracker {
   get: (nodeId: string) => NodeDimensionMeasurement | undefined;
   pause: () => void;
   resume: () => void;
+  subscribe: (listener: (changedNodeIds: string[]) => void) => () => void;
 }
 
 function measureNodeElement(nodeElement: HTMLElement): NodeDimensionMeasurement {
@@ -28,15 +29,62 @@ function measureNodeElement(nodeElement: HTMLElement): NodeDimensionMeasurement 
 export function createNodeDimensionTracker(): NodeDimensionTracker {
   const measurements = new Map<string, NodeDimensionMeasurement>();
   const observedNodeElements = new Map<string, HTMLElement>();
+  const listeners = new Set<(changedNodeIds: string[]) => void>();
+  const pendingChangedNodeIds = new Set<string>();
 
   let rootElement: HTMLElement | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let mutationObserver: MutationObserver | null = null;
   let scanRafId: number | null = null;
+  let notifyRafId: number | null = null;
   let paused = false;
 
+  const areMeasurementsEqual = (left: NodeDimensionMeasurement | undefined, right: NodeDimensionMeasurement): boolean => {
+    if (!left) {
+      return false;
+    }
+
+    return (
+      left.width === right.width &&
+      left.height === right.height &&
+      left.headerHeight === right.headerHeight &&
+      left.bodyHeight === right.bodyHeight &&
+      left.subnodesHeight === right.subnodesHeight
+    );
+  };
+
+  const flushPendingNotifications = (): void => {
+    if (paused || pendingChangedNodeIds.size === 0) {
+      return;
+    }
+
+    const changedNodeIds = [...pendingChangedNodeIds];
+    pendingChangedNodeIds.clear();
+    listeners.forEach((listener) => {
+      listener(changedNodeIds);
+    });
+  };
+
+  const scheduleNotification = (): void => {
+    if (paused || pendingChangedNodeIds.size === 0 || notifyRafId !== null) {
+      return;
+    }
+
+    notifyRafId = requestAnimationFrame(() => {
+      notifyRafId = null;
+      flushPendingNotifications();
+    });
+  };
+
   const updateNodeMeasurement = (nodeId: string, nodeElement: HTMLElement): void => {
-    measurements.set(nodeId, measureNodeElement(nodeElement));
+    const nextMeasurement = measureNodeElement(nodeElement);
+    const previousMeasurement = measurements.get(nodeId);
+    measurements.set(nodeId, nextMeasurement);
+
+    if (!areMeasurementsEqual(previousMeasurement, nextMeasurement)) {
+      pendingChangedNodeIds.add(nodeId);
+      scheduleNotification();
+    }
   };
 
   const observeNodeElement = (nodeId: string, nodeElement: HTMLElement): void => {
@@ -139,6 +187,10 @@ export function createNodeDimensionTracker(): NodeDimensionTracker {
         cancelAnimationFrame(scanRafId);
         scanRafId = null;
       }
+      if (notifyRafId !== null) {
+        cancelAnimationFrame(notifyRafId);
+        notifyRafId = null;
+      }
 
       mutationObserver?.disconnect();
       mutationObserver = null;
@@ -151,6 +203,8 @@ export function createNodeDimensionTracker(): NodeDimensionTracker {
 
       observedNodeElements.clear();
       measurements.clear();
+      pendingChangedNodeIds.clear();
+      listeners.clear();
       rootElement = null;
     },
     refresh: () => {
@@ -162,6 +216,13 @@ export function createNodeDimensionTracker(): NodeDimensionTracker {
     },
     resume: () => {
       paused = false;
+      scheduleNotification();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, toRef, watch } from 'vue';
-
-import { useVueFlow } from '@vue-flow/core';
+import { computed, ref, toRef } from 'vue';
 
 import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import BaseNode from './BaseNode.vue';
@@ -12,7 +10,6 @@ import { buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 import type { DependencyProps } from '../../types/DependencyProps';
 
 const props = defineProps<DependencyProps>();
-const { updateNodeInternals } = useVueFlow();
 
 const nodeData = toRef(props, 'data');
 const nodeType = toRef(props, 'type');
@@ -32,22 +29,6 @@ const isCollapsible = computed(() => {
   return nodeData.value.collapsible === true;
 });
 const isCollapsed = ref(false);
-
-function refreshNodeBounds() {
-  const nodeIds = [props.id];
-  updateNodeInternals(nodeIds);
-  void nextTick(() => {
-    updateNodeInternals(nodeIds);
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => {
-        updateNodeInternals(nodeIds);
-      });
-    }
-    setTimeout(() => {
-      updateNodeInternals(nodeIds);
-    }, 340);
-  });
-}
 
 const toggleCollapsed = () => {
   if (isCollapsible.value) {
@@ -86,18 +67,10 @@ const badgeClass = computed(() => {
   }
 });
 
-const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase());
+const badgeText = computed(() => nodeType.value.toUpperCase());
 
 const showProperties = ref(true);
 const showMethods = ref(true);
-
-const handleSectionToggle = () => {
-  refreshNodeBounds();
-};
-
-watch(isCollapsed, () => {
-  refreshNodeBounds();
-});
 
 const formattedProperties = computed(() => properties.value.map(formatProperty));
 const formattedMethods = computed(() => methods.value.map(formatMethod));
@@ -123,7 +96,6 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
             title="Properties"
             :count="memberPropertyCount"
             :default-open="showProperties"
-            @toggle="handleSectionToggle"
           >
             <div
               v-for="prop in formattedProperties"
@@ -146,7 +118,6 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
             title="Methods"
             :count="memberMethodCount"
             :default-open="showMethods"
-            @toggle="handleSectionToggle"
           >
             <div
               v-for="method in formattedMethods"

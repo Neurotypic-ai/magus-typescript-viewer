@@ -20,6 +20,7 @@ import type { NodePremeasure } from './nodePremeasureTypes';
 
 interface LayoutOptionsGraphStoreSource {
   nodes: DependencyNode[];
+  edges: GraphEdge[];
   manualOffsets: Map<string, ManualOffset>;
   setNodes: (nodes: DependencyNode[]) => void;
   setEdges: (edges: GraphEdge[]) => void;
@@ -72,6 +73,9 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
   const graphLayoutStore: GraphLayoutStore = {
     get nodes() {
       return graphStore.nodes;
+    },
+    get edges() {
+      return graphStore.edges;
     },
     setNodes: (n) => {
       graphStore.setNodes(n);

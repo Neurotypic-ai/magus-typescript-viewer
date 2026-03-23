@@ -2,7 +2,8 @@
   "extends": "@neurotypic-ai/typescript-config/config/tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "rootDir": "./"
+    "rootDir": "./",
+    "isolatedDeclarations": false
   },
   "include": [
     "./scripts/**/*.ts",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
@@ -28,7 +28,7 @@ import {
   NODE_ACTIONS_KEY,
 } from './nodes/utils';
 
-import type { Component } from 'vue';
+import type { Component, Ref } from 'vue';
 
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyNode } from '../types/DependencyNode';
@@ -137,7 +137,7 @@ const {
 } = core;
 
 const USE_CSS_SELECTION_HOVER = env.USE_CSS_SELECTION_HOVER;
-const premeasureNodes = computed(() => nodePremeasure.batchNodes.value as DependencyNode[]);
+const premeasureNodes = nodePremeasure.batchNodes as Ref<DependencyNode[]>;
 
 const nodeTypes: Record<string, Component> = Object.freeze({
   package: PackageNode,
@@ -166,7 +166,7 @@ watch(
   () => {
     void core.graphLayout.requestGraphInitialization();
   },
-  { immediate: true }
+  { immediate: false }
 );
 
 watch(
@@ -188,6 +188,7 @@ onMounted(() => {
     nodeDimensionTracker.start(graphRootRef.value);
     initContainerCache(graphRootRef.value);
   }
+  void core.graphLayout.requestGraphInitialization();
   syncViewportState();
   void issuesStore.fetchIssues();
   void core.insightsStore.fetchInsights();

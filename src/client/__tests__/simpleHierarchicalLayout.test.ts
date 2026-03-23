@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeSimpleHierarchicalLayout } from '../simpleHierarchicalLayout';
+import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
 
-import type { GraphEdge } from '../../types/GraphEdge';
-import type { DependencyNode } from '../../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
+import type { DependencyNode } from '../types/DependencyNode';
 
 const EMPTY_EDGES: GraphEdge[] = [];
 
@@ -19,7 +19,7 @@ const makeNode = (overrides: Partial<DependencyNode> & { id: string }): Dependen
 };
 
 describe('computeSimpleHierarchicalLayout', () => {
-  it('uses child dimensions when computing parent size and child positions', () => {
+  it('accounts for folder chrome insets when computing parent size and child positions', () => {
     const parent = makeNode({ id: 'folder', type: 'group' });
     const childAlpha = makeNode({
       id: 'alpha',
@@ -34,9 +34,9 @@ describe('computeSimpleHierarchicalLayout', () => {
 
     const layout = computeSimpleHierarchicalLayout([parent, childAlpha, childBeta], EMPTY_EDGES);
 
-    expect(layout.positions.get('alpha')).toEqual({ x: 12, y: 44 });
-    expect(layout.positions.get('beta')).toEqual({ x: 124, y: 44 });
-    expect(layout.sizes.get('folder')).toEqual({ width: 376, height: 180 });
+    expect(layout.positions.get('alpha')).toEqual({ x: 14, y: 44 });
+    expect(layout.positions.get('beta')).toEqual({ x: 126, y: 44 });
+    expect(layout.sizes.get('folder')).toEqual({ width: 384, height: 180 });
   });
 
   it('falls back to default estimates when child dimensions are missing', () => {
@@ -48,8 +48,8 @@ describe('computeSimpleHierarchicalLayout', () => {
 
     const layout = computeSimpleHierarchicalLayout([parent, child], EMPTY_EDGES);
 
-    expect(layout.positions.get('child')).toEqual({ x: 12, y: 44 });
-    expect(layout.sizes.get('folder')).toEqual({ width: 344, height: 320 });
+    expect(layout.positions.get('child')).toEqual({ x: 14, y: 44 });
+    expect(layout.sizes.get('folder')).toEqual({ width: 352, height: 320 });
   });
 
   it('uses explicit root node dimensions for horizontal spacing', () => {

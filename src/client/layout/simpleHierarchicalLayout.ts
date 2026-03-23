@@ -12,10 +12,10 @@
  * Pure function — no external dependencies, no Vue reactivity.
  */
 
+import { resolveNodeDimensions } from './geometryBounds';
+
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
-
-import { resolveNodeDimensions } from './geometryBounds';
 
 // ── Root-level grid constants ────────────────────────────────────────────────
 
@@ -48,8 +48,10 @@ const DEFAULT_NODE_DIMENSIONS = {
 
 /** Space reserved at the top of a parent for its header label. */
 const CHILD_PADDING_TOP = 44;
-/** Horizontal padding inside the parent on each side. */
-const CHILD_PADDING_SIDE = 12;
+/** Horizontal inset from the parent border to the first child column. */
+const CHILD_PADDING_LEFT = 14;
+/** Horizontal inset from the last child column to the parent border. */
+const CHILD_PADDING_RIGHT = 18;
 /** Bottom padding inside the parent. */
 const CHILD_PADDING_BOTTOM = 16;
 /** Gap between sibling child nodes. */
@@ -112,7 +114,7 @@ function computeChildLayout(children: DependencyNode[]): {
   });
 
   const columnOffsets = new Array<number>(cols);
-  let nextColumnOffset = CHILD_PADDING_SIDE;
+  let nextColumnOffset = CHILD_PADDING_LEFT;
   for (let col = 0; col < cols; col++) {
     columnOffsets[col] = nextColumnOffset;
     nextColumnOffset += (columnWidths[col] ?? 0) + CHILD_GAP;
@@ -129,7 +131,7 @@ function computeChildLayout(children: DependencyNode[]): {
     const col = index % cols;
     const row = Math.floor(index / cols);
     childPositions.set(child.id, {
-      x: columnOffsets[col] ?? CHILD_PADDING_SIDE,
+      x: columnOffsets[col] ?? CHILD_PADDING_LEFT,
       y: rowOffsets[row] ?? CHILD_PADDING_TOP,
     });
   });
@@ -140,7 +142,7 @@ function computeChildLayout(children: DependencyNode[]): {
   return {
     childPositions,
     parentSize: {
-      width: Math.max(220, contentWidth + 2 * CHILD_PADDING_SIDE),
+      width: Math.max(220, contentWidth + CHILD_PADDING_LEFT + CHILD_PADDING_RIGHT),
       height: Math.max(80, CHILD_PADDING_TOP + contentHeight + CHILD_PADDING_BOTTOM),
     },
   };
