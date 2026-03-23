@@ -2,7 +2,7 @@ import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdge
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { HandleCategory } from '../../shared/types/graph/HandleCategory';
 
-export interface EdgeTypeDefinition {
+interface EdgeTypeDefinition {
   kind: DependencyEdgeKind;
   label: string;
   validSources: readonly DependencyKind[];

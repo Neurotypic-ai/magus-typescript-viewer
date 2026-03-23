@@ -23,3 +23,17 @@ export function typeCollectionToArray<T>(collection: TypeCollection<T> | undefin
   if (collection instanceof Map) return Array.from(collection.values());
   return Object.values(collection);
 }
+
+export function isNonEmptyCollection(collection: unknown): boolean {
+  if (!collection) return false;
+  if (collection instanceof Map) return collection.size > 0;
+  if (Array.isArray(collection)) return collection.length > 0;
+  return Object.keys(collection as Record<string, unknown>).length > 0;
+}
+
+export function collectionSize(collection: unknown): number {
+  if (!collection) return 0;
+  if (collection instanceof Map) return collection.size;
+  if (Array.isArray(collection)) return collection.length;
+  return Object.keys(collection as Record<string, unknown>).length;
+}

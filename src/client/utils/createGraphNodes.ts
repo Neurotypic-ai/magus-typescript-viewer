@@ -1,6 +1,6 @@
 import { Position } from '@vue-flow/core';
 
-import { mapTypeCollection } from './collections';
+import { collectionSize, isNonEmptyCollection, mapTypeCollection } from './collections';
 import { getNodeStyle } from '../theme/graphTheme';
 import { isTestFilePath } from './testFileMatcher';
 
@@ -190,7 +190,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
   const graphNodes: DependencyNode[] = [];
 
   const getModuleImports = (module: Module): string[] => {
-    if (!module.imports || Object.keys(module.imports).length === 0) return [];
+    if (!isNonEmptyCollection(module.imports)) return [];
     return mapTypeCollection(module.imports, (imp: Import & { path?: string }) => getImportPath(imp) ?? '').filter(Boolean);
   };
 
@@ -200,7 +200,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
       return explicitExternalDeps as ExternalDependencyRef[];
     }
 
-    if (!module.imports || Object.keys(module.imports).length === 0) {
+    if (!isNonEmptyCollection(module.imports)) {
       return [];
     }
 
@@ -382,7 +382,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
   // Optionally create package nodes.
   if (includePackages) {
     data.packages.forEach((pkg: Package) => {
-      const totalModuleCount = pkg.modules ? Object.keys(pkg.modules).length : 0;
+      const totalModuleCount = collectionSize(pkg.modules);
       const visibleModuleCount = includeModules ? totalModuleCount : 0;
       const hiddenModuleCount = Math.max(0, totalModuleCount - visibleModuleCount);
 
@@ -436,8 +436,8 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
     if (!pkg.modules) return;
 
     mapTypeCollection(pkg.modules, (module: Module) => {
-      const classCountTotal = module.classes ? Object.keys(module.classes).length : 0;
-      const interfaceCountTotal = module.interfaces ? Object.keys(module.interfaces).length : 0;
+      const classCountTotal = collectionSize(module.classes);
+      const interfaceCountTotal = collectionSize(module.interfaces);
       const visibleClassCount = includeClassNodes ? classCountTotal : 0;
       const visibleInterfaceCount = includeInterfaceNodes ? interfaceCountTotal : 0;
       const totalSubnodeCount = classCountTotal + interfaceCountTotal;

@@ -2,7 +2,7 @@ import { consola } from 'consola';
 
 import { createEdgeMarker } from './edgeMarkers';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
-import { mapTypeCollection, typeCollectionToArray } from './collections';
+import { isNonEmptyCollection, mapTypeCollection, typeCollectionToArray } from './collections';
 import { getEdgeStyle } from '../theme/graphTheme';
 import { buildModulePathLookup, isExternalImport, resolveModuleId } from './graphEdgeLookups';
 
@@ -313,21 +313,21 @@ export function createGraphEdges(
 
   data.packages.forEach((pkg: Package) => {
     if (resolvedOptions.includePackageEdges) {
-      if (pkg.dependencies && Object.keys(pkg.dependencies).length > 0) {
+      if (isNonEmptyCollection(pkg.dependencies)) {
         mapTypeCollection(pkg.dependencies, (dep: Package) => {
           if (!dep.id) return;
           addEdge(createEdge(pkg.id, dep.id, 'dependency'));
         });
       }
 
-      if (pkg.devDependencies && Object.keys(pkg.devDependencies).length > 0) {
+      if (isNonEmptyCollection(pkg.devDependencies)) {
         mapTypeCollection(pkg.devDependencies, (dep: Package) => {
           if (!dep.id) return;
           addEdge(createEdge(pkg.id, dep.id, 'devDependency'));
         });
       }
 
-      if (pkg.peerDependencies && Object.keys(pkg.peerDependencies).length > 0) {
+      if (isNonEmptyCollection(pkg.peerDependencies)) {
         mapTypeCollection(pkg.peerDependencies, (dep: Package) => {
           if (!dep.id) return;
           addEdge(createEdge(pkg.id, dep.id, 'peerDependency'));
@@ -344,7 +344,7 @@ export function createGraphEdges(
       const packageId = module.package_id;
       const importerPath: string = module.source.relativePath;
 
-      if (module.imports && Object.keys(module.imports).length > 0) {
+      if (isNonEmptyCollection(module.imports)) {
         mapTypeCollection(module.imports, (imp: Import & { path?: string; isExternal?: boolean; packageName?: string }) => {
           const path = imp.relativePath || imp.fullPath || imp.path || imp.name;
           if (!path) return;
@@ -364,7 +364,7 @@ export function createGraphEdges(
         });
       }
 
-      if (module.classes && Object.keys(module.classes).length > 0) {
+      if (isNonEmptyCollection(module.classes)) {
         mapTypeCollection(module.classes, (cls: Class) => {
           const clsId = cls.id;
           if (resolvedOptions.includeMemberContainmentEdges) {
@@ -391,7 +391,7 @@ export function createGraphEdges(
             }
           }
 
-          if (cls.implemented_interfaces && Object.keys(cls.implemented_interfaces).length > 0) {
+          if (isNonEmptyCollection(cls.implemented_interfaces)) {
             mapTypeCollection(cls.implemented_interfaces, (iface: Interface) => {
               if (!iface.id) return;
               const implementsEdge = createEdge(clsId, iface.id, 'implements');
@@ -404,7 +404,7 @@ export function createGraphEdges(
         });
       }
 
-      if (module.interfaces && Object.keys(module.interfaces).length > 0) {
+      if (isNonEmptyCollection(module.interfaces)) {
         mapTypeCollection(module.interfaces, (iface: Interface) => {
           const ifaceId = iface.id;
           if (resolvedOptions.includeMemberContainmentEdges) {
@@ -423,7 +423,7 @@ export function createGraphEdges(
             });
           }
 
-          if (iface.extended_interfaces && Object.keys(iface.extended_interfaces).length > 0) {
+          if (isNonEmptyCollection(iface.extended_interfaces)) {
             mapTypeCollection(iface.extended_interfaces, (extended: Interface) => {
               if (!extended.id) return;
               const inheritanceEdge = createEdge(ifaceId, extended.id, 'inheritance');
