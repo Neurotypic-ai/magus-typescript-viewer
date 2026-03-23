@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
@@ -31,6 +31,7 @@ import {
 import type { Component } from 'vue';
 
 import type { PackageGraph } from '../../shared/types/Package';
+import type { DependencyNode } from '../types/DependencyNode';
 
 import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/core/dist/style.css';
@@ -136,7 +137,7 @@ const {
 } = core;
 
 const USE_CSS_SELECTION_HOVER = env.USE_CSS_SELECTION_HOVER;
-const premeasureNodes = nodePremeasure.batchNodes;
+const premeasureNodes = computed(() => nodePremeasure.batchNodes.value as DependencyNode[]);
 
 const nodeTypes: Record<string, Component> = Object.freeze({
   package: PackageNode,

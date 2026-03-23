@@ -28,7 +28,7 @@ async function waitForFonts(): Promise<void> {
 }
 
 export function createNodePremeasure(graphRootRef: Ref<HTMLElement | null>): NodePremeasure {
-  const batchNodes = ref<DependencyNode[]>([]);
+  const batchNodes = ref<unknown[]>([]);
   const hasBatch = ref(false);
 
   const clearBatch = (): void => {

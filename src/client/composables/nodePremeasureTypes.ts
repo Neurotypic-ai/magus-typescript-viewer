@@ -12,7 +12,7 @@ export interface NodePremeasureResult {
 
 export interface NodePremeasure {
   hasBatch: Ref<boolean>;
-  batchNodes: Ref<DependencyNode[]>;
+  batchNodes: Ref<unknown[]>;
   measureBatch: (nodes: DependencyNode[]) => Promise<Map<string, NodePremeasureResult>>;
   clearBatch: () => void;
 }
