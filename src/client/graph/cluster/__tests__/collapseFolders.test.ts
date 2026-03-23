@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import { buildChildToFolderMap, collapseFolders } from '../collapseFolders';
 
 import type { DependencyNode } from '../../../types/DependencyNode';
@@ -7,11 +9,7 @@ import type { GraphEdge } from '../../../types/GraphEdge';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeNode(
-  id: string,
-  type: string = 'module',
-  parentNode?: string
-): DependencyNode {
+function makeNode(id: string, type = 'module', parentNode?: string): DependencyNode {
   return {
     id,
     type,
@@ -25,7 +23,7 @@ function makeEdge(
   id: string,
   source: string,
   target: string,
-  edgeType: string = 'dependency',
+  edgeType = 'dependency',
   extra: Record<string, unknown> = {}
 ): GraphEdge {
   return {
@@ -56,10 +54,7 @@ describe('buildChildToFolderMap', () => {
   });
 
   it('does not include the collapsed folder itself in the map', () => {
-    const nodes = [
-      makeNode('folder-a', 'group'),
-      makeNode('m1', 'module', 'folder-a'),
-    ];
+    const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a')];
     const collapsed = new Set(['folder-a']);
 
     const map = buildChildToFolderMap(nodes, collapsed);
@@ -68,10 +63,7 @@ describe('buildChildToFolderMap', () => {
   });
 
   it('returns empty map when no folders are collapsed', () => {
-    const nodes = [
-      makeNode('folder-a', 'group'),
-      makeNode('m1', 'module', 'folder-a'),
-    ];
+    const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a')];
     const collapsed = new Set<string>();
 
     const map = buildChildToFolderMap(nodes, collapsed);
@@ -80,11 +72,7 @@ describe('buildChildToFolderMap', () => {
   });
 
   it('maps nodes to outermost collapsed ancestor when multiple ancestors are collapsed', () => {
-    const nodes = [
-      makeNode('outer', 'group'),
-      makeNode('inner', 'group', 'outer'),
-      makeNode('m1', 'module', 'inner'),
-    ];
+    const nodes = [makeNode('outer', 'group'), makeNode('inner', 'group', 'outer'), makeNode('m1', 'module', 'inner')];
     // both outer and inner are collapsed — outermost wins
     const collapsed = new Set(['outer', 'inner']);
 
@@ -121,10 +109,7 @@ describe('buildChildToFolderMap', () => {
 describe('collapseFolders', () => {
   describe('pass-through when nothing is collapsed', () => {
     it('returns nodes and edges unchanged', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a')];
       const edges = [makeEdge('e1', 'm1', 'folder-a')];
       const collapsed = new Set<string>();
 
@@ -193,11 +178,7 @@ describe('collapseFolders', () => {
 
     it('preserves non-collapsed nodes without modification', () => {
       const externalNode = makeNode('m3', 'module');
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        externalNode,
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), externalNode];
       const edges: GraphEdge[] = [];
       const collapsed = new Set(['folder-a']);
 
@@ -210,11 +191,7 @@ describe('collapseFolders', () => {
 
   describe('edge rewiring', () => {
     it('rewires edges from hidden child to collapsed folder', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
       const edges = [makeEdge('e1', 'm1', 'm2', 'import')];
       const collapsed = new Set(['folder-a']);
 
@@ -226,11 +203,7 @@ describe('collapseFolders', () => {
     });
 
     it('rewires edges targeting hidden child to collapsed folder', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
       const edges = [makeEdge('e1', 'm2', 'm1', 'import')];
       const collapsed = new Set(['folder-a']);
 
@@ -263,10 +236,7 @@ describe('collapseFolders', () => {
         makeNode('m3', 'module'),
       ];
       // Both m1 and m2 have import edges to m3 — should collapse to one
-      const edges = [
-        makeEdge('e1', 'm1', 'm3', 'import'),
-        makeEdge('e2', 'm2', 'm3', 'import'),
-      ];
+      const edges = [makeEdge('e1', 'm1', 'm3', 'import'), makeEdge('e2', 'm2', 'm3', 'import')];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);
@@ -277,15 +247,8 @@ describe('collapseFolders', () => {
     });
 
     it('keeps edges with different types as separate after remapping', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m3', 'module'),
-      ];
-      const edges = [
-        makeEdge('e1', 'm1', 'm3', 'import'),
-        makeEdge('e2', 'm1', 'm3', 'inheritance'),
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m3', 'module')];
+      const edges = [makeEdge('e1', 'm1', 'm3', 'import'), makeEdge('e2', 'm1', 'm3', 'inheritance')];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);
@@ -297,19 +260,17 @@ describe('collapseFolders', () => {
     });
 
     it('clears source/target handles when endpoint is remapped', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
+      const edges: GraphEdge[] = [
+        {
+          id: 'e1',
+          source: 'm1',
+          target: 'm2',
+          sourceHandle: 'folder-left-out',
+          targetHandle: 'folder-right-in',
+          data: { type: 'import' },
+        } as GraphEdge,
       ];
-      const edges: GraphEdge[] = [{
-        id: 'e1',
-        source: 'm1',
-        target: 'm2',
-        sourceHandle: 'folder-left-out',
-        targetHandle: 'folder-right-in',
-        data: { type: 'import' },
-      } as GraphEdge];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);
@@ -328,10 +289,7 @@ describe('collapseFolders', () => {
         makeNode('m2', 'module'),
         makeNode('m3', 'module'),
       ];
-      const edges = [
-        makeEdge('e1', 'm1', 'm2', 'import'),
-        makeEdge('e2', 'm2', 'm3', 'dependency'),
-      ];
+      const edges = [makeEdge('e1', 'm1', 'm2', 'import'), makeEdge('e2', 'm2', 'm3', 'dependency')];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);
@@ -345,11 +303,7 @@ describe('collapseFolders', () => {
 
   describe('highway segment handling', () => {
     it('drops entry/exit highway edges when they are remapped', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
       const edges: GraphEdge[] = [
         makeEdge('exit-edge', 'm1', 'm2', 'import', { highwaySegment: 'exit' }),
         makeEdge('entry-edge', 'm2', 'm1', 'import', { highwaySegment: 'entry' }),
@@ -363,14 +317,8 @@ describe('collapseFolders', () => {
     });
 
     it('keeps highway trunk edges even when endpoints are remapped', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
-      ];
-      const edges: GraphEdge[] = [
-        makeEdge('trunk-edge', 'm1', 'm2', 'import', { highwaySegment: 'highway' }),
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
+      const edges: GraphEdge[] = [makeEdge('trunk-edge', 'm1', 'm2', 'import', { highwaySegment: 'highway' })];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);
@@ -387,9 +335,7 @@ describe('collapseFolders', () => {
         makeNode('m2', 'module'),
         makeNode('m3', 'module'),
       ];
-      const edges: GraphEdge[] = [
-        makeEdge('exit-edge', 'm2', 'm3', 'import', { highwaySegment: 'exit' }),
-      ];
+      const edges: GraphEdge[] = [makeEdge('exit-edge', 'm2', 'm3', 'import', { highwaySegment: 'exit' })];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);
@@ -403,11 +349,7 @@ describe('collapseFolders', () => {
 
   describe('lifted edge count tracking', () => {
     it('records total lifted edge count in collapsedMeta', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
       const edges = [makeEdge('e1', 'm1', 'm2', 'import')];
       const collapsed = new Set(['folder-a']);
 
@@ -491,10 +433,7 @@ describe('collapseFolders', () => {
     });
 
     it('handles a folder with a single child', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-      ];
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a')];
       const edges: GraphEdge[] = [];
       const collapsed = new Set(['folder-a']);
 
@@ -506,9 +445,7 @@ describe('collapseFolders', () => {
     });
 
     it('handles a collapsed folder with no children', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-      ];
+      const nodes = [makeNode('folder-a', 'group')];
       const edges: GraphEdge[] = [];
       const collapsed = new Set(['folder-a']);
 
@@ -545,17 +482,15 @@ describe('collapseFolders', () => {
     });
 
     it('uses default edge type when edge has no data.type', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
+      const edges: GraphEdge[] = [
+        {
+          id: 'e1',
+          source: 'm1',
+          target: 'm2',
+          data: {},
+        } as GraphEdge,
       ];
-      const edges: GraphEdge[] = [{
-        id: 'e1',
-        source: 'm1',
-        target: 'm2',
-        data: {},
-      } as GraphEdge];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);
@@ -567,17 +502,15 @@ describe('collapseFolders', () => {
     });
 
     it('adds markerEnd to rewired edges that lack one', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
+      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
+      const edges: GraphEdge[] = [
+        {
+          id: 'e1',
+          source: 'm1',
+          target: 'm2',
+          data: { type: 'import' },
+        } as GraphEdge,
       ];
-      const edges: GraphEdge[] = [{
-        id: 'e1',
-        source: 'm1',
-        target: 'm2',
-        data: { type: 'import' },
-      } as GraphEdge];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);

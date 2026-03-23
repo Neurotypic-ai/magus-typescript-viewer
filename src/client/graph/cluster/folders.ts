@@ -66,19 +66,17 @@ export function clusterByFolder(
   }
 
   // Deterministic group creation order keeps folder IDs/ordering stable between renders.
-  const sortedModules = modules
-    .slice()
-    .sort((a, b) => {
-      const pkgA = getPackageFromNode(a) ?? '';
-      const pkgB = getPackageFromNode(b) ?? '';
-      if (pkgA !== pkgB) return pkgA.localeCompare(pkgB);
+  const sortedModules = modules.slice().sort((a, b) => {
+    const pkgA = getPackageFromNode(a) ?? '';
+    const pkgB = getPackageFromNode(b) ?? '';
+    if (pkgA !== pkgB) return pkgA.localeCompare(pkgB);
 
-      const pathA = getPathFromNode(a) ?? '';
-      const pathB = getPathFromNode(b) ?? '';
-      if (pathA !== pathB) return pathA.localeCompare(pathB);
+    const pathA = getPathFromNode(a) ?? '';
+    const pathB = getPathFromNode(b) ?? '';
+    if (pathA !== pathB) return pathA.localeCompare(pathB);
 
-      return a.id.localeCompare(b.id);
-    });
+    return a.id.localeCompare(b.id);
+  });
 
   sortedModules.forEach((moduleNode) => {
     const pkg = getPackageFromNode(moduleNode);

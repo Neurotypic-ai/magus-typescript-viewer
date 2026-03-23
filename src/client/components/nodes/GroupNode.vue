@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { Handle, Position } from '@vue-flow/core';
 import { computed, inject } from 'vue';
 
-import type { DependencyProps } from '../../types/DependencyProps';
+import { Handle, Position } from '@vue-flow/core';
 
 import { FOLDER_COLLAPSE_ACTIONS_KEY } from './utils';
+
+import type { DependencyProps } from '../../types/DependencyProps';
 
 const props = defineProps<DependencyProps>();
 const folderActions = inject(FOLDER_COLLAPSE_ACTIONS_KEY, undefined);
@@ -37,20 +38,41 @@ const SIDES: { position: Position; inPct: string; outPct: string; axis: 'left' |
 const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   const sideName = side.position.toLowerCase();
   return [
-    { id: `folder-${sideName}-in`, type: 'target' as HandleType, position: side.position, style: { [side.axis]: side.inPct }, class: 'folder-handle' },
-    { id: `folder-${sideName}-in-inner`, type: 'target' as HandleType, position: side.position, style: { [side.axis]: side.inPct }, class: `folder-handle folder-handle-inner ${side.innerClass}` },
-    { id: `folder-${sideName}-out`, type: 'source' as HandleType, position: side.position, style: { [side.axis]: side.outPct }, class: 'folder-handle' },
-    { id: `folder-${sideName}-out-inner`, type: 'source' as HandleType, position: side.position, style: { [side.axis]: side.outPct }, class: `folder-handle folder-handle-inner ${side.innerClass}` },
+    {
+      id: `folder-${sideName}-in`,
+      type: 'target' as HandleType,
+      position: side.position,
+      style: { [side.axis]: side.inPct },
+      class: 'folder-handle',
+    },
+    {
+      id: `folder-${sideName}-in-inner`,
+      type: 'target' as HandleType,
+      position: side.position,
+      style: { [side.axis]: side.inPct },
+      class: `folder-handle folder-handle-inner ${side.innerClass}`,
+    },
+    {
+      id: `folder-${sideName}-out`,
+      type: 'source' as HandleType,
+      position: side.position,
+      style: { [side.axis]: side.outPct },
+      class: 'folder-handle',
+    },
+    {
+      id: `folder-${sideName}-out-inner`,
+      type: 'source' as HandleType,
+      position: side.position,
+      style: { [side.axis]: side.outPct },
+      class: `folder-handle folder-handle-inner ${side.innerClass}`,
+    },
   ];
 });
 </script>
 
 <template>
   <div
-    :class="[
-      'group-node-container',
-      { 'group-node-selected': !!props.selected, 'group-node-collapsed': isCollapsed },
-    ]"
+    :class="['group-node-container', { 'group-node-selected': !!props.selected, 'group-node-collapsed': isCollapsed }]"
   >
     <div class="group-node-header nodrag">
       <button
@@ -197,7 +219,9 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   border: none;
   background: rgba(96, 165, 250, 0.85);
   box-shadow: none;
-  transition: opacity 120ms ease, box-shadow 120ms ease;
+  transition:
+    opacity 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .group-node-container:hover .folder-handle {

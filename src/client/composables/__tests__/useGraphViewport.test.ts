@@ -71,9 +71,7 @@ const createViewportHarness = (options?: { platform?: string; trackpadPanSpeed?:
     setViewport,
     zoomTo,
     panBy,
-    ...(options?.trackpadPanSpeed !== undefined
-      ? { trackpadPanSpeed: options.trackpadPanSpeed }
-      : {}),
+    ...(options?.trackpadPanSpeed !== undefined ? { trackpadPanSpeed: options.trackpadPanSpeed } : {}),
     onViewportChange,
   });
   viewport.syncViewportState();

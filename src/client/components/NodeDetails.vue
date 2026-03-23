@@ -2,16 +2,15 @@
 import { computed, ref, watch } from 'vue';
 
 import { GraphHydrator } from '../assemblers/GraphHydrator';
+import { mapTypeCollection } from '../utils/collections';
 import TypeAnnotationDisplay from './nodes/TypeAnnotationDisplay.vue';
 import { buildTypeDisplayModel } from './nodes/typeDisplay';
-import { mapTypeCollection } from '../utils/collections';
 
 import type { IImportSpecifier, Import } from '../../shared/types/Import';
-
-import type { DependencyNode } from '../types/DependencyNode';
-import type { PackageGraph } from '../../shared/types/Package';
-import type { GraphEdge } from '../types/GraphEdge';
 import type { Module } from '../../shared/types/Module';
+import type { PackageGraph } from '../../shared/types/Package';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
 
 interface NodeDetailsProps {
   node: DependencyNode;
@@ -342,7 +341,9 @@ const hydratedSymbolDetails = computed(() => {
   }
 
   if (selectedModule.value.classes) {
-    const cls = mapTypeCollection(selectedModule.value.classes, (entry) => entry).find((entry) => entry.id === props.node.id);
+    const cls = mapTypeCollection(selectedModule.value.classes, (entry) => entry).find(
+      (entry) => entry.id === props.node.id
+    );
     if (cls) {
       return {
         properties: Array.isArray(cls.properties) ? cls.properties : [],
@@ -352,7 +353,9 @@ const hydratedSymbolDetails = computed(() => {
   }
 
   if (selectedModule.value.interfaces) {
-    const iface = mapTypeCollection(selectedModule.value.interfaces, (entry) => entry).find((entry) => entry.id === props.node.id);
+    const iface = mapTypeCollection(selectedModule.value.interfaces, (entry) => entry).find(
+      (entry) => entry.id === props.node.id
+    );
     if (iface) {
       return {
         properties: Array.isArray(iface.properties) ? iface.properties : [],
@@ -453,7 +456,13 @@ interface ExternalImportGroup {
 }
 
 function isExternalImportPath(path: string): boolean {
-  if (path.startsWith('./') || path.startsWith('../') || path.startsWith('/') || path.startsWith('@/') || path.startsWith('src/')) {
+  if (
+    path.startsWith('./') ||
+    path.startsWith('../') ||
+    path.startsWith('/') ||
+    path.startsWith('@/') ||
+    path.startsWith('src/')
+  ) {
     return false;
   }
   return true;
@@ -498,9 +507,7 @@ const externalImports = computed<ExternalImportGroup[]>(() => {
     if (imp.specifiers instanceof Map) {
       Array.from(imp.specifiers.values()).forEach((specifier) => {
         const local = firstImportAlias(specifier);
-        const label = local && local !== specifier.name
-          ? `${specifier.name} as ${local}`
-          : specifier.name;
+        const label = local && local !== specifier.name ? `${specifier.name} as ${local}` : specifier.name;
         if (label.length > 0) {
           existing.add(label);
         }
@@ -522,7 +529,9 @@ const externalImports = computed<ExternalImportGroup[]>(() => {
     }));
 });
 
-const canOpenSymbolUsageGraph = computed(() => ['module', 'class', 'interface'].includes(String(props.node.type ?? '')));
+const canOpenSymbolUsageGraph = computed(() =>
+  ['module', 'class', 'interface'].includes(String(props.node.type ?? ''))
+);
 
 const openSymbolUsageGraph = () => {
   emit('open-symbol-usage', props.node.id);
@@ -552,20 +561,10 @@ function isRichType(typeText: string): boolean {
       Type: <span class="font-semibold text-primary-main">{{ props.node.type }}</span>
     </p>
 
-    <p
-      v-if="isHydratingDetails"
-      role="status"
-      aria-live="polite"
-      class="text-xs text-text-secondary mb-3"
-    >
+    <p v-if="isHydratingDetails" role="status" aria-live="polite" class="text-xs text-text-secondary mb-3">
       Loading module details...
     </p>
-    <p
-      v-else-if="detailsLoadError"
-      role="alert"
-      aria-live="assertive"
-      class="text-xs text-red-300 mb-3"
-    >
+    <p v-else-if="detailsLoadError" role="alert" aria-live="assertive" class="text-xs text-red-300 mb-3">
       {{ detailsLoadError }}
     </p>
 
@@ -590,10 +589,7 @@ function isRichType(typeText: string): boolean {
                 :key="prop.id ?? `${cls.id}-p-${propIndex}`"
                 class="space-y-1"
               >
-                <div
-                  v-if="isRichType(prop.type)"
-                  class="flex flex-col gap-1"
-                >
+                <div v-if="isRichType(prop.type)" class="flex flex-col gap-1">
                   <span
                     ><span class="text-text-primary font-semibold">{{ prop.name }}</span
                     ><span class="text-text-muted">:</span></span
@@ -618,10 +614,7 @@ function isRichType(typeText: string): boolean {
                 :key="method.id ?? `${cls.id}-m-${methodIndex}`"
                 class="space-y-1"
               >
-                <div
-                  v-if="isRichType(method.return_type)"
-                  class="flex flex-col gap-1"
-                >
+                <div v-if="isRichType(method.return_type)" class="flex flex-col gap-1">
                   <span class="text-text-primary font-semibold">{{ method.name }}()</span>
                   <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
                 </div>
@@ -650,10 +643,7 @@ function isRichType(typeText: string): boolean {
                 :key="prop.id ?? `${iface.id}-p-${propIndex}`"
                 class="space-y-1"
               >
-                <div
-                  v-if="isRichType(prop.type)"
-                  class="flex flex-col gap-1"
-                >
+                <div v-if="isRichType(prop.type)" class="flex flex-col gap-1">
                   <span
                     ><span class="text-text-primary font-semibold">{{ prop.name }}</span
                     ><span class="text-text-muted">:</span></span
@@ -678,10 +668,7 @@ function isRichType(typeText: string): boolean {
                 :key="method.id ?? `${iface.id}-m-${methodIndex}`"
                 class="space-y-1"
               >
-                <div
-                  v-if="isRichType(method.return_type)"
-                  class="flex flex-col gap-1"
-                >
+                <div v-if="isRichType(method.return_type)" class="flex flex-col gap-1">
                   <span class="text-text-primary font-semibold">{{ method.name }}()</span>
                   <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
                 </div>
@@ -708,18 +695,17 @@ function isRichType(typeText: string): boolean {
           :key="prop.id ?? `prop-${index}`"
           class="text-sm text-text-secondary ml-3 font-mono space-y-1"
         >
-          <div
-            v-if="isRichType(prop.type)"
-            class="flex flex-col gap-1"
-          >
+          <div v-if="isRichType(prop.type)" class="flex flex-col gap-1">
             <span
-              ><span class="text-primary-main">{{ prop.name }}</span><span class="text-text-muted">:</span></span
+              ><span class="text-primary-main">{{ prop.name }}</span
+              ><span class="text-text-muted">:</span></span
             >
             <TypeAnnotationDisplay text-align="left" :model="typeModel(prop.type)" />
           </div>
           <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
             <span
-              ><span class="text-primary-main">{{ prop.name }}</span><span class="text-text-muted">:</span></span
+              ><span class="text-primary-main">{{ prop.name }}</span
+              ><span class="text-text-muted">:</span></span
             >
             <code class="wrap-break-word">{{ prop.type }}</code>
           </div>
@@ -738,20 +724,17 @@ function isRichType(typeText: string): boolean {
           :key="method.id ?? `method-${index}`"
           class="text-sm text-text-secondary ml-3 font-mono space-y-1"
         >
-          <div
-            v-if="isRichType(method.return_type)"
-            class="flex flex-col gap-1"
-          >
+          <div v-if="isRichType(method.return_type)" class="flex flex-col gap-1">
             <span
-              ><span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
-              ><span class="text-text-muted">:</span></span
+              ><span class="text-primary-main">{{ method.name }}</span
+              ><span class="text-text-muted">()</span><span class="text-text-muted">:</span></span
             >
             <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
           </div>
           <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
             <span
-              ><span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
-              ><span class="text-text-muted">:</span></span
+              ><span class="text-primary-main">{{ method.name }}</span
+              ><span class="text-text-muted">()</span><span class="text-text-muted">:</span></span
             >
             <code class="wrap-break-word">{{ method.return_type }}</code>
           </div>

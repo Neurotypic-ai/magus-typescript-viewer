@@ -20,12 +20,7 @@ withDefaults(defineProps<MemberListSectionProps>(), {
 </script>
 
 <template>
-  <CollapsibleSection
-    v-if="members.length > 0"
-    :title="title"
-    :count="members.length"
-    :default-open="defaultOpen"
-  >
+  <CollapsibleSection v-if="members.length > 0" :title="title" :count="members.length" :default-open="defaultOpen">
     <div
       v-for="member in members"
       :key="`${keyPrefix}-${symbolId}-${member.key}`"
@@ -84,5 +79,4 @@ withDefaults(defineProps<MemberListSectionProps>(), {
   flex: 1 1 100%;
   min-width: 0;
 }
-
 </style>

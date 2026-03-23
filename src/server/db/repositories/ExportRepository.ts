@@ -48,12 +48,13 @@ export class ExportRepository extends BaseRepository<IExportCreateDTO, IExportCr
    * Batch-insert multiple exports at once. Ignores duplicates.
    */
   async createBatch(items: IExportCreateDTO[]): Promise<void> {
-    await this.executeBatchInsert(
-      '(id, package_id, module_id, name, is_default)',
-      5,
-      items,
-      (dto) => [dto.id, dto.package_id, dto.module_id, dto.name, dto.is_default]
-    );
+    await this.executeBatchInsert('(id, package_id, module_id, name, is_default)', 5, items, (dto) => [
+      dto.id,
+      dto.package_id,
+      dto.module_id,
+      dto.name,
+      dto.is_default,
+    ]);
   }
 
   async create(dto: IExportCreateDTO): Promise<IExportCreateDTO> {

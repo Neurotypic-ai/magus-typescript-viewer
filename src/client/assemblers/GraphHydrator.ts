@@ -11,11 +11,11 @@ import { Property } from '../../shared/types/Property';
 import { SymbolReference } from '../../shared/types/SymbolReference';
 import { TypeAlias } from '../../shared/types/TypeAlias';
 import { Variable } from '../../shared/types/Variable';
-import type { PackageGraph } from '../../shared/types/Package';
-
+import { EntityRegistry } from './EntityRegistry';
 import { getApiBaseUrl } from './api';
 import { GraphDataCache } from './graphDataCache';
-import { EntityRegistry } from './EntityRegistry';
+
+import type { PackageGraph } from '../../shared/types/Package';
 
 interface GraphApiPackagePayload {
   id: string;
@@ -151,9 +151,15 @@ export class GraphHydrator {
       const pkg = byId.get(raw.id);
       if (!pkg) continue;
       (pkg.dependencies as Map<string, Package>).clear();
-      this.hydratePackageRefs(raw.dependencies, byId).forEach((value, key) => (pkg.dependencies as Map<string, Package>).set(key, value));
-      this.hydratePackageRefs(raw.devDependencies, byId).forEach((value, key) => (pkg.devDependencies as Map<string, Package>).set(key, value));
-      this.hydratePackageRefs(raw.peerDependencies, byId).forEach((value, key) => (pkg.peerDependencies as Map<string, Package>).set(key, value));
+      this.hydratePackageRefs(raw.dependencies, byId).forEach((value, key) =>
+        (pkg.dependencies as Map<string, Package>).set(key, value)
+      );
+      this.hydratePackageRefs(raw.devDependencies, byId).forEach((value, key) =>
+        (pkg.devDependencies as Map<string, Package>).set(key, value)
+      );
+      this.hydratePackageRefs(raw.peerDependencies, byId).forEach((value, key) =>
+        (pkg.peerDependencies as Map<string, Package>).set(key, value)
+      );
     }
 
     return { packages: graphPackages };
@@ -358,7 +364,9 @@ export class GraphHydrator {
   private hydrateTypeAliases(raw: unknown): Map<string, TypeAlias> {
     const aliases = new Map<string, TypeAlias>();
     for (const item of collectionRecords(raw)) {
-      const typeParameters = collectionValues<string>(item['type_parameters']).filter((value): value is string => typeof value === 'string');
+      const typeParameters = collectionValues<string>(item['type_parameters']).filter(
+        (value): value is string => typeof value === 'string'
+      );
       const alias = new TypeAlias(
         toString(item['id']),
         toString(item['package_id']),
@@ -376,7 +384,9 @@ export class GraphHydrator {
   private hydrateEnums(raw: unknown): Map<string, Enum> {
     const enums = new Map<string, Enum>();
     for (const item of collectionRecords(raw)) {
-      const enumMembers = collectionValues<string>(item['members']).filter((value): value is string => typeof value === 'string');
+      const enumMembers = collectionValues<string>(item['members']).filter(
+        (value): value is string => typeof value === 'string'
+      );
       const en = new Enum(
         toString(item['id']),
         toString(item['package_id']),
@@ -422,7 +432,13 @@ export class GraphHydrator {
         const specifier = new ImportSpecifier(
           uuid,
           imported,
-          toString(specifierRaw['kind'], 'value') as 'value' | 'type' | 'typeof' | 'default' | 'namespace' | 'sideEffect',
+          toString(specifierRaw['kind'], 'value') as
+            | 'value'
+            | 'type'
+            | 'typeof'
+            | 'default'
+            | 'namespace'
+            | 'sideEffect',
           undefined,
           new Set(collectionValues<string>(specifierRaw['modules'])),
           new Set(collectionValues<string>(specifierRaw['aliases']))
@@ -433,7 +449,10 @@ export class GraphHydrator {
         specifiers.set(specifier.uuid, specifier);
       });
 
-      const path = toString(item['path'], toString(item['relativePath'], toString(item['fullPath'], toString(item['name']))));
+      const path = toString(
+        item['path'],
+        toString(item['relativePath'], toString(item['fullPath'], toString(item['name'])))
+      );
       const imp = new Import(
         importId,
         toString(item['fullPath'], path),
@@ -453,7 +472,13 @@ export class GraphHydrator {
         toString(item['id']),
         toString(item['package_id']),
         toString(item['module_id']),
-        toString(item['source_symbol_type'], 'module') as 'module' | 'class' | 'interface' | 'function' | 'method' | 'property',
+        toString(item['source_symbol_type'], 'module') as
+          | 'module'
+          | 'class'
+          | 'interface'
+          | 'function'
+          | 'method'
+          | 'property',
         toString(item['target_symbol_id']),
         toString(item['target_symbol_type'], 'method') as 'method' | 'property',
         toString(item['target_symbol_name']),

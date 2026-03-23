@@ -1,7 +1,11 @@
-import { defineStore, type SetupStoreDefinition } from 'pinia';
-import { computed, ref, type ComputedRef, type Ref } from 'vue';
+import { computed, ref } from 'vue';
+
+import { defineStore } from 'pinia';
 
 import { getApiBaseUrl } from '../assemblers/api';
+
+import type { SetupStoreDefinition } from 'pinia';
+import type { ComputedRef, Ref } from 'vue';
 
 import type { InsightKind, InsightReport, InsightResult } from '../../shared/types/api/Insight';
 
@@ -124,7 +128,7 @@ const createInsightsStore = (): InsightsStore => {
   };
 };
 
-export const useInsightsStore: SetupStoreDefinition<
+export const useInsightsStore: SetupStoreDefinition<'insights', InsightsStore> = defineStore(
   'insights',
-  InsightsStore
-> = defineStore('insights', createInsightsStore);
+  createInsightsStore
+);

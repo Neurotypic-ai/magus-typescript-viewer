@@ -6,16 +6,15 @@ import jscodeshift from 'jscodeshift';
 
 import { Export } from '../../shared/types/Export';
 import { generateExportUUID, generateModuleUUID } from '../utils/uuid';
+import { parseClasses } from './module/parseClasses';
+import { isBarrelFile, parseImportsAndExports } from './module/parseImportsExports';
+import { parseInterfaces } from './module/parseInterfaces';
+import { parseEnums, parseFunctions, parseTypeAliases, parseVariables } from './module/parseModuleSymbols';
 
 import type { FileLocation } from '../../shared/types/FileLocation';
 import type { IModuleCreateDTO } from '../../shared/types/dto/ModuleDTO';
 import type { ParseResult } from './ParseResult';
 import type { ModuleParserContext } from './module/types';
-
-import { isBarrelFile, parseImportsAndExports } from './module/parseImportsExports';
-import { parseClasses } from './module/parseClasses';
-import { parseInterfaces } from './module/parseInterfaces';
-import { parseEnums, parseFunctions, parseTypeAliases, parseVariables } from './module/parseModuleSymbols';
 
 export class ModuleParser {
   private readonly j = jscodeshift.withParser('tsx');

@@ -126,13 +126,7 @@ export function scanDelimitersUpTo(s: string, index: number): DelimiterScanState
 function isTopLevelPipe(s: string, i: number): boolean {
   if (s[i] !== '|') return false;
   const st = scanDelimitersUpTo(s, i);
-  return (
-    st.paren === 0 &&
-    st.bracket === 0 &&
-    st.brace === 0 &&
-    st.angle === 0 &&
-    st.inString === 'none'
-  );
+  return st.paren === 0 && st.bracket === 0 && st.brace === 0 && st.angle === 0 && st.inString === 'none';
 }
 
 /**
@@ -232,8 +226,7 @@ export function prettyPrintObjectLikeType(input: string): string | null {
 
     if (c === ',') {
       const stComma = scanDelimitersUpTo(s, i);
-      const atObjPropLevel =
-        stComma.paren === 0 && stComma.bracket === 0 && stComma.brace === 1 && stComma.angle === 0;
+      const atObjPropLevel = stComma.paren === 0 && stComma.bracket === 0 && stComma.brace === 1 && stComma.angle === 0;
       out += ',';
       i++;
       if (atObjPropLevel) {

@@ -1,11 +1,12 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { ModuleFunction } from '../../../../shared/types/Function';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { FunctionRepository } from '../FunctionRepository';
 
 import type { IFunctionCreateDTO } from '../../../../shared/types/dto/FunctionDTO';
-import type { IFunctionRow } from '../../types/DatabaseResults';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
-import { vi, describe, beforeEach, afterEach, it, expect } from 'vitest';
+import type { IFunctionRow } from '../../types/DatabaseResults';
 
 /**
  * Creates a mock IDatabaseAdapter with vi.fn() stubs for every method.
@@ -114,16 +115,7 @@ describe('FunctionRepository', () => {
 
       const [, params] = vi.mocked(adapter.query).mock.calls[0]!;
       // return_type defaults to null, is_async/is_exported default to false
-      expect(params).toEqual([
-        dto.id,
-        dto.package_id,
-        dto.module_id,
-        dto.name,
-        null,
-        false,
-        false,
-        false,
-      ]);
+      expect(params).toEqual([dto.id, dto.package_id, dto.module_id, dto.name, null, false, false, false]);
 
       expect(result.return_type).toBe('void'); // null return_type maps to 'void'
       expect(result.is_async).toBe(false);
@@ -197,10 +189,7 @@ describe('FunctionRepository', () => {
   // ---------------------------------------------------------------------------
   describe('findByModuleId', () => {
     it('should return all functions for a module', async () => {
-      const rows = [
-        makeFunctionRow({ id: 'func-1', name: 'alpha' }),
-        makeFunctionRow({ id: 'func-2', name: 'beta' }),
-      ];
+      const rows = [makeFunctionRow({ id: 'func-1', name: 'alpha' }), makeFunctionRow({ id: 'func-2', name: 'beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.findByModuleId('mod-uuid-1');
@@ -284,10 +273,7 @@ describe('FunctionRepository', () => {
   // ---------------------------------------------------------------------------
   describe('retrieve', () => {
     it('should return all functions ordered by name', async () => {
-      const rows = [
-        makeFunctionRow({ id: 'func-1', name: 'alpha' }),
-        makeFunctionRow({ id: 'func-2', name: 'beta' }),
-      ];
+      const rows = [makeFunctionRow({ id: 'func-1', name: 'alpha' }), makeFunctionRow({ id: 'func-2', name: 'beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieve();
@@ -383,17 +369,13 @@ describe('FunctionRepository', () => {
     it('should throw RepositoryError when update returns empty result', async () => {
       vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
-      await expect(
-        repo.update('nonexistent', { name: 'newName' })
-      ).rejects.toThrow(RepositoryError);
+      await expect(repo.update('nonexistent', { name: 'newName' })).rejects.toThrow(RepositoryError);
     });
 
     it('should throw RepositoryError when adapter throws', async () => {
       vi.mocked(adapter.query).mockRejectedValueOnce(new Error('db error'));
 
-      await expect(
-        repo.update('func-uuid-1', { name: 'newName' })
-      ).rejects.toThrow(RepositoryError);
+      await expect(repo.update('func-uuid-1', { name: 'newName' })).rejects.toThrow(RepositoryError);
     });
   });
 

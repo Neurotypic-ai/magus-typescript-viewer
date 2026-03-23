@@ -1,5 +1,8 @@
-import type { DependencyNode } from '../../types/DependencyNode';
+import { describe, expect, it } from 'vitest';
+
 import { collectNodesNeedingInternalsUpdate } from '../nodeDiff';
+
+import type { DependencyNode } from '../../types/DependencyNode';
 
 /**
  * Helper to build a minimal DependencyNode for testing.

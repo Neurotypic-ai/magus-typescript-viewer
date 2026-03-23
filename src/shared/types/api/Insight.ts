@@ -1,4 +1,9 @@
-export type InsightCategory = 'dependency-health' | 'structural-complexity' | 'api-surface' | 'connectivity' | 'maintenance';
+export type InsightCategory =
+  | 'dependency-health'
+  | 'structural-complexity'
+  | 'api-surface'
+  | 'connectivity'
+  | 'maintenance';
 export type InsightSeverity = 'info' | 'warning' | 'critical';
 
 export type InsightKind =

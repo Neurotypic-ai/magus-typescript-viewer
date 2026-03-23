@@ -1,12 +1,12 @@
 import type { NodeChange } from '@vue-flow/core';
 import type { ComputedRef, Ref } from 'vue';
 
+import type { PackageGraph } from '../../shared/types/Package';
 import type { FolderCollapseActions, NodeActions } from '../components/nodes/utils';
 import type { useGraphSettings } from '../stores/graphSettings';
 import type { useInsightsStore } from '../stores/insightsStore';
 import type { useIssuesStore } from '../stores/issuesStore';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { SearchResult } from '../types/SearchResult';
 import type { LayoutProcessOptions } from './useGraphLayout';

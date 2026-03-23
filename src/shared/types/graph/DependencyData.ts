@@ -1,12 +1,12 @@
 import type { IMethod } from '../Method';
 import type { IProperty } from '../Property';
-import type { SubnodeMetadata } from './SubnodeMetadata';
-import type { MemberMetadata } from './MemberMetadata';
-import type { EmbeddedSymbol } from './EmbeddedSymbol';
-import type { NodeDiagnostics } from './NodeDiagnostics';
-import type { LayoutInsets } from './LayoutInsets';
 import type { EmbeddedModuleEntity } from './EmbeddedModuleEntity';
+import type { EmbeddedSymbol } from './EmbeddedSymbol';
 import type { ExternalDependencyRef } from './ExternalDependencyRef';
+import type { LayoutInsets } from './LayoutInsets';
+import type { MemberMetadata } from './MemberMetadata';
+import type { NodeDiagnostics } from './NodeDiagnostics';
+import type { SubnodeMetadata } from './SubnodeMetadata';
 
 /**
  * Node data structure for dependency nodes

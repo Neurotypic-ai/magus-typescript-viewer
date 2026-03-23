@@ -12,20 +12,15 @@ export class VariableRepository extends BaseRepository<Variable, IVariableCreate
   }
 
   async createBatch(items: IVariableCreateDTO[]): Promise<void> {
-    await this.executeBatchInsert(
-      '(id, package_id, module_id, name, kind, type, initializer)',
-      7,
-      items,
-      (dto) => [
-        dto.id,
-        dto.package_id,
-        dto.module_id,
-        dto.name,
-        dto.kind,
-        dto.type ?? null,
-        dto.initializer ?? null,
-      ]
-    );
+    await this.executeBatchInsert('(id, package_id, module_id, name, kind, type, initializer)', 7, items, (dto) => [
+      dto.id,
+      dto.package_id,
+      dto.module_id,
+      dto.name,
+      dto.kind,
+      dto.type ?? null,
+      dto.initializer ?? null,
+    ]);
   }
 
   async create(dto: IVariableCreateDTO): Promise<Variable> {
@@ -44,10 +39,22 @@ export class VariableRepository extends BaseRepository<Variable, IVariableCreate
   async update(id: string, dto: IVariableUpdateDTO): Promise<Variable> {
     const sets: string[] = [];
     const params: unknown[] = [];
-    if (dto.name !== undefined) { sets.push('name = ?'); params.push(dto.name); }
-    if (dto.kind !== undefined) { sets.push('kind = ?'); params.push(dto.kind); }
-    if (dto.type !== undefined) { sets.push('type = ?'); params.push(dto.type); }
-    if (dto.initializer !== undefined) { sets.push('initializer = ?'); params.push(dto.initializer); }
+    if (dto.name !== undefined) {
+      sets.push('name = ?');
+      params.push(dto.name);
+    }
+    if (dto.kind !== undefined) {
+      sets.push('kind = ?');
+      params.push(dto.kind);
+    }
+    if (dto.type !== undefined) {
+      sets.push('type = ?');
+      params.push(dto.type);
+    }
+    if (dto.initializer !== undefined) {
+      sets.push('initializer = ?');
+      params.push(dto.initializer);
+    }
     if (sets.length === 0) {
       const existing = await this.retrieveById(id);
       if (!existing) throw new RepositoryError('Variable not found', 'update', this.errorTag);
@@ -65,11 +72,7 @@ export class VariableRepository extends BaseRepository<Variable, IVariableCreate
   }
 
   async retrieveById(id: string): Promise<Variable | undefined> {
-    const results = await this.executeQuery<IVariableRow>(
-      'retrieveById',
-      'SELECT * FROM variables WHERE id = ?',
-      [id]
-    );
+    const results = await this.executeQuery<IVariableRow>('retrieveById', 'SELECT * FROM variables WHERE id = ?', [id]);
     const row = results[0];
     return row ? this.mapToEntity(row) : undefined;
   }
@@ -95,10 +98,7 @@ export class VariableRepository extends BaseRepository<Variable, IVariableCreate
   }
 
   async retrieve(): Promise<Variable[]> {
-    const results = await this.executeQuery<IVariableRow>(
-      'retrieve all',
-      'SELECT * FROM variables ORDER BY name'
-    );
+    const results = await this.executeQuery<IVariableRow>('retrieve all', 'SELECT * FROM variables ORDER BY name');
     return results.map((row) => this.mapToEntity(row));
   }
 

@@ -2,12 +2,11 @@ import { Position } from '@vue-flow/core';
 
 import { buildModuleDrilldownGraph } from '../buildModuleDrilldown';
 
-import type { BuildModuleDrilldownGraphOptions } from '../buildModuleDrilldown';
-import type { DependencyNode } from '../../../types/DependencyNode';
-import type { PackageGraph } from '../../../../shared/types/Package';
-import type { GraphEdge } from '../../../types/GraphEdge';
-import type { Package } from '../../../../shared/types/Package';
 import type { Module } from '../../../../shared/types/Module';
+import type { Package, PackageGraph } from '../../../../shared/types/Package';
+import type { DependencyNode } from '../../../types/DependencyNode';
+import type { GraphEdge } from '../../../types/GraphEdge';
+import type { BuildModuleDrilldownGraphOptions } from '../buildModuleDrilldown';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers to build minimal test data                                 */
@@ -75,9 +74,7 @@ describe('buildModuleDrilldownGraph', () => {
   describe('when module is not found in data', () => {
     it('returns only the selected node with empty edges', () => {
       const selected = makeNode('missing-module');
-      const result = buildModuleDrilldownGraph(
-        defaultOptions({ selectedNode: selected })
-      );
+      const result = buildModuleDrilldownGraph(defaultOptions({ selectedNode: selected }));
 
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0]!.id).toBe('missing-module');
@@ -104,9 +101,7 @@ describe('buildModuleDrilldownGraph', () => {
       expect(focusNode.sourcePosition).toBe(Position.Right);
       expect(focusNode.targetPosition).toBe(Position.Left);
       // The focus node gets a cyan highlight border
-      expect(focusNode.style).toEqual(
-        expect.objectContaining({ borderWidth: '3px', borderColor: '#00ffff' })
-      );
+      expect(focusNode.style).toEqual(expect.objectContaining({ borderWidth: '3px', borderColor: '#00ffff' }));
     });
   });
 
@@ -138,12 +133,8 @@ describe('buildModuleDrilldownGraph', () => {
       expect(classNode).toBeDefined();
       expect(classNode!.type).toBe('class');
       expect(classNode!.data.label).toBe('UserModel');
-      expect(classNode!.data.properties).toEqual([
-        expect.objectContaining({ name: 'name', type: 'string' }),
-      ]);
-      expect(classNode!.data.methods).toEqual([
-        expect.objectContaining({ name: 'save', return_type: 'void' }),
-      ]);
+      expect(classNode!.data.properties).toEqual([expect.objectContaining({ name: 'name', type: 'string' })]);
+      expect(classNode!.data.methods).toEqual([expect.objectContaining({ name: 'save', return_type: 'void' })]);
     });
 
     it('adds inheritance edge when class has extends_id', () => {
@@ -281,9 +272,7 @@ describe('buildModuleDrilldownGraph', () => {
 
       const connectedNode = result.nodes.find((n) => n.id === 'mod-2');
       expect(connectedNode).toBeDefined();
-      expect(connectedNode!.style).toEqual(
-        expect.objectContaining({ borderWidth: '2px', borderColor: '#61dafb' })
-      );
+      expect(connectedNode!.style).toEqual(expect.objectContaining({ borderWidth: '2px', borderColor: '#61dafb' }));
 
       // The outgoing edge gets blue stroke and animated
       const outEdge = result.edges.find((e) => e.source === 'mod-1' && e.target === 'mod-2');
@@ -420,9 +409,7 @@ describe('buildModuleDrilldownGraph', () => {
             implemented_interfaces: {
               'iface-1': { id: 'iface-1', name: 'IApp' },
             },
-            properties: [
-              { name: 'config', type: 'Config', visibility: 'private' },
-            ],
+            properties: [{ name: 'config', type: 'Config', visibility: 'private' }],
             methods: [
               { name: 'start', returnType: 'Promise<void>', visibility: 'public', signature: 'start(): Promise<void>' },
             ],
@@ -439,9 +426,7 @@ describe('buildModuleDrilldownGraph', () => {
             extended_interfaces: {
               'iface-2': { id: 'iface-2', name: 'IBase' },
             },
-            properties: [
-              { name: 'version', type: 'string', visibility: 'public' },
-            ],
+            properties: [{ name: 'version', type: 'string', visibility: 'public' }],
           },
           'iface-2': {
             id: 'iface-2',
@@ -506,9 +491,7 @@ describe('buildModuleDrilldownGraph', () => {
       const outEdge = result.edges.find((e) => e.source === 'mod-1' && e.target === 'mod-2');
       expect(outEdge).toBeDefined();
       // Should have spread the resolved style plus the outgoing override
-      expect(outEdge!.style).toEqual(
-        expect.objectContaining({ stroke: '#61dafb', strokeWidth: 3 })
-      );
+      expect(outEdge!.style).toEqual(expect.objectContaining({ stroke: '#61dafb', strokeWidth: 3 }));
     });
   });
 });

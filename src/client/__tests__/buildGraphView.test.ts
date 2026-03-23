@@ -9,8 +9,8 @@ import {
 
 import type { NodeChange } from '@vue-flow/core';
 
-import type { DependencyNode } from '../types/DependencyNode';
 import type { PackageGraph } from '../../shared/types/Package';
+import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
 describe('applyEdgeVisibility', () => {
@@ -156,7 +156,6 @@ describe('buildOverviewGraph', () => {
     expect(result.edges.some((edge) => edge.data?.highwaySegment === 'highway')).toBe(true);
   });
 });
-
 
 describe('buildSymbolDrilldownGraph', () => {
   it('creates uses edges with usageKind metadata from module symbol references', () => {

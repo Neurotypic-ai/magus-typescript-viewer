@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { consola } from 'consola';
 import { markRaw, onMounted, onUnmounted, ref, shallowRef } from 'vue';
+
+import { consola } from 'consola';
 
 import { GraphHydrator } from './assemblers/GraphHydrator';
 import DependencyGraph from './components/DependencyGraphLazy.vue';

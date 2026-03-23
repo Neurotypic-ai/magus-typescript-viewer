@@ -1,11 +1,12 @@
 // @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { Class } from '../../../../shared/types/Class';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { ClassRepository } from '../ClassRepository';
 
 import type { IClassCreateDTO } from '../../../../shared/types/dto/ClassDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
-import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 /**
  * Helper to build a mock IDatabaseAdapter with all methods stubbed via vi.fn().
@@ -90,7 +91,7 @@ describe('ClassRepository', () => {
 
       expect(mockAdapter.query).toHaveBeenCalledWith(
         'INSERT INTO classes (id, package_id, module_id, name, extends_id) VALUES (?, ?, ?, ?, ?) RETURNING *',
-        ['class-id-1', 'pkg-1', 'mod-1', 'TestClass', 'parent-class-id'],
+        ['class-id-1', 'pkg-1', 'mod-1', 'TestClass', 'parent-class-id']
       );
     });
 
@@ -102,10 +103,13 @@ describe('ClassRepository', () => {
 
       await repository.create(dto);
 
-      expect(mockAdapter.query).toHaveBeenCalledWith(
-        expect.any(String),
-        ['class-id-1', 'pkg-1', 'mod-1', 'TestClass', null],
-      );
+      expect(mockAdapter.query).toHaveBeenCalledWith(expect.any(String), [
+        'class-id-1',
+        'pkg-1',
+        'mod-1',
+        'TestClass',
+        null,
+      ]);
     });
 
     it('should return a Class with extends_id when the row includes one', async () => {
@@ -130,9 +134,7 @@ describe('ClassRepository', () => {
     it('should throw RepositoryError when the adapter throws', async () => {
       const dto = makeCreateDTO();
 
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('connection lost'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('connection lost'));
 
       await expect(repository.create(dto)).rejects.toThrow(RepositoryError);
     });
@@ -228,13 +230,9 @@ describe('ClassRepository', () => {
     });
 
     it('should throw RepositoryError when the adapter throws during update', async () => {
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('query failed'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('query failed'));
 
-      await expect(
-        repository.update('class-id-1', { name: 'Broken' }),
-      ).rejects.toThrow(RepositoryError);
+      await expect(repository.update('class-id-1', { name: 'Broken' })).rejects.toThrow(RepositoryError);
     });
   });
 
@@ -243,10 +241,7 @@ describe('ClassRepository', () => {
   // ---------------------------------------------------------------------------
   describe('retrieve', () => {
     it('should return all classes when called without arguments', async () => {
-      const rows = [
-        mockClassRow({ id: 'cls-1', name: 'ClassA' }),
-        mockClassRow({ id: 'cls-2', name: 'ClassB' }),
-      ];
+      const rows = [mockClassRow({ id: 'cls-1', name: 'ClassA' }), mockClassRow({ id: 'cls-2', name: 'ClassB' })];
 
       // retrieve query
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(rows);
@@ -357,9 +352,7 @@ describe('ClassRepository', () => {
     });
 
     it('should throw RepositoryError when the adapter throws', async () => {
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('db error'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('db error'));
 
       await expect(repository.retrieve()).rejects.toThrow(RepositoryError);
     });
@@ -495,13 +488,9 @@ describe('ClassRepository', () => {
     });
 
     it('should throw RepositoryError when the adapter throws', async () => {
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('batch query failed'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('batch query failed'));
 
-      await expect(
-        repository.retrieveByModuleIds(['mod-1']),
-      ).rejects.toThrow(RepositoryError);
+      await expect(repository.retrieveByModuleIds(['mod-1'])).rejects.toThrow(RepositoryError);
     });
   });
 
@@ -559,18 +548,14 @@ describe('ClassRepository', () => {
     });
 
     it('should throw RepositoryError when the adapter throws during deletion', async () => {
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('FK constraint violation'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('FK constraint violation'));
 
       await expect(repository.delete('cls-to-delete')).rejects.toThrow(RepositoryError);
     });
 
     it('should throw RepositoryError if a later deletion step fails', async () => {
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]); // class_implements ok
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('methods delete failed'),
-      ); // methods fails
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('methods delete failed')); // methods fails
 
       await expect(repository.delete('cls-to-delete')).rejects.toThrow(RepositoryError);
     });
@@ -623,9 +608,7 @@ describe('ClassRepository', () => {
       ];
 
       // Batch insert fails with a duplicate error
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('Duplicate key'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Duplicate key'));
       // Individual inserts succeed
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
@@ -643,13 +626,9 @@ describe('ClassRepository', () => {
       ];
 
       // Batch insert fails
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('UNIQUE constraint'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('UNIQUE constraint'));
       // First individual insert is a duplicate too
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('already exists'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('already exists'));
       // Second individual insert succeeds
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
 
@@ -660,9 +639,7 @@ describe('ClassRepository', () => {
     it('should throw non-duplicate errors during batch insert', async () => {
       const items: IClassCreateDTO[] = [makeCreateDTO({ id: 'cls-1', name: 'A' })];
 
-      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('disk full'),
-      );
+      (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('disk full'));
 
       await expect(repository.createBatch(items)).rejects.toThrow('disk full');
     });
@@ -686,7 +663,7 @@ describe('ClassRepository', () => {
         setTimeout(() => {
           const calls = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls;
           const deleteCall = calls.find((call: unknown[]) =>
-            (call[0] as string).startsWith('DELETE FROM classes WHERE id'),
+            (call[0] as string).startsWith('DELETE FROM classes WHERE id')
           );
           expect(deleteCall).toBeDefined();
           resolve();

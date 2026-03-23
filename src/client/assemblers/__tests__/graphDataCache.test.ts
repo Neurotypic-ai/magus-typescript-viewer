@@ -1,10 +1,8 @@
-import type { PackageGraph } from '../../../shared/types/Package';
-
 import { GraphDataCache } from '../graphDataCache';
 
-function createMockGraph(
-  overrides: Partial<PackageGraph> = {},
-): PackageGraph {
+import type { PackageGraph } from '../../../shared/types/Package';
+
+function createMockGraph(overrides: Partial<PackageGraph> = {}): PackageGraph {
   return {
     packages: [
       {

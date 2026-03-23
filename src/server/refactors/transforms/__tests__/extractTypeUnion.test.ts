@@ -48,7 +48,7 @@ describe('extractTypeUnion context validation', () => {
         parentType: 'interface',
         propertyName: 'bar',
         unionMembers: ['string', 'number'],
-      }),
+      })
     ).toThrow('Invalid context');
   });
 
@@ -59,7 +59,7 @@ describe('extractTypeUnion context validation', () => {
         parentType: 'interface',
         propertyName: 'bar',
         unionMembers: ['string', 'number'],
-      }),
+      })
     ).toThrow('Invalid context');
   });
 
@@ -70,7 +70,7 @@ describe('extractTypeUnion context validation', () => {
         parentName: 'Foo',
         propertyName: 'bar',
         unionMembers: ['string', 'number'],
-      }),
+      })
     ).toThrow('Invalid context');
   });
 
@@ -81,7 +81,7 @@ describe('extractTypeUnion context validation', () => {
         parentName: 'Foo',
         parentType: 'interface',
         unionMembers: ['string', 'number'],
-      }),
+      })
     ).toThrow('Invalid context');
   });
 
@@ -92,7 +92,7 @@ describe('extractTypeUnion context validation', () => {
         parentName: 'Foo',
         parentType: 'interface',
         propertyName: 'bar',
-      }),
+      })
     ).toThrow('Invalid context');
   });
 
@@ -104,7 +104,7 @@ describe('extractTypeUnion context validation', () => {
         parentType: 'interface',
         propertyName: 'bar',
         unionMembers: 'string | number',
-      }),
+      })
     ).toThrow('Invalid context');
   });
 });
@@ -166,7 +166,7 @@ describe('extractTypeUnion on interfaces', () => {
         parentType: 'interface',
         propertyName: 'x',
         unionMembers: ['number'],
-      }),
+      })
     ).toThrow("Interface 'Missing' not found");
   });
 
@@ -180,7 +180,7 @@ describe('extractTypeUnion on interfaces', () => {
         parentType: 'interface',
         propertyName: 'nonexistent',
         unionMembers: ['string', 'number'],
-      }),
+      })
     ).toThrow("Property 'nonexistent' not found on interface 'Config'");
   });
 
@@ -194,8 +194,8 @@ describe('extractTypeUnion on interfaces', () => {
         parentType: 'interface',
         propertyName: 'mode',
         unionMembers: ['string'],
-      }),
-    ).toThrow("does not have a union type annotation");
+      })
+    ).toThrow('does not have a union type annotation');
   });
 
   it('handles an exported interface and adds export to the type alias', () => {
@@ -292,7 +292,7 @@ describe('extractTypeUnion on classes', () => {
         parentType: 'class',
         propertyName: 'x',
         unionMembers: ['string', 'number'],
-      }),
+      })
     ).toThrow("Class 'Missing' not found");
   });
 
@@ -306,7 +306,7 @@ describe('extractTypeUnion on classes', () => {
         parentType: 'class',
         propertyName: 'nonexistent',
         unionMembers: ['a', 'b'],
-      }),
+      })
     ).toThrow("Property 'nonexistent' not found on class 'Widget'");
   });
 
@@ -320,8 +320,8 @@ describe('extractTypeUnion on classes', () => {
         parentType: 'class',
         propertyName: 'variant',
         unionMembers: ['string'],
-      }),
-    ).toThrow("does not have a union type annotation");
+      })
+    ).toThrow('does not have a union type annotation');
   });
 
   it('handles an exported class and adds export to the type alias', () => {

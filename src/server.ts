@@ -56,7 +56,9 @@ function readRequestBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => { resolve(Buffer.concat(chunks).toString('utf-8')); });
+    req.on('end', () => {
+      resolve(Buffer.concat(chunks).toString('utf-8'));
+    });
     req.on('error', reject);
   });
 }
@@ -250,9 +252,7 @@ const server = http.createServer((req, res) => {
             context: issue.refactor_context,
           };
 
-          resource = parsed.preview
-            ? await engine.preview(request)
-            : await engine.execute(request);
+          resource = parsed.preview ? await engine.preview(request) : await engine.execute(request);
         } catch (routeErr) {
           logger.error('Error in /refactor route', routeErr);
           sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Refactoring failed');

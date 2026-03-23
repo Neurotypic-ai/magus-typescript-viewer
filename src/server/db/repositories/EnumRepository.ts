@@ -12,18 +12,13 @@ export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUp
   }
 
   async createBatch(items: IEnumCreateDTO[]): Promise<void> {
-    await this.executeBatchInsert(
-      '(id, package_id, module_id, name, members_json)',
-      5,
-      items,
-      (dto) => [
-        dto.id,
-        dto.package_id,
-        dto.module_id,
-        dto.name,
-        dto.members_json ?? null,
-      ]
-    );
+    await this.executeBatchInsert('(id, package_id, module_id, name, members_json)', 5, items, (dto) => [
+      dto.id,
+      dto.package_id,
+      dto.module_id,
+      dto.name,
+      dto.members_json ?? null,
+    ]);
   }
 
   async create(dto: IEnumCreateDTO): Promise<Enum> {
@@ -42,8 +37,14 @@ export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUp
   async update(id: string, dto: IEnumUpdateDTO): Promise<Enum> {
     const sets: string[] = [];
     const params: unknown[] = [];
-    if (dto.name !== undefined) { sets.push('name = ?'); params.push(dto.name); }
-    if (dto.members_json !== undefined) { sets.push('members_json = ?'); params.push(dto.members_json); }
+    if (dto.name !== undefined) {
+      sets.push('name = ?');
+      params.push(dto.name);
+    }
+    if (dto.members_json !== undefined) {
+      sets.push('members_json = ?');
+      params.push(dto.members_json);
+    }
     if (sets.length === 0) {
       const existing = await this.retrieveById(id);
       if (!existing) throw new RepositoryError('Enum not found', 'update', this.errorTag);
@@ -61,11 +62,7 @@ export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUp
   }
 
   async retrieveById(id: string): Promise<Enum | undefined> {
-    const results = await this.executeQuery<IEnumRow>(
-      'retrieveById',
-      'SELECT * FROM enums WHERE id = ?',
-      [id]
-    );
+    const results = await this.executeQuery<IEnumRow>('retrieveById', 'SELECT * FROM enums WHERE id = ?', [id]);
     const row = results[0];
     return row ? this.mapToEntity(row) : undefined;
   }
@@ -91,10 +88,7 @@ export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUp
   }
 
   async retrieve(): Promise<Enum[]> {
-    const results = await this.executeQuery<IEnumRow>(
-      'retrieve all',
-      'SELECT * FROM enums ORDER BY name'
-    );
+    const results = await this.executeQuery<IEnumRow>('retrieve all', 'SELECT * FROM enums ORDER BY name');
     return results.map((row) => this.mapToEntity(row));
   }
 
@@ -114,13 +108,6 @@ export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUp
         // Invalid JSON — default to empty array
       }
     }
-    return new Enum(
-      row.id,
-      row.package_id,
-      row.module_id,
-      row.name,
-      members,
-      String(row.created_at)
-    );
+    return new Enum(row.id, row.package_id, row.module_id, row.name, members, String(row.created_at));
   }
 }

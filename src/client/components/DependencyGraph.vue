@@ -1,32 +1,34 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted, provide, ref, watch } from 'vue';
+
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { Panel, VueFlow } from '@vue-flow/core';
 import { MiniMap } from '@vue-flow/minimap';
-import { onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
+import { DEFAULT_VIEWPORT, useDependencyGraphCore } from '../composables/useDependencyGraphCore';
+import { useGraphSearch } from '../composables/useGraphSearch';
 import { parseEnvBoolean, parseEnvFloat, parseEnvInt } from '../utils/env';
+import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
+import GraphControls from './GraphControls.vue';
+import InsightsDashboard from './InsightsDashboard.vue';
+import IssuesPanel from './IssuesPanel.vue';
+import NodeContextMenu from './NodeContextMenu.vue';
+import NodeDetails from './NodeDetails.vue';
+import IntraFolderEdge from './edges/IntraFolderEdge.vue';
+import GroupNode from './nodes/GroupNode.vue';
+import ModuleNode from './nodes/ModuleNode.vue';
+import PackageNode from './nodes/PackageNode.vue';
+import SymbolNode from './nodes/SymbolNode.vue';
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
   HIGHLIGHT_ORPHAN_GLOBAL_KEY,
   ISOLATE_EXPAND_ALL_KEY,
   NODE_ACTIONS_KEY,
 } from './nodes/utils';
-import IntraFolderEdge from './edges/IntraFolderEdge.vue';
-import GroupNode from './nodes/GroupNode.vue';
-import ModuleNode from './nodes/ModuleNode.vue';
-import PackageNode from './nodes/PackageNode.vue';
-import SymbolNode from './nodes/SymbolNode.vue';
-import { useDependencyGraphCore, DEFAULT_VIEWPORT } from '../composables/useDependencyGraphCore';
-import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
-import { useGraphSearch } from '../composables/useGraphSearch';
-import GraphControls from './GraphControls.vue';
-import InsightsDashboard from './InsightsDashboard.vue';
-import IssuesPanel from './IssuesPanel.vue';
-import NodeContextMenu from './NodeContextMenu.vue';
-import NodeDetails from './NodeDetails.vue';
 
 import type { Component } from 'vue';
+
 import type { PackageGraph } from '../../shared/types/Package';
 
 import '@vue-flow/controls/dist/style.css';
@@ -146,7 +148,6 @@ const nodeTypes: Record<string, Component> = Object.freeze({
   method: SymbolNode,
 });
 
- 
 const edgeTypes: Record<string, Component> = Object.freeze({
   intraFolder: IntraFolderEdge,
 });
@@ -325,7 +326,9 @@ onUnmounted(() => {
         <details class="graph-stats-shell">
           <summary class="graph-stats-summary">
             <span>Graph Stats</span>
-            <span class="graph-stats-summary-metrics">{{ renderedNodeCount }} nodes · {{ renderedEdgeCount }} edges</span>
+            <span class="graph-stats-summary-metrics"
+              >{{ renderedNodeCount }} nodes · {{ renderedEdgeCount }} edges</span
+            >
           </summary>
           <div class="graph-stats-content">
             <dl class="graph-stats-overview">
@@ -342,7 +345,11 @@ onUnmounted(() => {
             <section class="graph-stats-section">
               <h4>Node Types</h4>
               <ul class="graph-stats-list">
-                <li v-for="entry in renderedNodeTypeCounts" :key="`node-type-${entry.type}`" class="graph-stats-list-row">
+                <li
+                  v-for="entry in renderedNodeTypeCounts"
+                  :key="`node-type-${entry.type}`"
+                  class="graph-stats-list-row"
+                >
                   <span class="graph-stats-type">{{ entry.type }}</span>
                   <span class="graph-stats-count">{{ entry.count }}</span>
                 </li>
@@ -352,7 +359,11 @@ onUnmounted(() => {
             <section class="graph-stats-section">
               <h4>Edge Types</h4>
               <ul v-if="renderedEdgeTypeCounts.length > 0" class="graph-stats-list">
-                <li v-for="entry in renderedEdgeTypeCounts" :key="`edge-type-${entry.type}`" class="graph-stats-list-row">
+                <li
+                  v-for="entry in renderedEdgeTypeCounts"
+                  :key="`edge-type-${entry.type}`"
+                  class="graph-stats-list-row"
+                >
                   <span class="graph-stats-type">{{ entry.type }}</span>
                   <span class="graph-stats-count">{{ entry.count }}</span>
                 </li>

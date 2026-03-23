@@ -1,11 +1,18 @@
 import { consola } from 'consola';
 
-import { buildImportGraph } from './import-graph';
 import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents } from './graph-algorithms';
+import { buildImportGraph } from './import-graph';
 
+import type {
+  InsightCategory,
+  InsightEntity,
+  InsightKind,
+  InsightReport,
+  InsightResult,
+  InsightSeverity,
+} from '../../shared/types/api/Insight';
 import type { DatabaseRow, IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from './import-graph';
-import type { InsightCategory, InsightEntity, InsightKind, InsightReport, InsightResult, InsightSeverity } from '../../shared/types/api/Insight';
 
 // ── Thresholds ──────────────────────────────────────────────────────────────
 
@@ -116,7 +123,13 @@ function pkgParams(packageId?: string): string[] {
 }
 
 function inferExternalPackageName(source: string): string | undefined {
-  if (!source || source.startsWith('.') || source.startsWith('/') || source.startsWith('@/') || source.startsWith('src/')) {
+  if (
+    !source ||
+    source.startsWith('.') ||
+    source.startsWith('/') ||
+    source.startsWith('@/') ||
+    source.startsWith('src/')
+  ) {
     return undefined;
   }
   if (source.startsWith('@')) {
@@ -198,7 +211,7 @@ export class InsightEngine {
         'Circular Import Detected',
         `${s(cycle.length)} modules form an import cycle`,
         entities,
-        cycle.length,
+        cycle.length
       );
     });
   }
@@ -229,7 +242,7 @@ export class InsightEngine {
         `${s(entities.length)} modules are imported by ${s(T.FAN_IN)}+ other modules`,
         entities,
         maxFanIn,
-        T.FAN_IN,
+        T.FAN_IN
       ),
     ];
   }
@@ -260,7 +273,7 @@ export class InsightEngine {
         `${s(entities.length)} modules import ${s(T.FAN_OUT)}+ other modules`,
         entities,
         maxFanOut,
-        T.FAN_OUT,
+        T.FAN_OUT
       ),
     ];
   }
@@ -275,7 +288,7 @@ export class InsightEngine {
        WHERE i.source NOT LIKE '.%' AND i.source NOT LIKE '/%'
          AND i.source NOT LIKE '@/%' AND i.source NOT LIKE 'src/%'
          ${wherePackage('i', packageId)}`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     // Group by module, count distinct external packages
@@ -316,7 +329,7 @@ export class InsightEngine {
         `${s(entities.length)} modules depend on ${s(T.EXTERNAL_DEPS)}+ external packages`,
         entities,
         maxCount,
-        T.EXTERNAL_DEPS,
+        T.EXTERNAL_DEPS
       ),
     ];
   }
@@ -330,7 +343,7 @@ export class InsightEngine {
          (SELECT COUNT(*) FROM properties WHERE parent_id = c.id AND parent_type = 'class') as property_count
        FROM classes c
        WHERE 1=1 ${wherePackage('c', packageId)}`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     const entities: InsightEntity[] = [];
@@ -363,7 +376,7 @@ export class InsightEngine {
         `${s(entities.length)} classes have ${s(T.GOD_CLASS_WARNING)}+ members`,
         entities,
         maxTotal,
-        T.GOD_CLASS_WARNING,
+        T.GOD_CLASS_WARNING
       ),
     ];
   }
@@ -378,7 +391,7 @@ export class InsightEngine {
        WHERE 1=1 ${wherePackage('m', packageId)}
        GROUP BY m.id, m.name, m.module_id
        HAVING COUNT(p.id) >= ${s(T.LONG_PARAMS_WARNING)}`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     const entities: InsightEntity[] = [];
@@ -407,7 +420,7 @@ export class InsightEngine {
         `${s(entities.length)} methods have ${s(T.LONG_PARAMS_WARNING)}+ parameters`,
         entities,
         maxCount,
-        T.LONG_PARAMS_WARNING,
+        T.LONG_PARAMS_WARNING
       ),
     ];
   }
@@ -421,7 +434,7 @@ export class InsightEngine {
        WHERE line_count > ${s(T.MODULE_SIZE_WARNING)}
          ${wherePackage('modules', packageId)}
        ORDER BY line_count DESC`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     const entities: InsightEntity[] = [];
@@ -449,7 +462,7 @@ export class InsightEngine {
         `${s(entities.length)} modules exceed ${s(T.MODULE_SIZE_WARNING)} lines`,
         entities,
         maxSize,
-        T.MODULE_SIZE_WARNING,
+        T.MODULE_SIZE_WARNING
       ),
     ];
   }
@@ -473,7 +486,7 @@ export class InsightEngine {
        GROUP BY c.id, c.name, c.module_id
        HAVING MAX(ch.depth) >= ${s(T.DEEP_INHERITANCE_WARNING)}
        ORDER BY max_depth DESC`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     const entities: InsightEntity[] = [];
@@ -502,7 +515,7 @@ export class InsightEngine {
         `${s(entities.length)} classes have inheritance depth >= ${s(T.DEEP_INHERITANCE_WARNING)}`,
         entities,
         maxDepth,
-        T.DEEP_INHERITANCE_WARNING,
+        T.DEEP_INHERITANCE_WARNING
       ),
     ];
   }
@@ -524,7 +537,7 @@ export class InsightEngine {
        GROUP BY c.id, c.name, c.module_id
        HAVING COUNT(*) >= ${s(T.LEAKY_MIN_MEMBERS)}
          AND CAST(SUM(CASE WHEN sub.visibility = 'public' THEN 1 ELSE 0 END) AS DOUBLE) / COUNT(*) > ${T.LEAKY_RATIO.toString()}`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     const entities: InsightEntity[] = [];
@@ -550,7 +563,7 @@ export class InsightEngine {
         'warning',
         'Leaky Encapsulation',
         `${s(entities.length)} classes expose > ${s(pctThreshold)}% public members`,
-        entities,
+        entities
       ),
     ];
   }
@@ -581,7 +594,7 @@ export class InsightEngine {
         'info',
         'Nested Barrel Files',
         `${s(entities.length)} barrel files re-export through other barrel files`,
-        entities,
+        entities
       ),
     ];
   }
@@ -602,7 +615,7 @@ export class InsightEngine {
          SELECT 1 FROM exports e WHERE e.module_id = f.module_id AND e.name = f.name
        ) AND (f.is_exported = FALSE OR f.is_exported = 'false' OR f.is_exported = '0')
        ${wherePackage('f', packageId)}`,
-      [...pkgParams(packageId), ...pkgParams(packageId)],
+      [...pkgParams(packageId), ...pkgParams(packageId)]
     );
 
     const entities: InsightEntity[] = rows.map((row) => ({
@@ -620,7 +633,7 @@ export class InsightEngine {
         'info',
         'Unexported Entities',
         `${s(entities.length)} classes or functions are not exported from their modules`,
-        entities,
+        entities
       ),
     ];
   }
@@ -637,7 +650,7 @@ export class InsightEngine {
        WHERE 1=1 ${wherePackage('m', packageId)}
        GROUP BY m.id, m.name
        HAVING SUM(CASE WHEN i.is_type_only = TRUE THEN 1 ELSE 0 END) > 0`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     const entities: InsightEntity[] = [];
@@ -660,7 +673,7 @@ export class InsightEngine {
         'info',
         'Type-Only Dependencies',
         `${s(entities.length)} modules have type-only imports (candidates for import type)`,
-        entities,
+        entities
       ),
     ];
   }
@@ -690,7 +703,7 @@ export class InsightEngine {
         'warning',
         'Orphaned Modules',
         `${s(entities.length)} modules have no import connections`,
-        entities,
+        entities
       ),
     ];
   }
@@ -725,7 +738,7 @@ export class InsightEngine {
         `${s(entities.length)} modules have combined degree >= ${s(T.HUB_DEGREE)}`,
         entities,
         maxDegree,
-        T.HUB_DEGREE,
+        T.HUB_DEGREE
       ),
     ];
   }
@@ -749,7 +762,7 @@ export class InsightEngine {
         'warning',
         'Bridge Modules',
         `${s(entities.length)} modules are articulation points in the import graph`,
-        entities,
+        entities
       ),
     ];
   }
@@ -791,8 +804,8 @@ export class InsightEngine {
           `Module Cluster #${s(clusterIndex)}`,
           `${s(members.length)} modules form a tightly connected cluster`,
           entities,
-          members.length,
-        ),
+          members.length
+        )
       );
     }
 
@@ -804,13 +817,13 @@ export class InsightEngine {
   private async unusedExports(packageId?: string): Promise<InsightResult[]> {
     const allExports = await this.adapter.query<ExportRow>(
       `SELECT id, name, module_id FROM exports WHERE 1=1 ${wherePackage('exports', packageId)}`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
     if (allExports.length === 0) return [];
 
     const allImports = await this.adapter.query<ImportSpecRow>(
       `SELECT id, module_id, source, specifiers_json FROM imports WHERE specifiers_json IS NOT NULL`,
-      [],
+      []
     );
 
     // Parse all imported names
@@ -852,7 +865,7 @@ export class InsightEngine {
         'warning',
         'Unused Exports',
         `${s(entities.length)} exported symbols are not imported by any module`,
-        entities,
+        entities
       ),
     ];
   }
@@ -870,7 +883,7 @@ export class InsightEngine {
          WHERE 1=1 ${wherePackage('i', packageId)}
        ) sub
        WHERE member_count >= ${s(T.INTERFACE_SEGREGATION_MIN)} AND implementor_count > 0`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     const entities: InsightEntity[] = [];
@@ -894,7 +907,7 @@ export class InsightEngine {
         'warning',
         'Large Interfaces',
         `${s(entities.length)} interfaces have ${s(T.INTERFACE_SEGREGATION_MIN)}+ members (potential ISP violation)`,
-        entities,
+        entities
       ),
     ];
   }
@@ -910,7 +923,7 @@ export class InsightEngine {
        SELECT id, name, module_id, 'method' as entity_type
        FROM methods
        WHERE has_explicit_return_type = FALSE ${wherePackage('methods', packageId)}`,
-      [...pkgParams(packageId), ...pkgParams(packageId)],
+      [...pkgParams(packageId), ...pkgParams(packageId)]
     );
 
     const entities: InsightEntity[] = rows.map((row) => ({
@@ -928,7 +941,7 @@ export class InsightEngine {
         'info',
         'Missing Return Types',
         `${s(entities.length)} functions/methods lack explicit return type annotations`,
-        entities,
+        entities
       ),
     ];
   }
@@ -944,7 +957,7 @@ export class InsightEngine {
        JOIN methods m_target ON m_target.id = sr.target_symbol_id
        WHERE m_source.is_async = FALSE AND m_target.is_async = TRUE
          ${wherePackage('sr', packageId)}`,
-      pkgParams(packageId),
+      pkgParams(packageId)
     );
 
     const entities: InsightEntity[] = rows.map((row) => ({
@@ -963,7 +976,7 @@ export class InsightEngine {
         'info',
         'Async Boundary Mismatches',
         `${s(entities.length)} sync methods call async methods (potential missing await)`,
-        entities,
+        entities
       ),
     ];
   }
@@ -978,7 +991,7 @@ export class InsightEngine {
     description: string,
     entities: InsightEntity[],
     value?: number,
-    threshold?: number,
+    threshold?: number
   ): InsightResult {
     return { type, category, severity, title, description, entities, value, threshold };
   }

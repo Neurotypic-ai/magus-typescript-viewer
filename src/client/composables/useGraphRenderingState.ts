@@ -1,7 +1,9 @@
-import { MarkerType } from '@vue-flow/core';
 import { computed } from 'vue';
 
+import { MarkerType } from '@vue-flow/core';
+
 import type { ComputedRef, Ref } from 'vue';
+
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
@@ -41,7 +43,9 @@ export function useGraphRenderingState(options: UseGraphRenderingStateOptions): 
   const renderedEdges = computed(() => visualEdges.value);
 
   const useOnlyRenderVisibleElements = computed(() => {
-    return edges.value.length >= env.EDGE_VISIBLE_RENDER_THRESHOLD || nodes.value.length >= env.NODE_VISIBLE_RENDER_THRESHOLD;
+    return (
+      edges.value.length >= env.EDGE_VISIBLE_RENDER_THRESHOLD || nodes.value.length >= env.NODE_VISIBLE_RENDER_THRESHOLD
+    );
   });
 
   const isHeavyEdgeMode = computed(() => edges.value.length >= env.HEAVY_EDGE_STYLE_THRESHOLD);

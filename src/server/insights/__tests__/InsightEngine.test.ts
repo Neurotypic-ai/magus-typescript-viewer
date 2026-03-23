@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 import { InsightEngine } from '../InsightEngine';
 
-import type { IDatabaseAdapter, QueryParams, QueryResult, DatabaseRow } from '../../db/adapter/IDatabaseAdapter';
+import type { DatabaseRow, IDatabaseAdapter, QueryParams, QueryResult } from '../../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from '../import-graph';
 
 // ── Mock buildImportGraph ────────────────────────────────────────────────────
@@ -13,7 +13,7 @@ vi.mock('../import-graph', () => ({
 
 // We need to import the mocked function so we can control its return value
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-const { buildImportGraph } = await import('../import-graph') as { buildImportGraph: ReturnType<typeof vi.fn> };
+const { buildImportGraph } = (await import('../import-graph')) as { buildImportGraph: ReturnType<typeof vi.fn> };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,19 +33,19 @@ function createMockAdapter(queryResponses?: Map<string, DatabaseRow[]>): IDataba
     init: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     close: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     getDbPath: vi.fn<() => string>().mockReturnValue(':memory:'),
-    transaction: vi.fn<(cb: () => Promise<unknown>) => Promise<unknown>>().mockImplementation(
-      async (cb: () => Promise<unknown>) => cb(),
-    ),
-    query: vi.fn<(sql: string, params?: QueryParams) => Promise<QueryResult>>().mockImplementation(
-      async (sql: string) => {
+    transaction: vi
+      .fn<(cb: () => Promise<unknown>) => Promise<unknown>>()
+      .mockImplementation(async (cb: () => Promise<unknown>) => cb()),
+    query: vi
+      .fn<(sql: string, params?: QueryParams) => Promise<QueryResult>>()
+      .mockImplementation(async (sql: string) => {
         if (queryResponses) {
           for (const [pattern, rows] of queryResponses) {
             if (sql.includes(pattern)) return rows;
           }
         }
         return [];
-      },
-    ),
+      }),
   };
 }
 
@@ -63,8 +63,28 @@ function graphWithCycle(): ImportGraph {
     adjacency,
     reverseAdjacency,
     modules: new Map([
-      ['mod-a', { name: 'moduleA.ts', directory: '/src', relativePath: 'src/moduleA.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-      ['mod-b', { name: 'moduleB.ts', directory: '/src', relativePath: 'src/moduleB.ts', isBarrel: false, lineCount: 30, packageId: 'pkg-1' }],
+      [
+        'mod-a',
+        {
+          name: 'moduleA.ts',
+          directory: '/src',
+          relativePath: 'src/moduleA.ts',
+          isBarrel: false,
+          lineCount: 50,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-b',
+        {
+          name: 'moduleB.ts',
+          directory: '/src',
+          relativePath: 'src/moduleB.ts',
+          isBarrel: false,
+          lineCount: 30,
+          packageId: 'pkg-1',
+        },
+      ],
     ]),
     nodeIds: new Set(['mod-a', 'mod-b']),
   };
@@ -81,7 +101,14 @@ function graphWithHighFanIn(importerCount: number): ImportGraph {
   // Target module
   adjacency.set(targetId, new Set());
   reverseAdjacency.set(targetId, new Set());
-  modules.set(targetId, { name: 'target.ts', directory: '/src', relativePath: 'src/target.ts', isBarrel: false, lineCount: 100, packageId: 'pkg-1' });
+  modules.set(targetId, {
+    name: 'target.ts',
+    directory: '/src',
+    relativePath: 'src/target.ts',
+    isBarrel: false,
+    lineCount: 100,
+    packageId: 'pkg-1',
+  });
   nodeIds.add(targetId);
 
   for (let i = 0; i < importerCount; i++) {
@@ -89,7 +116,14 @@ function graphWithHighFanIn(importerCount: number): ImportGraph {
     adjacency.set(id, new Set([targetId]));
     reverseAdjacency.get(targetId)!.add(id);
     reverseAdjacency.set(id, new Set());
-    modules.set(id, { name: `importer${i}.ts`, directory: '/src', relativePath: `src/importer${i}.ts`, isBarrel: false, lineCount: 20, packageId: 'pkg-1' });
+    modules.set(id, {
+      name: `importer${i}.ts`,
+      directory: '/src',
+      relativePath: `src/importer${i}.ts`,
+      isBarrel: false,
+      lineCount: 20,
+      packageId: 'pkg-1',
+    });
     nodeIds.add(id);
   }
 
@@ -106,7 +140,14 @@ function graphWithHighFanOut(depCount: number): ImportGraph {
 
   adjacency.set(sourceId, new Set());
   reverseAdjacency.set(sourceId, new Set());
-  modules.set(sourceId, { name: 'source.ts', directory: '/src', relativePath: 'src/source.ts', isBarrel: false, lineCount: 200, packageId: 'pkg-1' });
+  modules.set(sourceId, {
+    name: 'source.ts',
+    directory: '/src',
+    relativePath: 'src/source.ts',
+    isBarrel: false,
+    lineCount: 200,
+    packageId: 'pkg-1',
+  });
   nodeIds.add(sourceId);
 
   for (let i = 0; i < depCount; i++) {
@@ -114,7 +155,14 @@ function graphWithHighFanOut(depCount: number): ImportGraph {
     adjacency.get(sourceId)!.add(id);
     adjacency.set(id, new Set());
     reverseAdjacency.set(id, new Set([sourceId]));
-    modules.set(id, { name: `dep${i}.ts`, directory: '/src', relativePath: `src/dep${i}.ts`, isBarrel: false, lineCount: 30, packageId: 'pkg-1' });
+    modules.set(id, {
+      name: `dep${i}.ts`,
+      directory: '/src',
+      relativePath: `src/dep${i}.ts`,
+      isBarrel: false,
+      lineCount: 30,
+      packageId: 'pkg-1',
+    });
     nodeIds.add(id);
   }
 
@@ -137,9 +185,39 @@ function graphWithOrphanedModule(): ImportGraph {
     adjacency,
     reverseAdjacency,
     modules: new Map([
-      ['mod-connected-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-      ['mod-connected-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-      ['mod-orphan', { name: 'orphan.ts', directory: '/src', relativePath: 'src/orphan.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+      [
+        'mod-connected-a',
+        {
+          name: 'a.ts',
+          directory: '/src',
+          relativePath: 'src/a.ts',
+          isBarrel: false,
+          lineCount: 50,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-connected-b',
+        {
+          name: 'b.ts',
+          directory: '/src',
+          relativePath: 'src/b.ts',
+          isBarrel: false,
+          lineCount: 50,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-orphan',
+        {
+          name: 'orphan.ts',
+          directory: '/src',
+          relativePath: 'src/orphan.ts',
+          isBarrel: false,
+          lineCount: 50,
+          packageId: 'pkg-1',
+        },
+      ],
     ]),
     nodeIds: new Set(['mod-connected-a', 'mod-connected-b', 'mod-orphan']),
   };
@@ -161,9 +239,39 @@ function graphWithNestedBarrels(): ImportGraph {
     adjacency,
     reverseAdjacency,
     modules: new Map([
-      ['mod-barrel-outer', { name: 'index.ts', directory: '/src', relativePath: 'src/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
-      ['mod-barrel-inner', { name: 'index.ts', directory: '/src/utils', relativePath: 'src/utils/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
-      ['mod-leaf', { name: 'helper.ts', directory: '/src/utils', relativePath: 'src/utils/helper.ts', isBarrel: false, lineCount: 100, packageId: 'pkg-1' }],
+      [
+        'mod-barrel-outer',
+        {
+          name: 'index.ts',
+          directory: '/src',
+          relativePath: 'src/index.ts',
+          isBarrel: true,
+          lineCount: 5,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-barrel-inner',
+        {
+          name: 'index.ts',
+          directory: '/src/utils',
+          relativePath: 'src/utils/index.ts',
+          isBarrel: true,
+          lineCount: 5,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-leaf',
+        {
+          name: 'helper.ts',
+          directory: '/src/utils',
+          relativePath: 'src/utils/helper.ts',
+          isBarrel: false,
+          lineCount: 100,
+          packageId: 'pkg-1',
+        },
+      ],
     ]),
     nodeIds: new Set(['mod-barrel-outer', 'mod-barrel-inner', 'mod-leaf']),
   };
@@ -225,9 +333,7 @@ describe('InsightEngine', () => {
 
       expect(criticalCount).toBeGreaterThan(0);
       // Health score should be reduced by critical * 5 + warning * 2
-      expect(report.healthScore).toBe(
-        Math.max(0, 100 - criticalCount * 5 - report.summary.warning * 2),
-      );
+      expect(report.healthScore).toBe(Math.max(0, 100 - criticalCount * 5 - report.summary.warning * 2));
     });
 
     it('clamps health score to minimum 0', async () => {
@@ -245,8 +351,22 @@ describe('InsightEngine', () => {
         adjacency.set(b, new Set([a]));
         reverseAdjacency.set(a, new Set([b]));
         reverseAdjacency.set(b, new Set([a]));
-        modules.set(a, { name: `a${i}.ts`, directory: '/src', relativePath: `src/a${i}.ts`, isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
-        modules.set(b, { name: `b${i}.ts`, directory: '/src', relativePath: `src/b${i}.ts`, isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
+        modules.set(a, {
+          name: `a${i}.ts`,
+          directory: '/src',
+          relativePath: `src/a${i}.ts`,
+          isBarrel: false,
+          lineCount: 10,
+          packageId: 'pkg-1',
+        });
+        modules.set(b, {
+          name: `b${i}.ts`,
+          directory: '/src',
+          relativePath: `src/b${i}.ts`,
+          isBarrel: false,
+          lineCount: 10,
+          packageId: 'pkg-1',
+        });
         nodeIds.add(a);
         nodeIds.add(b);
       }
@@ -261,12 +381,12 @@ describe('InsightEngine', () => {
       // Make the adapter throw on certain queries but succeed on others
       const failAdapter: IDatabaseAdapter = {
         ...createMockAdapter(),
-        query: vi.fn<(sql: string, params?: QueryParams) => Promise<QueryResult>>().mockImplementation(
-          async (sql: string) => {
+        query: vi
+          .fn<(sql: string, params?: QueryParams) => Promise<QueryResult>>()
+          .mockImplementation(async (sql: string) => {
             if (sql.includes('classes')) throw new Error('DB error for classes');
             return [];
-          },
-        ),
+          }),
       };
 
       const failEngine = new InsightEngine(failAdapter);
@@ -429,9 +549,39 @@ describe('InsightEngine', () => {
         adjacency,
         reverseAdjacency,
         modules: new Map([
-          ['mod-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-          ['mod-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-          ['mod-c', { name: 'c.ts', directory: '/src', relativePath: 'src/c.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+          [
+            'mod-a',
+            {
+              name: 'a.ts',
+              directory: '/src',
+              relativePath: 'src/a.ts',
+              isBarrel: false,
+              lineCount: 50,
+              packageId: 'pkg-1',
+            },
+          ],
+          [
+            'mod-b',
+            {
+              name: 'b.ts',
+              directory: '/src',
+              relativePath: 'src/b.ts',
+              isBarrel: false,
+              lineCount: 50,
+              packageId: 'pkg-1',
+            },
+          ],
+          [
+            'mod-c',
+            {
+              name: 'c.ts',
+              directory: '/src',
+              relativePath: 'src/c.ts',
+              isBarrel: false,
+              lineCount: 50,
+              packageId: 'pkg-1',
+            },
+          ],
         ]),
         nodeIds: new Set(['mod-a', 'mod-b', 'mod-c']),
       };
@@ -502,7 +652,14 @@ describe('InsightEngine', () => {
 
       const modules = new Map<string, ImportGraph['modules'] extends Map<string, infer V> ? V : never>();
       for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
-        modules.set(id, { name: `${id}.ts`, directory: '/src', relativePath: `src/${id}.ts`, isBarrel: false, lineCount: 30, packageId: 'pkg-1' });
+        modules.set(id, {
+          name: `${id}.ts`,
+          directory: '/src',
+          relativePath: `src/${id}.ts`,
+          isBarrel: false,
+          lineCount: 30,
+          packageId: 'pkg-1',
+        });
       }
 
       const graph: ImportGraph = {
@@ -605,9 +762,7 @@ describe('InsightEngine', () => {
 
     it('detects methods at warning level (4+ params)', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM methods', [
-        { id: 'method-1', name: 'doSomething', module_id: 'mod-1', cnt: 5 },
-      ]);
+      responses.set('FROM methods', [{ id: 'method-1', name: 'doSomething', module_id: 'mod-1', cnt: 5 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
@@ -623,9 +778,7 @@ describe('InsightEngine', () => {
 
     it('escalates to critical at 6+ params', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM methods', [
-        { id: 'method-1', name: 'tooManyArgs', module_id: 'mod-1', cnt: 7 },
-      ]);
+      responses.set('FROM methods', [{ id: 'method-1', name: 'tooManyArgs', module_id: 'mod-1', cnt: 7 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
@@ -651,9 +804,7 @@ describe('InsightEngine', () => {
 
     it('detects large modules at warning level (300+ lines)', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM modules', [
-        { id: 'mod-1', name: 'bigModule.ts', module_id: '', cnt: 350 },
-      ]);
+      responses.set('FROM modules', [{ id: 'mod-1', name: 'bigModule.ts', module_id: '', cnt: 350 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
@@ -669,9 +820,7 @@ describe('InsightEngine', () => {
 
     it('escalates to critical at 500+ lines', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM modules', [
-        { id: 'mod-1', name: 'hugeModule.ts', module_id: '', cnt: 600 },
-      ]);
+      responses.set('FROM modules', [{ id: 'mod-1', name: 'hugeModule.ts', module_id: '', cnt: 600 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
@@ -697,9 +846,7 @@ describe('InsightEngine', () => {
 
     it('detects deep inheritance at warning level (depth 3+)', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM chain', [
-        { id: 'class-deep', name: 'DeepChild', module_id: 'mod-1', max_depth: 4 },
-      ]);
+      responses.set('FROM chain', [{ id: 'class-deep', name: 'DeepChild', module_id: 'mod-1', max_depth: 4 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
@@ -715,9 +862,7 @@ describe('InsightEngine', () => {
 
     it('escalates to critical at depth 5+', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM chain', [
-        { id: 'class-deep', name: 'VeryDeepChild', module_id: 'mod-1', max_depth: 6 },
-      ]);
+      responses.set('FROM chain', [{ id: 'class-deep', name: 'VeryDeepChild', module_id: 'mod-1', max_depth: 6 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
@@ -804,9 +949,7 @@ describe('InsightEngine', () => {
 
     it('detects modules with type-only imports', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('is_type_only', [
-        { id: 'mod-1', name: 'types.ts', type_only_count: 3, total_count: 5 },
-      ]);
+      responses.set('is_type_only', [{ id: 'mod-1', name: 'types.ts', type_only_count: 3, total_count: 5 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
@@ -911,9 +1054,7 @@ describe('InsightEngine', () => {
   describe('unused exports', () => {
     it('returns no insight when all exports are imported', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM exports', [
-        { id: 'exp-1', name: 'usedSymbol', module_id: 'mod-1' },
-      ]);
+      responses.set('FROM exports', [{ id: 'exp-1', name: 'usedSymbol', module_id: 'mod-1' }]);
       responses.set('FROM imports', [
         { id: 'imp-1', module_id: 'mod-2', source: './mod1', specifiers_json: '[{"imported": "usedSymbol"}]' },
       ]);
@@ -953,9 +1094,7 @@ describe('InsightEngine', () => {
 
     it('handles malformed specifiers_json gracefully', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM exports', [
-        { id: 'exp-1', name: 'someSymbol', module_id: 'mod-1' },
-      ]);
+      responses.set('FROM exports', [{ id: 'exp-1', name: 'someSymbol', module_id: 'mod-1' }]);
       responses.set('FROM imports', [
         { id: 'imp-1', module_id: 'mod-2', source: './mod1', specifiers_json: 'not valid json' },
       ]);

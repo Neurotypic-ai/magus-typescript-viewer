@@ -7,20 +7,17 @@ import { buildParentMap, findCollapsedAncestor } from './folderMembership';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 
- interface CollapseFolderMeta {
+interface CollapseFolderMeta {
   childIds: string[];
   liftedEdgeCount: number;
 }
 
- interface CollapseFolderResult {
+interface CollapseFolderResult {
   nodes: DependencyNode[];
   edges: GraphEdge[];
   collapsedMeta: Map<string, CollapseFolderMeta>;
 }
-export function buildChildToFolderMap(
-  nodes: DependencyNode[],
-  collapsedFolderIds: Set<string>
-): Map<string, string> {
+export function buildChildToFolderMap(nodes: DependencyNode[], collapsedFolderIds: Set<string>): Map<string, string> {
   const parentMap = buildParentMap(nodes);
   const childToFolder = new Map<string, string>();
 

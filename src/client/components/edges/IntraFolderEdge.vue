@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { BaseEdge, getSmoothStepPath, type EdgeProps } from '@vue-flow/core';
+
+import { BaseEdge, getSmoothStepPath } from '@vue-flow/core';
+
+import type { EdgeProps } from '@vue-flow/core';
 
 const props = defineProps<EdgeProps>();
 
@@ -23,15 +26,13 @@ const routeResult = computed(() => {
   <BaseEdge
     :id="id"
     :path="routeResult.path"
-    v-bind="
-      {
-        labelX: routeResult.labelX,
-        labelY: routeResult.labelY,
-        ...(markerStart === undefined ? {} : { markerStart }),
-        ...(markerEnd === undefined ? {} : { markerEnd }),
-        ...(style === undefined ? {} : { style }),
-        ...(interactionWidth === undefined ? {} : { interactionWidth }),
-      }
-    "
+    v-bind="{
+      labelX: routeResult.labelX,
+      labelY: routeResult.labelY,
+      ...(markerStart === undefined ? {} : { markerStart }),
+      ...(markerEnd === undefined ? {} : { markerEnd }),
+      ...(style === undefined ? {} : { style }),
+      ...(interactionWidth === undefined ? {} : { interactionWidth }),
+    }"
   />
 </template>

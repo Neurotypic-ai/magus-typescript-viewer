@@ -37,10 +37,7 @@ export const getHandlePositions = (
   }
 };
 
-export function selectFolderHandle(
-  direction: 'LR' | 'RL' | 'TB' | 'BT',
-  role: 'incoming' | 'outgoing'
-): string {
+export function selectFolderHandle(direction: 'LR' | 'RL' | 'TB' | 'BT', role: 'incoming' | 'outgoing'): string {
   if (direction === 'LR') {
     return role === 'incoming' ? FOLDER_HANDLE_IDS.leftIn : FOLDER_HANDLE_IDS.rightOut;
   }
@@ -52,4 +49,3 @@ export function selectFolderHandle(
   }
   return role === 'incoming' ? FOLDER_HANDLE_IDS.bottomIn : FOLDER_HANDLE_IDS.topOut;
 }
-

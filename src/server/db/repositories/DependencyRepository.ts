@@ -3,11 +3,11 @@ import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { IDependency } from '../../../shared/types/Dependency';
+import type { DependencyType } from '../../../shared/types/DependencyType';
+import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../../../shared/types/dto/DependencyDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IDependencyRow } from '../types/DatabaseResults';
-import type { IDependency } from '../../../shared/types/Dependency';
-import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../../../shared/types/dto/DependencyDTO';
-import type { DependencyType } from '../../../shared/types/DependencyType';
 
 function isValidDependencyDTO(dto: unknown): dto is IDependencyCreateDTO {
   if (!dto || typeof dto !== 'object') {

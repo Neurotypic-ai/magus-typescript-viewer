@@ -3,18 +3,18 @@
  * module lookup, symbol edges and detailed symbol nodes.
  */
 
-import { createEdgeMarker } from '../../utils/edgeMarkers';
 import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
-import { getHandlePositions } from '../handleRouting';
 import { mapTypeCollection } from '../../utils/collections';
+import { createEdgeMarker } from '../../utils/edgeMarkers';
+import { getHandlePositions } from '../handleRouting';
 
+import type { Method } from '../../../shared/types/Method';
+import type { Module } from '../../../shared/types/Module';
+import type { PackageGraph } from '../../../shared/types/Package';
+import type { Property } from '../../../shared/types/Property';
 import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyNode } from '../../types/DependencyNode';
-import type { PackageGraph } from '../../../shared/types/Package';
 import type { GraphEdge } from '../../types/GraphEdge';
-import type { Module } from '../../../shared/types/Module';
-import type { Method } from '../../../shared/types/Method';
-import type { Property } from '../../../shared/types/Property';
 
 export function normalizeProperty(property: Property): Property {
   const source = property as any;
@@ -43,9 +43,7 @@ export function normalizeMethod(method: Method): Method {
         ? source.returnType
         : 'void';
   const signature =
-    typeof source.signature === 'string' && source.signature.length > 0
-      ? source.signature
-      : `${name}(): ${returnType}`;
+    typeof source.signature === 'string' && source.signature.length > 0 ? source.signature : `${name}(): ${returnType}`;
   return {
     id: typeof source.id === 'string' ? source.id : (undefined as unknown as string),
     package_id: typeof source.package_id === 'string' ? source.package_id : '',
@@ -53,7 +51,8 @@ export function normalizeMethod(method: Method): Method {
     parent_id: typeof source.parent_id === 'string' ? source.parent_id : '',
     name,
     created_at: typeof source.created_at === 'string' ? source.created_at : '',
-    parameters: source.parameters && typeof source.parameters === 'object' ? (source.parameters as Method['parameters']) : [],
+    parameters:
+      source.parameters && typeof source.parameters === 'object' ? (source.parameters as Method['parameters']) : [],
     return_type: returnType,
     is_static: Boolean(source.is_static),
     is_async: Boolean(source.is_async),
@@ -62,10 +61,7 @@ export function normalizeMethod(method: Method): Method {
   };
 }
 
-export function findModuleById(
-  data: PackageGraph,
-  moduleId: string
-): Module | undefined {
+export function findModuleById(data: PackageGraph, moduleId: string): Module | undefined {
   for (const pkg of data.packages) {
     if (!pkg.modules) continue;
     const module = mapTypeCollection(pkg.modules, (entry) => entry).find((entry) => entry.id === moduleId);
@@ -105,4 +101,3 @@ export function createDetailedSymbolNode(
     style: { ...getNodeStyle(type) },
   } as DependencyNode;
 }
-

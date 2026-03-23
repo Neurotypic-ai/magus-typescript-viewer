@@ -5,9 +5,9 @@ import { Parameter } from '../../../../shared/types/Parameter';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { ParameterRepository } from '../ParameterRepository';
 
+import type { IParameterCreateDTO } from '../../../../shared/types/dto/ParameterDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IParameterRow } from '../../types/DatabaseResults';
-import type { IParameterCreateDTO } from '../../../../shared/types/dto/ParameterDTO';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -151,7 +151,10 @@ describe('ParameterRepository', () => {
 
       expect(adapter.query).toHaveBeenCalledTimes(2);
 
-      const [updateSql, updateParams] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [updateSql, updateParams] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        unknown[],
+      ];
       expect(updateSql).toContain('UPDATE parameters SET');
       expect(updateSql).toContain('name = ?');
       expect(updateSql).toContain('type = ?');
@@ -167,9 +170,7 @@ describe('ParameterRepository', () => {
     it('converts boolean fields to 0/1 in SET clause', async () => {
       const updatedRow = makeRow({ is_optional: 1, is_rest: 1 });
 
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       await repo.update('param-1', { is_optional: true, is_rest: true });
 
@@ -392,10 +393,7 @@ describe('ParameterRepository', () => {
     });
 
     it('maps default_value correctly', async () => {
-      const rows = [
-        makeRow({ default_value: '42' }),
-        makeRow({ id: 'param-2', default_value: null }),
-      ];
+      const rows = [makeRow({ default_value: '42' }), makeRow({ id: 'param-2', default_value: null })];
       (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
 
       const result = await repo.findByMethodId('meth-1');
@@ -425,10 +423,7 @@ describe('ParameterRepository', () => {
     });
 
     it('inserts multiple items in a single query', async () => {
-      const items = [
-        makeDTO({ id: 'p1', name: 'a' }),
-        makeDTO({ id: 'p2', name: 'b' }),
-      ];
+      const items = [makeDTO({ id: 'p1', name: 'a' }), makeDTO({ id: 'p2', name: 'b' })];
 
       await repo.createBatch(items);
 
@@ -441,10 +436,7 @@ describe('ParameterRepository', () => {
     });
 
     it('falls back to individual inserts on duplicate key error', async () => {
-      const items = [
-        makeDTO({ id: 'p1', name: 'a' }),
-        makeDTO({ id: 'p2', name: 'b' }),
-      ];
+      const items = [makeDTO({ id: 'p1', name: 'a' }), makeDTO({ id: 'p2', name: 'b' })];
 
       // First call (batch) rejects with duplicate error; individual calls succeed
       (adapter.query as ReturnType<typeof vi.fn>)
@@ -459,10 +451,7 @@ describe('ParameterRepository', () => {
     });
 
     it('skips individual duplicates during fallback', async () => {
-      const items = [
-        makeDTO({ id: 'p1', name: 'a' }),
-        makeDTO({ id: 'p2', name: 'b' }),
-      ];
+      const items = [makeDTO({ id: 'p1', name: 'a' }), makeDTO({ id: 'p2', name: 'b' })];
 
       (adapter.query as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(new Error('UNIQUE constraint'))
@@ -477,8 +466,7 @@ describe('ParameterRepository', () => {
     it('rethrows non-duplicate errors from batch insert', async () => {
       const items = [makeDTO({ id: 'p1' })];
 
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockRejectedValueOnce(new Error('Disk full'));
+      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Disk full'));
 
       await expect(repo.createBatch(items)).rejects.toThrow('Disk full');
     });
@@ -488,7 +476,7 @@ describe('ParameterRepository', () => {
 
       (adapter.query as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(new Error('Duplicate key')) // batch fails
-        .mockRejectedValueOnce(new Error('Disk full'));    // individual fails with non-duplicate
+        .mockRejectedValueOnce(new Error('Disk full')); // individual fails with non-duplicate
 
       await expect(repo.createBatch(items)).rejects.toThrow('Disk full');
     });

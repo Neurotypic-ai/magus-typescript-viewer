@@ -48,14 +48,11 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
   } = options;
 
   const isMac = ref(isMacPlatform());
-  const isFirefox = ref(
-    typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent)
-  );
+  const isFirefox = ref(typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent));
   const viewportState = ref({ ...DEFAULT_VIEWPORT });
   const isPanning = ref(false);
-  const normalizedTrackpadPanSpeed = Number.isFinite(trackpadPanSpeed) && trackpadPanSpeed > 0
-    ? trackpadPanSpeed
-    : DEFAULT_MAC_TRACKPAD_PAN_SPEED;
+  const normalizedTrackpadPanSpeed =
+    Number.isFinite(trackpadPanSpeed) && trackpadPanSpeed > 0 ? trackpadPanSpeed : DEFAULT_MAC_TRACKPAD_PAN_SPEED;
 
   let cachedFlowContainer: HTMLElement | null = null;
   let cachedContainerRect: DOMRect | null = null;
@@ -160,10 +157,10 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
     }
 
     const insideGraphNode = Boolean(target.closest('.vue-flow__node'));
-    const overControlSurface = Boolean(target.closest('[data-graph-overlay-scrollable], .vue-flow__panel')) || (
-      !insideGraphNode &&
-      Boolean(target.closest('input, textarea, select, button, [role="slider"], [contenteditable="true"]'))
-    );
+    const overControlSurface =
+      Boolean(target.closest('[data-graph-overlay-scrollable], .vue-flow__panel')) ||
+      (!insideGraphNode &&
+        Boolean(target.closest('input, textarea, select, button, [role="slider"], [contenteditable="true"]')));
 
     if (intent === 'pinch') {
       if (overControlSurface) {

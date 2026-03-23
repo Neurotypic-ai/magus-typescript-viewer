@@ -1,4 +1,6 @@
-import { readonly, ref, type Ref } from 'vue';
+import { readonly, ref } from 'vue';
+
+import type { Ref } from 'vue';
 
 type ScopeMode = 'overview' | 'isolate' | 'moduleDrilldown' | 'symbolDrilldown';
 type CameraMode = 'free' | 'fitSelection';

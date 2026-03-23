@@ -2,11 +2,10 @@ import { Position } from '@vue-flow/core';
 
 import { buildSymbolDrilldownGraph } from '../buildSymbolDrilldown';
 
-import type { BuildSymbolDrilldownGraphOptions } from '../buildSymbolDrilldown';
-import type { DependencyNode } from '../../../types/DependencyNode';
-import type { PackageGraph } from '../../../../shared/types/Package';
 import type { Module } from '../../../../shared/types/Module';
-import type { Package } from '../../../../shared/types/Package';
+import type { Package, PackageGraph } from '../../../../shared/types/Package';
+import type { DependencyNode } from '../../../types/DependencyNode';
+import type { BuildSymbolDrilldownGraphOptions } from '../buildSymbolDrilldown';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers to build minimal test data                                 */
@@ -62,9 +61,7 @@ describe('buildSymbolDrilldownGraph', () => {
   describe('when symbol context is not found', () => {
     it('returns only the selected node with empty edges', () => {
       const selected = makeNode('nonexistent', 'module');
-      const result = buildSymbolDrilldownGraph(
-        defaultOptions({ selectedNode: selected })
-      );
+      const result = buildSymbolDrilldownGraph(defaultOptions({ selectedNode: selected }));
 
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0]!.id).toBe('nonexistent');
@@ -102,9 +99,7 @@ describe('buildSymbolDrilldownGraph', () => {
       expect(moduleNode).toBeDefined();
       expect(moduleNode!.type).toBe('module');
       expect(moduleNode!.data.label).toBe('index.ts');
-      expect(moduleNode!.style).toEqual(
-        expect.objectContaining({ borderColor: '#00ffff', borderWidth: '3px' })
-      );
+      expect(moduleNode!.style).toEqual(expect.objectContaining({ borderColor: '#00ffff', borderWidth: '3px' }));
     });
 
     it('includes all classes when focus is module', () => {
@@ -326,7 +321,9 @@ describe('buildSymbolDrilldownGraph', () => {
             id: 'iface-1',
             name: 'IConfig',
             properties: [{ name: 'port', type: 'number', visibility: 'public' }],
-            methods: [{ name: 'validate', returnType: 'boolean', visibility: 'public', signature: 'validate(): boolean' }],
+            methods: [
+              { name: 'validate', returnType: 'boolean', visibility: 'public', signature: 'validate(): boolean' },
+            ],
           },
         },
       });
@@ -434,9 +431,7 @@ describe('buildSymbolDrilldownGraph', () => {
           'cls-1': {
             id: 'cls-1',
             name: 'App',
-            properties: [
-              { id: 'prop-1', name: 'flag', type: 'boolean', visibility: 'public' },
-            ],
+            properties: [{ id: 'prop-1', name: 'flag', type: 'boolean', visibility: 'public' }],
           },
         },
         symbol_references: {
@@ -640,12 +635,22 @@ describe('buildSymbolDrilldownGraph', () => {
           'cls-1': {
             id: 'cls-1',
             name: 'UserService',
-            properties: [
-              { id: 'prop-1', name: 'db', type: 'Database', visibility: 'private' },
-            ],
+            properties: [{ id: 'prop-1', name: 'db', type: 'Database', visibility: 'private' }],
             methods: [
-              { id: 'meth-1', name: 'getUser', returnType: 'User', visibility: 'public', signature: 'getUser(id: string): User' },
-              { id: 'meth-2', name: 'saveUser', returnType: 'void', visibility: 'public', signature: 'saveUser(user: User): void' },
+              {
+                id: 'meth-1',
+                name: 'getUser',
+                returnType: 'User',
+                visibility: 'public',
+                signature: 'getUser(id: string): User',
+              },
+              {
+                id: 'meth-2',
+                name: 'saveUser',
+                returnType: 'void',
+                visibility: 'public',
+                signature: 'saveUser(user: User): void',
+              },
             ],
           },
         },
@@ -654,7 +659,13 @@ describe('buildSymbolDrilldownGraph', () => {
             id: 'iface-1',
             name: 'IUserService',
             methods: [
-              { id: 'imeth-1', name: 'getUser', returnType: 'User', visibility: 'public', signature: 'getUser(id: string): User' },
+              {
+                id: 'imeth-1',
+                name: 'getUser',
+                returnType: 'User',
+                visibility: 'public',
+                signature: 'getUser(id: string): User',
+              },
             ],
           },
         },
@@ -715,9 +726,7 @@ describe('buildSymbolDrilldownGraph', () => {
           'cls-1': {
             id: 'cls-1',
             name: 'A',
-            properties: [
-              { id: 'custom-prop-id', name: 'x', type: 'number', visibility: 'public' },
-            ],
+            properties: [{ id: 'custom-prop-id', name: 'x', type: 'number', visibility: 'public' }],
           },
         },
       });
@@ -742,12 +751,8 @@ describe('buildSymbolDrilldownGraph', () => {
           'cls-1': {
             id: 'cls-1',
             name: 'A',
-            properties: [
-              { name: 'y', type: 'string', visibility: 'public' },
-            ],
-            methods: [
-              { name: 'doStuff', returnType: 'void', visibility: 'public', signature: 'doStuff(): void' },
-            ],
+            properties: [{ name: 'y', type: 'string', visibility: 'public' }],
+            methods: [{ name: 'doStuff', returnType: 'void', visibility: 'public', signature: 'doStuff(): void' }],
           },
         },
       });

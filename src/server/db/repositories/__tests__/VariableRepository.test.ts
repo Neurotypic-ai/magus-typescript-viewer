@@ -1,12 +1,13 @@
 // @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { Variable } from '../../../../shared/types/Variable';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { VariableRepository } from '../VariableRepository';
 
 import type { IVariableCreateDTO } from '../../../../shared/types/dto/VariableDTO';
-import type { IVariableRow } from '../../types/DatabaseResults';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
-import { vi, describe, beforeEach, it, expect } from 'vitest';
+import type { IVariableRow } from '../../types/DatabaseResults';
 
 function createMockAdapter(): IDatabaseAdapter {
   return {
@@ -69,15 +70,7 @@ describe('VariableRepository', () => {
       const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
       expect(sql).toContain('INSERT INTO variables');
       expect(sql).toContain('RETURNING *');
-      expect(params).toEqual([
-        'var-uuid-1',
-        'pkg-uuid-1',
-        'mod-uuid-1',
-        'myConst',
-        'const',
-        'string',
-        '"hello"',
-      ]);
+      expect(params).toEqual(['var-uuid-1', 'pkg-uuid-1', 'mod-uuid-1', 'myConst', 'const', 'string', '"hello"']);
 
       expect(result).toBeInstanceOf(Variable);
       expect(result.id).toBe('var-uuid-1');
@@ -94,15 +87,7 @@ describe('VariableRepository', () => {
       await repo.create(makeCreateDTO({ type: undefined, initializer: undefined }));
 
       const [, params] = vi.mocked(adapter.query).mock.calls[0]!;
-      expect(params).toEqual([
-        'var-uuid-1',
-        'pkg-uuid-1',
-        'mod-uuid-1',
-        'myConst',
-        'const',
-        null,
-        null,
-      ]);
+      expect(params).toEqual(['var-uuid-1', 'pkg-uuid-1', 'mod-uuid-1', 'myConst', 'const', null, null]);
     });
 
     it('throws RepositoryError when INSERT returns no rows', async () => {
@@ -257,10 +242,7 @@ describe('VariableRepository', () => {
 
   describe('retrieveByModuleId', () => {
     it('returns all variables for a given module ordered by name', async () => {
-      const rows = [
-        makeRow({ id: 'v1', name: 'alpha' }),
-        makeRow({ id: 'v2', name: 'beta' }),
-      ];
+      const rows = [makeRow({ id: 'v1', name: 'alpha' }), makeRow({ id: 'v2', name: 'beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const result = await repo.retrieveByModuleId('mod-uuid-1');

@@ -1,5 +1,5 @@
-import type { Collection, JSCodeshift } from 'jscodeshift';
 import type { ConsolaInstance } from 'consola';
+import type { Collection, JSCodeshift } from 'jscodeshift';
 
 export interface ModuleParserContext {
   readonly j: JSCodeshift;

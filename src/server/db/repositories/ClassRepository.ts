@@ -9,10 +9,9 @@ import type { DuckDBValue } from '@duckdb/node-api';
 import type { Interface } from '../../../shared/types/Interface';
 import type { Method } from '../../../shared/types/Method';
 import type { Property } from '../../../shared/types/Property';
+import type { IClassCreateDTO, IClassUpdateDTO } from '../../../shared/types/dto/ClassDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../types/DatabaseResults';
-
-import type { IClassCreateDTO, IClassUpdateDTO } from '../../../shared/types/dto/ClassDTO';
 
 /**
  * Repository interface for managing classes.
@@ -53,12 +52,13 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
    * Batch-insert multiple classes at once. Ignores duplicates.
    */
   async createBatch(items: IClassCreateDTO[]): Promise<void> {
-    await this.executeBatchInsert(
-      '(id, package_id, module_id, name, extends_id)',
-      5,
-      items,
-      (dto) => [dto.id, dto.package_id, dto.module_id, dto.name, dto.extends_id ?? null]
-    );
+    await this.executeBatchInsert('(id, package_id, module_id, name, extends_id)', 5, items, (dto) => [
+      dto.id,
+      dto.package_id,
+      dto.module_id,
+      dto.name,
+      dto.extends_id ?? null,
+    ]);
   }
 
   async create(dto: IClassCreateDTO): Promise<Class> {
@@ -311,8 +311,12 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
       if (error instanceof RepositoryError) {
         throw error;
       }
-      throw new RepositoryError('Failed to retrieve classes by module IDs', 'retrieveByModuleIds', this.errorTag, error as Error);
+      throw new RepositoryError(
+        'Failed to retrieve classes by module IDs',
+        'retrieveByModuleIds',
+        this.errorTag,
+        error as Error
+      );
     }
   }
-
 }

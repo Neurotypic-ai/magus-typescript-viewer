@@ -1,14 +1,15 @@
 // @vitest-environment node
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { Module } from '../../../../shared/types/Module';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { ModuleRepository } from '../ModuleRepository';
 
 import type { FileLocation } from '../../../../shared/types/FileLocation';
+import type { IModuleCreateDTO } from '../../../../shared/types/dto/ModuleDTO';
 import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
 import type { IModuleRow } from '../../types/DatabaseResults';
-import type { IModuleCreateDTO } from '../../../../shared/types/dto/ModuleDTO';
-import { vi, expect, describe, beforeEach, it } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Helpers

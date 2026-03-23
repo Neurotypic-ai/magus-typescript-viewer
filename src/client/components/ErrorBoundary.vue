@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { consola } from 'consola';
 import { onErrorCaptured, ref } from 'vue';
+
+import { consola } from 'consola';
 
 const errorLogger = consola.withTag('ErrorBoundary');
 
@@ -110,9 +111,14 @@ onErrorCaptured((err, instance) => {
 
 <template>
   <!-- Error UI -->
-  <div v-if="hasError" class="error-boundary p-8 bg-red-900 text-white min-h-screen flex flex-col items-center justify-center">
+  <div
+    v-if="hasError"
+    class="error-boundary p-8 bg-red-900 text-white min-h-screen flex flex-col items-center justify-center"
+  >
     <h2 class="text-2xl font-bold mb-4">Something went wrong.</h2>
-    <pre class="bg-black bg-opacity-50 p-4 rounded mb-4 max-w-2xl overflow-auto">{{ error?.message ?? 'Unknown error' }}</pre>
+    <pre class="bg-black bg-opacity-50 p-4 rounded mb-4 max-w-2xl overflow-auto">{{
+      error?.message ?? 'Unknown error'
+    }}</pre>
     <button
       @click="handleRecoveryAttempt"
       class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors cursor-pointer"

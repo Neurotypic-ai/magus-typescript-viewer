@@ -72,7 +72,8 @@ export function exportInsightsMarkdown(report: InsightReport): void {
     lines.push('');
 
     for (const insight of insights) {
-      const severityBadge = insight.severity === 'critical' ? '**CRITICAL**' : insight.severity === 'warning' ? '*Warning*' : 'Info';
+      const severityBadge =
+        insight.severity === 'critical' ? '**CRITICAL**' : insight.severity === 'warning' ? '*Warning*' : 'Info';
       lines.push(`### ${insight.title} [${severityBadge}]`);
       lines.push('');
       lines.push(insight.description);

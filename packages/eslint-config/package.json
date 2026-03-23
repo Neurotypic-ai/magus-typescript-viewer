@@ -2,7 +2,7 @@
   "author": "Kevin Hallmark <dollarwise@littleblackhat.com>",
   "description": "Shared ESLint configuration for DollarWise",
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
+    "@eslint/js": "^9.39.4",
     "@eslint/markdown": "^7.5.1",
     "@types/eslint": "^9.6.1",
     "@types/node": "^25.0.9",

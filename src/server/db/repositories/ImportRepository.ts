@@ -53,7 +53,14 @@ export class ImportRepository extends BaseRepository<IImportCreateDTO, IImportCr
       '(id, package_id, module_id, source, specifiers_json, is_type_only)',
       6,
       items,
-      (dto) => [dto.id, dto.package_id, dto.module_id, dto.source, dto.specifiers_json ?? null, dto.is_type_only ?? false]
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.source,
+        dto.specifiers_json ?? null,
+        dto.is_type_only ?? false,
+      ]
     );
   }
 

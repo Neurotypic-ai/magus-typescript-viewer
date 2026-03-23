@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PackageRepository } from '../PackageRepository';
 import { Package } from '../../../../shared/types/Package';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
+import { PackageRepository } from '../PackageRepository';
 
-import type { IDatabaseAdapter, QueryParams } from '../../adapter/IDatabaseAdapter';
 import type { IPackageCreateDTO } from '../../../../shared/types/dto/PackageDTO';
+import type { IDatabaseAdapter, QueryParams } from '../../adapter/IDatabaseAdapter';
 import type { IPackageRow } from '../../types/DatabaseResults';
 
 // ---------------------------------------------------------------------------
@@ -229,9 +229,15 @@ describe('PackageRepository', () => {
       const row = makePackageRow();
       vi.mocked(adapter.query)
         .mockResolvedValueOnce([row]) // package INSERT
-        .mockResolvedValueOnce([{ id: 'pkg-1_d1', source_id: 'pkg-1', target_id: 'd1', type: 'dependency', created_at: NOW_ISO }])
-        .mockResolvedValueOnce([{ id: 'pkg-1_d2', source_id: 'pkg-1', target_id: 'd2', type: 'devDependency', created_at: NOW_ISO }])
-        .mockResolvedValueOnce([{ id: 'pkg-1_d3', source_id: 'pkg-1', target_id: 'd3', type: 'peerDependency', created_at: NOW_ISO }]);
+        .mockResolvedValueOnce([
+          { id: 'pkg-1_d1', source_id: 'pkg-1', target_id: 'd1', type: 'dependency', created_at: NOW_ISO },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'pkg-1_d2', source_id: 'pkg-1', target_id: 'd2', type: 'devDependency', created_at: NOW_ISO },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'pkg-1_d3', source_id: 'pkg-1', target_id: 'd3', type: 'peerDependency', created_at: NOW_ISO },
+        ]);
 
       const dto = makeCreateDTO({
         dependencies: new Map([['dep-a', 'd1']]),
@@ -377,9 +383,7 @@ describe('PackageRepository', () => {
     });
 
     it('filters by module_id when module_id is provided', async () => {
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([]) // SELECT with WHERE module_id = ?
-        ;
+      vi.mocked(adapter.query).mockResolvedValueOnce([]); // SELECT with WHERE module_id = ?
 
       await repo.retrieve(undefined, 'mod-1');
 
@@ -390,9 +394,7 @@ describe('PackageRepository', () => {
     });
 
     it('filters by both id and module_id when both are provided', async () => {
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([]) // SELECT with WHERE id = ? AND module_id = ?
-        ;
+      vi.mocked(adapter.query).mockResolvedValueOnce([]); // SELECT with WHERE id = ? AND module_id = ?
 
       await repo.retrieve('pkg-1', 'mod-1');
 
@@ -596,9 +598,15 @@ describe('PackageRepository', () => {
       const row = makePackageRow();
       vi.mocked(adapter.query)
         .mockResolvedValueOnce([row]) // package INSERT
-        .mockResolvedValueOnce([{ id: 'd1', source_id: 'pkg-1', target_id: 'a', type: 'dependency', created_at: NOW_ISO }])
-        .mockResolvedValueOnce([{ id: 'd2', source_id: 'pkg-1', target_id: 'b', type: 'dependency', created_at: NOW_ISO }])
-        .mockResolvedValueOnce([{ id: 'd3', source_id: 'pkg-1', target_id: 'c', type: 'dependency', created_at: NOW_ISO }]);
+        .mockResolvedValueOnce([
+          { id: 'd1', source_id: 'pkg-1', target_id: 'a', type: 'dependency', created_at: NOW_ISO },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'd2', source_id: 'pkg-1', target_id: 'b', type: 'dependency', created_at: NOW_ISO },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'd3', source_id: 'pkg-1', target_id: 'c', type: 'dependency', created_at: NOW_ISO },
+        ]);
 
       const dto = makeCreateDTO({
         dependencies: new Map([
@@ -616,9 +624,7 @@ describe('PackageRepository', () => {
 
     it('returns Package instances with correct Date objects from retrieve', async () => {
       const row = makePackageRow({ created_at: '2024-06-15T09:30:00.000Z' });
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([row])
-        .mockResolvedValueOnce([]); // dep hydration
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]).mockResolvedValueOnce([]); // dep hydration
 
       const results = await repo.retrieve('pkg-1');
 
@@ -636,9 +642,7 @@ describe('PackageRepository', () => {
         created_at: '2025-01-01T00:00:00.000Z',
       } as IPackageRow;
 
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([row])
-        .mockResolvedValueOnce([]); // dep hydration
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]).mockResolvedValueOnce([]); // dep hydration
 
       const results = await repo.retrieve('pkg-1');
       const pkg = results[0]!;

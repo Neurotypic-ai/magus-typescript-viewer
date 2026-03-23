@@ -1,9 +1,11 @@
-import type { ASTNode } from 'jscodeshift';
-import type { ParseResult } from '../ParseResult';
-import type { ModuleParserContext } from './types';
+import { generateInterfaceUUID } from '../../utils/uuid';
 import { getHeritageClauseName } from './astUtils';
 import { parseMethods, parseProperties } from './parseMembersShared';
-import { generateInterfaceUUID } from '../../utils/uuid';
+
+import type { ASTNode } from 'jscodeshift';
+
+import type { ParseResult } from '../ParseResult';
+import type { ModuleParserContext } from './types';
 
 export function parseInterfaces(ctx: ModuleParserContext, result: ParseResult): void {
   ctx.root.find(ctx.j.TSInterfaceDeclaration).forEach((path) => {

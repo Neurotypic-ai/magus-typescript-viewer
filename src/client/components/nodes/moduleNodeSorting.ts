@@ -1,8 +1,8 @@
+import type { Method } from '../../../shared/types/Method';
+import type { Property } from '../../../shared/types/Property';
 import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from '../../../shared/types/graph/EmbeddedSymbol';
 import type { ExternalDependencyRef } from '../../../shared/types/graph/ExternalDependencyRef';
-import type { Method } from '../../../shared/types/Method';
-import type { Property } from '../../../shared/types/Property';
 
 const alphabeticCollator = new Intl.Collator(undefined, {
   numeric: true,
@@ -21,14 +21,13 @@ function compareMaybeString(left: string | undefined, right: string | undefined)
 
 function sortNodeMethods(methods: Method[]): Method[] {
   return [...methods].sort(
-    (left, right) =>
-      compareMaybeString(left.name, right.name) || compareMaybeString(left.signature, right.signature),
+    (left, right) => compareMaybeString(left.name, right.name) || compareMaybeString(left.signature, right.signature)
   );
 }
 
 export function sortNodeProperties(properties: Property[]): Property[] {
   return [...properties].sort(
-    (left, right) => compareMaybeString(left.name, right.name) || compareMaybeString(left.type, right.type),
+    (left, right) => compareMaybeString(left.name, right.name) || compareMaybeString(left.type, right.type)
   );
 }
 
@@ -40,8 +39,7 @@ export function sortExternalDependencies(dependencies: ExternalDependencyRef[]):
     }))
     .sort(
       (left, right) =>
-        compareMaybeString(left.packageName, right.packageName) ||
-        compareMaybeString(left.symbols[0], right.symbols[0]),
+        compareMaybeString(left.packageName, right.packageName) || compareMaybeString(left.symbols[0], right.symbols[0])
     );
 }
 
@@ -52,10 +50,7 @@ export function sortEmbeddedSymbols(symbols: EmbeddedSymbol[]): EmbeddedSymbol[]
       properties: sortNodeProperties(symbol.properties),
       methods: sortNodeMethods(symbol.methods),
     }))
-    .sort(
-      (left, right) =>
-        compareMaybeString(left.name, right.name) || compareMaybeString(left.type, right.type),
-    );
+    .sort((left, right) => compareMaybeString(left.name, right.name) || compareMaybeString(left.type, right.type));
 }
 
 export function sortModuleEntities(entities: EmbeddedModuleEntity[]): EmbeddedModuleEntity[] {
@@ -63,7 +58,7 @@ export function sortModuleEntities(entities: EmbeddedModuleEntity[]): EmbeddedMo
     (left, right) =>
       compareMaybeString(left.name, right.name) ||
       compareMaybeString(left.type, right.type) ||
-      compareMaybeString(left.detail, right.detail),
+      compareMaybeString(left.detail, right.detail)
   );
 }
 

@@ -1,5 +1,10 @@
 import type { Ref } from 'vue';
 
+import type { PackageGraph } from '../../shared/types/Package';
+import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
+import type { GraphViewMode } from '../stores/graphStore';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
 import type {
   FitView,
   GraphLayoutInteraction,
@@ -11,11 +16,6 @@ import type {
   UpdateNodeInternals,
   UseGraphLayoutOptions,
 } from './useGraphLayout';
-import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
-import type { DependencyNode } from '../types/DependencyNode';
-import type { PackageGraph } from '../../shared/types/Package';
-import type { GraphEdge } from '../types/GraphEdge';
-import type { GraphViewMode } from '../stores/graphStore';
 
 interface LayoutOptionsGraphStoreSource {
   nodes: DependencyNode[];

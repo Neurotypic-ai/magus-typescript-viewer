@@ -6,6 +6,7 @@ import type {
   TSInterfaceDeclaration,
   TSPropertySignature,
 } from 'jscodeshift';
+
 import type { Transform } from '../Transform';
 
 interface ExtractTypeUnionContext {
@@ -87,18 +88,13 @@ export const extractTypeUnion: Transform = {
       const unionType = innerType;
 
       // Replace property type with reference to new type alias
-      targetProp.typeAnnotation = j.tsTypeAnnotation(
-        j.tsTypeReference(j.identifier(suggestedName))
-      );
+      targetProp.typeAnnotation = j.tsTypeAnnotation(j.tsTypeReference(j.identifier(suggestedName)));
 
       // Determine if the parent is exported
       const isExported = isExportedDeclaration(ifacePath);
 
       // Build the type alias declaration
-      const typeAlias = j.tsTypeAliasDeclaration(
-        j.identifier(suggestedName),
-        unionType
-      );
+      const typeAlias = j.tsTypeAliasDeclaration(j.identifier(suggestedName), unionType);
 
       // Insert before the parent declaration (or its export wrapper)
       const insertTarget = getInsertTarget(ifacePath, isExported);
@@ -133,16 +129,17 @@ export const extractTypeUnion: Transform = {
       }
 
       const typeAnnotation = targetProp.typeAnnotation;
-      if (!typeAnnotation || (typeAnnotation as { typeAnnotation?: { type?: string } }).typeAnnotation?.type !== 'TSUnionType') {
+      if (
+        !typeAnnotation ||
+        (typeAnnotation as { typeAnnotation?: { type?: string } }).typeAnnotation?.type !== 'TSUnionType'
+      ) {
         throw new Error(`Property '${propertyName}' does not have a union type annotation`);
       }
 
       const fullAnnotation = typeAnnotation as { typeAnnotation: { type: string } };
       const unionType = fullAnnotation.typeAnnotation;
 
-      targetProp.typeAnnotation = j.tsTypeAnnotation(
-        j.tsTypeReference(j.identifier(suggestedName))
-      );
+      targetProp.typeAnnotation = j.tsTypeAnnotation(j.tsTypeReference(j.identifier(suggestedName)));
 
       const isExported = isExportedDeclaration(classPath);
 

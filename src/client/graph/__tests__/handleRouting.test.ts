@@ -23,4 +23,3 @@ describe('handleRouting', () => {
     expect(selectFolderHandle('BT', 'outgoing')).toBe('folder-top-out');
   });
 });
-

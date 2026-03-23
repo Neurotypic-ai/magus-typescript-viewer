@@ -1,5 +1,9 @@
-import { defineStore, type SetupStoreDefinition } from 'pinia';
-import { computed, ref, type ComputedRef, type Ref } from 'vue';
+import { computed, ref } from 'vue';
+
+import { defineStore } from 'pinia';
+
+import type { SetupStoreDefinition } from 'pinia';
+import type { ComputedRef, Ref } from 'vue';
 
 export const DEFAULT_RELATIONSHIP_TYPES = [
   'import',
@@ -214,7 +218,7 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
   };
 };
 
-export const useGraphSettings: SetupStoreDefinition<
+export const useGraphSettings: SetupStoreDefinition<'graphSettings', GraphSettingsStore> = defineStore(
   'graphSettings',
-  GraphSettingsStore
-> = defineStore('graphSettings', createGraphSettingsStore);
+  createGraphSettingsStore
+);

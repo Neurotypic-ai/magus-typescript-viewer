@@ -8,6 +8,7 @@
  * src/client/utils/collections.ts: typeCollectionToArray() and mapTypeCollection().
  */
 import { mapTypeCollection, typeCollectionToArray } from '../../../client/utils/collections';
+
 import type { TypeCollection } from '../TypeCollection';
 
 describe('typeCollectionToArray', () => {
@@ -224,7 +225,10 @@ describe('mapTypeCollection', () => {
 
     it('handles mapper that returns arrays', () => {
       const result = mapTypeCollection([1, 2], (n) => [n, n * 2]);
-      expect(result).toEqual([[1, 2], [2, 4]]);
+      expect(result).toEqual([
+        [1, 2],
+        [2, 4],
+      ]);
     });
   });
 

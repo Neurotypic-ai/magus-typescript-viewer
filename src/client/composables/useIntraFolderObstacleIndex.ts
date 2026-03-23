@@ -1,4 +1,5 @@
 import { computed } from 'vue';
+
 import { useVueFlow } from '@vue-flow/core';
 
 /** Axis-aligned bounding rectangle used for obstacle-aware routing. */
@@ -95,9 +96,7 @@ export function useIntraFolderObstacleIndex(): IntraFolderObstacleIndex {
       // Sorting by nodeId ensures stability regardless of iteration order.
       const sortedEntries = [...group].sort((a, b) => (a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0));
       const versionInput = sortedEntries
-        .map((entry) =>
-          [entry.nodeId, entry.x, entry.y, entry.width, entry.height].join(':'),
-        )
+        .map((entry) => [entry.nodeId, entry.x, entry.y, entry.width, entry.height].join(':'))
         .join('|');
       const version = simpleHash(versionInput);
 

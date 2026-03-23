@@ -1,5 +1,6 @@
-import { consola } from 'consola';
 import { nextTick, ref } from 'vue';
+
+import { consola } from 'consola';
 
 import { buildOverviewGraph } from '../graph/buildGraphView';
 import { getHandlePositions } from '../graph/handleRouting';
@@ -9,11 +10,11 @@ import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLay
 
 import type { Ref } from 'vue';
 
+import type { PackageGraph } from '../../shared/types/Package';
+import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 
 const layoutLogger = consola.withTag('GraphLayout');
 
@@ -255,11 +256,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         const pos = layoutResult.positions.get(node.id);
         const rawSize = layoutResult.sizes.get(node.id);
         const sz =
-          rawSize &&
-          typeof rawSize.width === 'number' &&
-          typeof rawSize.height === 'number'
-            ? rawSize
-            : undefined;
+          rawSize && typeof rawSize.width === 'number' && typeof rawSize.height === 'number' ? rawSize : undefined;
         const styleBase =
           node.style && typeof node.style === 'object' && !Array.isArray(node.style)
             ? (node.style as Record<string, string | number>)
@@ -284,9 +281,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       const previousNodes = graphStore.nodes;
 
       const finalNodes =
-        graphStore.manualOffsets.size > 0
-          ? graphStore.applyManualOffsets(normalized.nodes)
-          : normalized.nodes;
+        graphStore.manualOffsets.size > 0 ? graphStore.applyManualOffsets(normalized.nodes) : normalized.nodes;
 
       graphStore.setNodes(finalNodes);
       graphStore.setEdges(normalized.edges);

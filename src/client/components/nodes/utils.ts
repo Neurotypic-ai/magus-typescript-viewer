@@ -1,13 +1,14 @@
+import { buildTypeDisplayModel } from './typeDisplay';
+
 import type { Position } from '@vue-flow/core';
 import type { InjectionKey, Ref } from 'vue';
 
+import type { Method } from '../../../shared/types/Method';
+import type { Property } from '../../../shared/types/Property';
 import type { DependencyData } from '../../../shared/types/graph/DependencyData';
 import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
 import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
-import type { Method } from '../../../shared/types/Method';
-import type { Property } from '../../../shared/types/Property';
-
-import { buildTypeDisplayModel, type TypeDisplayModel } from './typeDisplay';
+import type { TypeDisplayModel } from './typeDisplay';
 
 /**
  * Injection key for node actions provided by the graph root.
@@ -41,8 +42,7 @@ export interface FolderCollapseActions {
   toggleFolderCollapsed: (folderId: string) => void;
 }
 
-export const FOLDER_COLLAPSE_ACTIONS_KEY: InjectionKey<FolderCollapseActions> =
-  Symbol('folder-collapse-actions');
+export const FOLDER_COLLAPSE_ACTIONS_KEY: InjectionKey<FolderCollapseActions> = Symbol('folder-collapse-actions');
 
 /**
  * Input type compatible with Vue's DefineProps, which adds `| undefined` to optional properties.
@@ -187,12 +187,11 @@ interface SubnodesCount {
  * Normalizes the loosely-typed `subnodes` bag into concrete numbers.
  */
 export function resolveSubnodesCount(
-  subnodes: { count?: number; totalCount?: number; hiddenCount?: number } | undefined,
+  subnodes: { count?: number; totalCount?: number; hiddenCount?: number } | undefined
 ): SubnodesCount {
   const count = typeof subnodes?.count === 'number' ? subnodes.count : 0;
   const totalCount = typeof subnodes?.totalCount === 'number' ? subnodes.totalCount : count;
-  const hiddenCount = typeof subnodes?.hiddenCount === 'number'
-    ? Math.max(0, subnodes.hiddenCount)
-    : Math.max(0, totalCount - count);
+  const hiddenCount =
+    typeof subnodes?.hiddenCount === 'number' ? Math.max(0, subnodes.hiddenCount) : Math.max(0, totalCount - count);
   return { count, totalCount, hiddenCount };
 }

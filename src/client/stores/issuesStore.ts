@@ -1,7 +1,11 @@
-import { defineStore, type SetupStoreDefinition } from 'pinia';
-import { computed, ref, type ComputedRef, type Ref } from 'vue';
+import { computed, ref } from 'vue';
+
+import { defineStore } from 'pinia';
 
 import { getApiBaseUrl } from '../assemblers/api';
+
+import type { SetupStoreDefinition } from 'pinia';
+import type { ComputedRef, Ref } from 'vue';
 
 import type { CodeIssueRef } from '../../shared/types/api/CodeIssueRef';
 
@@ -85,10 +89,7 @@ const createIssuesStore = (): IssuesStore => {
     if (!selectedNodeFilter.value) return issues.value;
     const nodeId = selectedNodeFilter.value;
     return issues.value.filter(
-      (issue) =>
-        issue.module_id === nodeId ||
-        issue.entity_id === nodeId ||
-        issue.parent_entity_id === nodeId
+      (issue) => issue.module_id === nodeId || issue.entity_id === nodeId || issue.parent_entity_id === nodeId
     );
   });
 
@@ -192,7 +193,4 @@ const createIssuesStore = (): IssuesStore => {
   };
 };
 
-export const useIssuesStore: SetupStoreDefinition<
-  'issues',
-  IssuesStore
-> = defineStore('issues', createIssuesStore);
+export const useIssuesStore: SetupStoreDefinition<'issues', IssuesStore> = defineStore('issues', createIssuesStore);

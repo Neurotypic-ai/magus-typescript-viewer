@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 
-import { RulesEngine } from '../RulesEngine';
 import { defaultRulesConfig } from '../RulesConfig';
+import { RulesEngine } from '../RulesEngine';
 
 import type { ParseResult } from '../../parsers/ParseResult';
 import type { CodeIssue, Rule, RuleContext } from '../Rule';
@@ -326,9 +326,7 @@ describe('RulesEngine', () => {
   // -------------------------------------------------------------------------
   describe('error handling', () => {
     it('continues to next module when readFile throws', async () => {
-      readFileMock
-        .mockRejectedValueOnce(new Error('ENOENT: file not found'))
-        .mockResolvedValueOnce('const y = 2;');
+      readFileMock.mockRejectedValueOnce(new Error('ENOENT: file not found')).mockResolvedValueOnce('const y = 2;');
 
       const rule = createMockRule('recover-rule');
       const parseResult = emptyParseResult({
@@ -368,7 +366,12 @@ describe('RulesEngine', () => {
             id: 'mod-invalid',
             package_id: 'pkg-1',
             name: 'InvalidMod',
-            source: { directory: '/fake', name: 'InvalidMod', filename: '/fake/invalid.ts', relativePath: 'invalid.ts' },
+            source: {
+              directory: '/fake',
+              name: 'InvalidMod',
+              filename: '/fake/invalid.ts',
+              relativePath: 'invalid.ts',
+            },
           },
           {
             id: 'mod-valid',

@@ -1,22 +1,22 @@
 import {
-  isExternalImport,
-  normalizePath,
-  getDirname,
-  joinPaths,
-  generatePathVariants,
-  buildModulePathLookup,
-  getPackagePrefixFromImporter,
-  expandCandidatePath,
-  resolveRelativeCandidates,
-  resolveNonRelativeCandidates,
-  resolveModuleId,
   EXTENSIONS,
   FILE_EXTENSION_PATTERN,
   INDEX_FILE_PATTERN,
+  buildModulePathLookup,
+  expandCandidatePath,
+  generatePathVariants,
+  getDirname,
+  getPackagePrefixFromImporter,
+  isExternalImport,
+  joinPaths,
+  normalizePath,
+  resolveModuleId,
+  resolveNonRelativeCandidates,
+  resolveRelativeCandidates,
 } from '../graphEdgeLookups';
 
-import type { ModulePathLookup } from '../graphEdgeLookups';
 import type { PackageGraph } from '../../../shared/types/Package';
+import type { ModulePathLookup } from '../graphEdgeLookups';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -26,7 +26,10 @@ function makeGraph(
   modules: Record<string, { id: string; name: string; relativePath: string }>,
   packageId = 'pkg-1'
 ): PackageGraph {
-  const moduleRecords: Record<string, { id: string; name: string; package_id: string; source: { relativePath: string } }> = {};
+  const moduleRecords: Record<
+    string,
+    { id: string; name: string; package_id: string; source: { relativePath: string } }
+  > = {};
   for (const [key, mod] of Object.entries(modules)) {
     moduleRecords[key] = {
       id: mod.id,

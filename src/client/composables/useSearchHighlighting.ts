@@ -1,10 +1,10 @@
 import { reactive } from 'vue';
 
-import { getEdgeStyle } from '../theme/graphTheme';
-import { measurePerformance } from '../utils/performanceMonitoring';
 import { applyEdgeVisibility, toDependencyEdgeKind } from '../graph/buildGraphView';
 import { parseDimension } from '../layout/geometryBounds';
 import { mergeNodeInteractionStyle, stripEdgeClass, stripNodeClass } from '../theme/graphClasses';
+import { getEdgeStyle } from '../theme/graphTheme';
+import { measurePerformance } from '../utils/performanceMonitoring';
 import { addSetDiff } from '../utils/sets';
 
 import type { Ref } from 'vue';
@@ -32,7 +32,7 @@ interface UseSearchHighlightingOptions {
   perfMarksEnabled: boolean;
 }
 
- interface SearchHighlighting {
+interface SearchHighlighting {
   searchHighlightState: SearchHighlightState;
   handleSearchResult: (result: SearchResult) => void;
   resetSearchHighlightState: () => void;
@@ -109,19 +109,16 @@ export function useSearchHighlighting(options: UseSearchHighlightingOptions): Se
       const isOnPath = hasPath && pathNodeIds.has(node.id);
       const opacity = !hasResults ? 1 : hasPath ? (isOnPath ? 1 : 0.2) : isMatch ? 1 : 0.2;
       const borderWidth =
-        hasPath && isOnPath
-          ? theme.edges.sizes.width.selected
-          : hasPath
-            ? theme.edges.sizes.width.default
-            : undefined;
+        hasPath && isOnPath ? theme.edges.sizes.width.selected : hasPath ? theme.edges.sizes.width.default : undefined;
       const currentStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
       const currentOpacity = parseDimension(currentStyle['opacity']) ?? 1;
       const currentBorderWidth = currentStyle['borderWidth'];
 
       const opacityChanged = Math.abs(currentOpacity - opacity) > 0.001;
-      const currentBorderWidthStr = typeof currentBorderWidth === 'string' || typeof currentBorderWidth === 'number'
-        ? String(currentBorderWidth)
-        : '';
+      const currentBorderWidthStr =
+        typeof currentBorderWidth === 'string' || typeof currentBorderWidth === 'number'
+          ? String(currentBorderWidth)
+          : '';
       const borderWidthChanged = currentBorderWidthStr !== String(borderWidth ?? '');
       const classChanged = node.class !== undefined;
 

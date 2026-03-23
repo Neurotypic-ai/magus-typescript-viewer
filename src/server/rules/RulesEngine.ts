@@ -76,7 +76,9 @@ export class RulesEngine {
       }
     }
 
-    this.logger.info(`Analysis complete: ${String(issues.length)} issues found across ${String(parseResult.modules.length)} modules`);
+    this.logger.info(
+      `Analysis complete: ${String(issues.length)} issues found across ${String(parseResult.modules.length)} modules`
+    );
     return issues;
   }
 }

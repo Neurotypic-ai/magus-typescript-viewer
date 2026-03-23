@@ -1,16 +1,21 @@
 import { nextTick, ref } from 'vue';
 
+import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../graph/buildGraphView';
 import { buildParentMap } from '../graph/cluster/folderMembership';
 import { clusterByFolder } from '../graph/cluster/folders';
 import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
 import { traverseGraph } from '../graph/traversal';
-import { getEdgeStyle } from '../theme/graphTheme';
-import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../graph/buildGraphView';
 import { mergeNodeInteractionStyle, stripNodeClass } from '../theme/graphClasses';
+import { getEdgeStyle } from '../theme/graphTheme';
 import { waitForNextPaint } from '../utils/dom';
 
 import type { Ref } from 'vue';
 
+import type { PackageGraph } from '../../shared/types/Package';
+import type { GraphViewMode } from '../stores/graphStore';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
+import type { ScopeMode } from './useGraphInteractionController';
 import type {
   FitView,
   FitViewOptions,
@@ -20,11 +25,6 @@ import type {
   ProcessGraphLayout,
   ShouldRunTwoPassMeasure,
 } from './useGraphLayout';
-import type { ScopeMode } from './useGraphInteractionController';
-import type { GraphViewMode } from '../stores/graphStore';
-import type { DependencyNode } from '../types/DependencyNode';
-import type { PackageGraph } from '../../shared/types/Package';
-import type { GraphEdge } from '../types/GraphEdge';
 
 // ── Isolate graph store (subset of full graph store) ──
 
@@ -332,10 +332,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     }
 
     const isolatedSourceNodes = sourceNodes.filter((node) => connectedNodeIds.has(node.id));
-    const styleIsolatedNode = (
-      node: DependencyNode,
-      layoutPositions?: NodePositionMap
-    ) => {
+    const styleIsolatedNode = (node: DependencyNode, layoutPositions?: NodePositionMap) => {
       const baseNode = stripNodeClass(node);
       const layoutPos = layoutPositions?.get(node.id);
       return {
@@ -403,10 +400,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
         .filter((node) => {
           const prev = provisionalNodes.find((p) => p.id === node.id);
           if (!prev) return true;
-          return (
-            prev.position.x !== node.position.x ||
-            prev.position.y !== node.position.y
-          );
+          return prev.position.x !== node.position.x || prev.position.y !== node.position.y;
         })
         .map((node) => node.id);
       if (changedNodeIds.length > 0) {

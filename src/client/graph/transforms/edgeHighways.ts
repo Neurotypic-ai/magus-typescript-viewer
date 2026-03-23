@@ -1,18 +1,19 @@
 import { consola } from 'consola';
 
-import { type EdgeHandleSide, GROUP_ENTRY_STUB_PX, getHandleSide } from '../../layout/edgeGeometryPolicy';
+import { GROUP_ENTRY_STUB_PX, getHandleSide } from '../../layout/edgeGeometryPolicy';
 import { buildAbsoluteNodeBoundsMap } from '../../layout/geometryBounds';
+import { getHandleAnchor } from '../../layout/handleAnchors';
 import { getEdgeStyle } from '../../theme/graphTheme';
 import { createEdgeMarker } from '../../utils/edgeMarkers';
-import { getHandleAnchor } from '../../layout/handleAnchors';
 import { buildNodeToFolderMap } from '../cluster/folderMembership';
 import { EDGE_KIND_PRIORITY } from '../edgePriority';
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
 
-import type { Rect } from '../../layout/geometryBounds';
 import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
+import type { EdgeHandleSide } from '../../layout/edgeGeometryPolicy';
+import type { Rect } from '../../layout/geometryBounds';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 
@@ -152,7 +153,6 @@ const chooseClosestHandle = (
   return bestHandle;
 };
 
-
 export function applyEdgeHighways(
   nodes: DependencyNode[],
   edges: GraphEdge[],
@@ -212,9 +212,7 @@ export function applyEdgeHighways(
 
   if (EDGE_REGISTRY_DEBUG && invalidEdgeRegistryCount > 0) {
     edgeHighwaysLogger.warn(
-      'Skipped ' +
-        String(invalidEdgeRegistryCount) +
-        ' edge(s) with invalid type/source/target kind combinations.',
+      'Skipped ' + String(invalidEdgeRegistryCount) + ' edge(s) with invalid type/source/target kind combinations.',
       { sample: invalidEdgeRegistrySamples }
     );
   }

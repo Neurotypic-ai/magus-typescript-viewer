@@ -151,4 +151,3 @@ export function traverseGraph(startNodeId: string, options: TraversalOptions): T
     depthMap,
   };
 }
-

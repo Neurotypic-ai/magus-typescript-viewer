@@ -1,4 +1,4 @@
-import { computeSccs, collapseSccs } from '../scc';
+import { collapseSccs, computeSccs } from '../scc';
 
 import type { DependencyNode } from '../../../types/DependencyNode';
 import type { GraphEdge } from '../../../types/GraphEdge';
@@ -92,13 +92,7 @@ describe('computeSccs', () => {
   });
 
   it('finds two separate SCCs for two disjoint cycles', () => {
-    const nodes = [
-      moduleNode('A'),
-      moduleNode('B'),
-      moduleNode('C'),
-      moduleNode('X'),
-      moduleNode('Y'),
-    ];
+    const nodes = [moduleNode('A'), moduleNode('B'), moduleNode('C'), moduleNode('X'), moduleNode('Y')];
     const edges = [
       // cycle 1: A->B->C->A
       depEdge('A', 'B'),
@@ -122,12 +116,7 @@ describe('computeSccs', () => {
     //   \ /
     //    D
     const nodes = [moduleNode('A'), moduleNode('B'), moduleNode('C'), moduleNode('D')];
-    const edges = [
-      depEdge('A', 'B'),
-      depEdge('A', 'C'),
-      depEdge('B', 'D'),
-      depEdge('C', 'D'),
-    ];
+    const edges = [depEdge('A', 'B'), depEdge('A', 'C'), depEdge('B', 'D'), depEdge('C', 'D')];
 
     const result = computeSccs(nodes, edges);
     expect(result).toEqual([]);
@@ -136,12 +125,7 @@ describe('computeSccs', () => {
   it('handles a fully-connected 4-node cycle', () => {
     // A->B->C->D->A (one big cycle)
     const nodes = [moduleNode('A'), moduleNode('B'), moduleNode('C'), moduleNode('D')];
-    const edges = [
-      depEdge('A', 'B'),
-      depEdge('B', 'C'),
-      depEdge('C', 'D'),
-      depEdge('D', 'A'),
-    ];
+    const edges = [depEdge('A', 'B'), depEdge('B', 'C'), depEdge('C', 'D'), depEdge('D', 'A')];
 
     const sccs = normalisedSccs(nodes, edges);
     expect(sccs).toHaveLength(1);
@@ -240,13 +224,7 @@ describe('computeSccs', () => {
     // A->B->C->A and B->D->C form cycles that share nodes B and C
     // So A, B, C, D should all be in one SCC
     const nodes = [moduleNode('A'), moduleNode('B'), moduleNode('C'), moduleNode('D')];
-    const edges = [
-      depEdge('A', 'B'),
-      depEdge('B', 'C'),
-      depEdge('C', 'A'),
-      depEdge('B', 'D'),
-      depEdge('D', 'C'),
-    ];
+    const edges = [depEdge('A', 'B'), depEdge('B', 'C'), depEdge('C', 'A'), depEdge('B', 'D'), depEdge('D', 'C')];
 
     const sccs = normalisedSccs(nodes, edges);
     expect(sccs).toHaveLength(1);
@@ -366,18 +344,8 @@ describe('collapseSccs', () => {
   });
 
   it('handles two separate cycles creating two group nodes', () => {
-    const nodes = [
-      moduleNode('A'),
-      moduleNode('B'),
-      moduleNode('X'),
-      moduleNode('Y'),
-    ];
-    const edges = [
-      depEdge('A', 'B'),
-      depEdge('B', 'A'),
-      depEdge('X', 'Y'),
-      depEdge('Y', 'X'),
-    ];
+    const nodes = [moduleNode('A'), moduleNode('B'), moduleNode('X'), moduleNode('Y')];
+    const edges = [depEdge('A', 'B'), depEdge('B', 'A'), depEdge('X', 'Y'), depEdge('Y', 'X')];
 
     const result = collapseSccs(nodes, edges);
     const groupNodes = result.nodes.filter((n) => n.type === 'group');

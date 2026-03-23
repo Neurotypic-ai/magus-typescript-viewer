@@ -28,8 +28,12 @@ watch(isOpen, (nextIsOpen) => {
 
 useExpandCollapseState(
   () => isOpen.value,
-  (saved) => { isOpen.value = saved; },
-  () => { isOpen.value = true; },
+  (saved) => {
+    isOpen.value = saved;
+  },
+  () => {
+    isOpen.value = true;
+  }
 );
 </script>
 

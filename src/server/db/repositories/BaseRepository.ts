@@ -3,6 +3,7 @@ import { consola } from 'consola';
 import { RepositoryError } from '../errors/RepositoryError';
 
 import type { ConsolaInstance } from 'consola';
+
 import type { DatabaseRow, IDatabaseAdapter, QueryParams } from '../adapter/IDatabaseAdapter';
 
 interface IBaseEntity {
@@ -23,9 +24,11 @@ class DatabaseResultError extends RepositoryError {
   }
 }
 
-export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO>
-  implements IBaseRepository<T, CreateDTO, UpdateDTO>
-{
+export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO> implements IBaseRepository<
+  T,
+  CreateDTO,
+  UpdateDTO
+> {
   protected adapter: IDatabaseAdapter;
   protected readonly errorTag: string;
   protected readonly tableName: string;
@@ -143,10 +146,7 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
       const placeholders = chunk.map(() => singleRowPlaceholder).join(', ');
       const params = chunk.flatMap(itemToParams);
       try {
-        await this.adapter.query(
-          `INSERT INTO ${this.tableName} ${columns} VALUES ${placeholders}`,
-          params
-        );
+        await this.adapter.query(`INSERT INTO ${this.tableName} ${columns} VALUES ${placeholders}`, params);
       } catch (error) {
         const msg = error instanceof Error ? error.message : '';
         // Ignore duplicate constraint violations
@@ -160,7 +160,11 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
               );
             } catch (innerError) {
               const innerMsg = innerError instanceof Error ? innerError.message : '';
-              if (innerMsg.includes('Duplicate') || innerMsg.includes('UNIQUE') || innerMsg.includes('already exists')) {
+              if (
+                innerMsg.includes('Duplicate') ||
+                innerMsg.includes('UNIQUE') ||
+                innerMsg.includes('already exists')
+              ) {
                 continue;
               }
               throw innerError;

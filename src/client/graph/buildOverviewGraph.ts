@@ -4,24 +4,20 @@
 
 import { consola } from 'consola';
 
+import { createGraphEdges } from '../utils/createGraphEdges';
+import { createGraphNodes } from '../utils/createGraphNodes';
 import { collapseFolders } from './cluster/collapseFolders';
 import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
+import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
 import { applyEdgeHighways } from './transforms/edgeHighways';
-import { createGraphEdges } from '../utils/createGraphEdges';
-import { createGraphNodes } from '../utils/createGraphNodes';
-import {
-  filterEdgesByNodeSet,
-  bundleParallelEdges,
-  applyEdgeVisibility,
-  type GraphViewData,
-} from './graphViewShared';
 
-import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
-import type { DependencyData } from '../../shared/types/graph/DependencyData';
-import type { DependencyNode } from '../types/DependencyNode';
 import type { PackageGraph } from '../../shared/types/Package';
+import type { DependencyData } from '../../shared/types/graph/DependencyData';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
+import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { GraphViewData } from './graphViewShared';
 
 const EDGE_REGISTRY_DEBUG =
   import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
@@ -102,11 +98,7 @@ function filterGraphByTestVisibility(graphData: GraphViewData, hideTestFiles: bo
   };
 }
 
-function buildDegreeMap(
-  nodes: DependencyNode[],
-  edges: GraphEdge[],
-  includeHiddenEdges = false
-): Map<string, number> {
+function buildDegreeMap(nodes: DependencyNode[], edges: GraphEdge[], includeHiddenEdges = false): Map<string, number> {
   const degreeMap = new Map<string, number>();
   nodes.forEach((node) => degreeMap.set(node.id, 0));
   edges.forEach((edge) => {
@@ -177,11 +169,7 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     direction: options.direction,
   });
   if (options.collapsedFolderIds.size > 0) {
-    const folderCollapsed = collapseFolders(
-      projectedGraph.nodes,
-      projectedGraph.edges,
-      options.collapsedFolderIds
-    );
+    const folderCollapsed = collapseFolders(projectedGraph.nodes, projectedGraph.edges, options.collapsedFolderIds);
     projectedGraph = { nodes: folderCollapsed.nodes, edges: folderCollapsed.edges };
   }
 
@@ -189,11 +177,7 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const bundledEdges = bundleParallelEdges(visibleEdges);
   const currentDegreeMap = buildDegreeMap(projectedGraph.nodes, bundledEdges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
-  const nodesWithDiagnostics = annotateOrphanDiagnostics(
-    projectedGraph.nodes,
-    currentDegreeMap,
-    globalDegreeMap
-  );
+  const nodesWithDiagnostics = annotateOrphanDiagnostics(projectedGraph.nodes, currentDegreeMap, globalDegreeMap);
 
   return {
     nodes: nodesWithDiagnostics,

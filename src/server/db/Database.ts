@@ -81,9 +81,7 @@ export class Database {
     ]);
 
     // Imports table
-    await this.ensureColumns('imports', [
-      { name: 'specifiers_json', definition: 'specifiers_json TEXT' },
-    ]);
+    await this.ensureColumns('imports', [{ name: 'specifiers_json', definition: 'specifiers_json TEXT' }]);
 
     // Ensure code_issues table exists (optional — not in requiredTables)
     try {

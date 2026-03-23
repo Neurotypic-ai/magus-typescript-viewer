@@ -7,31 +7,28 @@ withDefaults(
     /** Graph nodes default to right-aligned type column; panels often need left. */
     textAlign?: 'left' | 'right';
   }>(),
-  { textAlign: 'right' },
+  { textAlign: 'right' }
 );
 </script>
 
 <template>
-  <div class="type-annotation-root" :class="textAlign === 'left' ? 'type-annotation-root--left' : 'type-annotation-root--right'">
+  <div
+    class="type-annotation-root"
+    :class="textAlign === 'left' ? 'type-annotation-root--left' : 'type-annotation-root--right'"
+  >
     <template v-if="model.kind === 'plain'">
       <code class="type-annotation-plain">{{ model.raw }}</code>
     </template>
 
-    <ul
-      v-else-if="model.kind === 'unionRows' && model.unionMembers"
-      class="type-union-list"
-      role="list"
-    >
+    <ul v-else-if="model.kind === 'unionRows' && model.unionMembers" class="type-union-list" role="list">
       <li v-for="(member, idx) in model.unionMembers" :key="`${idx}-${member}`" role="listitem">
         <code class="type-union-member">{{ member }}</code>
       </li>
     </ul>
 
-    <pre
-      v-else-if="model.kind === 'objectBlock' && model.objectBlock"
-      class="type-object-block"
-      >{{ model.objectBlock }}</pre
-    >
+    <pre v-else-if="model.kind === 'objectBlock' && model.objectBlock" class="type-object-block">{{
+      model.objectBlock
+    }}</pre>
   </div>
 </template>
 

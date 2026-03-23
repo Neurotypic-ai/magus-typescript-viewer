@@ -1,5 +1,6 @@
 import type { Parameter } from './Parameter';
 import type { TypeCollection } from './TypeCollection';
+
 /**
  * Type guard to check if a parent is a Method
  */

@@ -6,8 +6,8 @@ import { BaseRepository } from './BaseRepository';
 import type { DuckDBValue } from '@duckdb/node-api';
 
 import type { VisibilityType } from '../../../shared/types/VisibilityType';
-import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IMethodCreateDTO, IMethodUpdateDTO } from '../../../shared/types/dto/MethodDTO';
+import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IMethodRow, IParameterRow } from '../types/DatabaseResults';
 
 export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, IMethodUpdateDTO> {
@@ -147,7 +147,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
             method.module_id,
             method.parent_id,
             method.name,
-            String(method.created_at),
+            method.created_at,
             new Map<string, Parameter>(),
             method.return_type,
             method.is_static,
@@ -242,7 +242,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
               p.module_id,
               p.method_id,
               p.name,
-              String(p.created_at),
+              p.created_at,
               p.type,
               Boolean(p.is_optional),
               Boolean(p.is_rest),
@@ -257,7 +257,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
           method.module_id,
           method.parent_id,
           method.name,
-          String((method as unknown as { created_at?: string }).created_at ?? new Date().toISOString()),
+          (method as unknown as { created_at?: string }).created_at ?? new Date().toISOString(),
           methodParameters,
           method.return_type,
           method.is_static,
@@ -333,7 +333,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
                 p.module_id,
                 p.method_id,
                 p.name,
-                String(p.created_at),
+                p.created_at,
                 p.type,
                 Boolean(p.is_optional),
                 Boolean(p.is_rest),
@@ -351,7 +351,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
             method.module_id,
             method.parent_id,
             method.name,
-            String((method as unknown as { created_at?: string }).created_at ?? new Date().toISOString()),
+            (method as unknown as { created_at?: string }).created_at ?? new Date().toISOString(),
             methodParameters,
             method.return_type,
             method.is_static,
@@ -372,29 +372,4 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
       );
     }
   }
-}
-
-/**
- * Repository interface for managing methods.
- */
-export interface IMethodRepository {
-  /**
-   * Creates a new method.
-   */
-  create(dto: IMethodCreateDTO): Promise<Method>;
-
-  /**
-   * Finds a method by its ID.
-   */
-  findById(id: string): Promise<IMethodCreateDTO | null>;
-
-  /**
-   * Finds all methods in a parent (class or interface).
-   */
-  findByParentId(parentId: string): Promise<IMethodCreateDTO[]>;
-
-  /**
-   * Deletes a method by its ID.
-   */
-  delete(id: string): Promise<void>;
 }

@@ -25,9 +25,7 @@ const issuesStore = useIssuesStore();
 const nodeIssues = computed(() => {
   return issuesStore.issues.filter(
     (issue) =>
-      issue.module_id === props.nodeId ||
-      issue.entity_id === props.nodeId ||
-      issue.parent_entity_id === props.nodeId
+      issue.module_id === props.nodeId || issue.entity_id === props.nodeId || issue.parent_entity_id === props.nodeId
   );
 });
 
@@ -103,7 +101,7 @@ onUnmounted(() => {
         class="context-menu-item context-menu-item--refactor"
         @click="handlePreview(issue)"
       >
-        <span class="context-menu-icon">&wrench;</span>
+        <span class="context-menu-icon">&#128190;</span>
         {{ issue.suggestion ?? 'Preview refactoring' }}
       </button>
     </template>

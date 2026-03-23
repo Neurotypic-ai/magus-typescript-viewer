@@ -2,19 +2,12 @@ import { fileURLToPath } from 'url';
 
 import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vite';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 import type { UserConfigExport } from 'vite';
 
 const config: UserConfigExport = defineConfig({
   plugins: [
     vue(),
-    nodePolyfills({
-      globals: {
-        process: true,
-        Buffer: true,
-      },
-    }),
   ],
   server: {
     port: 4000,

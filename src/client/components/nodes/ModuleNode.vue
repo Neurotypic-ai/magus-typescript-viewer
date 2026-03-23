@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, shallowRef, toRef } from 'vue';
 
+import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import EntityListSection from './EntityListSection.vue';
@@ -12,13 +13,12 @@ import {
   sortNodeProperties,
   sortSectionsByTitle,
 } from './moduleNodeSorting';
-import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import { ENTITY_TYPE_CONFIGS, buildBaseNodeProps, formatMethod, formatProperty, resolveSubnodesCount } from './utils';
 
-import type { DependencyProps } from '../../types/DependencyProps';
 import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from '../../../shared/types/graph/EmbeddedSymbol';
 import type { ExternalDependencyRef } from '../../../shared/types/graph/ExternalDependencyRef';
+import type { DependencyProps } from '../../types/DependencyProps';
 
 const props = defineProps<DependencyProps>();
 
@@ -102,9 +102,7 @@ const contentSections = computed<ModuleContentSection[]>(() => {
     });
   }
 
-  const rawEntities = Array.isArray(nodeData.value.moduleEntities)
-    ? nodeData.value.moduleEntities
-    : [];
+  const rawEntities = Array.isArray(nodeData.value.moduleEntities) ? nodeData.value.moduleEntities : [];
   const sortedEntities = sortModuleEntities(rawEntities);
 
   const entitiesByType = new Map<EmbeddedModuleEntity['type'], EmbeddedModuleEntity[]>();
@@ -114,21 +112,18 @@ const contentSections = computed<ModuleContentSection[]>(() => {
     entitiesByType.set(entity.type, group);
   }
 
-  const entityContentSections: EntityContentSection[] = ENTITY_TYPE_CONFIGS
-    .filter((config) => (entitiesByType.get(config.type)?.length ?? 0) > 0)
-    .map((config) => ({
-      kind: 'entity',
-      key: config.type,
-      title: config.title,
-      badgeText: config.badgeText,
-      badgeClass: config.badgeClass,
-      entities: entitiesByType.get(config.type) ?? [],
-    }));
+  const entityContentSections: EntityContentSection[] = ENTITY_TYPE_CONFIGS.filter(
+    (config) => (entitiesByType.get(config.type)?.length ?? 0) > 0
+  ).map((config) => ({
+    kind: 'entity',
+    key: config.type,
+    title: config.title,
+    badgeText: config.badgeText,
+    badgeClass: config.badgeClass,
+    entities: entitiesByType.get(config.type) ?? [],
+  }));
 
-  const sections: ModuleContentSection[] = [
-    ...symbolSections,
-    ...entityContentSections,
-  ];
+  const sections: ModuleContentSection[] = [...symbolSections, ...entityContentSections];
 
   return sortSectionsByTitle(sections);
 });
@@ -150,7 +145,7 @@ const diagnostics = computed(
       | {
           externalDependencyLevel?: 'normal' | 'high' | 'critical';
         }
-      | undefined,
+      | undefined
 );
 
 // Subnodes
@@ -165,7 +160,7 @@ const subnodeMeta = computed(
           byTypeTotal?: Partial<Record<'class' | 'interface', number>>;
           byTypeVisible?: Partial<Record<'class' | 'interface', number>>;
         }
-      | undefined,
+      | undefined
 );
 
 const subnodesResolved = computed(() => resolveSubnodesCount(subnodeMeta.value));
@@ -202,7 +197,7 @@ const baseNodeProps = computed(() =>
     isContainer: hasVueFlowChildren.value,
     showSubnodes: hasVueFlowChildren.value || subnodesResolved.value.hiddenCount > 0,
     subnodesCount: subnodesResolved.value.count,
-  }),
+  })
 );
 
 // Pre-isolate state (CollapsibleSection handles its own open/close state)
@@ -215,7 +210,7 @@ useExpandCollapseState(
   },
   () => {
     expandedSymbols.value = new Set(embeddedSymbols.value.map((s) => s.id));
-  },
+  }
 );
 </script>
 
@@ -254,16 +249,9 @@ useExpandCollapseState(
         :count="externalDependencies.length"
         :default-open="true"
       >
-        <div
-          v-for="dependency in externalDependencies"
-          :key="dependency.packageName"
-          class="external-dependency"
-        >
+        <div v-for="dependency in externalDependencies" :key="dependency.packageName" class="external-dependency">
           <div class="external-dependency-name">{{ dependency.packageName }}</div>
-          <ul
-            class="external-dependency-symbols"
-            :aria-label="`Imported symbols from ${dependency.packageName}`"
-          >
+          <ul class="external-dependency-symbols" :aria-label="`Imported symbols from ${dependency.packageName}`">
             <li v-for="(sym, symIdx) in dependency.symbols" :key="`${dependency.packageName}-${symIdx}-${sym}`">
               <code class="external-dependency-symbol">{{ sym }}</code>
             </li>
@@ -293,11 +281,7 @@ useExpandCollapseState(
       </div>
 
       <div
-        v-if="
-          metadataItems.length === 0 &&
-          externalDependencies.length === 0 &&
-          !hasContentSections
-        "
+        v-if="metadataItems.length === 0 && externalDependencies.length === 0 && !hasContentSections"
         class="module-empty-state"
       >
         No module metadata

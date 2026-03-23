@@ -2,27 +2,22 @@
  * Symbol drilldown graph: expand a selected class/interface/module into members and usages.
  */
 
+import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
 import { mapTypeCollection, typeCollectionToArray } from '../../utils/collections';
 import { createEdgeMarker } from '../../utils/edgeMarkers';
-import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
+import { applyEdgeVisibility, filterEdgesByNodeSet } from '../graphViewShared';
 import { getHandlePositions } from '../handleRouting';
-import { filterEdgesByNodeSet, applyEdgeVisibility } from '../graphViewShared';
-import {
-  findModuleById,
-  normalizeProperty,
-  normalizeMethod,
-  createSymbolEdge,
-} from './symbolHelpers';
+import { createSymbolEdge, findModuleById, normalizeMethod, normalizeProperty } from './symbolHelpers';
 
 import type { Class } from '../../../shared/types/Class';
-import type { DependencyNode } from '../../types/DependencyNode';
-import type { PackageGraph } from '../../../shared/types/Package';
-import type { GraphEdge } from '../../types/GraphEdge';
 import type { Interface } from '../../../shared/types/Interface';
-import type { Module } from '../../../shared/types/Module';
 import type { Method } from '../../../shared/types/Method';
+import type { Module } from '../../../shared/types/Module';
+import type { PackageGraph } from '../../../shared/types/Package';
 import type { Property } from '../../../shared/types/Property';
 import type { SymbolReference } from '../../../shared/types/SymbolReference';
+import type { DependencyNode } from '../../types/DependencyNode';
+import type { GraphEdge } from '../../types/GraphEdge';
 import type { GraphViewData } from '../graphViewShared';
 
 export interface BuildSymbolDrilldownGraphOptions {
@@ -147,7 +142,12 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
     graphEdges.push(createSymbolEdge(moduleId, symbolId, 'contains'));
     properties.forEach((property) => {
       const propertyId = property.id ?? `${symbolId}:property:${property.name}`;
-      const memberNode = createMemberNode(propertyId, 'property', `${property.name}: ${property.type}`, options.direction);
+      const memberNode = createMemberNode(
+        propertyId,
+        'property',
+        `${property.name}: ${property.type}`,
+        options.direction
+      );
       graphNodes.push(memberNode);
       nodeById.set(propertyId, memberNode);
       graphEdges.push(createSymbolEdge(symbolId, propertyId, 'contains'));
@@ -169,12 +169,12 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
   if (context.module.classes) {
     mapTypeCollection(context.module.classes, (cls: Class) => {
       if (!includeAllSymbols && cls.id !== context.focusId) return;
-      const properties = typeCollectionToArray(
-        cls.properties as Record<string, Property> | Property[] | undefined
-      ).map((p) => normalizeProperty(p));
-      const methods = typeCollectionToArray(
-        cls.methods as Record<string, Method> | Method[] | undefined
-      ).map((m) => normalizeMethod(m));
+      const properties = typeCollectionToArray(cls.properties as Record<string, Property> | Property[] | undefined).map(
+        (p) => normalizeProperty(p)
+      );
+      const methods = typeCollectionToArray(cls.methods as Record<string, Method> | Method[] | undefined).map((m) =>
+        normalizeMethod(m)
+      );
       addSymbol(cls.id, 'class', cls.name, properties, methods);
     });
   }
@@ -184,9 +184,9 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
       const properties = typeCollectionToArray(
         iface.properties as Record<string, Property> | Property[] | undefined
       ).map((p) => normalizeProperty(p));
-      const methods = typeCollectionToArray(
-        iface.methods as Record<string, Method> | Method[] | undefined
-      ).map((m) => normalizeMethod(m));
+      const methods = typeCollectionToArray(iface.methods as Record<string, Method> | Method[] | undefined).map((m) =>
+        normalizeMethod(m)
+      );
       addSymbol(iface.id, 'interface', iface.name, properties, methods);
     });
   }

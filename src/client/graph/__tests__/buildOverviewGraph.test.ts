@@ -1,10 +1,10 @@
+import { describe, expect, it } from 'vitest';
+
 import { buildOverviewGraph } from '../buildOverviewGraph';
 
-import type { BuildOverviewGraphOptions } from '../buildOverviewGraph';
-import type { PackageGraph } from '../../../shared/types/Package';
 import type { Module } from '../../../shared/types/Module';
-import type { Package } from '../../../shared/types/Package';
-import { describe, it, expect } from 'vitest';
+import type { Package, PackageGraph } from '../../../shared/types/Package';
+import type { BuildOverviewGraphOptions } from '../buildOverviewGraph';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -22,7 +22,13 @@ function defaultOptions(overrides: Partial<BuildOverviewGraphOptions> = {}): Bui
   };
 }
 
-function makeModule(id: string, name: string, packageId: string, relativePath: string, extra: Partial<Module> = {}): Module {
+function makeModule(
+  id: string,
+  name: string,
+  packageId: string,
+  relativePath: string,
+  extra: Partial<Module> = {}
+): Module {
   return {
     id,
     name,
@@ -228,9 +234,7 @@ describe('buildOverviewGraph', () => {
     }
 
     it('includes test modules when hideTestFiles is false', () => {
-      const result = buildOverviewGraph(
-        defaultOptions({ data: graphWithTestModule(), hideTestFiles: false })
-      );
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithTestModule(), hideTestFiles: false }));
 
       const ids = result.nodes.map((n) => n.id);
       expect(ids).toContain('mod-main');
@@ -238,9 +242,7 @@ describe('buildOverviewGraph', () => {
     });
 
     it('excludes test modules when hideTestFiles is true', () => {
-      const result = buildOverviewGraph(
-        defaultOptions({ data: graphWithTestModule(), hideTestFiles: true })
-      );
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithTestModule(), hideTestFiles: true }));
 
       const ids = result.nodes.map((n) => n.id);
       expect(ids).toContain('mod-main');
@@ -257,9 +259,7 @@ describe('buildOverviewGraph', () => {
       const mod = makeModule('mod-1', 'index.ts', 'pkg-1', 'src/index.ts');
       const pkg = makePackage('pkg-1', 'my-app', { 'mod-1': mod });
 
-      const result = buildOverviewGraph(
-        defaultOptions({ data: makeGraph([pkg]) })
-      );
+      const result = buildOverviewGraph(defaultOptions({ data: makeGraph([pkg]) }));
 
       const packageNode = result.nodes.find((n) => n.type === 'package');
       expect(packageNode).toBeUndefined();
@@ -278,7 +278,9 @@ describe('buildOverviewGraph', () => {
             id: 'cls-1',
             name: 'MyClass',
             properties: [{ id: 'prop-1', name: 'value', type: 'string', visibility: 'public' }],
-            methods: [{ id: 'meth-1', name: 'run', returnType: 'void', visibility: 'public', signature: 'run(): void' }],
+            methods: [
+              { id: 'meth-1', name: 'run', returnType: 'void', visibility: 'public', signature: 'run(): void' },
+            ],
           },
         },
         interfaces: {
@@ -305,7 +307,6 @@ describe('buildOverviewGraph', () => {
       expect(classNode).toBeUndefined();
       expect(ifaceNode).toBeUndefined();
     });
-
   });
 
   // -----------------------------------------------------------------------
@@ -322,9 +323,7 @@ describe('buildOverviewGraph', () => {
     }
 
     it('creates group nodes for folders', () => {
-      const result = buildOverviewGraph(
-        defaultOptions({ data: multifolderGraph() })
-      );
+      const result = buildOverviewGraph(defaultOptions({ data: multifolderGraph() }));
 
       const groupNodes = result.nodes.filter((n) => n.type === 'group');
       expect(groupNodes.length).toBeGreaterThanOrEqual(1);
@@ -354,9 +353,7 @@ describe('buildOverviewGraph', () => {
       const pkg1 = makePackage('pkg-1', 'lib-a', { a: modA });
       const pkg2 = makePackage('pkg-2', 'lib-b', { b: modB });
 
-      const result = buildOverviewGraph(
-        defaultOptions({ data: makeGraph([pkg1, pkg2]) })
-      );
+      const result = buildOverviewGraph(defaultOptions({ data: makeGraph([pkg1, pkg2]) }));
 
       // Folder clustering always runs: each module gets a folder group node.
       const moduleNodes = result.nodes.filter((n) => n.type === 'module');
@@ -410,9 +407,7 @@ describe('buildOverviewGraph', () => {
       const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts');
       const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
 
-      const result = buildOverviewGraph(
-        defaultOptions({ data, enabledRelationshipTypes: [] })
-      );
+      const result = buildOverviewGraph(defaultOptions({ data, enabledRelationshipTypes: [] }));
 
       // Only check module nodes — folder group nodes are always orphanGlobal since
       // they don't exist in the unfiltered pre-cluster graph.

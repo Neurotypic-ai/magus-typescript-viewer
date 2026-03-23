@@ -2,10 +2,11 @@ import { buildParentMap } from '../graph/cluster/folderMembership';
 import { traverseGraph } from '../graph/traversal';
 
 import type { Ref } from 'vue';
-import type { CameraMode } from './useGraphInteractionController';
-import type { FitView } from './useGraphLayout';
+
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { CameraMode } from './useGraphInteractionController';
+import type { FitView } from './useGraphLayout';
 
 interface NavigationHandlerViewport {
   onMoveEnd: () => void;

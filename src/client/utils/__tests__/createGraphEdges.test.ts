@@ -217,9 +217,7 @@ describe('createGraphEdges options', () => {
     const edges = createGraphEdges(graph);
     const packageEdges = edges.filter(
       (edge) =>
-        edge.data?.type === 'dependency' ||
-        edge.data?.type === 'devDependency' ||
-        edge.data?.type === 'peerDependency'
+        edge.data?.type === 'dependency' || edge.data?.type === 'devDependency' || edge.data?.type === 'peerDependency'
     );
 
     expect(packageEdges).toHaveLength(0);

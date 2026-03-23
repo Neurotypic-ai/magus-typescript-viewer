@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { Panel } from '@vue-flow/core';
 import { computed } from 'vue';
-import type { Ref } from 'vue';
 
+import { Panel } from '@vue-flow/core';
+
+import { DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../stores/graphSettings';
 import GraphSearch from './GraphSearch.vue';
 
-import {
-  DEFAULT_RELATIONSHIP_TYPES,
-  useGraphSettings,
-} from '../stores/graphSettings';
+import type { Ref } from 'vue';
 
 interface GraphSearchContext {
   searchQuery: Ref<string>;
@@ -41,7 +39,8 @@ const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
 const getRelationshipAvailability = (type: string) => props.relationshipAvailability[type] ?? { available: true };
 const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
 const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
-const relationshipReasonId = (type: string): string => `relationship-reason-${type.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()}`;
+const relationshipReasonId = (type: string): string =>
+  `relationship-reason-${type.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()}`;
 
 const toggleListItem = (values: string[], value: string, enabled: boolean): string[] =>
   enabled ? (values.includes(value) ? values : [...values, value]) : values.filter((x) => x !== value);
@@ -51,10 +50,18 @@ const handleRelationshipFilterChange = (type: string, checked: boolean) => {
   emit('relationship-filter-change', toggleListItem(graphSettings.enabledRelationshipTypes, type, checked));
 };
 
-const handleHideTestFilesToggle = (checked: boolean) => { emit('toggle-hide-test-files', checked); };
-const handleOrphanGlobalToggle = (checked: boolean) => { emit('toggle-orphan-global', checked); };
-const handleShowFpsToggle = (checked: boolean) => { emit('toggle-show-fps', checked); };
-const handleFpsAdvancedToggle = (checked: boolean) => { emit('toggle-fps-advanced', checked); };
+const handleHideTestFilesToggle = (checked: boolean) => {
+  emit('toggle-hide-test-files', checked);
+};
+const handleOrphanGlobalToggle = (checked: boolean) => {
+  emit('toggle-orphan-global', checked);
+};
+const handleShowFpsToggle = (checked: boolean) => {
+  emit('toggle-show-fps', checked);
+};
+const handleFpsAdvancedToggle = (checked: boolean) => {
+  emit('toggle-fps-advanced', checked);
+};
 
 const onSearchQueryUpdate = (v: string) => {
   if (props.graphSearchContext) {
@@ -62,9 +69,7 @@ const onSearchQueryUpdate = (v: string) => {
   }
 };
 
-const searchQueryValue = computed(
-  () => props.graphSearchContext?.searchQuery.value ?? ''
-);
+const searchQueryValue = computed(() => props.graphSearchContext?.searchQuery.value ?? '');
 </script>
 
 <template>
@@ -86,7 +91,7 @@ const searchQueryValue = computed(
       class="graph-controls-shell bg-background-paper rounded-lg border border-border-default shadow-xl"
       :class="{ 'graph-controls-shell-with-search': !!graphSearchContext }"
     >
-<div class="section">
+      <div class="section">
         <div class="section-header-static">
           <span class="section-label">Analysis</span>
         </div>
@@ -126,7 +131,10 @@ const searchQueryValue = computed(
             <legend class="sr-only">Relationship visibility filters</legend>
             <div class="control-group">
               <div v-for="type in relationshipTypes" :key="type" class="space-y-1">
-                <label class="control-row" :class="isRelationshipDisabled(type) ? 'control-row-disabled' : 'control-row-interactive'">
+                <label
+                  class="control-row"
+                  :class="isRelationshipDisabled(type) ? 'control-row-disabled' : 'control-row-interactive'"
+                >
                   <input
                     type="checkbox"
                     class="control-checkbox"

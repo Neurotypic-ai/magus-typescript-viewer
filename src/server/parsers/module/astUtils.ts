@@ -1,5 +1,5 @@
-import type { ASTNode, Identifier, JSCodeshift, JSXIdentifier, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
 import type { ConsolaInstance } from 'consola';
+import type { ASTNode, Identifier, JSCodeshift, JSXIdentifier, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
 
 /**
  * Safely get identifier name to work around type issues.

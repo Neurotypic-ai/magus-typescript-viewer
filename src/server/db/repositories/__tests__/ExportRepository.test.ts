@@ -1,8 +1,10 @@
-import type { IDatabaseAdapter, DatabaseRow } from '../../adapter/IDatabaseAdapter';
-import type { IExportCreateDTO } from '../../../../shared/types/dto/ExportDTO';
-import { ExportRepository } from '../ExportRepository';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
-import { vi, describe, beforeEach, it, expect } from 'vitest';
+import { ExportRepository } from '../ExportRepository';
+
+import type { IExportCreateDTO } from '../../../../shared/types/dto/ExportDTO';
+import type { DatabaseRow, IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 
 // ---------------------------------------------------------------------------
 // Mock adapter factory
@@ -32,7 +34,9 @@ function makeExportDTO(partial: Partial<IExportCreateDTO> = {}): IExportCreateDT
   };
 }
 
-function makeExportRow(partial: Partial<IExportCreateDTO> = {}): DatabaseRow & IExportCreateDTO & { created_at: string } {
+function makeExportRow(
+  partial: Partial<IExportCreateDTO> = {}
+): DatabaseRow & IExportCreateDTO & { created_at: string } {
   return {
     id: 'export-1',
     package_id: 'pkg-1',
@@ -328,10 +332,7 @@ describe('ExportRepository', () => {
     it('should insert multiple rows in a single query', async () => {
       (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
 
-      const items = [
-        makeExportDTO({ id: 'e1', name: 'A' }),
-        makeExportDTO({ id: 'e2', name: 'B' }),
-      ];
+      const items = [makeExportDTO({ id: 'e1', name: 'A' }), makeExportDTO({ id: 'e2', name: 'B' })];
 
       await repo.createBatch(items);
 
@@ -358,10 +359,7 @@ describe('ExportRepository', () => {
       (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]); // first item succeeds
       (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('UNIQUE constraint')); // second is dup, skipped
 
-      const items = [
-        makeExportDTO({ id: 'e1', name: 'A' }),
-        makeExportDTO({ id: 'e2', name: 'B' }),
-      ];
+      const items = [makeExportDTO({ id: 'e1', name: 'A' }), makeExportDTO({ id: 'e2', name: 'B' })];
 
       await repo.createBatch(items);
 

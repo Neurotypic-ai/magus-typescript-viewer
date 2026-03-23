@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { computed, inject, toRef } from 'vue';
+
 import { Handle, Position } from '@vue-flow/core';
 import { NodeToolbar } from '@vue-flow/node-toolbar';
-import { computed, inject, toRef } from 'vue';
 
 import { useInsightsStore } from '../../stores/insightsStore';
 import { useIssuesStore } from '../../stores/issuesStore';
@@ -66,7 +67,9 @@ const isOrphanGlobal = computed(() => {
 });
 
 const insightCounts = computed(() => insightsStore.nodeSeverityCounts(props.id));
-const hasInsights = computed(() => insightCounts.value.critical > 0 || insightCounts.value.warning > 0 || insightCounts.value.info > 0);
+const hasInsights = computed(
+  () => insightCounts.value.critical > 0 || insightCounts.value.warning > 0 || insightCounts.value.info > 0
+);
 const insightGlowClass = computed(() => {
   if (insightCounts.value.critical > 0) return 'base-node-insight-critical';
   if (insightCounts.value.warning > 0) return 'base-node-insight-warning';
@@ -82,15 +85,55 @@ const targetPosition = computed(() => props.targetPosition ?? Position.Top);
 
 const handles = computed(() => [
   { id: 'relational-in', type: 'target' as const, position: targetPosition.value, class: 'base-node-handle' },
-  { id: 'relational-in-top', type: 'target' as const, position: Position.Top, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-in-right', type: 'target' as const, position: Position.Right, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-in-bottom', type: 'target' as const, position: Position.Bottom, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-in-left', type: 'target' as const, position: Position.Left, class: 'base-node-handle base-node-handle--aux' },
+  {
+    id: 'relational-in-top',
+    type: 'target' as const,
+    position: Position.Top,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-in-right',
+    type: 'target' as const,
+    position: Position.Right,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-in-bottom',
+    type: 'target' as const,
+    position: Position.Bottom,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-in-left',
+    type: 'target' as const,
+    position: Position.Left,
+    class: 'base-node-handle base-node-handle--aux',
+  },
   { id: 'relational-out', type: 'source' as const, position: sourcePosition.value, class: 'base-node-handle' },
-  { id: 'relational-out-top', type: 'source' as const, position: Position.Top, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-out-right', type: 'source' as const, position: Position.Right, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-out-bottom', type: 'source' as const, position: Position.Bottom, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-out-left', type: 'source' as const, position: Position.Left, class: 'base-node-handle base-node-handle--aux' },
+  {
+    id: 'relational-out-top',
+    type: 'source' as const,
+    position: Position.Top,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-out-right',
+    type: 'source' as const,
+    position: Position.Right,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-out-bottom',
+    type: 'source' as const,
+    position: Position.Bottom,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-out-left',
+    type: 'source' as const,
+    position: Position.Left,
+    class: 'base-node-handle base-node-handle--aux',
+  },
 ]);
 
 const inferredContainer = computed(() => {
@@ -109,7 +152,9 @@ const subnodesResolved = computed(() => {
   if (typeof props.subnodesCount === 'number') {
     return { count: props.subnodesCount, totalCount: props.subnodesCount, hiddenCount: 0 };
   }
-  return resolveSubnodesCount(nodeData.value?.subnodes as { count?: number; totalCount?: number; hiddenCount?: number } | undefined);
+  return resolveSubnodesCount(
+    nodeData.value?.subnodes as { count?: number; totalCount?: number; hiddenCount?: number } | undefined
+  );
 });
 
 const shouldShowSubnodes = computed(() => {

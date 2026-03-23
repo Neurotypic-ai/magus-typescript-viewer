@@ -1,18 +1,17 @@
 import { Position } from '@vue-flow/core';
 
 import {
-  normalizeProperty,
-  normalizeMethod,
-  findModuleById,
-  createSymbolEdge,
   createDetailedSymbolNode,
+  createSymbolEdge,
+  findModuleById,
+  normalizeMethod,
+  normalizeProperty,
 } from '../symbolHelpers';
 
-import type { PackageGraph } from '../../../../shared/types/Package';
-import type { Module } from '../../../../shared/types/Module';
 import type { Method } from '../../../../shared/types/Method';
+import type { Module } from '../../../../shared/types/Module';
+import type { Package, PackageGraph } from '../../../../shared/types/Package';
 import type { Property } from '../../../../shared/types/Property';
-import type { Package } from '../../../../shared/types/Package';
 
 // ---------------------------------------------------------------------------
 // normalizeProperty
@@ -251,10 +250,7 @@ describe('findModuleById', () => {
   it('returns the first match when duplicate IDs exist across packages', () => {
     const duplicateModule = makeModule('mod-a', 'duplicateA');
     const graphWithDuplicates: PackageGraph = {
-      packages: [
-        makePackage('pkg-1', { 'mod-a': moduleA }),
-        makePackage('pkg-3', { 'mod-a': duplicateModule }),
-      ],
+      packages: [makePackage('pkg-1', { 'mod-a': moduleA }), makePackage('pkg-3', { 'mod-a': duplicateModule })],
     };
     // Should return the first found (from pkg-1)
     expect(findModuleById(graphWithDuplicates, 'mod-a')).toBe(moduleA);

@@ -2,9 +2,9 @@ import { computed } from 'vue';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { GraphStatCountEntry } from './dependencyGraphCoreTypes';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { GraphStatCountEntry } from './dependencyGraphCoreTypes';
 
 interface UseGraphRenderedStatsOptions {
   visualNodes: Ref<DependencyNode[]>;

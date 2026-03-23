@@ -1,10 +1,11 @@
 // @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { ImportRepository } from '../ImportRepository';
-import { RepositoryError, EntityNotFoundError, NoFieldsToUpdateError } from '../../errors/RepositoryError';
 
 import type { IImportCreateDTO } from '../../../../shared/types/dto/ImportDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
-import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Mock adapter factory
@@ -76,14 +77,7 @@ describe('ImportRepository', () => {
 
       const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('INSERT INTO imports');
-      expect(params).toEqual([
-        dto.id,
-        dto.package_id,
-        dto.module_id,
-        dto.source,
-        dto.specifiers_json,
-        false,
-      ]);
+      expect(params).toEqual([dto.id, dto.package_id, dto.module_id, dto.source, dto.specifiers_json, false]);
     });
 
     it('defaults specifiers_json to null when undefined', async () => {
@@ -288,10 +282,7 @@ describe('ImportRepository', () => {
     });
 
     it('builds IN clause with correct placeholders', async () => {
-      const rows = [
-        makeImportRow({ module_id: 'mod-1' }),
-        makeImportRow({ id: 'import-2', module_id: 'mod-2' }),
-      ];
+      const rows = [makeImportRow({ module_id: 'mod-1' }), makeImportRow({ id: 'import-2', module_id: 'mod-2' })];
       (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieveByModuleIds(['mod-1', 'mod-2']);
@@ -335,7 +326,10 @@ describe('ImportRepository', () => {
       expect(result.source).toBe('./new-source');
       expect(adapter.query).toHaveBeenCalledTimes(2);
 
-      const [updateSql, updateParams] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [updateSql, updateParams] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        unknown[],
+      ];
       expect(updateSql).toContain('UPDATE imports SET');
       expect(updateSql).toContain('source = ?');
       expect(updateParams).toContain('./new-source');
@@ -344,9 +338,7 @@ describe('ImportRepository', () => {
 
     it('updates specifiers_json field', async () => {
       const updatedRow = makeImportRow({ specifiers_json: '["baz"]' });
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       const result = await repo.update('import-1', { specifiers_json: '["baz"]' });
 
@@ -355,9 +347,7 @@ describe('ImportRepository', () => {
 
     it('updates specifiers_json to null', async () => {
       const updatedRow = makeImportRow({ specifiers_json: null });
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       const result = await repo.update('import-1', { specifiers_json: null });
 
@@ -366,9 +356,7 @@ describe('ImportRepository', () => {
 
     it('updates both fields at once', async () => {
       const updatedRow = makeImportRow({ source: './changed', specifiers_json: '["x"]' });
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       await repo.update('import-1', { source: './changed', specifiers_json: '["x"]' });
 
@@ -383,7 +371,7 @@ describe('ImportRepository', () => {
 
     it('throws EntityNotFoundError when updated row not found', async () => {
       (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])  // UPDATE succeeds
+        .mockResolvedValueOnce([]) // UPDATE succeeds
         .mockResolvedValueOnce([]); // SELECT returns nothing
 
       await expect(repo.update('missing-id', { source: './x' })).rejects.toThrow(EntityNotFoundError);
@@ -391,7 +379,7 @@ describe('ImportRepository', () => {
 
     it('re-throws RepositoryError subclasses as-is', async () => {
       (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])  // UPDATE
+        .mockResolvedValueOnce([]) // UPDATE
         .mockResolvedValueOnce([]); // retrieveById returns empty
 
       try {
@@ -445,10 +433,7 @@ describe('ImportRepository', () => {
     });
 
     it('inserts multiple rows in a single query', async () => {
-      const items = [
-        makeImportDTO({ id: 'imp-1' }),
-        makeImportDTO({ id: 'imp-2', source: './other' }),
-      ];
+      const items = [makeImportDTO({ id: 'imp-1' }), makeImportDTO({ id: 'imp-2', source: './other' })];
 
       await repo.createBatch(items);
 
@@ -470,10 +455,7 @@ describe('ImportRepository', () => {
     });
 
     it('falls back to individual inserts on duplicate key error', async () => {
-      const items = [
-        makeImportDTO({ id: 'imp-1' }),
-        makeImportDTO({ id: 'imp-2' }),
-      ];
+      const items = [makeImportDTO({ id: 'imp-1' }), makeImportDTO({ id: 'imp-2' })];
 
       // First (batch) call fails with UNIQUE, then individual inserts succeed
       (adapter.query as ReturnType<typeof vi.fn>)
@@ -488,10 +470,7 @@ describe('ImportRepository', () => {
     });
 
     it('skips individual duplicates during fallback', async () => {
-      const items = [
-        makeImportDTO({ id: 'imp-1' }),
-        makeImportDTO({ id: 'imp-2' }),
-      ];
+      const items = [makeImportDTO({ id: 'imp-1' }), makeImportDTO({ id: 'imp-2' })];
 
       (adapter.query as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(new Error('UNIQUE constraint violated'))

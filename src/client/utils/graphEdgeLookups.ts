@@ -6,9 +6,8 @@
 import { mapTypeCollection } from './collections';
 
 import type { IImport } from '../../shared/types/Import';
-import type { PackageGraph } from '../../shared/types/Package';
 import type { Module } from '../../shared/types/Module';
-import type { Package } from '../../shared/types/Package';
+import type { Package, PackageGraph } from '../../shared/types/Package';
 
 export interface ModulePathLookup {
   packagePathMap: Map<string, Map<string, string>>;

@@ -1,13 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ref } from 'vue';
+
+import { useVueFlow } from '@vue-flow/core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { useIntraFolderObstacleIndex } from '../useIntraFolderObstacleIndex';
 
 // Mock @vue-flow/core before importing the composable
 vi.mock('@vue-flow/core', () => ({
   useVueFlow: vi.fn(),
 }));
-
-import { useVueFlow } from '@vue-flow/core';
-import { useIntraFolderObstacleIndex } from '../useIntraFolderObstacleIndex';
 
 interface MockNode {
   id: string;
@@ -127,9 +128,7 @@ describe('useIntraFolderObstacleIndex', () => {
   });
 
   it('returns null for unknown folder', () => {
-    setupMock([
-      makeNode('node-1', 'folder-a', { x: 0, y: 0 }, { width: 100, height: 50 }),
-    ]);
+    setupMock([makeNode('node-1', 'folder-a', { x: 0, y: 0 }, { width: 100, height: 50 })]);
 
     const index = useIntraFolderObstacleIndex();
     const snapshot = index.getSnapshot('nonexistent-folder');

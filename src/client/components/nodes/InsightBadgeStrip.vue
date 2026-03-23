@@ -10,13 +10,25 @@ const props = defineProps<InsightBadgeStripProps>();
 
 <template>
   <div v-if="props.critical > 0 || props.warning > 0 || props.info > 0" class="insight-badge-strip">
-    <span v-if="props.critical > 0" class="insight-badge insight-badge--critical" :title="`${props.critical} critical insight${props.critical > 1 ? 's' : ''}`">
+    <span
+      v-if="props.critical > 0"
+      class="insight-badge insight-badge--critical"
+      :title="`${props.critical} critical insight${props.critical > 1 ? 's' : ''}`"
+    >
       !{{ props.critical }}
     </span>
-    <span v-if="props.warning > 0" class="insight-badge insight-badge--warning" :title="`${props.warning} warning insight${props.warning > 1 ? 's' : ''}`">
+    <span
+      v-if="props.warning > 0"
+      class="insight-badge insight-badge--warning"
+      :title="`${props.warning} warning insight${props.warning > 1 ? 's' : ''}`"
+    >
       ~{{ props.warning }}
     </span>
-    <span v-if="props.info > 0" class="insight-badge insight-badge--info" :title="`${props.info} info insight${props.info > 1 ? 's' : ''}`">
+    <span
+      v-if="props.info > 0"
+      class="insight-badge insight-badge--info"
+      :title="`${props.info} info insight${props.info > 1 ? 's' : ''}`"
+    >
       i{{ props.info }}
     </span>
   </div>

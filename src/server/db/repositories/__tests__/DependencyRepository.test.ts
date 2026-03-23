@@ -1,11 +1,11 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DependencyRepository } from '../DependencyRepository';
 import { RepositoryError } from '../../errors/RepositoryError';
+import { DependencyRepository } from '../DependencyRepository';
 
-import type { IDatabaseAdapter, QueryResult, DatabaseRow } from '../../adapter/IDatabaseAdapter';
 import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../../../../shared/types/dto/DependencyDTO';
+import type { DatabaseRow, IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
 
 function createMockAdapter(): IDatabaseAdapter {
   return {
@@ -488,10 +488,7 @@ describe('DependencyRepository', () => {
 
   describe('retrieveByModuleId', () => {
     it('returns dependencies for the given module_id', async () => {
-      const rows = [
-        makeDependencyRow({ id: 'dep-1' }),
-        makeDependencyRow({ id: 'dep-2' }),
-      ];
+      const rows = [makeDependencyRow({ id: 'dep-1' }), makeDependencyRow({ id: 'dep-2' })];
 
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 

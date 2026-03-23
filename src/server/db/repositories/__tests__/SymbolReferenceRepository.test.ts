@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { EntityNotFoundError, RepositoryError } from '../../errors/RepositoryError';
 import { SymbolReferenceRepository } from '../SymbolReferenceRepository';
-import { RepositoryError, EntityNotFoundError } from '../../errors/RepositoryError';
 
-import type { IDatabaseAdapter, DatabaseRow } from '../../adapter/IDatabaseAdapter';
 import type { ISymbolReferenceCreateDTO } from '../../../../shared/types/dto/SymbolReferenceDTO';
+import type { DatabaseRow, IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -423,9 +423,7 @@ describe('SymbolReferenceRepository', () => {
         qualifier_name: 'self',
       });
 
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       const result = await repo.update('ref-1', {
         target_symbol_name: 'renamed',
@@ -445,12 +443,10 @@ describe('SymbolReferenceRepository', () => {
 
     it('throws EntityNotFoundError when the updated row does not exist', async () => {
       vi.mocked(adapter.query)
-        .mockResolvedValueOnce([])   // UPDATE succeeds
-        .mockResolvedValueOnce([]);  // retrieveById returns nothing
+        .mockResolvedValueOnce([]) // UPDATE succeeds
+        .mockResolvedValueOnce([]); // retrieveById returns nothing
 
-      await expect(repo.update('nonexistent', { target_symbol_name: 'x' })).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(repo.update('nonexistent', { target_symbol_name: 'x' })).rejects.toThrow(EntityNotFoundError);
     });
 
     it('re-throws RepositoryError as-is', async () => {
@@ -463,12 +459,8 @@ describe('SymbolReferenceRepository', () => {
     it('wraps unexpected errors in RepositoryError', async () => {
       vi.mocked(adapter.query).mockRejectedValue(new TypeError('unexpected'));
 
-      await expect(repo.update('ref-1', { target_symbol_name: 'x' })).rejects.toThrow(
-        RepositoryError
-      );
-      await expect(repo.update('ref-1', { target_symbol_name: 'x' })).rejects.toThrow(
-        /unexpected/
-      );
+      await expect(repo.update('ref-1', { target_symbol_name: 'x' })).rejects.toThrow(RepositoryError);
+      await expect(repo.update('ref-1', { target_symbol_name: 'x' })).rejects.toThrow(/unexpected/);
     });
   });
 

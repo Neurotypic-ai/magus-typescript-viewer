@@ -1,8 +1,9 @@
 import type { Ref } from 'vue';
-import type { CameraMode } from './useGraphInteractionController';
-import type { FitView } from './useGraphLayout';
+
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { CameraMode } from './useGraphInteractionController';
+import type { FitView } from './useGraphLayout';
 
 interface SelectionHandlerState {
   selectedNode: Ref<DependencyNode | null>;
@@ -72,7 +73,8 @@ export function useGraphSelectionHandlers(options: UseGraphSelectionHandlersOpti
     ) {
       event.preventDefault();
       const connectedEdges = edges.value.filter(
-        (edge: GraphEdge) => edge.source === state.selectedNode.value?.id || edge.target === state.selectedNode.value?.id
+        (edge: GraphEdge) =>
+          edge.source === state.selectedNode.value?.id || edge.target === state.selectedNode.value?.id
       );
       if (connectedEdges.length > 0) {
         let nextNodeId: string | undefined;

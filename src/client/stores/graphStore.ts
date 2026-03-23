@@ -1,11 +1,13 @@
-import { defineStore, type SetupStoreDefinition } from 'pinia';
 import { ref, shallowRef, watch } from 'vue';
 
+import { defineStore } from 'pinia';
+
+import type { SetupStoreDefinition } from 'pinia';
 import type { Ref, ShallowRef } from 'vue';
 
+import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 
 export type GraphViewMode = 'overview' | 'isolate' | 'moduleDrilldown' | 'symbolDrilldown';
 

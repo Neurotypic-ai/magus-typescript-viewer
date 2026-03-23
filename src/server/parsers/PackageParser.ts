@@ -60,11 +60,7 @@ interface DeferredInterfaceExtendsRef {
  * Runs an async mapping function over items with bounded concurrency.
  * Workers pull from a shared index to keep all slots busy.
  */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length) as R[];
   let nextIndex = 0;
 
@@ -361,7 +357,11 @@ export class PackageParser {
   }
 
   private async collectFilesFromTsConfig(): Promise<string[] | null> {
-    const tsConfigPath = ts.findConfigFile(this.packagePath, (fileName) => ts.sys.fileExists(fileName), 'tsconfig.json');
+    const tsConfigPath = ts.findConfigFile(
+      this.packagePath,
+      (fileName) => ts.sys.fileExists(fileName),
+      'tsconfig.json'
+    );
     if (!tsConfigPath) {
       return null;
     }

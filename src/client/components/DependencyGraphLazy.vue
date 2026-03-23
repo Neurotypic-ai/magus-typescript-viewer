@@ -56,8 +56,7 @@ const props = withDefaults(defineProps<DependencyGraphProps>(), {
 
 // Get the singleton instance of PerformanceMetrics
 const metrics = PerformanceMetrics.getInstance();
-const enableInteractionMetrics =
-  import.meta.env.DEV && import.meta.env['VITE_GRAPH_INTERACTION_METRICS'] === 'true';
+const enableInteractionMetrics = import.meta.env.DEV && import.meta.env['VITE_GRAPH_INTERACTION_METRICS'] === 'true';
 
 onMounted(() => {
   // Create a mark for the start of component rendering

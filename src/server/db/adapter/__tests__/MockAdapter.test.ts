@@ -46,10 +46,7 @@ describe('MockAdapter', () => {
       });
 
       it('maps positional params to param0, param1, ...', async () => {
-        const result = await adapter.query('INSERT INTO users (name, age) VALUES (?, ?)', [
-          'Bob',
-          30,
-        ]);
+        const result = await adapter.query('INSERT INTO users (name, age) VALUES (?, ?)', ['Bob', 30]);
 
         expect(result).toHaveLength(1);
         const row = result[0]!;
@@ -110,10 +107,7 @@ describe('MockAdapter', () => {
 
     describe('unrecognized SQL', () => {
       it('returns an empty array for UPDATE statements', async () => {
-        const result = await adapter.query('UPDATE users SET name = ? WHERE id = ?', [
-          'Charlie',
-          '123',
-        ]);
+        const result = await adapter.query('UPDATE users SET name = ? WHERE id = ?', ['Charlie', '123']);
         expect(result).toEqual([]);
       });
 

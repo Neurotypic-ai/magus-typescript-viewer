@@ -1,7 +1,8 @@
 // @vitest-environment node
 
-import type { IDatabaseAdapter, QueryResult, DatabaseRow } from '../adapter/IDatabaseAdapter';
 import { Database } from '../Database';
+
+import type { DatabaseRow, IDatabaseAdapter, QueryResult } from '../adapter/IDatabaseAdapter';
 
 /**
  * Creates a mock IDatabaseAdapter with all methods stubbed via vi.fn().
@@ -74,20 +75,14 @@ describe('Database', () => {
     it('executes the loaded schema statements', async () => {
       await db.initializeDatabase();
       // The mock loadSchema returns one CREATE TABLE statement
-      expect(mockAdapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('CREATE TABLE packages')
-      );
+      expect(mockAdapter.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE packages'));
     });
 
     it('runs migrations after schema execution', async () => {
       await db.initializeDatabase();
       // migrateSchemaIfNeeded queries PRAGMA table_info for 'methods', 'properties', etc.
-      expect(mockAdapter.query).toHaveBeenCalledWith(
-        expect.stringContaining("PRAGMA table_info('methods')")
-      );
-      expect(mockAdapter.query).toHaveBeenCalledWith(
-        expect.stringContaining("PRAGMA table_info('properties')")
-      );
+      expect(mockAdapter.query).toHaveBeenCalledWith(expect.stringContaining("PRAGMA table_info('methods')"));
+      expect(mockAdapter.query).toHaveBeenCalledWith(expect.stringContaining("PRAGMA table_info('properties')"));
     });
 
     it('throws when allowSchemaChanges is false for in-memory databases', async () => {
@@ -125,9 +120,7 @@ describe('Database', () => {
       fsMock.stat.mockRejectedValue(new Error('ENOENT'));
       await fileDb.initializeDatabase();
       expect(mockAdapter.init).toHaveBeenCalled();
-      expect(mockAdapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('CREATE TABLE packages')
-      );
+      expect(mockAdapter.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE packages'));
     });
 
     it('deletes file and re-creates schema when reset is true and file exists', async () => {
@@ -135,9 +128,7 @@ describe('Database', () => {
       await fileDb.initializeDatabase(true);
       expect(fsMock.unlink).toHaveBeenCalled();
       expect(mockAdapter.init).toHaveBeenCalled();
-      expect(mockAdapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('CREATE TABLE packages')
-      );
+      expect(mockAdapter.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE packages'));
     });
 
     it('skips schema execution when file exists and schema is valid', async () => {
@@ -200,9 +191,7 @@ describe('Database', () => {
       const failAdapter = createMockAdapter({ query: queryMock });
       const failDb = new Database(failAdapter, 'test.duckdb');
 
-      await expect(failDb.initializeDatabase(false, false)).rejects.toThrow(
-        /Database schema is missing or outdated/
-      );
+      await expect(failDb.initializeDatabase(false, false)).rejects.toThrow(/Database schema is missing or outdated/);
     });
   });
 
@@ -230,9 +219,7 @@ describe('Database', () => {
       await db.initializeDatabase();
 
       const queryCalls = vi.mocked(mockAdapter.query).mock.calls;
-      const schemaStatements = queryCalls.filter(
-        ([sql]) => typeof sql === 'string' && sql.includes('CREATE TABLE a')
-      );
+      const schemaStatements = queryCalls.filter(([sql]) => typeof sql === 'string' && sql.includes('CREATE TABLE a'));
       expect(schemaStatements).toHaveLength(1);
     });
 
@@ -289,9 +276,7 @@ describe('Database', () => {
       await db.initializeDatabase();
 
       const queryCalls = vi.mocked(mockAdapter.query).mock.calls.map(([sql]) => sql);
-      const alterMethods = queryCalls.filter(
-        (sql) => sql.includes('ALTER TABLE methods ADD COLUMN')
-      );
+      const alterMethods = queryCalls.filter((sql) => sql.includes('ALTER TABLE methods ADD COLUMN'));
       // Should have added parent_type, is_abstract, created_at
       expect(alterMethods.length).toBeGreaterThanOrEqual(3);
       expect(alterMethods.some((sql) => sql.includes('parent_type'))).toBe(true);
@@ -353,7 +338,9 @@ describe('Database', () => {
       const queryCalls = vi.mocked(mockAdapter.query).mock.calls.map(([sql]) => sql);
       expect(queryCalls.some((sql) => sql.includes('CREATE TABLE code_issues'))).toBe(true);
       expect(queryCalls.some((sql) => sql.includes('CREATE INDEX IF NOT EXISTS idx_code_issues_module_id'))).toBe(true);
-      expect(queryCalls.some((sql) => sql.includes('CREATE INDEX IF NOT EXISTS idx_code_issues_package_id'))).toBe(true);
+      expect(queryCalls.some((sql) => sql.includes('CREATE INDEX IF NOT EXISTS idx_code_issues_package_id'))).toBe(
+        true
+      );
       expect(queryCalls.some((sql) => sql.includes('CREATE INDEX IF NOT EXISTS idx_code_issues_entity_id'))).toBe(true);
       expect(queryCalls.some((sql) => sql.includes('CREATE INDEX IF NOT EXISTS idx_code_issues_rule_code'))).toBe(true);
     });
@@ -395,19 +382,21 @@ describe('Database', () => {
     });
 
     it('returns false when a required table is missing', async () => {
-      const queryMock = vi.fn<(sql: string) => Promise<QueryResult<DatabaseRow>>>().mockImplementation(async (sql: string) => {
-        // verifySchema iterates over required tables; fail on 'modules'
-        if (sql === 'SELECT 1 FROM modules LIMIT 1') {
-          throw new Error('table not found');
-        }
-        if (sql.startsWith('PRAGMA table_info')) {
-          return [] as QueryResult;
-        }
-        if (sql.startsWith('SELECT 1 FROM code_issues')) {
-          throw new Error('table not found');
-        }
-        return [{ id: '1' }] as QueryResult;
-      });
+      const queryMock = vi
+        .fn<(sql: string) => Promise<QueryResult<DatabaseRow>>>()
+        .mockImplementation(async (sql: string) => {
+          // verifySchema iterates over required tables; fail on 'modules'
+          if (sql === 'SELECT 1 FROM modules LIMIT 1') {
+            throw new Error('table not found');
+          }
+          if (sql.startsWith('PRAGMA table_info')) {
+            return [] as QueryResult;
+          }
+          if (sql.startsWith('SELECT 1 FROM code_issues')) {
+            throw new Error('table not found');
+          }
+          return [{ id: '1' }] as QueryResult;
+        });
 
       const adapter = createMockAdapter({ query: queryMock });
       fileDb = new Database(adapter, 'test.duckdb');
@@ -419,34 +408,36 @@ describe('Database', () => {
     });
 
     it('returns false when methods table lacks parent_type column', async () => {
-      const queryMock = vi.fn<(sql: string) => Promise<QueryResult<DatabaseRow>>>().mockImplementation(async (sql: string) => {
-        if (sql === "PRAGMA table_info('methods')") {
-          // Missing parent_type column
-          return [{ id: '0', name: 'id' }] as QueryResult;
-        }
-        if (sql === "PRAGMA table_info('properties')") {
-          return [
-            { id: '0', name: 'id' },
-            { id: '1', name: 'parent_type' },
-          ] as QueryResult;
-        }
-        if (sql.startsWith('PRAGMA table_info')) {
-          return [
-            { id: '0', name: 'id' },
-            { id: '1', name: 'parent_type' },
-            { id: '2', name: 'is_abstract' },
-            { id: '3', name: 'created_at' },
-            { id: '4', name: 'specifiers_json' },
-          ] as QueryResult;
-        }
-        if (sql.startsWith('SELECT 1 FROM code_issues')) {
-          return [{ id: '1' }] as QueryResult;
-        }
-        if (sql.startsWith('SELECT 1 FROM')) {
-          return [{ id: '1' }] as QueryResult;
-        }
-        return [] as QueryResult;
-      });
+      const queryMock = vi
+        .fn<(sql: string) => Promise<QueryResult<DatabaseRow>>>()
+        .mockImplementation(async (sql: string) => {
+          if (sql === "PRAGMA table_info('methods')") {
+            // Missing parent_type column
+            return [{ id: '0', name: 'id' }] as QueryResult;
+          }
+          if (sql === "PRAGMA table_info('properties')") {
+            return [
+              { id: '0', name: 'id' },
+              { id: '1', name: 'parent_type' },
+            ] as QueryResult;
+          }
+          if (sql.startsWith('PRAGMA table_info')) {
+            return [
+              { id: '0', name: 'id' },
+              { id: '1', name: 'parent_type' },
+              { id: '2', name: 'is_abstract' },
+              { id: '3', name: 'created_at' },
+              { id: '4', name: 'specifiers_json' },
+            ] as QueryResult;
+          }
+          if (sql.startsWith('SELECT 1 FROM code_issues')) {
+            return [{ id: '1' }] as QueryResult;
+          }
+          if (sql.startsWith('SELECT 1 FROM')) {
+            return [{ id: '1' }] as QueryResult;
+          }
+          return [] as QueryResult;
+        });
 
       const adapter = createMockAdapter({ query: queryMock });
       fileDb = new Database(adapter, 'test.duckdb');

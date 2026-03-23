@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { exportInsightsJson, exportInsightsMarkdown } from '../utils/insightsExport';
 import { useInsightsStore } from '../stores/insightsStore';
+import { exportInsightsJson, exportInsightsMarkdown } from '../utils/insightsExport';
 
 import type { InsightCategory, InsightKind, InsightResult } from '../../shared/types/api/Insight';
 
@@ -92,9 +92,15 @@ function severityIcon(severity: string): string {
     <button type="button" class="insights-summary-bar nodrag" @click="expanded = !expanded">
       <span class="insights-label">Insights</span>
       <span v-if="report" class="insights-counts">
-        <span v-if="report.summary.critical > 0" class="insights-count insights-count--critical">{{ report.summary.critical }}</span>
-        <span v-if="report.summary.warning > 0" class="insights-count insights-count--warning">{{ report.summary.warning }}</span>
-        <span v-if="report.summary.info > 0" class="insights-count insights-count--info">{{ report.summary.info }}</span>
+        <span v-if="report.summary.critical > 0" class="insights-count insights-count--critical">{{
+          report.summary.critical
+        }}</span>
+        <span v-if="report.summary.warning > 0" class="insights-count insights-count--warning">{{
+          report.summary.warning
+        }}</span>
+        <span v-if="report.summary.info > 0" class="insights-count insights-count--info">{{
+          report.summary.info
+        }}</span>
       </span>
       <span v-if="report" class="insights-health">{{ report.healthScore }}/100</span>
       <span class="insights-chevron">{{ expanded ? '\u25BC' : '\u25B6' }}</span>
@@ -105,8 +111,17 @@ function severityIcon(severity: string): string {
       <div class="insights-panel-header">
         <span class="insights-panel-title">Health Score: {{ report?.healthScore ?? 0 }}/100</span>
         <div class="insights-panel-actions">
-          <button type="button" class="insights-export-btn nodrag" title="Export as JSON" @click="handleExportJson">JSON</button>
-          <button type="button" class="insights-export-btn nodrag" title="Export as Markdown" @click="handleExportMarkdown">MD</button>
+          <button type="button" class="insights-export-btn nodrag" title="Export as JSON" @click="handleExportJson">
+            JSON
+          </button>
+          <button
+            type="button"
+            class="insights-export-btn nodrag"
+            title="Export as Markdown"
+            @click="handleExportMarkdown"
+          >
+            MD
+          </button>
         </div>
       </div>
 
@@ -115,10 +130,16 @@ function severityIcon(severity: string): string {
         <div v-for="insight in group.insights" :key="insight.type" class="insights-item">
           <button
             type="button"
-            :class="['insights-item-btn', 'nodrag', { 'insights-item-btn--active': insightsStore.activeFilter === insight.type }]"
+            :class="[
+              'insights-item-btn',
+              'nodrag',
+              { 'insights-item-btn--active': insightsStore.activeFilter === insight.type },
+            ]"
             @click="handleFilterClick(insight.type)"
           >
-            <span :class="['insights-severity', `insights-severity--${insight.severity}`]">{{ severityIcon(insight.severity) }}</span>
+            <span :class="['insights-severity', `insights-severity--${insight.severity}`]">{{
+              severityIcon(insight.severity)
+            }}</span>
             <span class="insights-item-title">{{ insight.title }}</span>
             <span class="insights-item-count">{{ insight.entities.length }}</span>
           </button>

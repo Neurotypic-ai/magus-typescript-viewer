@@ -1,22 +1,21 @@
 import { consola } from 'consola';
 
-import { createEdgeMarker } from './edgeMarkers';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
-import { isNonEmptyCollection, mapTypeCollection, typeCollectionToArray } from './collections';
 import { getEdgeStyle } from '../theme/graphTheme';
+import { isNonEmptyCollection, mapTypeCollection, typeCollectionToArray } from './collections';
+import { createEdgeMarker } from './edgeMarkers';
 import { buildModulePathLookup, isExternalImport, resolveModuleId } from './graphEdgeLookups';
 
 import type { Class } from '../../shared/types/Class';
-import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
-import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
-import type { PackageGraph } from '../../shared/types/Package';
-import type { GraphEdge } from '../types/GraphEdge';
 import type { Import } from '../../shared/types/Import';
 import type { Interface } from '../../shared/types/Interface';
-import type { Module } from '../../shared/types/Module';
 import type { Method } from '../../shared/types/Method';
+import type { Module } from '../../shared/types/Module';
+import type { Package, PackageGraph } from '../../shared/types/Package';
 import type { Property } from '../../shared/types/Property';
-import type { Package } from '../../shared/types/Package';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
+import type { GraphEdge } from '../types/GraphEdge';
 
 type ImportDirection = 'importer-to-imported' | 'imported-to-importer';
 const EDGE_REGISTRY_DEBUG =
@@ -42,7 +41,6 @@ interface ResolvedOptions {
   importDirection: ImportDirection;
 }
 
-
 function buildNodeIdSet(data: PackageGraph, options: ResolvedOptions): Set<string> {
   const nodeIds = new Set<string>();
 
@@ -66,10 +64,12 @@ function buildNodeIdSet(data: PackageGraph, options: ResolvedOptions): Set<strin
         mapTypeCollection(module.classes, (cls: Class) => {
           nodeIds.add(cls.id);
           if (options.includeMemberContainmentEdges) {
-            typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach((property: Property) => {
-              const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
-              nodeIds.add(propertyId);
-            });
+            typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach(
+              (property: Property) => {
+                const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
+                nodeIds.add(propertyId);
+              }
+            );
             typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
               const methodId = method.id ?? `${cls.id}:method:${method.name}`;
               nodeIds.add(methodId);
@@ -82,15 +82,13 @@ function buildNodeIdSet(data: PackageGraph, options: ResolvedOptions): Set<strin
         mapTypeCollection(module.interfaces, (iface: Interface) => {
           nodeIds.add(iface.id);
           if (options.includeMemberContainmentEdges) {
-            typeCollectionToArray(
-              iface.properties as Record<string, Property> | Property[]
-            ).forEach((property: Property) => {
-              const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
-              nodeIds.add(propertyId);
-            });
-            typeCollectionToArray(
-              iface.methods as Record<string, Method> | Method[]
-            ).forEach((method: Method) => {
+            typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
+              (property: Property) => {
+                const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
+                nodeIds.add(propertyId);
+              }
+            );
+            typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
               const methodId = method.id ?? `${iface.id}:method:${method.name}`;
               nodeIds.add(methodId);
             });
@@ -130,16 +128,14 @@ function buildNodeKindLookup(data: PackageGraph, options: ResolvedOptions): Map<
             return;
           }
 
-          typeCollectionToArray(
-            cls.properties as Record<string, Property> | Property[]
-          ).forEach((property: Property) => {
-            const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
-            nodeKinds.set(propertyId, 'property');
-          });
+          typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach(
+            (property: Property) => {
+              const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
+              nodeKinds.set(propertyId, 'property');
+            }
+          );
 
-          typeCollectionToArray(
-            cls.methods as Record<string, Method> | Method[]
-          ).forEach((method: Method) => {
+          typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
             const methodId = method.id ?? `${cls.id}:method:${method.name}`;
             nodeKinds.set(methodId, 'method');
           });
@@ -154,16 +150,14 @@ function buildNodeKindLookup(data: PackageGraph, options: ResolvedOptions): Map<
             return;
           }
 
-          typeCollectionToArray(
-            iface.properties as Record<string, Property> | Property[]
-          ).forEach((property: Property) => {
-            const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
-            nodeKinds.set(propertyId, 'property');
-          });
+          typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
+            (property: Property) => {
+              const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
+              nodeKinds.set(propertyId, 'property');
+            }
+          );
 
-          typeCollectionToArray(
-            iface.methods as Record<string, Method> | Method[]
-          ).forEach((method: Method) => {
+          typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
             const methodId = method.id ?? `${iface.id}:method:${method.name}`;
             nodeKinds.set(methodId, 'method');
           });
@@ -201,7 +195,6 @@ function buildSymbolToModuleMap(data: PackageGraph): Map<string, string> {
 
   return symbolToModuleMap;
 }
-
 
 function createEdge(
   source: string,
@@ -241,20 +234,14 @@ function addLiftedModuleEdges(
     if (!sourceModuleId || !targetModuleId) return;
     if (sourceModuleId === targetModuleId) return;
 
-    addEdge(
-      createEdge(sourceModuleId, targetModuleId, type),
-      `${sourceModuleId}|${targetModuleId}|${type}|lifted`
-    );
+    addEdge(createEdge(sourceModuleId, targetModuleId, type), `${sourceModuleId}|${targetModuleId}|${type}|lifted`);
   });
 }
 
 /**
  * Creates graph edges from the provided dependency package graph data.
  */
-export function createGraphEdges(
-  data: PackageGraph,
-  options: CreateGraphEdgesOptions = {}
-): GraphEdge[] {
+export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOptions = {}): GraphEdge[] {
   const resolvedOptions: ResolvedOptions = {
     includePackageEdges: options.includePackageEdges ?? false,
     includeClassEdges: options.includeClassEdges ?? options.includeSymbolEdges ?? false,
@@ -303,8 +290,7 @@ export function createGraphEdges(
     }
 
     const key =
-      keyOverride ??
-      `${edge.source}|${edge.target}|${edge.data?.type ?? 'unknown'}|${edge.data?.importName ?? ''}`;
+      keyOverride ?? `${edge.source}|${edge.target}|${edge.data?.type ?? 'unknown'}|${edge.data?.importName ?? ''}`;
 
     if (!edgeMap.has(key)) {
       edgeMap.set(key, { ...edge, id: edge.id || key });
@@ -345,39 +331,38 @@ export function createGraphEdges(
       const importerPath: string = module.source.relativePath;
 
       if (isNonEmptyCollection(module.imports)) {
-        mapTypeCollection(module.imports, (imp: Import & { path?: string; isExternal?: boolean; packageName?: string }) => {
-          const path = imp.relativePath || imp.fullPath || imp.path || imp.name;
-          if (!path) return;
-          if (isExternalImport(imp)) return;
+        mapTypeCollection(
+          module.imports,
+          (imp: Import & { path?: string; isExternal?: boolean; packageName?: string }) => {
+            const path = imp.relativePath || imp.fullPath || imp.path || imp.name;
+            if (!path) return;
+            if (isExternalImport(imp)) return;
 
-          const importedModuleId = resolveModuleId(lookup, packageId, importerPath, path);
-          if (!importedModuleId || importedModuleId === moduleId) {
-            return;
+            const importedModuleId = resolveModuleId(lookup, packageId, importerPath, path);
+            if (!importedModuleId || importedModuleId === moduleId) {
+              return;
+            }
+
+            const source = resolvedOptions.importDirection === 'importer-to-imported' ? moduleId : importedModuleId;
+            const target = resolvedOptions.importDirection === 'importer-to-imported' ? importedModuleId : moduleId;
+            const importName: string | undefined = imp.name;
+            addEdge(createEdge(source, target, 'import', importName));
           }
-
-          const source =
-            resolvedOptions.importDirection === 'importer-to-imported' ? moduleId : importedModuleId;
-          const target =
-            resolvedOptions.importDirection === 'importer-to-imported' ? importedModuleId : moduleId;
-          const importName: string | undefined = imp.name;
-          addEdge(createEdge(source, target, 'import', importName));
-        });
+        );
       }
 
       if (isNonEmptyCollection(module.classes)) {
         mapTypeCollection(module.classes, (cls: Class) => {
           const clsId = cls.id;
           if (resolvedOptions.includeMemberContainmentEdges) {
-            typeCollectionToArray(
-              cls.properties as Record<string, Property> | Property[]
-            ).forEach((property: Property) => {
-              const propertyId = property.id ?? `${clsId}:property:${property.name}`;
-              addEdge(createEdge(clsId, propertyId, 'contains'), `${clsId}|${propertyId}|contains|member`);
-            });
+            typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach(
+              (property: Property) => {
+                const propertyId = property.id ?? `${clsId}:property:${property.name}`;
+                addEdge(createEdge(clsId, propertyId, 'contains'), `${clsId}|${propertyId}|contains|member`);
+              }
+            );
 
-            typeCollectionToArray(
-              cls.methods as Record<string, Method> | Method[]
-            ).forEach((method: Method) => {
+            typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
               const methodId = method.id ?? `${clsId}:method:${method.name}`;
               addEdge(createEdge(clsId, methodId, 'contains'), `${clsId}|${methodId}|contains|member`);
             });
@@ -408,16 +393,14 @@ export function createGraphEdges(
         mapTypeCollection(module.interfaces, (iface: Interface) => {
           const ifaceId = iface.id;
           if (resolvedOptions.includeMemberContainmentEdges) {
-            typeCollectionToArray(
-              iface.properties as Record<string, Property> | Property[]
-            ).forEach((property: Property) => {
-              const propertyId = property.id ?? `${ifaceId}:property:${property.name}`;
-              addEdge(createEdge(ifaceId, propertyId, 'contains'), `${ifaceId}|${propertyId}|contains|member`);
-            });
+            typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
+              (property: Property) => {
+                const propertyId = property.id ?? `${ifaceId}:property:${property.name}`;
+                addEdge(createEdge(ifaceId, propertyId, 'contains'), `${ifaceId}|${propertyId}|contains|member`);
+              }
+            );
 
-            typeCollectionToArray(
-              iface.methods as Record<string, Method> | Method[]
-            ).forEach((method: Method) => {
+            typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
               const methodId = method.id ?? `${ifaceId}:method:${method.name}`;
               addEdge(createEdge(ifaceId, methodId, 'contains'), `${ifaceId}|${methodId}|contains|member`);
             });

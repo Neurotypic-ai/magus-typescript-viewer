@@ -3,23 +3,23 @@
  */
 
 import { mapTypeCollection, typeCollectionToArray } from '../../utils/collections';
+import { applyEdgeVisibility, filterEdgesByNodeSet } from '../graphViewShared';
 import { getHandlePositions } from '../handleRouting';
-import { filterEdgesByNodeSet, applyEdgeVisibility } from '../graphViewShared';
 import {
-  findModuleById,
-  normalizeProperty,
-  normalizeMethod,
-  createSymbolEdge,
   createDetailedSymbolNode,
+  createSymbolEdge,
+  findModuleById,
+  normalizeMethod,
+  normalizeProperty,
 } from './symbolHelpers';
 
 import type { Class } from '../../../shared/types/Class';
-import type { DependencyNode } from '../../types/DependencyNode';
-import type { PackageGraph } from '../../../shared/types/Package';
-import type { GraphEdge } from '../../types/GraphEdge';
 import type { Interface } from '../../../shared/types/Interface';
 import type { Method } from '../../../shared/types/Method';
+import type { PackageGraph } from '../../../shared/types/Package';
 import type { Property } from '../../../shared/types/Property';
+import type { DependencyNode } from '../../types/DependencyNode';
+import type { GraphEdge } from '../../types/GraphEdge';
 import type { GraphViewData } from '../graphViewShared';
 
 export interface BuildModuleDrilldownGraphOptions {
@@ -54,15 +54,13 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
 
   if (moduleData.classes) {
     mapTypeCollection(moduleData.classes, (cls: Class) => {
-      const properties = typeCollectionToArray(
-        cls.properties as Record<string, Property> | Property[] | undefined
-      ).map((p) => normalizeProperty(p));
-      const methods = typeCollectionToArray(
-        cls.methods as Record<string, Method> | Method[] | undefined
-      ).map((m) => normalizeMethod(m));
-      detailedNodes.push(
-        createDetailedSymbolNode(cls.id, 'class', cls.name, properties, methods, options.direction)
+      const properties = typeCollectionToArray(cls.properties as Record<string, Property> | Property[] | undefined).map(
+        (p) => normalizeProperty(p)
       );
+      const methods = typeCollectionToArray(cls.methods as Record<string, Method> | Method[] | undefined).map((m) =>
+        normalizeMethod(m)
+      );
+      detailedNodes.push(createDetailedSymbolNode(cls.id, 'class', cls.name, properties, methods, options.direction));
       if (cls.extends_id) detailedEdges.push(createSymbolEdge(cls.id, cls.extends_id, 'inheritance'));
       if (cls.implemented_interfaces) {
         mapTypeCollection(cls.implemented_interfaces, (iface: Interface) => {
@@ -77,9 +75,9 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
       const properties = typeCollectionToArray(
         iface.properties as Record<string, Property> | Property[] | undefined
       ).map((p) => normalizeProperty(p));
-      const methods = typeCollectionToArray(
-        iface.methods as Record<string, Method> | Method[] | undefined
-      ).map((m) => normalizeMethod(m));
+      const methods = typeCollectionToArray(iface.methods as Record<string, Method> | Method[] | undefined).map((m) =>
+        normalizeMethod(m)
+      );
       detailedNodes.push(
         createDetailedSymbolNode(iface.id, 'interface', iface.name, properties, methods, options.direction)
       );

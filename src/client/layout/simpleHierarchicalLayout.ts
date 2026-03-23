@@ -154,9 +154,7 @@ export function computeSimpleHierarchicalLayout(
 
   // ── Step 2: lay out root nodes with variable column widths ────────────────
 
-  const rootNodes = nodes
-    .filter((n) => !n.parentNode)
-    .sort((a, b) => getTypeOrder(a) - getTypeOrder(b));
+  const rootNodes = nodes.filter((n) => !n.parentNode).sort((a, b) => getTypeOrder(a) - getTypeOrder(b));
 
   // Group root nodes by type for row-based layout.
   const byType = new Map<number, DependencyNode[]>();

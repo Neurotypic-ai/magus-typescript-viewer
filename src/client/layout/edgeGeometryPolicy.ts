@@ -91,10 +91,8 @@ export function buildEdgePolyline(
   targetPoint: EdgeGeometryPoint,
   options: EdgePolylineOptions = {}
 ): EdgeGeometryPoint[] {
-  const sourceSide =
-    getHandleSide(options.sourceHandle) ?? inferHandleSide(sourcePoint, targetPoint);
-  const targetSide =
-    getHandleSide(options.targetHandle) ?? inferHandleSide(targetPoint, sourcePoint);
+  const sourceSide = getHandleSide(options.sourceHandle) ?? inferHandleSide(sourcePoint, targetPoint);
+  const targetSide = getHandleSide(options.targetHandle) ?? inferHandleSide(targetPoint, sourcePoint);
 
   const points: EdgeGeometryPoint[] = [{ x: sourcePoint.x, y: sourcePoint.y }];
 
@@ -103,9 +101,7 @@ export function buildEdgePolyline(
   if (isGroupNode(options.sourceNodeType)) {
     points.push(offsetPoint(sourcePoint, sourceNormal, GROUP_ENTRY_STUB_PX));
   } else {
-    points.push(
-      offsetPoint(sourcePoint, sourceNormal, NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX)
-    );
+    points.push(offsetPoint(sourcePoint, sourceNormal, NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX));
   }
 
   // -- Target-side stubs --

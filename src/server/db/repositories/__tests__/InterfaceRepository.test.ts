@@ -531,9 +531,7 @@ describe('InterfaceRepository', () => {
     });
 
     it('should re-throw non-duplicate errors during batch insert', async () => {
-      const items: IInterfaceCreateDTO[] = [
-        { id: 'id-1', package_id: 'pkg-1', module_id: 'mod-1', name: 'IFirst' },
-      ];
+      const items: IInterfaceCreateDTO[] = [{ id: 'id-1', package_id: 'pkg-1', module_id: 'mod-1', name: 'IFirst' }];
 
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Disk full'));
 

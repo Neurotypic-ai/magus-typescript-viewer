@@ -106,4 +106,3 @@ export function isValidEdgeConnection(
 export function getHandleCategory(kind: DependencyEdgeKind): HandleCategory {
   return EDGE_TYPE_REGISTRY[kind].handleCategory;
 }
-

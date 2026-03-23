@@ -5,34 +5,9 @@ import { BaseRepository } from './BaseRepository';
 import type { DuckDBValue } from '@duckdb/node-api';
 
 import type { VisibilityType } from '../../../shared/types/VisibilityType';
-import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IPropertyCreateDTO, IPropertyUpdateDTO } from '../../../shared/types/dto/PropertyDTO';
+import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IPropertyRow } from '../types/DatabaseResults';
-
-/**
- * Repository interface for managing properties.
- */
-export interface IPropertyRepository {
-  /**
-   * Creates a new property.
-   */
-  create(dto: IPropertyCreateDTO): Promise<Property>;
-
-  /**
-   * Finds a property by its ID.
-   */
-  findById(id: string): Promise<IPropertyCreateDTO | null>;
-
-  /**
-   * Finds all properties in a parent (class or interface).
-   */
-  findByParentId(parentId: string): Promise<IPropertyCreateDTO[]>;
-
-  /**
-   * Deletes a property by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
 
 export class PropertyRepository extends BaseRepository<Property, IPropertyCreateDTO, IPropertyUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {

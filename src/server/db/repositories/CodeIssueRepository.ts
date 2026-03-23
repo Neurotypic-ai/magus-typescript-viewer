@@ -44,12 +44,25 @@ export class CodeIssueRepository extends BaseRepository<CodeIssueEntity, ICodeIs
       'create',
       'INSERT INTO code_issues (id, rule_code, severity, message, suggestion, package_id, module_id, file_path, entity_id, entity_type, entity_name, parent_entity_id, parent_entity_type, parent_entity_name, property_name, line, "column", refactor_action, refactor_context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
       [
-        dto.id, dto.rule_code, dto.severity, dto.message, dto.suggestion ?? null,
-        dto.package_id, dto.module_id, dto.file_path,
-        dto.entity_id ?? null, dto.entity_type ?? null, dto.entity_name ?? null,
-        dto.parent_entity_id ?? null, dto.parent_entity_type ?? null, dto.parent_entity_name ?? null,
-        dto.property_name ?? null, dto.line ?? null, dto.column ?? null,
-        dto.refactor_action ?? null, dto.refactor_context_json ?? null,
+        dto.id,
+        dto.rule_code,
+        dto.severity,
+        dto.message,
+        dto.suggestion ?? null,
+        dto.package_id,
+        dto.module_id,
+        dto.file_path,
+        dto.entity_id ?? null,
+        dto.entity_type ?? null,
+        dto.entity_name ?? null,
+        dto.parent_entity_id ?? null,
+        dto.parent_entity_type ?? null,
+        dto.parent_entity_name ?? null,
+        dto.property_name ?? null,
+        dto.line ?? null,
+        dto.column ?? null,
+        dto.refactor_action ?? null,
+        dto.refactor_context_json ?? null,
       ]
     );
     const row = results[0];
@@ -64,11 +77,9 @@ export class CodeIssueRepository extends BaseRepository<CodeIssueEntity, ICodeIs
   }
 
   async retrieveById(id: string): Promise<CodeIssueEntity | undefined> {
-    const results = await this.executeQuery<ICodeIssueRow>(
-      'retrieveById',
-      'SELECT * FROM code_issues WHERE id = ?',
-      [id]
-    );
+    const results = await this.executeQuery<ICodeIssueRow>('retrieveById', 'SELECT * FROM code_issues WHERE id = ?', [
+      id,
+    ]);
     const row = results[0];
     return row ? this.mapToEntity(row) : undefined;
   }

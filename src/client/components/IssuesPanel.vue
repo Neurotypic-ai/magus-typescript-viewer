@@ -62,9 +62,7 @@ function closePanel(): void {
         <button v-if="hasFilter" type="button" class="issues-panel-btn" title="Clear filter" @click="clearFilter">
           Clear
         </button>
-        <button type="button" class="issues-panel-btn" title="Close panel" @click="closePanel">
-          &times;
-        </button>
+        <button type="button" class="issues-panel-btn" title="Close panel" @click="closePanel">&times;</button>
       </div>
     </div>
 
@@ -104,12 +102,8 @@ function closePanel(): void {
         <div class="issue-message">{{ issue.message }}</div>
         <div v-if="issue.suggestion" class="issue-suggestion">{{ issue.suggestion }}</div>
         <div v-if="issue.refactor_action" class="issue-actions">
-          <button type="button" class="issue-btn issue-btn--preview" @click="handlePreview(issue.id)">
-            Preview
-          </button>
-          <button type="button" class="issue-btn issue-btn--apply" @click="handleApply(issue.id)">
-            Apply Fix
-          </button>
+          <button type="button" class="issue-btn issue-btn--preview" @click="handlePreview(issue.id)">Preview</button>
+          <button type="button" class="issue-btn issue-btn--apply" @click="handleApply(issue.id)">Apply Fix</button>
         </div>
       </div>
     </div>

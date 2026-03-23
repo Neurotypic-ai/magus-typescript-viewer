@@ -2,14 +2,15 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import chalk from 'chalk';
-import { consola } from 'consola';
 import { Command } from 'commander';
+import { consola } from 'consola';
 import ora from 'ora';
 import { readPackage } from 'read-pkg';
 
 import { Database } from '../db/Database';
 import { DuckDBAdapter } from '../db/adapter/DuckDBAdapter';
 import { ClassRepository } from '../db/repositories/ClassRepository';
+import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
 import { EnumRepository } from '../db/repositories/EnumRepository';
 import { ExportRepository } from '../db/repositories/ExportRepository';
 import { FunctionRepository } from '../db/repositories/FunctionRepository';
@@ -23,9 +24,8 @@ import { PropertyRepository } from '../db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from '../db/repositories/SymbolReferenceRepository';
 import { TypeAliasRepository } from '../db/repositories/TypeAliasRepository';
 import { VariableRepository } from '../db/repositories/VariableRepository';
-import { PackageParser } from '../parsers/PackageParser';
-import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
 import { InsightEngine } from '../insights/InsightEngine';
+import { PackageParser } from '../parsers/PackageParser';
 import { RulesEngine } from '../rules/RulesEngine';
 import { generateRelationshipUUID } from '../utils/uuid';
 
@@ -36,12 +36,7 @@ const __dirname = dirname(__filename);
 const cliLogger = consola.withTag('CLI');
 
 /** Insert a row, ignoring duplicate key errors */
-async function safeInsert(
-  adapter: IDatabaseAdapter,
-  table: string,
-  columns: string,
-  values: string[]
-): Promise<void> {
+async function safeInsert(adapter: IDatabaseAdapter, table: string, columns: string, values: string[]): Promise<void> {
   const placeholders = values.map(() => '?').join(', ');
   try {
     await adapter.query(`INSERT INTO ${table} ${columns} VALUES (${placeholders})`, values);
@@ -87,14 +82,12 @@ function normalizeSpecifierKind(kind: string): PersistedImportSpecifier['kind'] 
   return 'value';
 }
 
-function serializeImportSpecifiers(
-  imp: {
-    name?: string;
-    relativePath?: string;
-    fullPath?: string;
-    specifiers?: unknown;
-  }
-): string | undefined {
+function serializeImportSpecifiers(imp: {
+  name?: string;
+  relativePath?: string;
+  fullPath?: string;
+  specifiers?: unknown;
+}): string | undefined {
   const serialized: PersistedImportSpecifier[] = [];
   const sourceLabel = imp.name ?? imp.relativePath ?? imp.fullPath ?? '(side-effect)';
 
@@ -300,7 +293,9 @@ program
         // Batch-insert imports with module context (use relativePath for client-side resolution)
         if (parseResult.importsWithModules) {
           const dedupedImports = Array.from(
-            new Map(parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
+            new Map(
+              parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])
+            ).values()
           );
 
           const importDTOs = dedupedImports.map(({ import: imp, moduleId }) => {
@@ -371,20 +366,12 @@ program
       // Cross-package resolution: only fetch classes/interfaces whose names
       // match unresolved references (Issue #18: avoid full-table scans)
       const unresolvedClassNames = [
-        ...new Set(
-          parseResult.classExtends
-            .filter((ref) => !ref.parentId)
-            .map((ref) => ref.parentName)
-        ),
+        ...new Set(parseResult.classExtends.filter((ref) => !ref.parentId).map((ref) => ref.parentName)),
       ];
       const unresolvedInterfaceNames = [
         ...new Set([
-          ...parseResult.classImplements
-            .filter((ref) => !ref.interfaceId)
-            .map((ref) => ref.interfaceName),
-          ...parseResult.interfaceExtends
-            .filter((ref) => !ref.parentId)
-            .map((ref) => ref.parentName),
+          ...parseResult.classImplements.filter((ref) => !ref.interfaceId).map((ref) => ref.interfaceName),
+          ...parseResult.interfaceExtends.filter((ref) => !ref.parentId).map((ref) => ref.parentName),
         ]),
       ];
 
@@ -501,7 +488,10 @@ program
           const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
           const params = chunk.flat();
           try {
-            await adapter.query(`INSERT INTO class_implements (id, class_id, interface_id) VALUES ${placeholders}`, params);
+            await adapter.query(
+              `INSERT INTO class_implements (id, class_id, interface_id) VALUES ${placeholders}`,
+              params
+            );
           } catch (error) {
             const msg = error instanceof Error ? error.message : '';
             if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
@@ -519,7 +509,10 @@ program
           const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
           const params = chunk.flat();
           try {
-            await adapter.query(`INSERT INTO interface_extends (id, interface_id, extended_id) VALUES ${placeholders}`, params);
+            await adapter.query(
+              `INSERT INTO interface_extends (id, interface_id, extended_id) VALUES ${placeholders}`,
+              params
+            );
           } catch (error) {
             const msg = error instanceof Error ? error.message : '';
             if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {

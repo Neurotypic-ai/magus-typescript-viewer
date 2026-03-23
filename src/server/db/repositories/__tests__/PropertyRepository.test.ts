@@ -1,12 +1,13 @@
 // @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { Property } from '../../../../shared/types/Property';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { PropertyRepository } from '../PropertyRepository';
 
-import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
 import type { IPropertyCreateDTO } from '../../../../shared/types/dto/PropertyDTO';
+import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IPropertyRow } from '../../types/DatabaseResults';
-import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 /**
  * Creates a mock IDatabaseAdapter with vi.fn() stubs for all methods.
@@ -97,21 +98,18 @@ describe('PropertyRepository', () => {
 
       await repo.create(dto);
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO properties'),
-        [
-          dto.id,
-          dto.package_id,
-          dto.module_id,
-          dto.parent_id,
-          dto.parent_type,
-          dto.name,
-          dto.type,
-          dto.is_static,
-          dto.is_readonly,
-          dto.visibility,
-        ]
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO properties'), [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.parent_id,
+        dto.parent_type,
+        dto.name,
+        dto.type,
+        dto.is_static,
+        dto.is_readonly,
+        dto.visibility,
+      ]);
     });
 
     it('should set created_at to a Date on the returned Property', async () => {
@@ -158,7 +156,7 @@ describe('PropertyRepository', () => {
 
       expect(adapter.query).toHaveBeenCalledTimes(1);
       const call = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
-      const sql = call[0] as string;
+      const sql = call?.[0] as string;
       expect(sql).toContain('INSERT INTO properties');
       // Should have 2 value groups (10 placeholders each)
       expect(sql).toContain('?, ?, ?, ?, ?, ?, ?, ?, ?, ?');
@@ -206,10 +204,7 @@ describe('PropertyRepository', () => {
     });
 
     it('should rethrow non-duplicate errors during individual fallback inserts', async () => {
-      const items = [
-        createPropertyDTO({ id: 'prop-1' }),
-        createPropertyDTO({ id: 'prop-2' }),
-      ];
+      const items = [createPropertyDTO({ id: 'prop-1' }), createPropertyDTO({ id: 'prop-2' })];
 
       (adapter.query as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(new Error('UNIQUE violation')) // triggers fallback
@@ -380,9 +375,7 @@ describe('PropertyRepository', () => {
 
       // First call: UPDATE query returns []
       // Second call: retrieve query returns the updated row
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       const result = await repo.update('prop-1', { name: 'updatedName', type: 'number' });
 
@@ -393,9 +386,7 @@ describe('PropertyRepository', () => {
 
     it('should build the correct UPDATE query for a single field', async () => {
       const updatedRow = createPropertyRow({ id: 'prop-1', name: 'renamed' });
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       await repo.update('prop-1', { name: 'renamed' });
 
@@ -408,9 +399,7 @@ describe('PropertyRepository', () => {
 
     it('should build the correct UPDATE query for multiple fields', async () => {
       const updatedRow = createPropertyRow({ id: 'prop-1' });
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       await repo.update('prop-1', { name: 'newName', is_static: true, visibility: 'private' });
 
@@ -427,9 +416,7 @@ describe('PropertyRepository', () => {
 
     it('should throw EntityNotFoundError when the property does not exist after update', async () => {
       // UPDATE succeeds but retrieve returns empty
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
       await expect(repo.update('nonexistent', { name: 'x' })).rejects.toThrow(EntityNotFoundError);
     });
@@ -462,10 +449,7 @@ describe('PropertyRepository', () => {
 
       await repo.delete('prop-1');
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        'DELETE FROM properties WHERE id = ?',
-        ['prop-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith('DELETE FROM properties WHERE id = ?', ['prop-1']);
     });
 
     it('should not throw when deleting a non-existent id', async () => {
@@ -565,9 +549,7 @@ describe('PropertyRepository', () => {
     });
 
     it('should initialise empty Maps for parent IDs that have no properties', async () => {
-      const rows = [
-        createPropertyRow({ id: 'p1', parent_id: 'cls-1', parent_type: 'class' }),
-      ];
+      const rows = [createPropertyRow({ id: 'p1', parent_id: 'cls-1', parent_type: 'class' })];
       (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(rows);
 
       const result = await repo.retrieveByParentIds(['cls-1', 'cls-2'], 'class');

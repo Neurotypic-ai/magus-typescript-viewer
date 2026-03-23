@@ -4,13 +4,8 @@ import { Module } from '../shared/types/Module';
 import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
 import { RepositoryError } from './db/errors/RepositoryError';
-import { CodeIssueRepository } from './db/repositories/CodeIssueRepository';
-import { InsightEngine } from './insights/InsightEngine';
-
-import type { CodeIssueEntity } from './db/types/CodeIssueEntity';
-import type { CodeIssueRef } from '../shared/types/api/CodeIssueRef';
-import type { InsightReport } from '../shared/types/api/Insight';
 import { ClassRepository } from './db/repositories/ClassRepository';
+import { CodeIssueRepository } from './db/repositories/CodeIssueRepository';
 import { EnumRepository } from './db/repositories/EnumRepository';
 import { FunctionRepository } from './db/repositories/FunctionRepository';
 import { ImportRepository } from './db/repositories/ImportRepository';
@@ -22,9 +17,13 @@ import { PropertyRepository } from './db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from './db/repositories/SymbolReferenceRepository';
 import { TypeAliasRepository } from './db/repositories/TypeAliasRepository';
 import { VariableRepository } from './db/repositories/VariableRepository';
+import { InsightEngine } from './insights/InsightEngine';
 
 import type { Package } from '../shared/types/Package';
 import type { TypeCollection } from '../shared/types/TypeCollection';
+import type { CodeIssueRef } from '../shared/types/api/CodeIssueRef';
+import type { InsightReport } from '../shared/types/api/Insight';
+import type { CodeIssueEntity } from './db/types/CodeIssueEntity';
 
 export interface ApiServerResponderOptions {
   dbPath?: string;
@@ -101,7 +100,13 @@ function parseImportSpecifiers(specifiersJson: string | undefined): PersistedImp
 }
 
 function inferExternalPackageName(source: string): string | undefined {
-  if (!source || source.startsWith('.') || source.startsWith('/') || source.startsWith('@/') || source.startsWith('src/')) {
+  if (
+    !source ||
+    source.startsWith('.') ||
+    source.startsWith('/') ||
+    source.startsWith('@/') ||
+    source.startsWith('src/')
+  ) {
     return undefined;
   }
 
@@ -218,9 +223,7 @@ export class ApiServerResponder {
     }
   }
 
-  async getPackages(): Promise<
-    PackagesResponseItem[]
-  > {
+  async getPackages(): Promise<PackagesResponseItem[]> {
     try {
       const packages = await this.packageRepository.retrieve();
       return packages.map((pkg) => ({
@@ -290,7 +293,9 @@ export class ApiServerResponder {
       await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
       return {
-        packages: packages.map((_, index) => responses.get(index)).filter((item): item is GraphResponseItem => Boolean(item)),
+        packages: packages
+          .map((_, index) => responses.get(index))
+          .filter((item): item is GraphResponseItem => Boolean(item)),
       };
     } catch (error) {
       this.logger.error('Failed to build graph payload, returning empty graph', error);
@@ -460,7 +465,9 @@ export class ApiServerResponder {
       await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
       return {
-        packages: packages.map((_, index) => responses.get(index)).filter((item): item is GraphResponseItem => Boolean(item)),
+        packages: packages
+          .map((_, index) => responses.get(index))
+          .filter((item): item is GraphResponseItem => Boolean(item)),
       };
     } catch (error) {
       this.logger.error('Failed to build graph summary payload, returning empty graph', error);
@@ -492,17 +499,25 @@ export class ApiServerResponder {
       const moduleIds = modules.map((m) => m.id);
 
       // Batch-fetch all entities for all modules in one query each
-      const [allClasses, allInterfaces, allFunctions, allTypeAliases, allEnums, allVariables, allImports, allSymbolRefs] =
-        await Promise.all([
-          this.classRepository.retrieveByModuleIds(moduleIds),
-          this.interfaceRepository.retrieveByModuleIds(moduleIds),
-          this.functionRepository.retrieveByModuleIds(moduleIds),
-          this.typeAliasRepository.retrieveByModuleIds(moduleIds),
-          this.enumRepository.retrieveByModuleIds(moduleIds),
-          this.variableRepository.retrieveByModuleIds(moduleIds),
-          this.importRepository.retrieveByModuleIds(moduleIds),
-          this.symbolReferenceRepository.retrieveByModuleIds(moduleIds),
-        ]);
+      const [
+        allClasses,
+        allInterfaces,
+        allFunctions,
+        allTypeAliases,
+        allEnums,
+        allVariables,
+        allImports,
+        allSymbolRefs,
+      ] = await Promise.all([
+        this.classRepository.retrieveByModuleIds(moduleIds),
+        this.interfaceRepository.retrieveByModuleIds(moduleIds),
+        this.functionRepository.retrieveByModuleIds(moduleIds),
+        this.typeAliasRepository.retrieveByModuleIds(moduleIds),
+        this.enumRepository.retrieveByModuleIds(moduleIds),
+        this.variableRepository.retrieveByModuleIds(moduleIds),
+        this.importRepository.retrieveByModuleIds(moduleIds),
+        this.symbolReferenceRepository.retrieveByModuleIds(moduleIds),
+      ]);
 
       // Collect all class IDs and interface IDs for batch method/property retrieval
       const classIds = allClasses.map((c) => c.id);

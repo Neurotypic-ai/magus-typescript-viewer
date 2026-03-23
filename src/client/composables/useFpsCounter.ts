@@ -1,4 +1,6 @@
-import { computed, onUnmounted, ref, type ComputedRef, type Ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
+
+import type { ComputedRef, Ref } from 'vue';
 
 const MAX_FPS_HISTORY_POINTS = 90;
 

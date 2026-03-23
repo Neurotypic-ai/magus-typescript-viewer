@@ -17,13 +17,8 @@ interface GraphNodeActionsResult {
 }
 
 export function createGraphNodeActions(options: CreateGraphNodeActionsOptions): GraphNodeActionsResult {
-  const {
-    handleFocusNode,
-    isolateNeighborhood,
-    contextMenu,
-    toggleFolderCollapsed,
-    requestGraphInitialization,
-  } = options;
+  const { handleFocusNode, isolateNeighborhood, contextMenu, toggleFolderCollapsed, requestGraphInitialization } =
+    options;
 
   const nodeActions: NodeActions = {
     focusNode: (nodeId: string) => void handleFocusNode(nodeId),

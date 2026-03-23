@@ -1,4 +1,13 @@
+import { readFile, writeFile } from 'fs/promises';
+
 import { vi } from 'vitest';
+
+import { RefactorEngine } from '../RefactorEngine';
+import { allTransforms } from '../transforms/index';
+
+import type { Mock } from 'vitest';
+
+import type { Transform } from '../Transform';
 
 // ---------------------------------------------------------------------------
 // Mock fs/promises before importing the engine
@@ -12,13 +21,6 @@ vi.mock('fs/promises', () => ({
 vi.mock('../transforms/index', () => ({
   allTransforms: [],
 }));
-
-import { readFile, writeFile } from 'fs/promises';
-import { allTransforms } from '../transforms/index';
-import { RefactorEngine } from '../RefactorEngine';
-
-import type { Mock } from 'vitest';
-import type { Transform } from '../Transform';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -4,8 +4,8 @@ import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
-import type { IFunctionCreateDTO, IFunctionUpdateDTO } from '../../../shared/types/dto/FunctionDTO';
 import type { Parameter } from '../../../shared/types/Parameter';
+import type { IFunctionCreateDTO, IFunctionUpdateDTO } from '../../../shared/types/dto/FunctionDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IFunctionRow } from '../types/DatabaseResults';
 
@@ -143,11 +143,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
 
   async findById(id: string): Promise<ModuleFunction | undefined> {
     try {
-      const results = await this.executeQuery<IFunctionRow>(
-        'find by id',
-        'SELECT * FROM functions WHERE id = ?',
-        [id]
-      );
+      const results = await this.executeQuery<IFunctionRow>('find by id', 'SELECT * FROM functions WHERE id = ?', [id]);
 
       if (results.length === 0) {
         return undefined;
@@ -262,10 +258,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
   }
 
   async retrieve(): Promise<ModuleFunction[]> {
-    const results = await this.executeQuery<IFunctionRow>(
-      'retrieve all',
-      'SELECT * FROM functions ORDER BY name'
-    );
+    const results = await this.executeQuery<IFunctionRow>('retrieve all', 'SELECT * FROM functions ORDER BY name');
     return results.map((row) => this.mapToEntity(row));
   }
 }

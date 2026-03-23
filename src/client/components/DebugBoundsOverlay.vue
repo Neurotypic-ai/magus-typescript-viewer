@@ -62,7 +62,12 @@ const toScreenPoint = (point: { x: number; y: number }): { x: number; y: number 
   y: point.y * props.viewport.zoom + props.viewport.y,
 });
 
-const toScreenRect = (rect: { x: number; y: number; width: number; height: number }): {
+const toScreenRect = (rect: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): {
   x: number;
   y: number;
   width: number;
@@ -101,11 +106,7 @@ const scheduleBoundsRefresh = (): void => {
 };
 
 watch(() => props.nodes, scheduleBoundsRefresh, { flush: 'post' });
-watch(
-  () => [props.viewport.x, props.viewport.y, props.viewport.zoom],
-  scheduleBoundsRefresh,
-  { flush: 'post' },
-);
+watch(() => [props.viewport.x, props.viewport.y, props.viewport.zoom], scheduleBoundsRefresh, { flush: 'post' });
 
 refreshBounds();
 
@@ -279,7 +280,6 @@ const nodeLabels = computed<ScreenLabel[]>(() => {
         {{ label.id }}
       </text>
     </svg>
-
   </div>
 </template>
 
@@ -306,5 +306,4 @@ const nodeLabels = computed<ScreenLabel[]>(() => {
   font-size: 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
-
 </style>

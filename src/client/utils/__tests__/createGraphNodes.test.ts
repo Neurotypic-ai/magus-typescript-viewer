@@ -42,7 +42,9 @@ function createFixtureGraph(): PackageGraph {
                 id: 'class-1',
                 name: 'AppService',
                 properties: [{ id: 'prop-1', name: 'state', type: 'string', visibility: 'private' }],
-                methods: [{ id: 'method-1', name: 'load', returnType: 'void', visibility: 'public', signature: 'load(): void' }],
+                methods: [
+                  { id: 'method-1', name: 'load', returnType: 'void', visibility: 'public', signature: 'load(): void' },
+                ],
               },
             },
             interfaces: {
@@ -50,7 +52,15 @@ function createFixtureGraph(): PackageGraph {
                 id: 'iface-1',
                 name: 'AppContract',
                 properties: [{ id: 'iface-prop-1', name: 'id', type: 'string', visibility: 'public' }],
-                methods: [{ id: 'iface-method-1', name: 'execute', returnType: 'void', visibility: 'public', signature: 'execute(): void' }],
+                methods: [
+                  {
+                    id: 'iface-method-1',
+                    name: 'execute',
+                    returnType: 'void',
+                    visibility: 'public',
+                    signature: 'execute(): void',
+                  },
+                ],
               },
             },
           },

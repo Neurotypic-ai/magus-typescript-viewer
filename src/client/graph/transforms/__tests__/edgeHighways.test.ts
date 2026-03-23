@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { collapseFolders } from '../../cluster/collapseFolders';
 import { GROUP_ENTRY_STUB_PX } from '../../../layout/edgeGeometryPolicy';
+import { collapseFolders } from '../../cluster/collapseFolders';
 import { applyEdgeHighways, optimizeHighwayHandleRouting } from '../edgeHighways';
 
 import type { DependencyEdgeKind } from '../../../../shared/types/graph/DependencyEdgeKind';
@@ -237,4 +237,3 @@ describe('applyEdgeHighways', () => {
     expect(optimized[0]?.type).not.toBe('straight');
   });
 });
-

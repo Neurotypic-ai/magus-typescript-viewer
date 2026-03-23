@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 
-import { measurePerformance } from '../utils/performanceMonitoring';
+import { applyEdgeHoverStrokeVariable, getEdgeBaseStroke, toEdgeStyleRecord } from '../theme/edgeStyles';
 import {
   EDGE_HOVER_BASE_STROKE_VAR,
   EDGE_HOVER_CLASS,
@@ -15,14 +15,14 @@ import {
   stripEdgeClass,
   stripNodeClass,
 } from '../theme/graphClasses';
-import { applyEdgeHoverStrokeVariable, getEdgeBaseStroke, toEdgeStyleRecord } from '../theme/edgeStyles';
+import { measurePerformance } from '../utils/performanceMonitoring';
 
 import type { Ref } from 'vue';
 
-import type { CameraMode, ScopeMode } from './useGraphInteractionController';
-import type { SearchHighlightState } from './useSearchHighlighting';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { CameraMode, ScopeMode } from './useGraphInteractionController';
+import type { SearchHighlightState } from './useSearchHighlighting';
 
 const EMPTY_EDGE_SET = new Set<string>();
 
@@ -174,11 +174,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
   });
 
   const hoveredConnectedEdgeIds = computed<Set<string>>(() => {
-    if (
-      hoveredNodeId.value === null ||
-      selectedNode.value !== null ||
-      scopeMode.value === 'isolate'
-    ) {
+    if (hoveredNodeId.value === null || selectedNode.value !== null || scopeMode.value === 'isolate') {
       return EMPTY_EDGE_SET;
     }
     return selectionAdjacencyByNodeId.value.get(hoveredNodeId.value)?.connectedEdgeIds ?? EMPTY_EDGE_SET;
@@ -384,8 +380,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
       return;
     }
 
-    const shouldHighlightEdges =
-      nodeId !== null && selectedNode.value === null && scopeMode.value !== 'isolate';
+    const shouldHighlightEdges = nodeId !== null && selectedNode.value === null && scopeMode.value !== 'isolate';
     const nextHoveredEdgeIds = shouldHighlightEdges
       ? (selectionAdjacencyByNodeId.value.get(nodeId)?.connectedEdgeIds ?? new Set<string>())
       : new Set<string>();

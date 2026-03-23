@@ -1,12 +1,7 @@
 import { generateCodeIssueUUID } from '../../utils/uuid';
 
-import type {
-  ASTPath,
-  ClassDeclaration,
-  TSInterfaceDeclaration,
-  TSTypeAnnotation,
-  TSUnionType,
-} from 'jscodeshift';
+import type { ASTPath, ClassDeclaration, TSInterfaceDeclaration, TSTypeAnnotation, TSUnionType } from 'jscodeshift';
+
 import type { IClassCreateDTO } from '../../../shared/types/dto/ClassDTO';
 import type { IInterfaceCreateDTO } from '../../../shared/types/dto/InterfaceDTO';
 import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
@@ -45,15 +40,11 @@ function findPropertyDTO(
 }
 
 function findClassDTO(context: RuleContext, name: string): IClassCreateDTO | undefined {
-  return context.parseResult.classes.find(
-    (c) => c.module_id === context.moduleId && c.name === name
-  );
+  return context.parseResult.classes.find((c) => c.module_id === context.moduleId && c.name === name);
 }
 
 function findInterfaceDTO(context: RuleContext, name: string): IInterfaceCreateDTO | undefined {
-  return context.parseResult.interfaces.find(
-    (i) => i.module_id === context.moduleId && i.name === name
-  );
+  return context.parseResult.interfaces.find((i) => i.module_id === context.moduleId && i.name === name);
 }
 
 function checkUnionProperty(
@@ -79,11 +70,7 @@ function checkUnionProperty(
 
   const propertyDTO = findPropertyDTO(context, parentId, propertyName, parentType);
 
-  const issueId = generateCodeIssueUUID(
-    context.moduleId,
-    'type-union-without-alias',
-    `${parentName}.${propertyName}`
-  );
+  const issueId = generateCodeIssueUUID(context.moduleId, 'type-union-without-alias', `${parentName}.${propertyName}`);
 
   const issue: CodeIssue = {
     id: issueId,

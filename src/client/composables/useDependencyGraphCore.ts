@@ -4,9 +4,10 @@
  * DependencyGraph.vue calls this and uses the returned API.
  */
 
-import { useVueFlow } from '@vue-flow/core';
-import type { NodeChange } from '@vue-flow/core';
 import { computed, ref } from 'vue';
+
+import { useVueFlow } from '@vue-flow/core';
+import { storeToRefs } from 'pinia';
 
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
@@ -14,14 +15,16 @@ import {
   ISOLATE_EXPAND_ALL_KEY,
   NODE_ACTIONS_KEY,
 } from '../components/nodes/utils';
-import { storeToRefs } from 'pinia';
 import { useGraphSettings } from '../stores/graphSettings';
 import { useGraphStore } from '../stores/graphStore';
 import { useInsightsStore } from '../stores/insightsStore';
 import { useIssuesStore } from '../stores/issuesStore';
 import { graphTheme } from '../theme/graphTheme';
-import { useFpsCounter } from './useFpsCounter';
+import { applyNodeChanges } from '../utils/applyNodeChanges';
+import { createGraphLayoutOptions } from './createGraphLayoutOptions';
+import { createGraphNodeActions } from './createGraphNodeActions';
 import { useFpsChart } from './useFpsChart';
+import { useFpsCounter } from './useFpsCounter';
 import { useGraphInteractionController } from './useGraphInteractionController';
 import { useGraphLayout } from './useGraphLayout';
 import { useGraphNavigationHandlers } from './useGraphNavigationHandlers';
@@ -29,20 +32,17 @@ import { useGraphRenderedStats } from './useGraphRenderedStats';
 import { useGraphRenderingState } from './useGraphRenderingState';
 import { useGraphSelectionHandlers } from './useGraphSelectionHandlers';
 import { useGraphSettingsHandlers } from './useGraphSettingsHandlers';
-import { useMinimapHelpers } from './useMinimapHelpers';
-import { useGraphViewport, DEFAULT_VIEWPORT } from './useGraphViewport';
+import { DEFAULT_VIEWPORT, useGraphViewport } from './useGraphViewport';
 import { useIsolationMode } from './useIsolationMode';
+import { useMinimapHelpers } from './useMinimapHelpers';
 import { createNodeDimensionTracker } from './useNodeDimensions';
-import { createGraphLayoutOptions } from './createGraphLayoutOptions';
-import { createGraphNodeActions } from './createGraphNodeActions';
 import { useNodeHoverZIndex } from './useNodeHoverZIndex';
 import { useSearchHighlighting } from './useSearchHighlighting';
 import { useSelectionHighlighting } from './useSelectionHighlighting';
-import { applyNodeChanges } from '../utils/applyNodeChanges';
-import type {
-  DependencyGraphCoreReturn,
-  UseDependencyGraphCoreOptions,
-} from './dependencyGraphCoreTypes';
+
+import type { NodeChange } from '@vue-flow/core';
+
+import type { DependencyGraphCoreReturn, UseDependencyGraphCoreOptions } from './dependencyGraphCoreTypes';
 
 export { DEFAULT_VIEWPORT };
 
@@ -58,15 +58,8 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const { nodes, edges, selectedNode } = storeToRefs(graphStore);
 
-  const {
-    fitView,
-    updateNodeInternals,
-    panBy,
-    zoomTo,
-    getViewport,
-    setViewport,
-    removeSelectedElements,
-  } = useVueFlow();
+  const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport, removeSelectedElements } =
+    useVueFlow();
 
   const contextMenu = ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>(null);
   const nodeDimensionTracker = createNodeDimensionTracker();
@@ -232,8 +225,13 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     requestGraphInitialization: graphLayout.requestGraphInitialization,
   });
 
-  const { isIsolateAnimating, isolateExpandAll, isolateNeighborhood, handleOpenSymbolUsageGraph, handleReturnToOverview } =
-    isolationMode;
+  const {
+    isIsolateAnimating,
+    isolateExpandAll,
+    isolateNeighborhood,
+    handleOpenSymbolUsageGraph,
+    handleReturnToOverview,
+  } = isolationMode;
 
   const {
     renderedEdges,
@@ -251,10 +249,11 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     isFirefox,
   });
 
-  const { renderedNodeCount, renderedEdgeCount, renderedNodeTypeCounts, renderedEdgeTypeCounts } = useGraphRenderedStats({
-    visualNodes,
-    visualEdges,
-  });
+  const { renderedNodeCount, renderedEdgeCount, renderedNodeTypeCounts, renderedEdgeTypeCounts } =
+    useGraphRenderedStats({
+      visualNodes,
+      visualEdges,
+    });
 
   const { minimapNodeColor, minimapNodeStrokeColor } = useMinimapHelpers({ selectedNode });
 

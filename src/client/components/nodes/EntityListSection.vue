@@ -3,10 +3,10 @@ import { computed } from 'vue';
 
 import CollapsibleSection from './CollapsibleSection.vue';
 import TypeAnnotationDisplay from './TypeAnnotationDisplay.vue';
-
-import { buildDetailDisplayModel, type TypeDisplayModel } from './typeDisplay';
+import { buildDetailDisplayModel } from './typeDisplay';
 
 import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
+import type { TypeDisplayModel } from './typeDisplay';
 
 interface EntityListSectionProps {
   title: string;
@@ -24,7 +24,7 @@ const rows = computed(() =>
   props.entities.map((entity) => ({
     entity,
     model: buildDetailDisplayModel(entity.detail),
-  })),
+  }))
 );
 
 function isRichDetail(model: TypeDisplayModel): boolean {
@@ -33,14 +33,9 @@ function isRichDetail(model: TypeDisplayModel): boolean {
 </script>
 
 <template>
-  <CollapsibleSection
-    v-if="entities.length > 0"
-    :title="title"
-    :count="entities.length"
-    :default-open="defaultOpen"
-  >
+  <CollapsibleSection v-if="entities.length > 0" :title="title" :count="entities.length" :default-open="defaultOpen">
     <div
-      v-for="({ entity, model }) in rows"
+      v-for="{ entity, model } in rows"
       :key="entity.id"
       class="entity-item"
       :class="{ 'entity-item--rich': isRichDetail(model) }"
@@ -51,11 +46,7 @@ function isRichDetail(model: TypeDisplayModel): boolean {
         <span v-if="model.kind === 'plain'" class="entity-detail">{{ entity.detail }}</span>
         <span v-if="entity.tags?.includes('async')" class="entity-tag">async</span>
       </div>
-      <TypeAnnotationDisplay
-        v-if="model.kind !== 'plain'"
-        text-align="left"
-        :model="model"
-      />
+      <TypeAnnotationDisplay v-if="model.kind !== 'plain'" text-align="left" :model="model" />
     </div>
   </CollapsibleSection>
 </template>
@@ -165,5 +156,4 @@ function isRichDetail(model: TypeDisplayModel): boolean {
   background-color: rgba(251, 146, 60, 0.2);
   color: rgb(253, 186, 116);
 }
-
 </style>

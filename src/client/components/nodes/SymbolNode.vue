@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { useVueFlow } from '@vue-flow/core';
 import { computed, nextTick, ref, toRef, watch } from 'vue';
 
+import { useVueFlow } from '@vue-flow/core';
+
+import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import TypeAnnotationDisplay from './TypeAnnotationDisplay.vue';
-import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import { buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 
 import type { DependencyProps } from '../../types/DependencyProps';
@@ -56,13 +57,19 @@ const toggleCollapsed = () => {
 
 useExpandCollapseState(
   () => isCollapsed.value,
-  (saved) => { isCollapsed.value = saved; },
-  () => { isCollapsed.value = false; },
+  (saved) => {
+    isCollapsed.value = saved;
+  },
+  () => {
+    isCollapsed.value = false;
+  }
 );
 
-const baseNodeProps = computed(() => buildBaseNodeProps(props, {
-  zIndex: isMemberNode.value ? 4 : 3,
-}));
+const baseNodeProps = computed(() =>
+  buildBaseNodeProps(props, {
+    zIndex: isMemberNode.value ? 4 : 3,
+  })
+);
 
 const badgeClass = computed(() => {
   switch (nodeType.value) {
@@ -97,75 +104,69 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
 </script>
 
 <template>
-  <BaseNode
-    v-bind="baseNodeProps"
-    :badge-text="badgeText"
-    :badge-class="badgeClass"
-    min-width="230px"
-  >
+  <BaseNode v-bind="baseNodeProps" :badge-text="badgeText" :badge-class="badgeClass" min-width="230px">
     <template #body>
       <!-- Collapse toggle for collapsible symbol nodes -->
-      <button
-        v-if="isCollapsible"
-        class="symbol-collapse-toggle nodrag"
-        type="button"
-        @click.stop="toggleCollapsed"
-      >
+      <button v-if="isCollapsible" class="symbol-collapse-toggle nodrag" type="button" @click.stop="toggleCollapsed">
         <span>{{ isCollapsed ? 'Show members' : 'Hide members' }} ({{ totalMemberCount }})</span>
         <span>{{ isCollapsed ? '+' : '\u2212' }}</span>
       </button>
 
       <div v-if="!isCollapsed" class="symbol-body-content">
-          <div v-if="isMemberNode" class="member-node-body">
-            <span class="member-type">{{ nodeType }}</span>
-          </div>
-
-          <div v-else-if="totalMemberCount > 0" class="symbol-members">
-            <CollapsibleSection
-              v-if="memberPropertyCount > 0"
-              title="Properties"
-              :count="memberPropertyCount"
-              :default-open="showProperties"
-              @toggle="handleSectionToggle"
-            >
-              <div
-                v-for="prop in formattedProperties"
-                :key="`prop-${prop.key}`"
-                class="member-item"
-                :class="{ 'member-item--rich': prop.typeDisplay.kind !== 'plain' }"
-              >
-                <span class="member-visibility">{{ prop.indicator }}</span>
-                <span class="member-name">{{ prop.name }}</span>
-                <span class="member-type-colon" aria-hidden="true">:</span>
-                <span v-if="prop.typeDisplay.kind === 'plain'" class="member-type-annotation">{{ prop.typeAnnotation }}</span>
-                <TypeAnnotationDisplay v-else :model="prop.typeDisplay" />
-              </div>
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              v-if="memberMethodCount > 0"
-              title="Methods"
-              :count="memberMethodCount"
-              :default-open="showMethods"
-              @toggle="handleSectionToggle"
-            >
-              <div
-                v-for="method in formattedMethods"
-                :key="`method-${method.key}`"
-                class="member-item"
-                :class="{ 'member-item--rich': method.typeDisplay.kind !== 'plain' }"
-              >
-                <span class="member-visibility">{{ method.indicator }}</span>
-                <span class="member-name">{{ method.name }}()</span>
-                <span class="member-type-colon" aria-hidden="true">:</span>
-                <span v-if="method.typeDisplay.kind === 'plain'" class="member-type-annotation">{{ method.typeAnnotation }}</span>
-                <TypeAnnotationDisplay v-else :model="method.typeDisplay" />
-              </div>
-            </CollapsibleSection>
-          </div>
-
-          <div v-else class="symbol-empty-state">No members</div>
+        <div v-if="isMemberNode" class="member-node-body">
+          <span class="member-type">{{ nodeType }}</span>
         </div>
+
+        <div v-else-if="totalMemberCount > 0" class="symbol-members">
+          <CollapsibleSection
+            v-if="memberPropertyCount > 0"
+            title="Properties"
+            :count="memberPropertyCount"
+            :default-open="showProperties"
+            @toggle="handleSectionToggle"
+          >
+            <div
+              v-for="prop in formattedProperties"
+              :key="`prop-${prop.key}`"
+              class="member-item"
+              :class="{ 'member-item--rich': prop.typeDisplay.kind !== 'plain' }"
+            >
+              <span class="member-visibility">{{ prop.indicator }}</span>
+              <span class="member-name">{{ prop.name }}</span>
+              <span class="member-type-colon" aria-hidden="true">:</span>
+              <span v-if="prop.typeDisplay.kind === 'plain'" class="member-type-annotation">{{
+                prop.typeAnnotation
+              }}</span>
+              <TypeAnnotationDisplay v-else :model="prop.typeDisplay" />
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            v-if="memberMethodCount > 0"
+            title="Methods"
+            :count="memberMethodCount"
+            :default-open="showMethods"
+            @toggle="handleSectionToggle"
+          >
+            <div
+              v-for="method in formattedMethods"
+              :key="`method-${method.key}`"
+              class="member-item"
+              :class="{ 'member-item--rich': method.typeDisplay.kind !== 'plain' }"
+            >
+              <span class="member-visibility">{{ method.indicator }}</span>
+              <span class="member-name">{{ method.name }}()</span>
+              <span class="member-type-colon" aria-hidden="true">:</span>
+              <span v-if="method.typeDisplay.kind === 'plain'" class="member-type-annotation">{{
+                method.typeAnnotation
+              }}</span>
+              <TypeAnnotationDisplay v-else :model="method.typeDisplay" />
+            </div>
+          </CollapsibleSection>
+        </div>
+
+        <div v-else class="symbol-empty-state">No members</div>
+      </div>
     </template>
   </BaseNode>
 </template>

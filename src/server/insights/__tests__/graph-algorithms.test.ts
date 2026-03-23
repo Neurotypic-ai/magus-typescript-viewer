@@ -1,8 +1,4 @@
-import {
-  findStronglyConnectedComponents,
-  findArticulationPoints,
-  detectCommunities,
-} from '../graph-algorithms';
+import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents } from '../graph-algorithms';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,7 +175,7 @@ describe('findStronglyConnectedComponents', () => {
         ['Y', 'Z'],
         ['Z', 'Y'],
       ],
-      ['X'],
+      ['X']
     );
     const sccs = normalizeSCCs(findStronglyConnectedComponents(adj));
     expect(sccs).toEqual([['Y', 'Z']]);

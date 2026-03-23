@@ -1,11 +1,7 @@
-import { getTypeFromAnnotation } from './astUtils';
 import { generateMethodUUID, generateParameterUUID, generatePropertyUUID } from '../../utils/uuid';
+import { getTypeFromAnnotation } from './astUtils';
 
-import type { ModuleParserContext } from './types';
-import type { ParseResult, SymbolUsageRef } from '../ParseResult';
-import type { IMethodCreateDTO } from '../../../shared/types/dto/MethodDTO';
-import type { IParameterCreateDTO } from '../../../shared/types/dto/ParameterDTO';
-import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
+import type { ConsolaInstance } from 'consola';
 import type {
   ASTNode,
   ASTPath,
@@ -19,7 +15,12 @@ import type {
   TSPropertySignature,
   TSTypeAnnotation,
 } from 'jscodeshift';
-import type { ConsolaInstance } from 'consola';
+
+import type { IMethodCreateDTO } from '../../../shared/types/dto/MethodDTO';
+import type { IParameterCreateDTO } from '../../../shared/types/dto/ParameterDTO';
+import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
+import type { ParseResult, SymbolUsageRef } from '../ParseResult';
+import type { ModuleParserContext } from './types';
 
 // ---------------------------------------------------------------------------
 // Exported functions
@@ -50,19 +51,17 @@ export function parseMethods(
       const classMethods = collection.find(ctx.j.MethodDefinition);
 
       // Add class property arrow functions
-      const propertyMethods = collection
-        .find(ctx.j.ClassProperty)
-        .filter((path: ASTPath<ClassProperty>): boolean => {
-          const value = path.value.value;
-          const hasArrowFunction = Boolean(
-            value && typeof value === 'object' && 'type' in value && value.type === 'ArrowFunctionExpression'
-          );
+      const propertyMethods = collection.find(ctx.j.ClassProperty).filter((path: ASTPath<ClassProperty>): boolean => {
+        const value = path.value.value;
+        const hasArrowFunction = Boolean(
+          value && typeof value === 'object' && 'type' in value && value.type === 'ArrowFunctionExpression'
+        );
 
-          // Also check for function type annotations
-          const hasFunctionType = isFunctionTypeProperty(path.value, ctx.logger);
+        // Also check for function type annotations
+        const hasFunctionType = isFunctionTypeProperty(path.value, ctx.logger);
 
-          return hasArrowFunction || hasFunctionType;
-        });
+        return hasArrowFunction || hasFunctionType;
+      });
 
       // Combine both collections
       methodNodes = ctx.j([...classMethods.paths(), ...propertyMethods.paths()]);
