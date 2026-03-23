@@ -49,11 +49,11 @@ const DEFAULT_NODE_DIMENSIONS = {
 /** Space reserved at the top of a parent for its header label. */
 const CHILD_PADDING_TOP = 44;
 /** Horizontal inset from the parent border to the first child column. */
-const CHILD_PADDING_LEFT = 14;
+const CHILD_PADDING_LEFT = 10;
 /** Horizontal inset from the last child column to the parent border. */
-const CHILD_PADDING_RIGHT = 18;
+const CHILD_PADDING_RIGHT = 10;
 /** Bottom padding inside the parent. */
-const CHILD_PADDING_BOTTOM = 16;
+const CHILD_PADDING_BOTTOM = 10;
 /** Gap between sibling child nodes. */
 const CHILD_GAP = 12;
 /** Maximum columns of children per parent. */

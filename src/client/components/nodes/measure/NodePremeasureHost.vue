@@ -27,17 +27,15 @@ defineProps<NodePremeasureHostProps>();
 <style scoped>
 .node-premeasure-host {
   position: absolute;
-  inset: 0;
+  left: -10000px;
+  top: 0;
   pointer-events: none;
-  visibility: hidden;
+  visibility: visible;
   overflow: hidden;
   z-index: -1;
 }
 
 .node-premeasure-stack {
-  position: absolute;
-  left: -10000px;
-  top: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;

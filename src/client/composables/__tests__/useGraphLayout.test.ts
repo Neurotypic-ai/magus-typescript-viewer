@@ -141,13 +141,18 @@ describe('useGraphLayout', () => {
   });
 
   it('uses the premeasure service before overview layout', async () => {
+    const groupNode = makeNode({
+      id: 'group-root',
+      type: 'group',
+      style: { backgroundColor: 'rgba(255, 255, 255, 0.04)' },
+    });
     const initialLeaf = makeNode({
       id: 'leaf',
       type: 'package',
       style: { backgroundColor: 'rgba(0, 0, 0, 0.1)' },
     });
     buildOverviewGraphMock.mockReturnValue({
-      nodes: [initialLeaf],
+      nodes: [groupNode, initialLeaf],
       edges: [],
       semanticSnapshot: null,
     });
@@ -167,6 +172,16 @@ describe('useGraphLayout', () => {
                 headerHeight: 24,
                 bodyHeight: 50,
                 subnodesHeight: 16,
+              },
+            ],
+            [
+              'group-root',
+              {
+                width: 999,
+                height: 888,
+                headerHeight: 24,
+                bodyHeight: 0,
+                subnodesHeight: 0,
               },
             ],
           ])
@@ -205,8 +220,15 @@ describe('useGraphLayout', () => {
 
     await layout.initializeGraph();
 
-    expect(nodePremeasure.measureBatch).toHaveBeenCalledWith([initialLeaf]);
+    expect(nodePremeasure.measureBatch).toHaveBeenCalledWith([groupNode, initialLeaf]);
     expect(state.nodes[0]?.style).toMatchObject({
+      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    });
+    expect(state.nodes[0]?.style).not.toMatchObject({
+      width: '999px',
+      height: '888px',
+    });
+    expect(state.nodes[1]?.style).toMatchObject({
       backgroundColor: 'rgba(0, 0, 0, 0.1)',
       width: '140px',
       height: '90px',

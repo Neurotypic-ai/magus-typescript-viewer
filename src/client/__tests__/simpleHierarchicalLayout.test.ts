@@ -34,9 +34,9 @@ describe('computeSimpleHierarchicalLayout', () => {
 
     const layout = computeSimpleHierarchicalLayout([parent, childAlpha, childBeta], EMPTY_EDGES);
 
-    expect(layout.positions.get('alpha')).toEqual({ x: 14, y: 44 });
-    expect(layout.positions.get('beta')).toEqual({ x: 126, y: 44 });
-    expect(layout.sizes.get('folder')).toEqual({ width: 384, height: 180 });
+    expect(layout.positions.get('alpha')).toEqual({ x: 10, y: 44 });
+    expect(layout.positions.get('beta')).toEqual({ x: 122, y: 44 });
+    expect(layout.sizes.get('folder')).toEqual({ width: 372, height: 174 });
   });
 
   it('falls back to default estimates when child dimensions are missing', () => {
@@ -48,8 +48,8 @@ describe('computeSimpleHierarchicalLayout', () => {
 
     const layout = computeSimpleHierarchicalLayout([parent, child], EMPTY_EDGES);
 
-    expect(layout.positions.get('child')).toEqual({ x: 14, y: 44 });
-    expect(layout.sizes.get('folder')).toEqual({ width: 352, height: 320 });
+    expect(layout.positions.get('child')).toEqual({ x: 10, y: 44 });
+    expect(layout.sizes.get('folder')).toEqual({ width: 340, height: 314 });
   });
 
   it('uses explicit root node dimensions for horizontal spacing', () => {

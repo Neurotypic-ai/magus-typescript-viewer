@@ -285,7 +285,8 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       return;
     }
 
-    nodeMeasurementRelayoutRafId = requestAnimationFrame(async () => {
+    nodeMeasurementRelayoutRafId = requestAnimationFrame(() => {
+      void (async () => {
       nodeMeasurementRelayoutRafId = null;
       if (isLayoutPending.value || isLayoutMeasuring.value || graphStore.nodes.length === 0) {
         return;
@@ -313,6 +314,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
           scheduleMeasurementDrivenRelayout();
         }
       }
+      })();
     });
   };
 
@@ -457,6 +459,9 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
             graphForLayout = {
               ...overviewGraph,
               nodes: overviewGraph.nodes.map((node) => {
+                if (node.type === 'group') {
+                  return node;
+                }
                 const dimensions = measuredNodes.get(node.id);
                 return dimensions ? applyNodeDimensions(node, dimensions) : node;
               }),
