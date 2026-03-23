@@ -1,73 +1,55 @@
 import { describe, expect, it } from 'vitest';
 
+import { Class } from '../../../shared/types/Class';
+import { Interface } from '../../../shared/types/Interface';
+import { Import, ImportSpecifier } from '../../../shared/types/Import';
+import { Method } from '../../../shared/types/Method';
+import { Module } from '../../../shared/types/Module';
+import { Package } from '../../../shared/types/Package';
+import { Property } from '../../../shared/types/Property';
 import { createGraphNodes } from '../createGraphNodes';
 
 import type { PackageGraph } from '../../../shared/types/Package';
 
+const DATE = '2026-01-01T00:00:00.000Z';
+
 function createFixtureGraph(): PackageGraph {
-  return {
-    packages: [
-      {
-        id: 'pkg-1',
-        name: 'app',
-        version: '1.0.0',
-        path: '/tmp/app',
-        created_at: '2026-01-01T00:00:00.000Z',
-        modules: {
-          'module-a': {
-            id: 'module-a',
-            name: 'AppModule',
-            package_id: 'pkg-1',
-            source: { relativePath: 'src/app/module-a.ts' },
-            imports: {
-              'imp-vue': {
-                uuid: 'imp-vue',
-                name: 'vue',
-                path: 'vue',
-                isExternal: true,
-                packageName: 'vue',
-                specifiers: [
-                  { imported: 'ref', kind: 'value' },
-                  { imported: 'computed', kind: 'value' },
-                ],
-              },
-              'imp-local': {
-                uuid: 'imp-local',
-                name: './utils',
-                path: './utils',
-              },
-            },
-            classes: {
-              AppService: {
-                id: 'class-1',
-                name: 'AppService',
-                properties: [{ id: 'prop-1', name: 'state', type: 'string', visibility: 'private' }],
-                methods: [
-                  { id: 'method-1', name: 'load', returnType: 'void', visibility: 'public', signature: 'load(): void' },
-                ],
-              },
-            },
-            interfaces: {
-              AppContract: {
-                id: 'iface-1',
-                name: 'AppContract',
-                properties: [{ id: 'iface-prop-1', name: 'id', type: 'string', visibility: 'public' }],
-                methods: [
-                  {
-                    id: 'iface-method-1',
-                    name: 'execute',
-                    returnType: 'void',
-                    visibility: 'public',
-                    signature: 'execute(): void',
-                  },
-                ],
-              },
-            },
-          },
-        },
-      },
-    ],
+  const prop = new Property('prop-1', 'pkg-1', 'module-a', 'class-1', 'state', DATE, 'string', false, false, 'private');
+  const method = new Method('method-1', 'pkg-1', 'module-a', 'class-1', 'load', DATE, new Map(), 'void', false, false, 'public');
+  const appService = new Class('class-1', 'pkg-1', 'module-a', 'AppService', DATE, [method], [prop]);
+
+  const ifaceProp = new Property('iface-prop-1', 'pkg-1', 'module-a', 'iface-1', 'id', DATE, 'string', false, false, 'public');
+  const ifaceMethod = new Method('iface-method-1', 'pkg-1', 'module-a', 'iface-1', 'execute', DATE, new Map(), 'void', false, false, 'public');
+  const appContract = new Interface('iface-1', 'pkg-1', 'module-a', 'AppContract', DATE, [ifaceMethod], [ifaceProp]);
+
+  const vueSpecifiers = new Map([
+    ['ref', new ImportSpecifier('ref', 'ref', 'value')],
+    ['computed', new ImportSpecifier('computed', 'computed', 'value')],
+  ]);
+  // relativePath 'vue' is not relative ('.'-prefixed), so it is inferred as external
+  const vueImport = new Import('imp-vue', 'vue', 'vue', 'vue', vueSpecifiers);
+  const localImport = new Import('imp-local', './utils', './utils', './utils');
+
+  const source = {
+    directory: '/tmp/app/src/app',
+    name: 'module-a',
+    filename: '/tmp/app/src/app/module-a.ts',
+    relativePath: 'src/app/module-a.ts',
   };
+  const module = new Module(
+    'module-a', 'pkg-1', 'AppModule', source, DATE,
+    new Map([['class-1', appService]]),
+    new Map([['iface-1', appContract]]),
+    new Map([['imp-vue', vueImport], ['imp-local', localImport]]),
+  );
+
+  const pkg = new Package(
+    'pkg-1', 'app', '1.0.0', '/tmp/app', DATE,
+    new Map(), new Map(), new Map(),
+    new Map([['module-a', module]]),
+  );
+
+  return { packages: [pkg] };
 }
 
 describe('createGraphNodes', () => {

@@ -2,19 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GraphDataCache } from '../graphDataCache';
 
+import { Module } from '../../../shared/types/Module';
+import { Package } from '../../../shared/types/Package';
 import type { PackageGraph } from '../../../shared/types/Package';
 
 function createMockGraph(overrides: Partial<PackageGraph> = {}): PackageGraph {
   return {
-    packages: [
-      {
-        id: 'pkg-1',
-        name: 'test-package',
-        version: '1.0.0',
-        path: '/test',
-        created_at: '2024-01-01',
-      },
-    ],
+    packages: [new Package('pkg-1', 'test-package', '1.0.0', '/test', '2024-01-01')],
     ...overrides,
   };
 }
@@ -225,27 +219,9 @@ describe('GraphDataCache', () => {
     it('caches a graph with multiple packages', () => {
       const graph: PackageGraph = {
         packages: [
-          {
-            id: 'pkg-1',
-            name: 'first',
-            version: '1.0.0',
-            path: '/first',
-            created_at: '2024-01-01',
-          },
-          {
-            id: 'pkg-2',
-            name: 'second',
-            version: '2.0.0',
-            path: '/second',
-            created_at: '2024-06-15',
-          },
-          {
-            id: 'pkg-3',
-            name: 'third',
-            version: '0.1.0',
-            path: '/third',
-            created_at: '2025-01-01',
-          },
+          new Package('pkg-1', 'first', '1.0.0', '/first', '2024-01-01'),
+          new Package('pkg-2', 'second', '2.0.0', '/second', '2024-06-15'),
+          new Package('pkg-3', 'third', '0.1.0', '/third', '2025-01-01'),
         ],
       };
 
@@ -258,27 +234,27 @@ describe('GraphDataCache', () => {
     it('caches a graph with packages containing dependencies and modules', () => {
       const graph: PackageGraph = {
         packages: [
-          {
-            id: 'pkg-rich',
-            name: 'rich-package',
-            version: '3.0.0',
-            path: '/rich',
-            created_at: '2024-03-01',
-            dependencies: {
-              lodash: { id: 'dep-lodash', name: 'lodash', version: '4.17.21' },
-            },
-            devDependencies: {
-              vitest: { id: 'dep-vitest', name: 'vitest', version: '1.0.0' },
-            },
-            modules: {
-              'mod-1': {
-                id: 'mod-1',
-                name: 'index.ts',
-                package_id: 'pkg-rich',
-                source: { relativePath: 'src/index.ts' },
-              },
-            },
-          },
+          new Package(
+            'pkg-rich',
+            'rich-package',
+            '3.0.0',
+            '/rich',
+            '2024-03-01',
+            new Map([['lodash', new Package('dep-lodash', 'lodash', '4.17.21', '', '')]]),
+            new Map([['vitest', new Package('dep-vitest', 'vitest', '1.0.0', '', '')]]),
+            new Map(),
+            new Map([
+              [
+                'mod-1',
+                new Module('mod-1', 'pkg-rich', 'index.ts', {
+                  directory: 'src',
+                  name: 'index',
+                  filename: 'src/index.ts',
+                  relativePath: 'src/index.ts',
+                }),
+              ],
+            ])
+          ),
         ],
       };
 
@@ -316,13 +292,7 @@ describe('GraphDataCache', () => {
       expect(retrieved).toBe(graph);
 
       // Mutating the original should be visible through the cache
-      graph.packages.push({
-        id: 'pkg-2',
-        name: 'added',
-        version: '0.0.1',
-        path: '/added',
-        created_at: '2025-01-01',
-      });
+      graph.packages.push(new Package('pkg-2', 'added', '0.0.1', '/added', '2025-01-01'));
 
       expect(cache.get('ref-check')!.packages).toHaveLength(2);
     });

@@ -465,9 +465,9 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const usageEdges = result.edges.filter((e) => e.data?.type === 'uses');
       expect(usageEdges).toHaveLength(1);
-      expect(usageEdges[0]!.source).toBe('mod-1');
-      expect(usageEdges[0]!.target).toBe('prop-1');
-      expect(usageEdges[0]!.data?.usageKind).toBe('property');
+      expect(usageEdges[0]?.source).toBe('mod-1');
+      expect(usageEdges[0]?.target).toBe('prop-1');
+      expect(usageEdges[0]?.data?.usageKind).toBe('property');
     });
 
     it('skips references from sources not included in the focused view', () => {
@@ -594,8 +594,8 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const moduleNode = result.nodes.find((n) => n.id === 'mod-1');
       expect(moduleNode).toBeDefined();
-      expect(moduleNode!.sourcePosition).toBe(Position.Bottom);
-      expect(moduleNode!.targetPosition).toBe(Position.Top);
+      expect(moduleNode?.sourcePosition).toBe(Position.Bottom);
+      expect(moduleNode?.targetPosition).toBe(Position.Top);
     });
 
     it('applies RL direction positions', () => {
@@ -621,14 +621,14 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const classNode = result.nodes.find((n) => n.type === 'class');
       expect(classNode).toBeDefined();
-      expect(classNode!.sourcePosition).toBe(Position.Left);
-      expect(classNode!.targetPosition).toBe(Position.Right);
+      expect(classNode?.sourcePosition).toBe(Position.Left);
+      expect(classNode?.targetPosition).toBe(Position.Right);
 
       // Member nodes also get RL positions
       const propNode = result.nodes.find((n) => n.type === 'property');
       expect(propNode).toBeDefined();
-      expect(propNode!.sourcePosition).toBe(Position.Left);
-      expect(propNode!.targetPosition).toBe(Position.Right);
+      expect(propNode?.sourcePosition).toBe(Position.Left);
+      expect(propNode?.targetPosition).toBe(Position.Right);
     });
   });
 
@@ -746,7 +746,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const propNode = result.nodes.find((n) => n.type === 'property');
       expect(propNode).toBeDefined();
-      expect(propNode!.id).toBe('custom-prop-id');
+      expect(propNode?.id).toBe('custom-prop-id');
     });
 
     it('generates fallback ID from symbol and member name when id is missing', () => {
@@ -772,11 +772,11 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const propNode = result.nodes.find((n) => n.type === 'property');
       expect(propNode).toBeDefined();
-      expect(propNode!.id).toBe('cls-1:property:y');
+      expect(propNode?.id).toBe('cls-1:property:y');
 
       const methNode = result.nodes.find((n) => n.type === 'method');
       expect(methNode).toBeDefined();
-      expect(methNode!.id).toBe('cls-1:method:doStuff');
+      expect(methNode?.id).toBe('cls-1:method:doStuff');
     });
   });
 
@@ -798,7 +798,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       // Only the module node
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]!.id).toBe('mod-1');
+      expect(result.nodes[0]?.id).toBe('mod-1');
       expect(result.edges).toHaveLength(0);
     });
 
@@ -822,8 +822,8 @@ describe('buildSymbolDrilldownGraph', () => {
       expect(result.nodes).toHaveLength(2);
       const classNode = result.nodes.find((n) => n.type === 'class');
       expect(classNode).toBeDefined();
-      expect(classNode!.data.properties).toEqual([]);
-      expect(classNode!.data.methods).toEqual([]);
+      expect(classNode?.data?.properties).toEqual([]);
+      expect(classNode?.data?.methods).toEqual([]);
     });
 
     it('handles graph with empty packages array', () => {

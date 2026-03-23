@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildOverviewGraph } from '../buildOverviewGraph';
 
-import type { Module } from '../../../shared/types/Module';
+import type { IModule, Module } from '../../../shared/types/Module';
 import type { Package, PackageGraph } from '../../../shared/types/Package';
 import type { BuildOverviewGraphOptions } from '../buildOverviewGraph';
 
@@ -27,15 +27,27 @@ function makeModule(
   name: string,
   packageId: string,
   relativePath: string,
-  extra: Partial<Module> = {}
+  extra: Partial<IModule> = {}
 ): Module {
   return {
     id,
     name,
     package_id: packageId,
-    source: { relativePath },
+    source: { relativePath, directory: '', name, filename: relativePath },
+    created_at: '2024-01-01T00:00:00.000Z',
+    classes: new Map(),
+    interfaces: new Map(),
+    imports: new Map(),
+    exports: new Map(),
+    packages: new Map(),
+    typeAliases: new Map(),
+    enums: new Map(),
+    functions: new Map(),
+    variables: new Map(),
+    referencePaths: [],
+    symbol_references: new Map(),
     ...extra,
-  };
+  } as Module;
 }
 
 function makePackage(id: string, name: string, modules: Record<string, Module> = {}): Package {
@@ -45,8 +57,11 @@ function makePackage(id: string, name: string, modules: Record<string, Module> =
     version: '1.0.0',
     path: `/${name}`,
     created_at: '2024-01-01T00:00:00.000Z',
+    dependencies: new Map(),
+    devDependencies: new Map(),
+    peerDependencies: new Map(),
     modules,
-  };
+  } as Package;
 }
 
 function makeGraph(packages: Package[]): PackageGraph {

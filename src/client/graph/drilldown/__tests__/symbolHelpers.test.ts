@@ -20,7 +20,7 @@ import type { Property } from '../../../../shared/types/Property';
 
 describe('normalizeProperty', () => {
   it('passes through a well-formed Property', () => {
-    const input: Property = {
+    const input = {
       id: 'prop-1',
       name: 'count',
       type: 'number',
@@ -86,7 +86,7 @@ describe('normalizeProperty', () => {
 
 describe('normalizeMethod', () => {
   it('passes through a well-formed Method', () => {
-    const input: Method = {
+    const input = {
       id: 'meth-1',
       name: 'getData',
       returnType: 'Promise<void>',
@@ -189,8 +189,8 @@ function makeModule(id: string, name: string): Module {
     id,
     name,
     package_id: 'pkg-1',
-    source: { relativePath: `src/${name}.ts` },
-  };
+    source: { relativePath: `src/${name}.ts`, directory: '', name, filename: `src/${name}.ts` },
+  } as unknown as Module;
 }
 
 function makePackage(id: string, modules: Record<string, Module>): Package {
@@ -201,6 +201,9 @@ function makePackage(id: string, modules: Record<string, Module>): Package {
     path: `/packages/${id}`,
     created_at: '2025-01-01',
     modules,
+    dependencies: {},
+    devDependencies: {},
+    peerDependencies: {},
   };
 }
 
@@ -286,7 +289,7 @@ describe('createSymbolEdge', () => {
 
   it('has a strokeWidth of 3 in the style', () => {
     const edge = createSymbolEdge('a', 'b', 'dependency');
-    expect(edge.style?.strokeWidth).toBe(3);
+    expect((edge.style as Record<string, unknown>)['strokeWidth']).toBe(3);
   });
 
   it('includes a marker end', () => {
@@ -298,7 +301,7 @@ describe('createSymbolEdge', () => {
     const edge = createSymbolEdge('a', 'b', 'import');
     // The style should contain the stroke color from the theme for 'import' type
     expect(edge.style).toBeDefined();
-    expect(edge.style?.stroke).toBeDefined();
+    expect((edge.style as Record<string, unknown>)['stroke']).toBeDefined();
   });
 
   it('works with all supported edge kinds', () => {
@@ -328,14 +331,14 @@ describe('createSymbolEdge', () => {
 // ---------------------------------------------------------------------------
 
 describe('createDetailedSymbolNode', () => {
-  const sampleProperties: Property[] = [
+  const sampleProperties = [
     { id: 'p1', name: 'name', type: 'string', visibility: 'public' },
     { id: 'p2', name: 'age', type: 'number', visibility: 'private' },
-  ];
+  ] as unknown as Property[];
 
-  const sampleMethods: Method[] = [
-    { id: 'm1', name: 'greet', returnType: 'void', visibility: 'public', signature: 'greet(): void' },
-  ];
+  const sampleMethods = [
+    { id: 'm1', name: 'greet', return_type: 'void', visibility: 'public', signature: 'greet(): void' },
+  ] as unknown as Method[];
 
   it('creates a node with the correct id', () => {
     const node = createDetailedSymbolNode('node-1', 'class', 'MyClass', [], [], 'LR');
@@ -354,15 +357,15 @@ describe('createDetailedSymbolNode', () => {
 
   it('includes label, properties and methods in data', () => {
     const node = createDetailedSymbolNode('node-1', 'class', 'MyClass', sampleProperties, sampleMethods, 'LR');
-    expect(node.data.label).toBe('MyClass');
-    expect(node.data.properties).toEqual(sampleProperties);
-    expect(node.data.methods).toEqual(sampleMethods);
+    expect(node.data!.label).toBe('MyClass');
+    expect(node.data!.properties).toEqual(sampleProperties);
+    expect(node.data!.methods).toEqual(sampleMethods);
   });
 
   it('handles empty properties and methods arrays', () => {
     const node = createDetailedSymbolNode('node-1', 'class', 'Empty', [], [], 'LR');
-    expect(node.data.properties).toEqual([]);
-    expect(node.data.methods).toEqual([]);
+    expect(node.data!.properties).toEqual([]);
+    expect(node.data!.methods).toEqual([]);
   });
 
   it('has a style object from the theme', () => {

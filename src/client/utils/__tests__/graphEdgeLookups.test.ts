@@ -17,39 +17,29 @@ import {
   resolveRelativeCandidates,
 } from '../graphEdgeLookups';
 
-import type { PackageGraph } from '../../../shared/types/Package';
+import { Module } from '../../../shared/types/Module';
+import { Package, type PackageGraph } from '../../../shared/types/Package';
 import type { ModulePathLookup } from '../graphEdgeLookups';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+function makeModule(id: string, name: string, packageId: string, relativePath: string): Module {
+  return new Module(id, packageId, name, { directory: '', name, filename: name, relativePath });
+}
+
 function makeGraph(
   modules: Record<string, { id: string; name: string; relativePath: string }>,
   packageId = 'pkg-1'
 ): PackageGraph {
-  const moduleRecords: Record<
-    string,
-    { id: string; name: string; package_id: string; source: { relativePath: string } }
-  > = {};
+  const moduleRecords: Record<string, Module> = {};
   for (const [key, mod] of Object.entries(modules)) {
-    moduleRecords[key] = {
-      id: mod.id,
-      name: mod.name,
-      package_id: packageId,
-      source: { relativePath: mod.relativePath },
-    };
+    moduleRecords[key] = makeModule(mod.id, mod.name, packageId, mod.relativePath);
   }
   return {
     packages: [
-      {
-        id: packageId,
-        name: 'test-package',
-        version: '1.0.0',
-        path: '/test',
-        created_at: '2024-01-01',
-        modules: moduleRecords,
-      },
+      new Package(packageId, 'test-package', '1.0.0', '/test', '2024-01-01', new Map(), new Map(), new Map(), moduleRecords),
     ],
   };
 }
@@ -415,15 +405,7 @@ describe('buildModulePathLookup', () => {
 
   it('returns empty path map for a package with no modules', () => {
     const graph: PackageGraph = {
-      packages: [
-        {
-          id: 'pkg-1',
-          name: 'test',
-          version: '1.0.0',
-          path: '/test',
-          created_at: '2024-01-01',
-        },
-      ],
+      packages: [new Package('pkg-1', 'test', '1.0.0', '/test', '2024-01-01')],
     };
     const lookup = buildModulePathLookup(graph);
     expect(lookup.packagePathMap.has('pkg-1')).toBe(true);
@@ -468,36 +450,12 @@ describe('buildModulePathLookup', () => {
   it('globalPathMap contains multiple IDs when different packages share a path', () => {
     const graph: PackageGraph = {
       packages: [
-        {
-          id: 'pkg-1',
-          name: 'pkg-a',
-          version: '1.0.0',
-          path: '/a',
-          created_at: '2024-01-01',
-          modules: {
-            m1: {
-              id: 'mod-a',
-              name: 'helpers.ts',
-              package_id: 'pkg-1',
-              source: { relativePath: 'src/utils/helpers.ts' },
-            },
-          },
-        },
-        {
-          id: 'pkg-2',
-          name: 'pkg-b',
-          version: '1.0.0',
-          path: '/b',
-          created_at: '2024-01-01',
-          modules: {
-            m2: {
-              id: 'mod-b',
-              name: 'helpers.ts',
-              package_id: 'pkg-2',
-              source: { relativePath: 'src/utils/helpers.ts' },
-            },
-          },
-        },
+        new Package('pkg-1', 'pkg-a', '1.0.0', '/a', '2024-01-01', new Map(), new Map(), new Map(), {
+          m1: makeModule('mod-a', 'helpers.ts', 'pkg-1', 'src/utils/helpers.ts'),
+        }),
+        new Package('pkg-2', 'pkg-b', '1.0.0', '/b', '2024-01-01', new Map(), new Map(), new Map(), {
+          m2: makeModule('mod-b', 'helpers.ts', 'pkg-2', 'src/utils/helpers.ts'),
+        }),
       ],
     };
     const lookup = buildModulePathLookup(graph);
@@ -622,42 +580,13 @@ describe('resolveModuleId', () => {
     it('prefers package-local match over global match', () => {
       const graph: PackageGraph = {
         packages: [
-          {
-            id: 'pkg-1',
-            name: 'pkg-a',
-            version: '1.0.0',
-            path: '/a',
-            created_at: '2024-01-01',
-            modules: {
-              m1: {
-                id: 'mod-a-app',
-                name: 'app.ts',
-                package_id: 'pkg-1',
-                source: { relativePath: 'src/app.ts' },
-              },
-              m2: {
-                id: 'mod-a-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-1',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
-          {
-            id: 'pkg-2',
-            name: 'pkg-b',
-            version: '1.0.0',
-            path: '/b',
-            created_at: '2024-01-01',
-            modules: {
-              m3: {
-                id: 'mod-b-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-2',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
+          new Package('pkg-1', 'pkg-a', '1.0.0', '/a', '2024-01-01', new Map(), new Map(), new Map(), {
+            m1: makeModule('mod-a-app', 'app.ts', 'pkg-1', 'src/app.ts'),
+            m2: makeModule('mod-a-utils', 'utils.ts', 'pkg-1', 'src/utils.ts'),
+          }),
+          new Package('pkg-2', 'pkg-b', '1.0.0', '/b', '2024-01-01', new Map(), new Map(), new Map(), {
+            m3: makeModule('mod-b-utils', 'utils.ts', 'pkg-2', 'src/utils.ts'),
+          }),
         ],
       };
       const lookup = buildModulePathLookup(graph);
@@ -668,36 +597,12 @@ describe('resolveModuleId', () => {
     it('falls back to global match when only one module matches globally', () => {
       const graph: PackageGraph = {
         packages: [
-          {
-            id: 'pkg-1',
-            name: 'pkg-a',
-            version: '1.0.0',
-            path: '/a',
-            created_at: '2024-01-01',
-            modules: {
-              m1: {
-                id: 'mod-a-app',
-                name: 'app.ts',
-                package_id: 'pkg-1',
-                source: { relativePath: 'src/app.ts' },
-              },
-            },
-          },
-          {
-            id: 'pkg-2',
-            name: 'pkg-b',
-            version: '1.0.0',
-            path: '/b',
-            created_at: '2024-01-01',
-            modules: {
-              m2: {
-                id: 'mod-b-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-2',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
+          new Package('pkg-1', 'pkg-a', '1.0.0', '/a', '2024-01-01', new Map(), new Map(), new Map(), {
+            m1: makeModule('mod-a-app', 'app.ts', 'pkg-1', 'src/app.ts'),
+          }),
+          new Package('pkg-2', 'pkg-b', '1.0.0', '/b', '2024-01-01', new Map(), new Map(), new Map(), {
+            m2: makeModule('mod-b-utils', 'utils.ts', 'pkg-2', 'src/utils.ts'),
+          }),
         ],
       };
       const lookup = buildModulePathLookup(graph);
@@ -709,51 +614,15 @@ describe('resolveModuleId', () => {
     it('returns undefined when multiple global matches exist (ambiguous)', () => {
       const graph: PackageGraph = {
         packages: [
-          {
-            id: 'pkg-1',
-            name: 'pkg-a',
-            version: '1.0.0',
-            path: '/a',
-            created_at: '2024-01-01',
-            modules: {
-              m1: {
-                id: 'mod-a-app',
-                name: 'app.ts',
-                package_id: 'pkg-1',
-                source: { relativePath: 'src/app.ts' },
-              },
-            },
-          },
-          {
-            id: 'pkg-2',
-            name: 'pkg-b',
-            version: '1.0.0',
-            path: '/b',
-            created_at: '2024-01-01',
-            modules: {
-              m2: {
-                id: 'mod-b-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-2',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
-          {
-            id: 'pkg-3',
-            name: 'pkg-c',
-            version: '1.0.0',
-            path: '/c',
-            created_at: '2024-01-01',
-            modules: {
-              m3: {
-                id: 'mod-c-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-3',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
+          new Package('pkg-1', 'pkg-a', '1.0.0', '/a', '2024-01-01', new Map(), new Map(), new Map(), {
+            m1: makeModule('mod-a-app', 'app.ts', 'pkg-1', 'src/app.ts'),
+          }),
+          new Package('pkg-2', 'pkg-b', '1.0.0', '/b', '2024-01-01', new Map(), new Map(), new Map(), {
+            m2: makeModule('mod-b-utils', 'utils.ts', 'pkg-2', 'src/utils.ts'),
+          }),
+          new Package('pkg-3', 'pkg-c', '1.0.0', '/c', '2024-01-01', new Map(), new Map(), new Map(), {
+            m3: makeModule('mod-c-utils', 'utils.ts', 'pkg-3', 'src/utils.ts'),
+          }),
         ],
       };
       const lookup = buildModulePathLookup(graph);

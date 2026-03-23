@@ -309,5 +309,5 @@ export const useGraphStore: SetupStoreDefinition<'graph', IGraphStore> = defineS
     resumeCacheWrites: () => {
       cacheWriteSuspended.value = false;
     },
-  };
+  } as unknown as IGraphStore;
 });

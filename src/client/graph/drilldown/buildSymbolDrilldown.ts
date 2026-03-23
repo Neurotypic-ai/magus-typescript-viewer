@@ -146,7 +146,7 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
     includedSymbolIds.add(symbolId);
     graphEdges.push(createSymbolEdge(moduleId, symbolId, 'contains'));
     properties.forEach((property) => {
-      const propertyId = property.id;
+      const propertyId = property.id || `${symbolId}:property:${property.name}`;
       const memberNode = createMemberNode(
         propertyId,
         'property',
@@ -158,7 +158,7 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
       graphEdges.push(createSymbolEdge(symbolId, propertyId, 'contains'));
     });
     methods.forEach((method) => {
-      const methodId = method.id;
+      const methodId = method.id || `${symbolId}:method:${method.name}`;
       const memberNode = createMemberNode(
         methodId,
         'method',
