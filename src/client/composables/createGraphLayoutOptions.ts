@@ -13,7 +13,7 @@ import type {
 } from './useGraphLayout';
 import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { GraphViewMode } from '../stores/graphStore';
 
@@ -38,7 +38,7 @@ interface LayoutOptionsGraphSettingsSource {
 }
 
 interface CreateGraphLayoutOptionsOptions {
-  propsData: Ref<DependencyPackageGraph>;
+  propsData: Ref<PackageGraph>;
   graphStore: LayoutOptionsGraphStoreSource;
   graphSettings: LayoutOptionsGraphSettingsSource;
   interaction: GraphLayoutInteraction;

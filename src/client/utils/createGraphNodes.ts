@@ -7,7 +7,7 @@ import { isTestFilePath } from './testFileMatcher';
 import type { Class } from '../../shared/types/Class';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { EmbeddedModuleEntity } from '../../shared/types/graph/EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from '../../shared/types/graph/EmbeddedSymbol';
 import type { Enum } from '../../shared/types/Enum';
@@ -143,7 +143,7 @@ function normalizeMethod(method: Method | Record<string, unknown>): Method {
  * - 'compact': Symbols are embedded as data within module nodes (no separate VueFlow nodes).
  * - 'graph': Symbols are created as separate VueFlow child nodes of modules.
  */
-export function createGraphNodes(data: DependencyPackageGraph, options: CreateGraphNodeOptions = {}): DependencyNode[] {
+export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOptions = {}): DependencyNode[] {
   const {
     includePackages = false,
     includeModules = true,

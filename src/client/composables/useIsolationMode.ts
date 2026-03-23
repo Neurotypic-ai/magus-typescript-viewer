@@ -23,7 +23,7 @@ import type {
 import type { ScopeMode } from './useGraphInteractionController';
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 
 // ── Isolate graph store (subset of full graph store) ──
@@ -65,7 +65,7 @@ export type NodePositionMap = Map<string, { x: number; y: number }>;
 export type LayoutDirection = LayoutConfig['direction'];
 
 export interface UseIsolationModeOptions {
-  propsData: Ref<DependencyPackageGraph>;
+  propsData: Ref<PackageGraph>;
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   graphStore: IsolateGraphStore;

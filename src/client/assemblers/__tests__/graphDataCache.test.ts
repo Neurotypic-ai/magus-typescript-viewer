@@ -1,10 +1,10 @@
-import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../shared/types/Package';
 
 import { GraphDataCache } from '../graphDataCache';
 
 function createMockGraph(
-  overrides: Partial<DependencyPackageGraph> = {},
-): DependencyPackageGraph {
+  overrides: Partial<PackageGraph> = {},
+): PackageGraph {
   return {
     packages: [
       {
@@ -223,7 +223,7 @@ describe('GraphDataCache', () => {
     });
 
     it('caches a graph with multiple packages', () => {
-      const graph: DependencyPackageGraph = {
+      const graph: PackageGraph = {
         packages: [
           {
             id: 'pkg-1',
@@ -256,7 +256,7 @@ describe('GraphDataCache', () => {
     });
 
     it('caches a graph with packages containing dependencies and modules', () => {
-      const graph: DependencyPackageGraph = {
+      const graph: PackageGraph = {
         packages: [
           {
             id: 'pkg-rich',

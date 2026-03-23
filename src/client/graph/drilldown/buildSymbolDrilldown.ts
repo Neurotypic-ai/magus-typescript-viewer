@@ -16,7 +16,7 @@ import {
 
 import type { Class } from '../../../shared/types/Class';
 import type { DependencyNode } from '../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../shared/types/Package';
 import type { GraphEdge } from '../../types/GraphEdge';
 import type { Interface } from '../../../shared/types/Interface';
 import type { Module } from '../../../shared/types/Module';
@@ -26,7 +26,7 @@ import type { SymbolReference } from '../../../shared/types/SymbolReference';
 import type { GraphViewData } from '../graphViewShared';
 
 export interface BuildSymbolDrilldownGraphOptions {
-  data: DependencyPackageGraph;
+  data: PackageGraph;
   selectedNode: DependencyNode;
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   enabledRelationshipTypes: string[];
@@ -38,7 +38,7 @@ interface SymbolContext {
   focusId: string;
 }
 
-function findSymbolContext(data: DependencyPackageGraph, node: DependencyNode): SymbolContext | undefined {
+function findSymbolContext(data: PackageGraph, node: DependencyNode): SymbolContext | undefined {
   if (node.type === 'module') {
     const module = findModuleById(data, node.id);
     if (!module) return undefined;

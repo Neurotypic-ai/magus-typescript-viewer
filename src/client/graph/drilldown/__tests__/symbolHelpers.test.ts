@@ -8,7 +8,7 @@ import {
   createDetailedSymbolNode,
 } from '../symbolHelpers';
 
-import type { DependencyPackageGraph } from '../../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../../shared/types/Package';
 import type { Module } from '../../../../shared/types/Module';
 import type { Method } from '../../../../shared/types/Method';
 import type { Property } from '../../../../shared/types/Property';
@@ -209,7 +209,7 @@ describe('findModuleById', () => {
   const moduleB = makeModule('mod-b', 'moduleB');
   const moduleC = makeModule('mod-c', 'moduleC');
 
-  const graph: DependencyPackageGraph = {
+  const graph: PackageGraph = {
     packages: [
       makePackage('pkg-1', { 'mod-a': moduleA, 'mod-b': moduleB }),
       makePackage('pkg-2', { 'mod-c': moduleC }),
@@ -233,7 +233,7 @@ describe('findModuleById', () => {
   });
 
   it('skips packages with no modules field', () => {
-    const graphWithNoModules: DependencyPackageGraph = {
+    const graphWithNoModules: PackageGraph = {
       packages: [
         {
           id: 'pkg-empty',
@@ -250,7 +250,7 @@ describe('findModuleById', () => {
 
   it('returns the first match when duplicate IDs exist across packages', () => {
     const duplicateModule = makeModule('mod-a', 'duplicateA');
-    const graphWithDuplicates: DependencyPackageGraph = {
+    const graphWithDuplicates: PackageGraph = {
       packages: [
         makePackage('pkg-1', { 'mod-a': moduleA }),
         makePackage('pkg-3', { 'mod-a': duplicateModule }),

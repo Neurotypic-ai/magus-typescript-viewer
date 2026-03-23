@@ -17,7 +17,7 @@ import {
 
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 
 const EDGE_REGISTRY_DEBUG =
@@ -25,7 +25,7 @@ const EDGE_REGISTRY_DEBUG =
 const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
 
 export interface BuildOverviewGraphOptions {
-  data: DependencyPackageGraph;
+  data: PackageGraph;
   enabledRelationshipTypes: string[];
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   collapsedFolderIds: Set<string>;

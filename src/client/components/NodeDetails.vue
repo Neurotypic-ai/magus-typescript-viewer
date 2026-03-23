@@ -7,13 +7,13 @@ import { buildTypeDisplayModel } from './nodes/typeDisplay';
 import { mapTypeCollection } from '../utils/collections';
 
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { Module } from '../../shared/types/Module';
 
 interface NodeDetailsProps {
   node: DependencyNode;
-  data: DependencyPackageGraph;
+  data: PackageGraph;
   nodes: DependencyNode[];
   edges: GraphEdge[];
 }
@@ -47,10 +47,10 @@ interface GraphDetailsIndex {
   usageByTargetSymbolId: Map<string, string[]>;
 }
 
-const graphDetailsIndexCache = new WeakMap<DependencyPackageGraph, GraphDetailsIndex>();
+const graphDetailsIndexCache = new WeakMap<PackageGraph, GraphDetailsIndex>();
 const moduleDetailsAssembler = new GraphHydrator();
 
-function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex {
+function buildGraphDetailsIndex(data: PackageGraph): GraphDetailsIndex {
   const moduleById = new Map<string, Module>();
   const symbolToModuleId = new Map<string, string>();
   const symbolLabelById = new Map<string, string>();

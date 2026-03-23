@@ -15,7 +15,7 @@ import {
 
 import type { Class } from '../../../shared/types/Class';
 import type { DependencyNode } from '../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../shared/types/Package';
 import type { GraphEdge } from '../../types/GraphEdge';
 import type { Interface } from '../../../shared/types/Interface';
 import type { Method } from '../../../shared/types/Method';
@@ -23,7 +23,7 @@ import type { Property } from '../../../shared/types/Property';
 import type { GraphViewData } from '../graphViewShared';
 
 export interface BuildModuleDrilldownGraphOptions {
-  data: DependencyPackageGraph;
+  data: PackageGraph;
   selectedNode: DependencyNode;
   currentNodes: DependencyNode[];
   currentEdges: GraphEdge[];

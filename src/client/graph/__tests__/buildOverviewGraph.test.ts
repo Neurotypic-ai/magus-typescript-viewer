@@ -1,7 +1,7 @@
 import { buildOverviewGraph } from '../buildOverviewGraph';
 
 import type { BuildOverviewGraphOptions } from '../buildOverviewGraph';
-import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../shared/types/Package';
 import type { Module } from '../../../shared/types/Module';
 import type { Package } from '../../../shared/types/Package';
 import { describe, it, expect } from 'vitest';
@@ -43,7 +43,7 @@ function makePackage(id: string, name: string, modules: Record<string, Module> =
   };
 }
 
-function makeGraph(packages: Package[]): DependencyPackageGraph {
+function makeGraph(packages: Package[]): PackageGraph {
   return { packages };
 }
 
@@ -122,7 +122,7 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('multiple modules with import edges', () => {
-    function twoModuleGraph(): DependencyPackageGraph {
+    function twoModuleGraph(): PackageGraph {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
         imports: {
           i1: { uuid: 'i1', name: 'b', path: './b' },
@@ -178,7 +178,7 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('edge visibility', () => {
-    function graphWithImportEdge(): DependencyPackageGraph {
+    function graphWithImportEdge(): PackageGraph {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
         imports: { i1: { uuid: 'i1', name: 'b', path: './b' } },
       });
@@ -221,7 +221,7 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('test file filtering', () => {
-    function graphWithTestModule(): DependencyPackageGraph {
+    function graphWithTestModule(): PackageGraph {
       const modMain = makeModule('mod-main', 'main.ts', 'pkg-1', 'src/main.ts');
       const modTest = makeModule('mod-test', 'main.test.ts', 'pkg-1', 'src/main.test.ts');
       return makeGraph([makePackage('pkg-1', 'app', { main: modMain, test: modTest })]);
@@ -271,7 +271,7 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('class and interface nodes', () => {
-    function graphWithClasses(): DependencyPackageGraph {
+    function graphWithClasses(): PackageGraph {
       const mod = makeModule('mod-1', 'service.ts', 'pkg-1', 'src/service.ts', {
         classes: {
           MyClass: {
@@ -313,7 +313,7 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('folder clustering', () => {
-    function multifolderGraph(): DependencyPackageGraph {
+    function multifolderGraph(): PackageGraph {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a/a.ts', {
         imports: { i1: { uuid: 'i1', name: 'b', path: '../b/b' } },
       });

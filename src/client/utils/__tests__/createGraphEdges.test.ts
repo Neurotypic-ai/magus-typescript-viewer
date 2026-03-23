@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { createGraphEdges } from '../createGraphEdges';
 
-import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../shared/types/Package';
 
-function createBaseGraph(): DependencyPackageGraph {
+function createBaseGraph(): PackageGraph {
   return {
     packages: [
       {
@@ -58,7 +58,7 @@ describe('createGraphEdges import resolution', () => {
   });
 
   it('resolves directory imports to index.ts files', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -100,7 +100,7 @@ describe('createGraphEdges import resolution', () => {
   });
 
   it('resolves directory imports to index.vue files', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -142,7 +142,7 @@ describe('createGraphEdges import resolution', () => {
   });
 
   it('does not create edges for unresolved imports', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -175,7 +175,7 @@ describe('createGraphEdges import resolution', () => {
   });
 
   it('does not create graph edges for external metadata imports', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -256,7 +256,7 @@ describe('createGraphEdges options', () => {
 
 describe('createGraphEdges class relationships', () => {
   it('lifts class relationships to module level when requested', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -303,7 +303,7 @@ describe('createGraphEdges class relationships', () => {
   });
 
   it('includes class-level relationships when class edges are enabled', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -350,7 +350,7 @@ describe('createGraphEdges class relationships', () => {
   });
 
   it('deduplicates lifted module relationships', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',

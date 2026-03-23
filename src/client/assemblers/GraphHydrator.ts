@@ -14,7 +14,7 @@ import { Variable } from '../../shared/types/Variable';
 import { createLogger } from '../../shared/utils/logger';
 import { typeCollectionToArray } from '../utils/collections';
 
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 
 import { getApiBaseUrl } from './api';
 import { GraphDataCache } from './graphDataCache';
@@ -62,7 +62,7 @@ export class GraphHydrator {
     this.cache = cache ?? GraphDataCache.getInstance();
   }
 
-  async assembleGraphData(signal?: AbortSignal): Promise<DependencyPackageGraph> {
+  async assembleGraphData(signal?: AbortSignal): Promise<PackageGraph> {
     const cacheKey = `${GraphHydrator.CACHE_VERSION}:${this.baseUrl}`;
     const cachedData = this.cache.get(cacheKey);
     if (cachedData) {
@@ -125,7 +125,7 @@ export class GraphHydrator {
     this.moduleDetailsCache.clear();
   }
 
-  private hydratePackages(items: GraphApiPackagePayload[], registry: EntityRegistry): DependencyPackageGraph {
+  private hydratePackages(items: GraphApiPackagePayload[], registry: EntityRegistry): PackageGraph {
     const byId = new Map<string, Package>();
     const graphPackages: Package[] = [];
 

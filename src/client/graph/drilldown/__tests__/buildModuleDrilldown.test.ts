@@ -4,7 +4,7 @@ import { buildModuleDrilldownGraph } from '../buildModuleDrilldown';
 
 import type { BuildModuleDrilldownGraphOptions } from '../buildModuleDrilldown';
 import type { DependencyNode } from '../../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../../shared/types/Package';
 import type { GraphEdge } from '../../../types/GraphEdge';
 import type { Package } from '../../../../shared/types/Package';
 import type { Module } from '../../../../shared/types/Module';
@@ -32,7 +32,7 @@ function makePackage(modules: Record<string, Module>): Package {
   };
 }
 
-function makeGraph(modules: Record<string, Module>): DependencyPackageGraph {
+function makeGraph(modules: Record<string, Module>): PackageGraph {
   return { packages: [makePackage(modules)] };
 }
 

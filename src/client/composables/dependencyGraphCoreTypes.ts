@@ -6,7 +6,7 @@ import type { useGraphSettings } from '../stores/graphSettings';
 import type { useInsightsStore } from '../stores/insightsStore';
 import type { useIssuesStore } from '../stores/issuesStore';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { SearchResult } from '../types/SearchResult';
 import type { LayoutProcessOptions } from './useGraphLayout';
@@ -30,8 +30,8 @@ export interface DependencyGraphCoreEnv {
 }
 
 export interface UseDependencyGraphCoreOptions {
-  /** Props from the component (data: DependencyPackageGraph). */
-  propsData: { data: DependencyPackageGraph };
+  /** Props from the component (data: PackageGraph). */
+  propsData: { data: PackageGraph };
   graphRootRef: Ref<HTMLElement | null>;
   env: DependencyGraphCoreEnv;
 }

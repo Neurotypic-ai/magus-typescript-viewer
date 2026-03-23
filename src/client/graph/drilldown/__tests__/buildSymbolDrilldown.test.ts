@@ -4,7 +4,7 @@ import { buildSymbolDrilldownGraph } from '../buildSymbolDrilldown';
 
 import type { BuildSymbolDrilldownGraphOptions } from '../buildSymbolDrilldown';
 import type { DependencyNode } from '../../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../../shared/types/Package';
 import type { Module } from '../../../../shared/types/Module';
 import type { Package } from '../../../../shared/types/Package';
 
@@ -31,7 +31,7 @@ function makePackage(modules: Record<string, Module>): Package {
   };
 }
 
-function makeGraph(modules: Record<string, Module>): DependencyPackageGraph {
+function makeGraph(modules: Record<string, Module>): PackageGraph {
   return { packages: [makePackage(modules)] };
 }
 
@@ -816,7 +816,7 @@ describe('buildSymbolDrilldownGraph', () => {
     });
 
     it('handles graph with empty packages array', () => {
-      const data: DependencyPackageGraph = { packages: [] };
+      const data: PackageGraph = { packages: [] };
       const result = buildSymbolDrilldownGraph(
         defaultOptions({
           data,

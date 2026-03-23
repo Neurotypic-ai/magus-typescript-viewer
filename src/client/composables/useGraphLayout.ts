@@ -10,7 +10,7 @@ import type { Ref } from 'vue';
 
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 
@@ -131,7 +131,7 @@ export interface NodeDimensionTracker {
 }
 
 export interface UseGraphLayoutOptions {
-  propsData: Ref<DependencyPackageGraph>;
+  propsData: Ref<PackageGraph>;
   graphStore: GraphLayoutStore;
   graphSettings: GraphSettings;
   interaction: GraphLayoutInteraction;

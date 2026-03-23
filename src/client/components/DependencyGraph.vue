@@ -27,14 +27,14 @@ import NodeContextMenu from './NodeContextMenu.vue';
 import NodeDetails from './NodeDetails.vue';
 
 import type { Component } from 'vue';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 
 import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/minimap/dist/style.css';
 
 export interface DependencyGraphProps {
-  data: DependencyPackageGraph;
+  data: PackageGraph;
 }
 
 const props = defineProps<DependencyGraphProps>();

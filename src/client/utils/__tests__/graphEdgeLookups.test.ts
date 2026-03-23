@@ -16,7 +16,7 @@ import {
 } from '../graphEdgeLookups';
 
 import type { ModulePathLookup } from '../graphEdgeLookups';
-import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../shared/types/Package';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -25,7 +25,7 @@ import type { DependencyPackageGraph } from '../../../shared/types/graph/Depende
 function makeGraph(
   modules: Record<string, { id: string; name: string; relativePath: string }>,
   packageId = 'pkg-1'
-): DependencyPackageGraph {
+): PackageGraph {
   const moduleRecords: Record<string, { id: string; name: string; package_id: string; source: { relativePath: string } }> = {};
   for (const [key, mod] of Object.entries(modules)) {
     moduleRecords[key] = {
@@ -409,7 +409,7 @@ describe('buildModulePathLookup', () => {
   });
 
   it('returns empty path map for a package with no modules', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -461,7 +461,7 @@ describe('buildModulePathLookup', () => {
   });
 
   it('globalPathMap contains multiple IDs when different packages share a path', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -615,7 +615,7 @@ describe('resolveModuleId', () => {
 
   describe('package-local vs global resolution', () => {
     it('prefers package-local match over global match', () => {
-      const graph: DependencyPackageGraph = {
+      const graph: PackageGraph = {
         packages: [
           {
             id: 'pkg-1',
@@ -661,7 +661,7 @@ describe('resolveModuleId', () => {
     });
 
     it('falls back to global match when only one module matches globally', () => {
-      const graph: DependencyPackageGraph = {
+      const graph: PackageGraph = {
         packages: [
           {
             id: 'pkg-1',
@@ -702,7 +702,7 @@ describe('resolveModuleId', () => {
     });
 
     it('returns undefined when multiple global matches exist (ambiguous)', () => {
-      const graph: DependencyPackageGraph = {
+      const graph: PackageGraph = {
         packages: [
           {
             id: 'pkg-1',

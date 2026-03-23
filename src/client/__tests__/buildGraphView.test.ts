@@ -10,7 +10,7 @@ import {
 import type { NodeChange } from '@vue-flow/core';
 
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 
 describe('applyEdgeVisibility', () => {
@@ -64,7 +64,7 @@ describe('applyEdgeVisibility', () => {
 
 describe('buildOverviewGraph', () => {
   it('filters out test modules when hideTestFiles is enabled and annotates orphan diagnostics', () => {
-    const data: DependencyPackageGraph = {
+    const data: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -108,7 +108,7 @@ describe('buildOverviewGraph', () => {
   });
 
   it('returns a semantic snapshot and projects folder highways in folder mode', () => {
-    const data: DependencyPackageGraph = {
+    const data: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -160,7 +160,7 @@ describe('buildOverviewGraph', () => {
 
 describe('buildSymbolDrilldownGraph', () => {
   it('creates uses edges with usageKind metadata from module symbol references', () => {
-    const graphData: DependencyPackageGraph = {
+    const graphData: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',

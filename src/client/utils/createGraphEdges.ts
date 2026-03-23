@@ -7,7 +7,7 @@ import { buildModulePathLookup, isExternalImport, resolveModuleId } from './grap
 import type { Class } from '../../shared/types/Class';
 import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { Import } from '../../shared/types/Import';
 import type { Interface } from '../../shared/types/Interface';
@@ -40,7 +40,7 @@ interface ResolvedOptions {
 }
 
 
-function buildNodeIdSet(data: DependencyPackageGraph, options: ResolvedOptions): Set<string> {
+function buildNodeIdSet(data: PackageGraph, options: ResolvedOptions): Set<string> {
   const nodeIds = new Set<string>();
 
   data.packages.forEach((pkg: Package) => {
@@ -100,7 +100,7 @@ function buildNodeIdSet(data: DependencyPackageGraph, options: ResolvedOptions):
   return nodeIds;
 }
 
-function buildNodeKindLookup(data: DependencyPackageGraph, options: ResolvedOptions): Map<string, DependencyKind> {
+function buildNodeKindLookup(data: PackageGraph, options: ResolvedOptions): Map<string, DependencyKind> {
   const nodeKinds = new Map<string, DependencyKind>();
 
   data.packages.forEach((pkg: Package) => {
@@ -172,7 +172,7 @@ function buildNodeKindLookup(data: DependencyPackageGraph, options: ResolvedOpti
   return nodeKinds;
 }
 
-function buildSymbolToModuleMap(data: DependencyPackageGraph): Map<string, string> {
+function buildSymbolToModuleMap(data: PackageGraph): Map<string, string> {
   const symbolToModuleMap = new Map<string, string>();
 
   data.packages.forEach((pkg: Package) => {
@@ -249,7 +249,7 @@ function addLiftedModuleEdges(
  * Creates graph edges from the provided dependency package graph data.
  */
 export function createGraphEdges(
-  data: DependencyPackageGraph,
+  data: PackageGraph,
   options: CreateGraphEdgesOptions = {}
 ): GraphEdge[] {
   const resolvedOptions: ResolvedOptions = {

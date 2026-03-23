@@ -6,7 +6,7 @@
 import { mapTypeCollection } from './collections';
 
 import type { IImport } from '../../shared/types/Import';
-import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { Module } from '../../shared/types/Module';
 import type { Package } from '../../shared/types/Package';
 
@@ -73,7 +73,7 @@ function addModulePathEntry(pathMap: Map<string, string>, relativePath: string, 
   }
 }
 
-export function buildModulePathLookup(data: DependencyPackageGraph): ModulePathLookup {
+export function buildModulePathLookup(data: PackageGraph): ModulePathLookup {
   const packagePathMap = new Map<string, Map<string, string>>();
   const globalPathMap = new Map<string, Set<string>>();
 

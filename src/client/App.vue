@@ -5,7 +5,7 @@ import { createLogger } from '../shared/utils/logger';
 import { GraphHydrator } from './assemblers/GraphHydrator';
 import ErrorBoundary from './components/ErrorBoundary.vue';
 
-import type { DependencyPackageGraph } from '../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../shared/types/Package';
 
 // Lazy load the DependencyGraph component for code splitting and better performance
 const DependencyGraph = defineAsyncComponent(() => import('./components/DependencyGraphLazy.vue'));
@@ -14,7 +14,7 @@ const DependencyGraph = defineAsyncComponent(() => import('./components/Dependen
 const appLogger = createLogger('App');
 const graphHydrator = new GraphHydrator();
 
-const graphData = shallowRef<DependencyPackageGraph>({ packages: [] });
+const graphData = shallowRef<PackageGraph>({ packages: [] });
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 

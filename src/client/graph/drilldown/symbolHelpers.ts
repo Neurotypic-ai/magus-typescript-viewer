@@ -10,7 +10,7 @@ import { mapTypeCollection } from '../../utils/collections';
 
 import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyNode } from '../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
+import type { PackageGraph } from '../../../shared/types/Package';
 import type { GraphEdge } from '../../types/GraphEdge';
 import type { Module } from '../../../shared/types/Module';
 import type { Method } from '../../../shared/types/Method';
@@ -63,7 +63,7 @@ export function normalizeMethod(method: Method): Method {
 }
 
 export function findModuleById(
-  data: DependencyPackageGraph,
+  data: PackageGraph,
   moduleId: string
 ): Module | undefined {
   for (const pkg of data.packages) {
