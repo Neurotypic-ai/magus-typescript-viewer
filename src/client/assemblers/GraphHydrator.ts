@@ -17,7 +17,7 @@ import { getApiBaseUrl } from './api';
 import { GraphDataCache } from './graphDataCache';
 import { EntityRegistry } from './EntityRegistry';
 
-type GraphApiPackagePayload = {
+interface GraphApiPackagePayload {
   id: string;
   name: string;
   version: string;
@@ -27,7 +27,7 @@ type GraphApiPackagePayload = {
   devDependencies?: unknown;
   peerDependencies?: unknown;
   modules?: unknown;
-};
+}
 
 function collectionValues<T>(collection: unknown): T[] {
   if (!collection) return [];
@@ -45,6 +45,10 @@ function toString(value: unknown, fallback = ''): string {
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+function collectionRecords(collection: unknown): Record<string, unknown>[] {
+  return collectionValues<unknown>(collection).map((item) => asRecord(item));
 }
 
 export class GraphHydrator {
@@ -157,8 +161,8 @@ export class GraphHydrator {
 
   private hydratePackageRefs(raw: unknown, existing: Map<string, Package>): Map<string, Package> {
     const refs = new Map<string, Package>();
-    for (const item of collectionValues<any>(raw)) {
-      const id = toString(item.id);
+    for (const item of collectionRecords(raw)) {
+      const id = toString(item['id']);
       if (!id) continue;
       const found = existing.get(id);
       if (found) {
@@ -166,7 +170,13 @@ export class GraphHydrator {
       } else {
         refs.set(
           id,
-          new Package(id, toString(item.name), toString(item.version), toString(item.path), toString(item.created_at))
+          new Package(
+            id,
+            toString(item['name']),
+            toString(item['version']),
+            toString(item['path']),
+            toString(item['created_at'])
+          )
         );
       }
     }
@@ -175,7 +185,7 @@ export class GraphHydrator {
 
   private hydrateModules(raw: unknown, registry: EntityRegistry): Map<string, Module> {
     const modules = new Map<string, Module>();
-    const values = collectionValues<any>(raw);
+    const values = collectionValues<unknown>(raw);
     for (const item of values) {
       const module = this.hydrateModule(item, registry);
       modules.set(module.id, module);
@@ -184,27 +194,28 @@ export class GraphHydrator {
   }
 
   private hydrateModule(raw: unknown, registry: EntityRegistry): Module {
-    const row = asRecord(raw) as any;
-    const imports = this.hydrateImports(row.imports);
-    const classes = this.hydrateClasses(row.classes, registry);
-    const interfaces = this.hydrateInterfaces(row.interfaces, registry);
-    const functions = this.hydrateFunctions(row.functions);
-    const typeAliases = this.hydrateTypeAliases(row.typeAliases ?? row.type_aliases);
-    const enums = this.hydrateEnums(row.enums);
-    const variables = this.hydrateVariables(row.variables);
-    const symbolRefs = this.hydrateSymbolReferences(row.symbol_references);
+    const row = asRecord(raw);
+    const source = asRecord(row['source']);
+    const imports = this.hydrateImports(row['imports']);
+    const classes = this.hydrateClasses(row['classes'], registry);
+    const interfaces = this.hydrateInterfaces(row['interfaces'], registry);
+    const functions = this.hydrateFunctions(row['functions']);
+    const typeAliases = this.hydrateTypeAliases(row['typeAliases'] ?? row['type_aliases']);
+    const enums = this.hydrateEnums(row['enums']);
+    const variables = this.hydrateVariables(row['variables']);
+    const symbolRefs = this.hydrateSymbolReferences(row['symbol_references']);
 
     return new Module(
-      toString(row.id),
-      toString(row.package_id),
-      toString(row.name),
+      toString(row['id']),
+      toString(row['package_id']),
+      toString(row['name']),
       {
         directory: '',
-        name: toString(row.name),
+        name: toString(row['name']),
         filename: '',
-        relativePath: toString(((row.source as Record<string, unknown> | undefined) ?? {})['relativePath']),
+        relativePath: toString(source['relativePath']),
       },
-      toString(row.created_at, new Date().toISOString()),
+      toString(row['created_at'], new Date().toISOString()),
       classes,
       interfaces,
       imports,
@@ -221,20 +232,20 @@ export class GraphHydrator {
 
   private hydrateClasses(raw: unknown, registry: EntityRegistry): Map<string, Class> {
     const classes = new Map<string, Class>();
-    for (const item of collectionValues<any>(raw)) {
-      const methods = this.hydrateMethods(item.methods);
-      const properties = this.hydrateProperties(item.properties);
-      const implemented = this.hydrateInterfaces(item.implemented_interfaces, registry);
+    for (const item of collectionRecords(raw)) {
+      const methods = this.hydrateMethods(item['methods']);
+      const properties = this.hydrateProperties(item['properties']);
+      const implemented = this.hydrateInterfaces(item['implemented_interfaces'], registry);
       const cls = new Class(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.name),
-        toString(item.created_at, new Date().toISOString()),
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['name']),
+        toString(item['created_at'], new Date().toISOString()),
         methods,
         properties,
         implemented,
-        toString(item.extends_id) || undefined
+        toString(item['extends_id']) || undefined
       );
       classes.set(cls.id, registry.register(cls.id, cls));
     }
@@ -243,16 +254,16 @@ export class GraphHydrator {
 
   private hydrateInterfaces(raw: unknown, registry: EntityRegistry): Map<string, Interface> {
     const interfaces = new Map<string, Interface>();
-    for (const item of collectionValues<any>(raw)) {
-      const methods = this.hydrateMethods(item.methods);
-      const properties = this.hydrateProperties(item.properties);
-      const extended = this.hydrateInterfaces(item.extended_interfaces, registry);
+    for (const item of collectionRecords(raw)) {
+      const methods = this.hydrateMethods(item['methods']);
+      const properties = this.hydrateProperties(item['properties']);
+      const extended = this.hydrateInterfaces(item['extended_interfaces'], registry);
       const iface = new Interface(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.name),
-        toString(item.created_at, new Date().toISOString()),
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['name']),
+        toString(item['created_at'], new Date().toISOString()),
         methods,
         properties,
         extended
@@ -264,20 +275,20 @@ export class GraphHydrator {
 
   private hydrateMethods(raw: unknown): Map<string, Method> {
     const methods = new Map<string, Method>();
-    for (const item of collectionValues<any>(raw)) {
-      const parameters = this.hydrateParameters(item.parameters);
+    for (const item of collectionRecords(raw)) {
+      const parameters = this.hydrateParameters(item['parameters']);
       const method = new Method(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.parent_id),
-        toString(item.name),
-        toString(item.created_at, new Date().toISOString()),
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['parent_id']),
+        toString(item['name']),
+        toString(item['created_at'], new Date().toISOString()),
         parameters,
-        toString(item.return_type, toString(item.return_type, 'void')),
-        Boolean(item.is_static),
-        Boolean(item.is_async),
-        toString(item.visibility, 'public')
+        toString(item['return_type'], toString(item['return_type'], 'void')),
+        Boolean(item['is_static']),
+        Boolean(item['is_async']),
+        toString(item['visibility'], 'public')
       );
       methods.set(method.id, method);
     }
@@ -286,19 +297,19 @@ export class GraphHydrator {
 
   private hydrateProperties(raw: unknown): Map<string, Property> {
     const properties = new Map<string, Property>();
-    for (const item of collectionValues<any>(raw)) {
+    for (const item of collectionRecords(raw)) {
       const property = new Property(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.parent_id),
-        toString(item.name),
-        toString(item.created_at, new Date().toISOString()),
-        toString(item.type, 'any'),
-        Boolean(item.is_static),
-        Boolean(item.is_readonly),
-        toString(item.visibility, 'public'),
-        typeof item.default_value === 'string' ? item.default_value : undefined
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['parent_id']),
+        toString(item['name']),
+        toString(item['created_at'], new Date().toISOString()),
+        toString(item['type'], 'any'),
+        Boolean(item['is_static']),
+        Boolean(item['is_readonly']),
+        toString(item['visibility'], 'public'),
+        typeof item['default_value'] === 'string' ? item['default_value'] : undefined
       );
       properties.set(property.id, property);
     }
@@ -307,18 +318,18 @@ export class GraphHydrator {
 
   private hydrateParameters(raw: unknown): Map<string, Parameter> {
     const parameters = new Map<string, Parameter>();
-    for (const item of collectionValues<any>(raw)) {
+    for (const item of collectionRecords(raw)) {
       const parameter = new Parameter(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.method_id),
-        toString(item.name),
-        toString(item.created_at, new Date().toISOString()),
-        toString(item.type, 'any'),
-        Boolean(item.is_optional),
-        Boolean(item.is_rest),
-        typeof item.default_value === 'string' ? item.default_value : undefined
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['method_id']),
+        toString(item['name']),
+        toString(item['created_at'], new Date().toISOString()),
+        toString(item['type'], 'any'),
+        Boolean(item['is_optional']),
+        Boolean(item['is_rest']),
+        typeof item['default_value'] === 'string' ? item['default_value'] : undefined
       );
       parameters.set(parameter.id, parameter);
     }
@@ -327,17 +338,17 @@ export class GraphHydrator {
 
   private hydrateFunctions(raw: unknown): Map<string, ModuleFunction> {
     const functions = new Map<string, ModuleFunction>();
-    for (const item of collectionValues<any>(raw)) {
+    for (const item of collectionRecords(raw)) {
       const fn = new ModuleFunction(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.name),
-        toString(item.created_at, new Date().toISOString()),
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['name']),
+        toString(item['created_at'], new Date().toISOString()),
         new Map(),
-        toString(item.return_type, 'void'),
-        Boolean(item.is_async),
-        Boolean(item.is_exported)
+        toString(item['return_type'], 'void'),
+        Boolean(item['is_async']),
+        Boolean(item['is_exported'])
       );
       functions.set(fn.id, fn);
     }
@@ -346,16 +357,16 @@ export class GraphHydrator {
 
   private hydrateTypeAliases(raw: unknown): Map<string, TypeAlias> {
     const aliases = new Map<string, TypeAlias>();
-    for (const item of collectionValues<any>(raw)) {
-      const typeParameters = collectionValues<string>(item.type_parameters).filter((value): value is string => typeof value === 'string');
+    for (const item of collectionRecords(raw)) {
+      const typeParameters = collectionValues<string>(item['type_parameters']).filter((value): value is string => typeof value === 'string');
       const alias = new TypeAlias(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.name),
-        toString(item.type),
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['name']),
+        toString(item['type']),
         typeParameters,
-        toString(item.created_at, new Date().toISOString())
+        toString(item['created_at'], new Date().toISOString())
       );
       aliases.set(alias.id, alias);
     }
@@ -364,15 +375,15 @@ export class GraphHydrator {
 
   private hydrateEnums(raw: unknown): Map<string, Enum> {
     const enums = new Map<string, Enum>();
-    for (const item of collectionValues<any>(raw)) {
-      const enumMembers = collectionValues<string>(item.members).filter((value): value is string => typeof value === 'string');
+    for (const item of collectionRecords(raw)) {
+      const enumMembers = collectionValues<string>(item['members']).filter((value): value is string => typeof value === 'string');
       const en = new Enum(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.name),
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['name']),
         enumMembers,
-        toString(item.created_at, new Date().toISOString())
+        toString(item['created_at'], new Date().toISOString())
       );
       enums.set(en.id, en);
     }
@@ -381,16 +392,16 @@ export class GraphHydrator {
 
   private hydrateVariables(raw: unknown): Map<string, Variable> {
     const variables = new Map<string, Variable>();
-    for (const item of collectionValues<any>(raw)) {
+    for (const item of collectionRecords(raw)) {
       const variable = new Variable(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.name),
-        (toString(item.kind, 'const') as 'const' | 'let' | 'var'),
-        toString(item.type, 'unknown'),
-        toString(item.initializer),
-        toString(item.created_at, new Date().toISOString())
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['name']),
+        toString(item['kind'], 'const') as 'const' | 'let' | 'var',
+        toString(item['type'], 'unknown'),
+        toString(item['initializer']),
+        toString(item['created_at'], new Date().toISOString())
       );
       variables.set(variable.id, variable);
     }
@@ -399,22 +410,22 @@ export class GraphHydrator {
 
   private hydrateImports(raw: unknown): Map<string, Import> {
     const imports = new Map<string, Import>();
-    for (const item of collectionValues<any>(raw)) {
-      const importId = toString(item.uuid, toString(item.id));
+    for (const item of collectionRecords(raw)) {
+      const importId = toString(item['uuid'], toString(item['id']));
       const specifiers = new Map<string, ImportSpecifier>();
-      const rawSpecifiers = collectionValues<any>(item.specifiers);
+      const rawSpecifiers = collectionRecords(item['specifiers']);
       rawSpecifiers.forEach((specifierRaw, index) => {
-        const imported = toString(specifierRaw.imported, toString(specifierRaw.name));
+        const imported = toString(specifierRaw['imported'], toString(specifierRaw['name']));
         if (!imported) return;
-        const local = toString(specifierRaw.local);
+        const local = toString(specifierRaw['local']);
         const uuid = `${importId}:specifier:${index.toString()}:${imported}`;
         const specifier = new ImportSpecifier(
           uuid,
           imported,
-          (toString(specifierRaw.kind, 'value') as 'value' | 'type' | 'typeof' | 'default' | 'namespace' | 'sideEffect'),
+          toString(specifierRaw['kind'], 'value') as 'value' | 'type' | 'typeof' | 'default' | 'namespace' | 'sideEffect',
           undefined,
-          new Set(collectionValues<string>(specifierRaw.modules)),
-          new Set(collectionValues<string>(specifierRaw.aliases))
+          new Set(collectionValues<string>(specifierRaw['modules'])),
+          new Set(collectionValues<string>(specifierRaw['aliases']))
         );
         if (local) {
           specifier.aliases.add(local);
@@ -422,12 +433,12 @@ export class GraphHydrator {
         specifiers.set(specifier.uuid, specifier);
       });
 
-      const path = toString(item.path, toString(item.relativePath, toString(item.fullPath, toString(item.name))));
+      const path = toString(item['path'], toString(item['relativePath'], toString(item['fullPath'], toString(item['name']))));
       const imp = new Import(
         importId,
-        toString(item.fullPath, path),
-        toString(item.relativePath, path),
-        toString(item.name, path),
+        toString(item['fullPath'], path),
+        toString(item['relativePath'], path),
+        toString(item['name'], path),
         specifiers
       );
       imports.set(imp.uuid, imp);
@@ -437,20 +448,20 @@ export class GraphHydrator {
 
   private hydrateSymbolReferences(raw: unknown): Map<string, SymbolReference> {
     const refs = new Map<string, SymbolReference>();
-    for (const item of collectionValues<any>(raw)) {
+    for (const item of collectionRecords(raw)) {
       const ref = new SymbolReference(
-        toString(item.id),
-        toString(item.package_id),
-        toString(item.module_id),
-        toString(item.source_symbol_type, 'module') as 'module' | 'class' | 'interface' | 'function' | 'method' | 'property',
-        toString(item.target_symbol_id),
-        toString(item.target_symbol_type, 'method') as 'method' | 'property',
-        toString(item.target_symbol_name),
-        toString(item.access_kind, 'method') as 'method' | 'property',
-        toString(item.created_at, new Date().toISOString()),
-        toString(item.source_symbol_id) || undefined,
-        toString(item.source_symbol_name) || undefined,
-        toString(item.qualifier_name) || undefined
+        toString(item['id']),
+        toString(item['package_id']),
+        toString(item['module_id']),
+        toString(item['source_symbol_type'], 'module') as 'module' | 'class' | 'interface' | 'function' | 'method' | 'property',
+        toString(item['target_symbol_id']),
+        toString(item['target_symbol_type'], 'method') as 'method' | 'property',
+        toString(item['target_symbol_name']),
+        toString(item['access_kind'], 'method') as 'method' | 'property',
+        toString(item['created_at'], new Date().toISOString()),
+        toString(item['source_symbol_id']) || undefined,
+        toString(item['source_symbol_name']) || undefined,
+        toString(item['qualifier_name']) || undefined
       );
       refs.set(ref.id, ref);
     }
