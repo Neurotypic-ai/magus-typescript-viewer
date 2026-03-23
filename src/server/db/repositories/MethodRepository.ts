@@ -1,5 +1,6 @@
 import { Method } from '../../../shared/types/Method';
 import { Parameter } from '../../../shared/types/Parameter';
+import { isValidParentType } from '../../../shared/types/ParentType';
 import { EntityNotFoundError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
@@ -14,6 +15,17 @@ import type { IMethodRow, IParameterRow } from '../types/DatabaseResults';
 export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, IMethodUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
     super(adapter, '[MethodRepository]', 'methods');
+  }
+
+  private assertValidParentType(parentType: ParentType, operation: 'retrieveByParent' | 'retrieveByParentIds'): void {
+    if (isValidParentType(parentType)) return;
+
+    throw new RepositoryError(
+      `Invalid parent type: ${String(parentType)}`,
+      operation,
+      this.errorTag,
+      new Error(`Invalid parent type: ${String(parentType)}`)
+    );
   }
 
   /**
@@ -192,6 +204,8 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
     parentIds: string[],
     parentType: ParentType
   ): Promise<Map<string, Map<string, Method>>> {
+    this.assertValidParentType(parentType, 'retrieveByParentIds');
+
     const result = new Map<string, Map<string, Method>>();
     if (parentIds.length === 0) return result;
 
@@ -285,6 +299,8 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
   }
 
   async retrieveByParent(parentId: string, parentType: ParentType): Promise<Map<string, Method>> {
+    this.assertValidParentType(parentType, 'retrieveByParent');
+
     try {
       // Fetch methods with proper parameter handling
       const methods = await this.executeQuery<IMethodRow>(

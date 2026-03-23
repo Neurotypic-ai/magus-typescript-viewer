@@ -5,6 +5,7 @@ import { Parameter } from '../../../../shared/types/Parameter';
 import { EntityNotFoundError, RepositoryError } from '../../errors/RepositoryError';
 import { MethodRepository } from '../MethodRepository';
 
+import type { ParentType } from '../../../../shared/types/ParentType';
 import type { IMethodCreateDTO, IMethodUpdateDTO } from '../../../../shared/types/dto/MethodDTO';
 import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
 import type { IMethodRow, IParameterRow } from '../../types/DatabaseResults';
@@ -389,7 +390,9 @@ describe('MethodRepository', () => {
       const result = await repo.retrieveByModuleId('mod-1');
 
       expect(result).toHaveLength(2);
-      result.forEach((m) => expect(m).toBeInstanceOf(Method));
+      result.forEach((m) => {
+        expect(m).toBeInstanceOf(Method);
+      });
     });
 
     it('returns empty array when module has no methods', async () => {
@@ -445,6 +448,14 @@ describe('MethodRepository', () => {
   // retrieveByParent
   // -----------------------------------------------------------------------
   describe('retrieveByParent', () => {
+    it('throws before querying when parent type is invalid at runtime', async () => {
+      await expect(repo.retrieveByParent('class-1', 'module' as unknown as ParentType)).rejects.toThrow(
+        /invalid parent type/i
+      );
+
+      expect(adapter.query).not.toHaveBeenCalled();
+    });
+
     it('returns an empty map when no methods exist for the parent', async () => {
       (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
 
@@ -574,6 +585,14 @@ describe('MethodRepository', () => {
   // retrieveByParentIds
   // -----------------------------------------------------------------------
   describe('retrieveByParentIds', () => {
+    it('throws before querying when batch parent type is invalid at runtime', async () => {
+      await expect(repo.retrieveByParentIds(['p1'], 'module' as unknown as ParentType)).rejects.toThrow(
+        /invalid parent type/i
+      );
+
+      expect(adapter.query).not.toHaveBeenCalled();
+    });
+
     it('returns an empty map when parentIds is empty', async () => {
       const result = await repo.retrieveByParentIds([], 'class');
 

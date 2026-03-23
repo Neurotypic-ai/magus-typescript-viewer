@@ -1,4 +1,4 @@
-interface EdgeGeometryPoint {
+export interface EdgeGeometryPoint {
   x: number;
   y: number;
 }

@@ -1,8 +1,8 @@
-import { Class } from '../../shared/types/Class';
+import { Class, isClass } from '../../shared/types/Class';
 import { Enum } from '../../shared/types/Enum';
 import { ModuleFunction } from '../../shared/types/Function';
 import { Import, ImportSpecifier } from '../../shared/types/Import';
-import { Interface } from '../../shared/types/Interface';
+import { Interface, isInterface } from '../../shared/types/Interface';
 import { Method } from '../../shared/types/Method';
 import { Module } from '../../shared/types/Module';
 import { Package } from '../../shared/types/Package';
@@ -253,7 +253,11 @@ export class GraphHydrator {
         implemented,
         toString(item['extends_id']) || undefined
       );
-      classes.set(cls.id, registry.register(cls.id, cls));
+      const registeredClass = registry.register(cls.id, cls);
+      if (!isClass(registeredClass)) {
+        throw new TypeError(`Expected hydrated Class instance for ${cls.id}`);
+      }
+      classes.set(registeredClass.id, registeredClass);
     }
     return classes;
   }
@@ -274,7 +278,11 @@ export class GraphHydrator {
         properties,
         extended
       );
-      interfaces.set(iface.id, registry.register(iface.id, iface));
+      const registeredInterface = registry.register(iface.id, iface);
+      if (!isInterface(registeredInterface)) {
+        throw new TypeError(`Expected hydrated Interface instance for ${iface.id}`);
+      }
+      interfaces.set(registeredInterface.id, registeredInterface);
     }
     return interfaces;
   }

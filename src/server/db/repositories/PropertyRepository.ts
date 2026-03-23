@@ -1,4 +1,5 @@
 import { Property } from '../../../shared/types/Property';
+import { isValidParentType } from '../../../shared/types/ParentType';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
@@ -13,6 +14,17 @@ import type { IPropertyRow } from '../types/DatabaseResults';
 export class PropertyRepository extends BaseRepository<Property, IPropertyCreateDTO, IPropertyUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
     super(adapter, '[PropertyRepository]', 'properties');
+  }
+
+  private assertValidParentType(parentType: ParentType, operation: 'retrieveByParent' | 'retrieveByParentIds'): void {
+    if (isValidParentType(parentType)) return;
+
+    throw new RepositoryError(
+      `Invalid parent type: ${String(parentType)}`,
+      operation,
+      this.errorTag,
+      new Error(`Invalid parent type: ${String(parentType)}`)
+    );
   }
 
   /**
@@ -178,6 +190,8 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
     parentIds: string[],
     parentType: ParentType
   ): Promise<Map<string, Map<string, Property>>> {
+    this.assertValidParentType(parentType, 'retrieveByParentIds');
+
     const result = new Map<string, Map<string, Property>>();
     if (parentIds.length === 0) return result;
 
@@ -227,6 +241,8 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
   }
 
   async retrieveByParent(parentId: string, parentType: ParentType): Promise<Map<string, Property>> {
+    this.assertValidParentType(parentType, 'retrieveByParent');
+
     try {
       // Fetch properties with proper parameter handling
       const properties = await this.executeQuery<IPropertyRow>(

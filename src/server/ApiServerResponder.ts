@@ -1,5 +1,9 @@
 import { consola } from 'consola';
 
+import { isClass } from '../shared/types/Class';
+import { isInterface } from '../shared/types/Interface';
+import { isMethod } from '../shared/types/Method';
+import { isProperty } from '../shared/types/Property';
 import { Module } from '../shared/types/Module';
 import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
@@ -23,6 +27,8 @@ import type { Package } from '../shared/types/Package';
 import type { TypeCollection } from '../shared/types/TypeCollection';
 import type { CodeIssueRef } from '../shared/types/api/CodeIssueRef';
 import type { InsightReport } from '../shared/types/api/Insight';
+import type { Method } from '../shared/types/Method';
+import type { Property } from '../shared/types/Property';
 import type { CodeIssueEntity } from './db/types/CodeIssueEntity';
 
 export interface ApiServerResponderOptions {
@@ -134,6 +140,34 @@ const typeCollectionToArray = <T>(collection: TypeCollection<T> | undefined): T[
   }
   return Object.values(collection);
 };
+
+function filterHydratedMethods(methods: unknown): Map<string, Method> {
+  if (!(methods instanceof Map)) {
+    return new Map<string, Method>();
+  }
+
+  const filtered = new Map<string, Method>();
+  for (const [id, method] of methods.entries()) {
+    if (!isMethod(method)) continue;
+    filtered.set(id as string, method);
+  }
+
+  return filtered;
+}
+
+function filterHydratedProperties(properties: unknown): Map<string, Property> {
+  if (!(properties instanceof Map)) {
+    return new Map<string, Property>();
+  }
+
+  const filtered = new Map<string, Property>();
+  for (const [id, property] of properties.entries()) {
+    if (!isProperty(property)) continue;
+    filtered.set(id as string, property);
+  }
+
+  return filtered;
+}
 
 function codeIssueSeverityToPublic(severity: string): 'info' | 'warning' | 'error' {
   if (severity === 'info' || severity === 'warning' || severity === 'error') {
@@ -627,8 +661,10 @@ export class ApiServerResponder {
           const classes = new Map();
           const moduleClasses = classesByModule.get(mod.id) ?? [];
           for (const cls of moduleClasses) {
-            const methods = classMethodsMap.get(cls.id) ?? new Map();
-            const properties = classPropertiesMap.get(cls.id) ?? new Map();
+            if (!isClass(cls)) continue;
+
+            const methods = filterHydratedMethods(classMethodsMap.get(cls.id));
+            const properties = filterHydratedProperties(classPropertiesMap.get(cls.id));
             classes.set(cls.id, {
               id: cls.id,
               package_id: cls.package_id,
@@ -646,8 +682,10 @@ export class ApiServerResponder {
           const interfaces = new Map();
           const moduleInterfaces = interfacesByModule.get(mod.id) ?? [];
           for (const iface of moduleInterfaces) {
-            const methods = ifaceMethodsMap.get(iface.id) ?? new Map();
-            const properties = ifacePropertiesMap.get(iface.id) ?? new Map();
+            if (!isInterface(iface)) continue;
+
+            const methods = filterHydratedMethods(ifaceMethodsMap.get(iface.id));
+            const properties = filterHydratedProperties(ifacePropertiesMap.get(iface.id));
             interfaces.set(iface.id, {
               id: iface.id,
               package_id: iface.package_id,

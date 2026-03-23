@@ -203,6 +203,7 @@ describe('ClassRepository', () => {
       await repository.update('class-id-1', { name: 'NewName' });
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       expect(firstCall[0]).toContain('UPDATE classes SET name = ? WHERE id = ?');
       expect(firstCall[1]).toEqual(['NewName', 'class-id-1']);
     });
@@ -218,6 +219,7 @@ describe('ClassRepository', () => {
       await repository.update('class-id-1', { extends_id: 'new-parent-id' });
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       expect(firstCall[0]).toContain('UPDATE classes SET extends_id = ? WHERE id = ?');
       expect(firstCall[1]).toEqual(['new-parent-id', 'class-id-1']);
     });
@@ -266,6 +268,7 @@ describe('ClassRepository', () => {
       await repository.retrieve();
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0] as string;
       expect(sql).toContain('SELECT c.*');
       expect(sql).toContain('FROM classes c');
@@ -278,6 +281,7 @@ describe('ClassRepository', () => {
       await repository.retrieve('cls-1');
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0] as string;
       expect(sql).toContain('WHERE c.id = ?');
       expect(firstCall[1]).toEqual(['cls-1']);
@@ -289,6 +293,7 @@ describe('ClassRepository', () => {
       await repository.retrieve(undefined, 'mod-1');
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0] as string;
       expect(sql).toContain('WHERE c.module_id = ?');
       expect(firstCall[1]).toEqual(['mod-1']);
@@ -300,6 +305,7 @@ describe('ClassRepository', () => {
       await repository.retrieve('cls-1', 'mod-1');
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0] as string;
       expect(sql).toContain('c.id = ?');
       expect(sql).toContain('AND');
@@ -319,6 +325,7 @@ describe('ClassRepository', () => {
 
       // The 4th query call should be the implementations query
       const implementationsCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[3];
+      if (implementationsCall === undefined) throw new Error('Implementations call is undefined');
       const sql = implementationsCall[0] as string;
       expect(sql).toContain('FROM interfaces i');
       expect(sql).toContain('JOIN class_implements ci ON i.id = ci.interface_id');
@@ -397,6 +404,7 @@ describe('ClassRepository', () => {
       await repository.retrieveById('cls-42');
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0] as string;
       expect(sql).toContain('WHERE c.id = ?');
       expect(firstCall[1]).toEqual(['cls-42']);
@@ -433,6 +441,7 @@ describe('ClassRepository', () => {
       await repository.retrieveByModuleId('mod-99');
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0] as string;
       expect(sql).toContain('WHERE c.module_id = ?');
       expect(firstCall[1]).toEqual(['mod-99']);
@@ -464,6 +473,7 @@ describe('ClassRepository', () => {
       await repository.retrieveByModuleIds(['mod-1', 'mod-2', 'mod-3']);
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0] as string;
       expect(sql).toContain('WHERE c.module_id IN (?, ?, ?)');
       expect(firstCall[1]).toEqual(['mod-1', 'mod-2', 'mod-3']);
@@ -513,6 +523,7 @@ describe('ClassRepository', () => {
       await repository.delete('cls-to-delete');
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       expect(firstCall[0]).toBe('DELETE FROM class_implements WHERE class_id = ?');
       expect(firstCall[1]).toEqual(['cls-to-delete']);
     });
@@ -523,6 +534,7 @@ describe('ClassRepository', () => {
       await repository.delete('cls-to-delete');
 
       const secondCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[1];
+      if (secondCall === undefined) throw new Error('Second call is undefined');
       expect(secondCall[0]).toBe('DELETE FROM methods WHERE parent_id = ? AND parent_type = ?');
       expect(secondCall[1]).toEqual(['cls-to-delete', 'class']);
     });
@@ -533,6 +545,7 @@ describe('ClassRepository', () => {
       await repository.delete('cls-to-delete');
 
       const thirdCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[2];
+      if (thirdCall === undefined) throw new Error('Third call is undefined');
       expect(thirdCall[0]).toBe('DELETE FROM properties WHERE parent_id = ? AND parent_type = ?');
       expect(thirdCall[1]).toEqual(['cls-to-delete', 'class']);
     });
@@ -543,6 +556,7 @@ describe('ClassRepository', () => {
       await repository.delete('cls-to-delete');
 
       const lastCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[3];
+      if (lastCall === undefined) throw new Error('Last call is undefined');
       expect(lastCall[0]).toBe('DELETE FROM classes WHERE id = ?');
       expect(lastCall[1]).toEqual(['cls-to-delete']);
     });
@@ -582,6 +596,7 @@ describe('ClassRepository', () => {
       await repository.createBatch(items);
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0] as string;
       expect(sql).toContain('INSERT INTO classes');
       expect(sql).toContain('(id, package_id, module_id, name, extends_id)');
@@ -596,6 +611,7 @@ describe('ClassRepository', () => {
       await repository.createBatch(items);
 
       const firstCall = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      if (firstCall === undefined) throw new Error('First call is undefined');
       const params = firstCall[1] as unknown[];
       // extends_id should be null (last param for the single item)
       expect(params[4]).toBeNull();

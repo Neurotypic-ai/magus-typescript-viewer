@@ -6,6 +6,7 @@ import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../
 import { PropertyRepository } from '../PropertyRepository';
 
 import type { IPropertyCreateDTO } from '../../../../shared/types/dto/PropertyDTO';
+import type { ParentType } from '../../../../shared/types/ParentType';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IPropertyRow } from '../../types/DatabaseResults';
 
@@ -469,6 +470,12 @@ describe('PropertyRepository', () => {
   // retrieveByParent
   // ---------------------------------------------------------------------------
   describe('retrieveByParent', () => {
+    it('should throw before querying when parent type is invalid at runtime', async () => {
+      await expect(repo.retrieveByParent('cls-1', 'module' as unknown as ParentType)).rejects.toThrow(/invalid parent type/i);
+
+      expect(adapter.query).not.toHaveBeenCalled();
+    });
+
     it('should return a Map of properties keyed by property id', async () => {
       const rows = [
         createPropertyRow({ id: 'prop-1', parent_id: 'cls-1', parent_type: 'class', name: 'alpha' }),
@@ -518,6 +525,14 @@ describe('PropertyRepository', () => {
   // retrieveByParentIds
   // ---------------------------------------------------------------------------
   describe('retrieveByParentIds', () => {
+    it('should throw before querying when batch parent type is invalid at runtime', async () => {
+      await expect(repo.retrieveByParentIds(['cls-1'], 'module' as unknown as ParentType)).rejects.toThrow(
+        /invalid parent type/i
+      );
+
+      expect(adapter.query).not.toHaveBeenCalled();
+    });
+
     it('should return an empty Map for an empty parentIds array', async () => {
       const result = await repo.retrieveByParentIds([], 'class');
 

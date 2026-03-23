@@ -440,11 +440,11 @@ describe('InsightEngine', () => {
       const fanIn = report.insights.filter((i) => i.type === 'import-fan-in');
 
       expect(fanIn).toHaveLength(1);
-      expect(fanIn[0]!.severity).toBe('warning');
-      expect(fanIn[0]!.entities).toHaveLength(1);
-      expect(fanIn[0]!.entities[0]!.name).toBe('target.ts');
-      expect(fanIn[0]!.value).toBe(12);
-      expect(fanIn[0]!.threshold).toBe(10);
+      expect(fanIn[0]?.severity).toBe('warning');
+      expect(fanIn[0]?.entities).toHaveLength(1);
+      expect(fanIn[0]?.entities[0]?.name).toBe('target.ts');
+      expect(fanIn[0]?.value).toBe(12);
+      expect(fanIn[0]?.threshold).toBe(10);
     });
   });
 
@@ -466,11 +466,11 @@ describe('InsightEngine', () => {
       const fanOut = report.insights.filter((i) => i.type === 'import-fan-out');
 
       expect(fanOut).toHaveLength(1);
-      expect(fanOut[0]!.severity).toBe('warning');
-      expect(fanOut[0]!.entities).toHaveLength(1);
-      expect(fanOut[0]!.entities[0]!.name).toBe('source.ts');
-      expect(fanOut[0]!.value).toBe(11);
-      expect(fanOut[0]!.threshold).toBe(10);
+      expect(fanOut[0]?.severity).toBe('warning');
+      expect(fanOut[0]?.entities).toHaveLength(1);
+      expect(fanOut[0]?.entities[0]?.name).toBe('source.ts');
+      expect(fanOut[0]?.value).toBe(11);
+      expect(fanOut[0]?.threshold).toBe(10);
     });
   });
 
@@ -492,9 +492,9 @@ describe('InsightEngine', () => {
       const orphans = report.insights.filter((i) => i.type === 'orphaned-modules');
 
       expect(orphans).toHaveLength(1);
-      expect(orphans[0]!.severity).toBe('warning');
-      expect(orphans[0]!.entities).toHaveLength(1);
-      expect(orphans[0]!.entities[0]!.name).toBe('orphan.ts');
+      expect(orphans[0]?.severity).toBe('warning');
+      expect(orphans[0]?.entities).toHaveLength(1);
+      expect(orphans[0]?.entities[0]?.name).toBe('orphan.ts');
     });
   });
 
@@ -517,7 +517,7 @@ describe('InsightEngine', () => {
       const hubs = report.insights.filter((i) => i.type === 'hub-modules');
 
       expect(hubs).toHaveLength(1);
-      expect(hubs[0]!.severity).toBe('info');
+      expect(hubs[0]?.severity).toBe('info');
       expect(hubs[0]!.entities.some((e) => e.name === 'target.ts')).toBe(true);
     });
   });
@@ -592,8 +592,8 @@ describe('InsightEngine', () => {
       const bridges = report.insights.filter((i) => i.type === 'bridge-modules');
 
       expect(bridges).toHaveLength(1);
-      expect(bridges[0]!.severity).toBe('warning');
-      expect(bridges[0]!.entities.some((e) => e.name === 'b.ts')).toBe(true);
+      expect(bridges[0]?.severity).toBe('warning');
+      expect(bridges[0]?.entities.some((e) => e.name === 'b.ts')).toBe(true);
     });
   });
 
@@ -614,10 +614,10 @@ describe('InsightEngine', () => {
       const barrels = report.insights.filter((i) => i.type === 'barrel-file-depth');
 
       expect(barrels).toHaveLength(1);
-      expect(barrels[0]!.severity).toBe('info');
-      expect(barrels[0]!.entities).toHaveLength(1);
+      expect(barrels[0]?.severity).toBe('info');
+      expect(barrels[0]?.entities).toHaveLength(1);
       // Only the outer barrel should be flagged (it imports the inner barrel)
-      expect(barrels[0]!.entities[0]!.id).toBe('mod-barrel-outer');
+      expect(barrels[0]?.entities[0]?.id).toBe('mod-barrel-outer');
     });
   });
 
@@ -677,7 +677,7 @@ describe('InsightEngine', () => {
       // Should detect at least 2 clusters (the two disconnected groups)
       expect(clusters.length).toBeGreaterThanOrEqual(2);
       for (const cluster of clusters) {
-        expect(cluster.severity).toBe('info');
+        expect(cluster?.severity).toBe('info');
         expect(cluster.category).toBe('connectivity');
         expect(cluster.entities.length).toBeGreaterThan(1);
       }
@@ -708,10 +708,10 @@ describe('InsightEngine', () => {
       const gods = report.insights.filter((i) => i.type === 'god-class');
 
       expect(gods).toHaveLength(1);
-      expect(gods[0]!.severity).toBe('warning');
-      expect(gods[0]!.entities[0]!.name).toBe('BigClass');
-      expect(gods[0]!.value).toBe(16);
-      expect(gods[0]!.threshold).toBe(15);
+      expect(gods[0]?.severity).toBe('warning');
+      expect(gods[0]?.entities[0]?.name).toBe('BigClass');
+      expect(gods[0]?.value).toBe(16);
+      expect(gods[0]?.threshold).toBe(15);
     });
 
     it('detects god class at critical level (20+ members)', async () => {
@@ -728,8 +728,8 @@ describe('InsightEngine', () => {
       const gods = report.insights.filter((i) => i.type === 'god-class');
 
       expect(gods).toHaveLength(1);
-      expect(gods[0]!.severity).toBe('critical');
-      expect(gods[0]!.value).toBe(23);
+      expect(gods[0]?.severity).toBe('critical');
+      expect(gods[0]?.value).toBe(23);
     });
 
     it('handles string-typed numeric fields from database', async () => {
@@ -746,7 +746,7 @@ describe('InsightEngine', () => {
       const gods = report.insights.filter((i) => i.type === 'god-class');
 
       expect(gods).toHaveLength(1);
-      expect(gods[0]!.value).toBe(17);
+      expect(gods[0]?.value).toBe(17);
     });
   });
 
@@ -772,8 +772,8 @@ describe('InsightEngine', () => {
       const longParams = report.insights.filter((i) => i.type === 'long-parameter-lists');
 
       expect(longParams).toHaveLength(1);
-      expect(longParams[0]!.severity).toBe('warning');
-      expect(longParams[0]!.entities[0]!.detail).toBe('5 parameters');
+      expect(longParams[0]?.severity).toBe('warning');
+      expect(longParams[0]?.entities[0]?.detail).toBe('5 parameters');
     });
 
     it('escalates to critical at 6+ params', async () => {
@@ -788,7 +788,7 @@ describe('InsightEngine', () => {
       const longParams = report.insights.filter((i) => i.type === 'long-parameter-lists');
 
       expect(longParams).toHaveLength(1);
-      expect(longParams[0]!.severity).toBe('critical');
+      expect(longParams[0]?.severity).toBe('critical');
     });
   });
 
@@ -814,8 +814,8 @@ describe('InsightEngine', () => {
       const moduleSize = report.insights.filter((i) => i.type === 'module-size');
 
       expect(moduleSize).toHaveLength(1);
-      expect(moduleSize[0]!.severity).toBe('warning');
-      expect(moduleSize[0]!.entities[0]!.detail).toBe('350 lines');
+      expect(moduleSize[0]?.severity).toBe('warning');
+      expect(moduleSize[0]?.entities[0]?.detail).toBe('350 lines');
     });
 
     it('escalates to critical at 500+ lines', async () => {
@@ -830,7 +830,7 @@ describe('InsightEngine', () => {
       const moduleSize = report.insights.filter((i) => i.type === 'module-size');
 
       expect(moduleSize).toHaveLength(1);
-      expect(moduleSize[0]!.severity).toBe('critical');
+      expect(moduleSize[0]?.severity).toBe('critical');
     });
   });
 
@@ -856,8 +856,8 @@ describe('InsightEngine', () => {
       const deep = report.insights.filter((i) => i.type === 'deep-inheritance');
 
       expect(deep).toHaveLength(1);
-      expect(deep[0]!.severity).toBe('warning');
-      expect(deep[0]!.entities[0]!.detail).toBe('inheritance depth 4');
+      expect(deep[0]?.severity).toBe('warning');
+      expect(deep[0]?.entities[0]?.detail).toBe('inheritance depth 4');
     });
 
     it('escalates to critical at depth 5+', async () => {
@@ -872,7 +872,7 @@ describe('InsightEngine', () => {
       const deep = report.insights.filter((i) => i.type === 'deep-inheritance');
 
       expect(deep).toHaveLength(1);
-      expect(deep[0]!.severity).toBe('critical');
+      expect(deep[0]?.severity).toBe('critical');
     });
   });
 
@@ -900,8 +900,8 @@ describe('InsightEngine', () => {
       const leaky = report.insights.filter((i) => i.type === 'leaky-encapsulation');
 
       expect(leaky).toHaveLength(1);
-      expect(leaky[0]!.severity).toBe('warning');
-      expect(leaky[0]!.entities[0]!.detail).toBe('90% public (9/10 members)');
+      expect(leaky[0]?.severity).toBe('warning');
+      expect(leaky[0]?.entities[0]?.detail).toBe('90% public (9/10 members)');
     });
   });
 
@@ -932,8 +932,8 @@ describe('InsightEngine', () => {
       const unexported = report.insights.filter((i) => i.type === 'unexported-entities');
 
       expect(unexported).toHaveLength(1);
-      expect(unexported[0]!.severity).toBe('info');
-      expect(unexported[0]!.entities).toHaveLength(2);
+      expect(unexported[0]?.severity).toBe('info');
+      expect(unexported[0]?.entities).toHaveLength(2);
     });
   });
 
@@ -959,8 +959,8 @@ describe('InsightEngine', () => {
       const typeOnly = report.insights.filter((i) => i.type === 'type-only-dependencies');
 
       expect(typeOnly).toHaveLength(1);
-      expect(typeOnly[0]!.severity).toBe('info');
-      expect(typeOnly[0]!.entities[0]!.detail).toBe('3/5 imports are type-only');
+      expect(typeOnly[0]?.severity).toBe('info');
+      expect(typeOnly[0]?.entities[0]?.detail).toBe('3/5 imports are type-only');
     });
   });
 
@@ -996,8 +996,8 @@ describe('InsightEngine', () => {
       const heavy = report.insights.filter((i) => i.type === 'heavy-external-dependency');
 
       expect(heavy).toHaveLength(1);
-      expect(heavy[0]!.severity).toBe('warning');
-      expect(heavy[0]!.entities[0]!.name).toBe('heavy.ts');
+      expect(heavy[0]?.severity).toBe('warning');
+      expect(heavy[0]?.entities[0]?.name).toBe('heavy.ts');
     });
 
     it('correctly groups scoped packages like @scope/name', async () => {
@@ -1008,7 +1008,7 @@ describe('InsightEngine', () => {
           id: `import-${i}`,
           module_id: 'mod-1',
           module_name: 'heavy.ts',
-          source: `@scope/package-${i}`,
+          source: `@scope/package-${String(i)}`,
         });
       }
 
@@ -1023,7 +1023,7 @@ describe('InsightEngine', () => {
       const heavy = report.insights.filter((i) => i.type === 'heavy-external-dependency');
 
       expect(heavy).toHaveLength(1);
-      expect(heavy[0]!.entities[0]!.detail).toBe('8 external packages');
+      expect(heavy[0]?.entities[0]?.detail).toBe('8 external packages');
     });
 
     it('ignores relative/internal imports', async () => {
@@ -1090,6 +1090,7 @@ describe('InsightEngine', () => {
       expect(unused[0]?.severity).toBe('warning');
       expect(unused[0]?.entities).toHaveLength(1);
       expect(unused[0]?.entities[0]?.name).toBe('unusedSymbol');
+      expect(unused[0]?.entities[0]?.name).toBe('unusedSymbol');
     });
 
     it('handles malformed specifiers_json gracefully', async () => {
@@ -1136,8 +1137,8 @@ describe('InsightEngine', () => {
       const isp = report.insights.filter((i) => i.type === 'interface-segregation-violations');
 
       expect(isp).toHaveLength(1);
-      expect(isp[0]!.severity).toBe('warning');
-      expect(isp[0]!.entities[0]!.detail).toBe('10 members, implemented by 3 classes');
+      expect(isp[0]?.severity).toBe('warning');
+      expect(isp[0]?.entities[0]?.detail).toBe('10 members, implemented by 3 classes');
     });
   });
 
@@ -1166,8 +1167,8 @@ describe('InsightEngine', () => {
       const missing = report.insights.filter((i) => i.type === 'missing-return-types');
 
       expect(missing).toHaveLength(1);
-      expect(missing[0]!.severity).toBe('info');
-      expect(missing[0]!.entities).toHaveLength(2);
+      expect(missing[0]?.severity).toBe('info');
+      expect(missing[0]?.entities).toHaveLength(2);
     });
   });
 
@@ -1195,8 +1196,8 @@ describe('InsightEngine', () => {
       const asyncMismatch = report.insights.filter((i) => i.type === 'async-boundary-mismatches');
 
       expect(asyncMismatch).toHaveLength(1);
-      expect(asyncMismatch[0]!.severity).toBe('info');
-      expect(asyncMismatch[0]!.entities[0]!.detail).toBe('sync method calls async fetchData');
+      expect(asyncMismatch[0]?.severity).toBe('info');
+      expect(asyncMismatch[0]?.entities[0]?.detail).toBe('sync method calls async fetchData');
     });
   });
 
