@@ -1,5 +1,5 @@
+import type { ConsolaInstance } from 'consola';
 import type { Collection, JSCodeshift } from 'jscodeshift';
-import type { Logger } from '../../../shared/utils/logger';
 
 export interface ModuleParserContext {
   readonly j: JSCodeshift;
@@ -7,5 +7,5 @@ export interface ModuleParserContext {
   readonly packageId: string;
   readonly moduleId: string;
   readonly filePath: string;
-  readonly logger: Logger;
+  readonly logger: ConsolaInstance;
 }

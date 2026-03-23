@@ -1,11 +1,13 @@
 /**
- * useDependencyGraphCore — single composable that wires viewport, edge virtualization,
- * search, layout, collision, selection, and isolation mode for the dependency graph.
+ * useDependencyGraphCore — single composable that wires viewport, search,
+ * layout, selection, and isolation mode for the dependency graph.
  * DependencyGraph.vue calls this and uses the returned API.
  */
 
-import { useVueFlow } from '@vue-flow/core';
 import { computed, ref } from 'vue';
+
+import { useVueFlow } from '@vue-flow/core';
+import { storeToRefs } from 'pinia';
 
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
@@ -13,16 +15,16 @@ import {
   ISOLATE_EXPAND_ALL_KEY,
   NODE_ACTIONS_KEY,
 } from '../components/nodes/utils';
-import { storeToRefs } from 'pinia';
 import { useGraphSettings } from '../stores/graphSettings';
 import { useGraphStore } from '../stores/graphStore';
 import { useInsightsStore } from '../stores/insightsStore';
 import { useIssuesStore } from '../stores/issuesStore';
 import { graphTheme } from '../theme/graphTheme';
-import { useCollisionResolution } from './useCollisionResolution';
-import { useEdgeVirtualizationOrchestrator } from './useEdgeVirtualizationOrchestrator';
-import { useFpsCounter } from './useFpsCounter';
+import { applyNodeChanges } from '../utils/applyNodeChanges';
+import { createGraphLayoutOptions } from './createGraphLayoutOptions';
+import { createGraphNodeActions } from './createGraphNodeActions';
 import { useFpsChart } from './useFpsChart';
+import { useFpsCounter } from './useFpsCounter';
 import { useGraphInteractionController } from './useGraphInteractionController';
 import { useGraphLayout } from './useGraphLayout';
 import { useGraphNavigationHandlers } from './useGraphNavigationHandlers';
@@ -30,32 +32,20 @@ import { useGraphRenderedStats } from './useGraphRenderedStats';
 import { useGraphRenderingState } from './useGraphRenderingState';
 import { useGraphSelectionHandlers } from './useGraphSelectionHandlers';
 import { useGraphSettingsHandlers } from './useGraphSettingsHandlers';
-import { useMinimapHelpers } from './useMinimapHelpers';
-import { useGraphViewport, DEFAULT_VIEWPORT } from './useGraphViewport';
+import { DEFAULT_VIEWPORT, useGraphViewport } from './useGraphViewport';
 import { useIsolationMode } from './useIsolationMode';
+import { useMinimapHelpers } from './useMinimapHelpers';
 import { createNodeDimensionTracker } from './useNodeDimensions';
-import { createGraphLayoutOptions } from './createGraphLayoutOptions';
-import { createGraphNodeActions } from './createGraphNodeActions';
 import { useNodeHoverZIndex } from './useNodeHoverZIndex';
+import { createNodePremeasure } from './useNodePremeasure';
 import { useSearchHighlighting } from './useSearchHighlighting';
 import { useSelectionHighlighting } from './useSelectionHighlighting';
-import { getActiveCollisionConfig } from '../layout/collisionResolver';
-import { getRenderingStrategy } from '../rendering/strategyRegistry';
-import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
-import type {
-  DependencyGraphCoreReturn,
-  UseDependencyGraphCoreOptions,
-} from './dependencyGraphCoreTypes';
 
-import type { DependencyNode } from '../types/DependencyNode';
+import type { NodeChange } from '@vue-flow/core';
+
+import type { DependencyGraphCoreReturn, UseDependencyGraphCoreOptions } from './dependencyGraphCoreTypes';
 
 export { DEFAULT_VIEWPORT };
-export type {
-  DependencyGraphCoreEnv,
-  DependencyGraphCoreReturn,
-  GraphStatCountEntry,
-  UseDependencyGraphCoreOptions,
-} from './dependencyGraphCoreTypes';
 
 export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): DependencyGraphCoreReturn {
   const { propsData, graphRootRef, env } = options;
@@ -63,35 +53,18 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const graphStore = useGraphStore();
   const graphSettings = useGraphSettings();
-  const envDefaultRendererMode: RenderingStrategyId = env.EDGE_RENDERER_MODE === 'vue-flow' ? 'vueflow' : 'canvas';
-  graphSettings.initializeRenderingStrategyId(envDefaultRendererMode);
-  const startupStrategy = getRenderingStrategy(graphSettings.renderingStrategyId);
-  if (startupStrategy.runtime.forcesClusterByFolder && !graphSettings.clusterByFolder) {
-    graphSettings.setClusterByFolder(true);
-  }
-  if (startupStrategy.runtime.forcesClusterByFolder && graphSettings.collapseScc) {
-    graphSettings.setCollapseScc(false);
-  }
   const issuesStore = useIssuesStore();
   const insightsStore = useInsightsStore();
   const interaction = useGraphInteractionController();
 
   const { nodes, edges, selectedNode } = storeToRefs(graphStore);
 
-  const {
-    fitView,
-    updateNodeInternals,
-    panBy,
-    zoomTo,
-    getViewport,
-    setViewport,
-    removeSelectedElements,
-    getNodes: vfGetNodes,
-  } = useVueFlow();
+  const { fitView, updateNodeInternals, panBy, zoomTo, getViewport, setViewport, removeSelectedElements } =
+    useVueFlow();
 
   const contextMenu = ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>(null);
-  const canvasRendererAvailable = ref(true);
   const nodeDimensionTracker = createNodeDimensionTracker();
+  const nodePremeasure = createNodePremeasure(graphRootRef);
 
   const showFps = computed(() => graphSettings.showFps);
   const { fps, fpsHistory, fpsStats, start: startFps, stop: stopFps } = useFpsCounter(showFps);
@@ -105,9 +78,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     zoomTo,
     panBy,
     trackpadPanSpeed: env.MAC_TRACKPAD_PAN_SPEED,
-    onViewportChange: () => {
-      edgeVirtualization.requestViewportRecalc();
-    },
   });
 
   const {
@@ -120,28 +90,12 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     onMove,
     syncViewportState,
     initContainerCache,
-  } =
-    viewport;
+  } = viewport;
 
   // Tag <html> so CSS can apply Firefox-specific overrides (e.g. text-rendering).
   if (isFirefox.value) {
     document.documentElement.setAttribute('data-firefox', '');
   }
-
-  const edgeVirtualization = useEdgeVirtualizationOrchestrator({
-    nodes,
-    edges,
-    getViewport,
-    getContainerRect: () => viewport.getContainerRect(),
-    setEdgeVisibility: (map) => {
-      graphStore.setEdgeVisibility(map);
-    },
-    initialMode: env.EDGE_VIRTUALIZATION_MODE,
-    throttleMs: env.EDGE_VIEWPORT_RECALC_THROTTLE_MS,
-    perfMarksEnabled: env.PERF_MARKS_ENABLED,
-  });
-
-  const { edgeVirtualizationEnabled, edgeVirtualizationRuntimeMode, edgeVirtualizationWorkerStats } = edgeVirtualization;
 
   const searchHighlighting = useSearchHighlighting({
     nodes,
@@ -174,14 +128,9 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
       },
       fitView,
       updateNodeInternals,
-      suspendEdgeVirtualization: () => {
-        edgeVirtualization.suspend();
-      },
-      resumeEdgeVirtualization: () => {
-        edgeVirtualization.resume();
-      },
       syncViewportState,
       nodeDimensionTracker,
+      nodePremeasure,
       resetSearchHighlightState: () => {
         searchHighlighting.resetSearchHighlightState();
       },
@@ -191,37 +140,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
   );
 
   const { isLayoutPending, isLayoutMeasuring, layoutConfig } = graphLayout;
-  const activeCollisionConfig = computed(() =>
-    getActiveCollisionConfig(graphSettings.renderingStrategyId, graphSettings.strategyOptionsById)
-  );
-
-  let reconcileSelectedNodeFn: (updatedNodes: DependencyNode[]) => void = (_updatedNodes) => undefined;
-
-  const collisionResolution = useCollisionResolution({
-    nodes,
-    isLayoutPending: graphLayout.isLayoutPending,
-    isLayoutMeasuring: graphLayout.isLayoutMeasuring,
-    clusterByFolder: computed(() => graphSettings.clusterByFolder),
-    getVueFlowNodes: () => vfGetNodes.value as unknown as DependencyNode[],
-    setNodes: (n) => {
-      graphStore.setNodes(n);
-    },
-    updateNodesById: (updates) => {
-      graphStore.updateNodesById(updates);
-    },
-    mergeManualOffsets: (offsets) => {
-      graphStore.mergeManualOffsets(offsets);
-    },
-    reconcileSelectedNodeAfterStructuralChange: (updatedNodes) => {
-      reconcileSelectedNodeFn(updatedNodes);
-    },
-    collisionConfigInputs: {
-      renderingStrategyId: computed(() => graphSettings.renderingStrategyId),
-      strategyOptionsById: computed(() => graphSettings.strategyOptionsById),
-    },
-  });
-
-  const { handleNodesChange, lastCollisionResult } = collisionResolution;
 
   const selectionHighlighting = useSelectionHighlighting({
     nodes,
@@ -229,7 +147,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     selectedNode,
     scopeMode: interaction.scopeMode,
     searchHighlightState,
-    activeDraggedNodeIds: collisionResolution.activeDraggedNodeIds,
     useCssSelectionHover: env.USE_CSS_SELECTION_HOVER,
     perfMarksEnabled: env.PERF_MARKS_ENABLED,
     graphStore: {
@@ -254,8 +171,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     removeSelectedElements,
     restoreHoverZIndex,
   });
-
-  reconcileSelectedNodeFn = selectionHighlighting.reconcileSelectedNodeAfterStructuralChange;
 
   const {
     visualNodes,
@@ -291,9 +206,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
       restoreOverviewSnapshot: () => graphStore.restoreOverviewSnapshot(),
     },
     graphSettings: {
-      get clusterByFolder() {
-        return graphSettings.clusterByFolder;
-      },
       get activeRelationshipTypes() {
         return graphSettings.activeRelationshipTypes;
       },
@@ -309,9 +221,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     fitView,
     updateNodeInternals,
     syncViewportState,
-    requestEdgeVirtualizationViewportRecalc: (force) => {
-      edgeVirtualization.requestViewportRecalc(force);
-    },
     setSelectedNode,
     processGraphLayout: graphLayout.processGraphLayout,
     measureAllNodeDimensions: graphLayout.measureAllNodeDimensions,
@@ -319,12 +228,15 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     requestGraphInitialization: graphLayout.requestGraphInitialization,
   });
 
-  const { isIsolateAnimating, isolateExpandAll, isolateNeighborhood, handleOpenSymbolUsageGraph, handleReturnToOverview } =
-    isolationMode;
+  const {
+    isIsolateAnimating,
+    isolateExpandAll,
+    isolateNeighborhood,
+    handleOpenSymbolUsageGraph,
+    handleReturnToOverview,
+  } = isolationMode;
 
   const {
-    isCanvasModeRequested,
-    isHybridCanvasMode,
     renderedEdges,
     useOnlyRenderVisibleElements,
     isHeavyEdgeMode,
@@ -336,23 +248,19 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     nodes,
     edges,
     viewportState,
-    isLayoutMeasuring,
     visualEdges,
-    highlightedEdgeIds,
-    edgeVirtualizationEnabled,
     isFirefox,
-    canvasRendererAvailable,
-    renderingStrategyId: computed(() => graphSettings.renderingStrategyId),
   });
 
-  const { renderedNodeCount, renderedEdgeCount, renderedNodeTypeCounts, renderedEdgeTypeCounts } = useGraphRenderedStats({
-    visualNodes,
-    visualEdges,
-  });
+  const { renderedNodeCount, renderedEdgeCount, renderedNodeTypeCounts, renderedEdgeTypeCounts } =
+    useGraphRenderedStats({
+      visualNodes,
+      visualEdges,
+    });
 
   const { minimapNodeColor, minimapNodeStrokeColor } = useMinimapHelpers({ selectedNode });
 
-  const { handleFocusNode, handleMinimapNodeClick, handleCanvasUnavailable, onMoveEnd } = useGraphNavigationHandlers({
+  const { handleFocusNode, handleMinimapNodeClick, onMoveEnd } = useGraphNavigationHandlers({
     nodes,
     setSelectedNode,
     fitView,
@@ -366,26 +274,12 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
         return graphStore.semanticSnapshot;
       },
     },
-    graphSettings: {
-      get renderingStrategyId() {
-        return graphSettings.renderingStrategyId;
-      },
-      setRenderingStrategyId: (id) => {
-        graphSettings.setRenderingStrategyId(id);
-      },
-    },
     graphLayout: {
       requestGraphInitialization: () => graphLayout.requestGraphInitialization(),
     },
-    canvasRendererAvailable,
     viewport: {
       onMoveEnd: () => {
         viewport.onMoveEnd();
-      },
-    },
-    edgeVirtualization: {
-      requestViewportRecalc: (force) => {
-        edgeVirtualization.requestViewportRecalc(force);
       },
     },
     syncViewportState,
@@ -421,31 +315,19 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     edges,
     fitView,
     syncViewportState,
-    requestViewportRecalc: (force) => {
-      edgeVirtualization.requestViewportRecalc(force);
-    },
   });
 
   const {
     handleRelationshipFilterChange,
-    handleNodeTypeFilterChange,
-    handleCollapseSccToggle,
-    handleClusterByFolderToggle,
     handleHideTestFilesToggle,
-    handleMemberNodeModeChange,
     handleOrphanGlobalToggle,
     handleShowFpsToggle,
     handleFpsAdvancedToggle,
-    handleRenderingStrategyChange,
-    handleRenderingStrategyOptionChange,
   } = useGraphSettingsHandlers({
     graphLayout,
     graphSettings,
     setSelectedNode,
     syncViewportState,
-    requestViewportRecalc: (force) => {
-      edgeVirtualization.requestViewportRecalc(force);
-    },
   });
 
   const { nodeActions, folderCollapseActions } = createGraphNodeActions({
@@ -460,11 +342,13 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const highlightOrphanGlobal = computed(() => graphSettings.highlightOrphanGlobal);
 
+  function handleNodesChange(changes: NodeChange[]): void {
+    graphStore.setNodes(applyNodeChanges(changes, nodes.value));
+  }
+
   function dispose() {
     viewport.dispose();
-    edgeVirtualization.dispose();
     selectionHighlighting.dispose();
-    collisionResolution.dispose();
     graphLayout.dispose();
     isolationMode.dispose();
     clearHoverState();
@@ -492,12 +376,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     initContainerCache,
     viewport,
 
-    // Edge virtualization
-    edgeVirtualization,
-    edgeVirtualizationEnabled,
-    edgeVirtualizationRuntimeMode,
-    edgeVirtualizationWorkerStats,
-
     // Layout
     graphLayout,
     isLayoutPending,
@@ -510,8 +388,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     highlightedEdgeIds,
     highlightedEdgeIdList,
     renderedEdges,
-    activeCollisionConfig,
-    lastCollisionResult,
     useOnlyRenderVisibleElements,
     defaultEdgeOptions,
     selectedNode,
@@ -527,9 +403,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
     // UI state
     contextMenu,
-    canvasRendererAvailable,
-    isCanvasModeRequested,
-    isHybridCanvasMode,
     isHeavyEdgeMode,
     minimapAutoHidden,
     showMiniMap,
@@ -558,7 +431,6 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     handleSearchResult,
     handleFocusNode,
     handleMinimapNodeClick,
-    handleCanvasUnavailable,
     onMoveEnd,
     onNodeClick,
     onPaneClick,
@@ -566,16 +438,10 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     onNodeMouseEnter,
     onNodeMouseLeave,
     handleRelationshipFilterChange,
-    handleNodeTypeFilterChange,
-    handleCollapseSccToggle,
-    handleClusterByFolderToggle,
     handleHideTestFilesToggle,
-    handleMemberNodeModeChange,
     handleOrphanGlobalToggle,
     handleShowFpsToggle,
     handleFpsAdvancedToggle,
-    handleRenderingStrategyChange,
-    handleRenderingStrategyOptionChange,
 
     // Provide values
     nodeActions,
@@ -590,6 +456,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     minimapNodeColor,
     minimapNodeStrokeColor,
     nodeDimensionTracker,
+    nodePremeasure,
     scopeMode: interaction.scopeMode,
 
     // Lifecycle

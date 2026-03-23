@@ -3,28 +3,27 @@
  */
 
 import { mapTypeCollection, typeCollectionToArray } from '../../utils/collections';
+import { applyEdgeVisibility, filterEdgesByNodeSet } from '../graphViewShared';
 import { getHandlePositions } from '../handleRouting';
-import { filterEdgesByNodeSet, applyEdgeVisibility } from '../graphViewShared';
 import {
-  findModuleById,
-  toNodeProperty,
-  toNodeMethod,
-  createSymbolEdge,
   createDetailedSymbolNode,
+  createSymbolEdge,
+  findModuleById,
+  normalizeMethod,
+  normalizeProperty,
 } from './symbolHelpers';
 
-import type { ClassStructure } from '../../types/ClassStructure';
+import type { IClass } from '../../../shared/types/Class';
+import type { IInterface } from '../../../shared/types/Interface';
+import type { Method } from '../../../shared/types/Method';
+import type { PackageGraph } from '../../../shared/types/Package';
+import type { Property } from '../../../shared/types/Property';
 import type { DependencyNode } from '../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
 import type { GraphEdge } from '../../types/GraphEdge';
-import type { InterfaceRef } from '../../types/InterfaceRef';
-import type { InterfaceStructure } from '../../types/InterfaceStructure';
-import type { NodeMethod } from '../../types/NodeMethod';
-import type { NodeProperty } from '../../types/NodeProperty';
 import type { GraphViewData } from '../graphViewShared';
 
 export interface BuildModuleDrilldownGraphOptions {
-  data: DependencyPackageGraph;
+  data: PackageGraph;
   selectedNode: DependencyNode;
   currentNodes: DependencyNode[];
   currentEdges: GraphEdge[];
@@ -54,19 +53,17 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
   });
 
   if (moduleData.classes) {
-    mapTypeCollection(moduleData.classes, (cls: ClassStructure) => {
-      const properties = typeCollectionToArray(
-        cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
-      ).map((p) => toNodeProperty(p));
-      const methods = typeCollectionToArray(
-        cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined
-      ).map((m) => toNodeMethod(m));
-      detailedNodes.push(
-        createDetailedSymbolNode(cls.id, 'class', cls.name, properties, methods, options.direction)
+    mapTypeCollection(moduleData.classes, (cls: IClass) => {
+      const properties = typeCollectionToArray(cls.properties as Record<string, Property> | Property[] | undefined).map(
+        (p) => normalizeProperty(p)
       );
+      const methods = typeCollectionToArray(cls.methods as Record<string, Method> | Method[] | undefined).map((m) =>
+        normalizeMethod(m)
+      );
+      detailedNodes.push(createDetailedSymbolNode(cls.id, 'class', cls.name, properties, methods, options.direction));
       if (cls.extends_id) detailedEdges.push(createSymbolEdge(cls.id, cls.extends_id, 'inheritance'));
       if (cls.implemented_interfaces) {
-        mapTypeCollection(cls.implemented_interfaces, (iface: InterfaceRef) => {
+        mapTypeCollection(cls.implemented_interfaces, (iface: IInterface) => {
           if (iface.id) detailedEdges.push(createSymbolEdge(cls.id, iface.id, 'implements'));
         });
       }
@@ -74,18 +71,18 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
   }
 
   if (moduleData.interfaces) {
-    mapTypeCollection(moduleData.interfaces, (iface: InterfaceStructure) => {
+    mapTypeCollection(moduleData.interfaces, (iface: IInterface) => {
       const properties = typeCollectionToArray(
-        iface.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
-      ).map((p) => toNodeProperty(p));
-      const methods = typeCollectionToArray(
-        iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined
-      ).map((m) => toNodeMethod(m));
+        iface.properties as Record<string, Property> | Property[] | undefined
+      ).map((p) => normalizeProperty(p));
+      const methods = typeCollectionToArray(iface.methods as Record<string, Method> | Method[] | undefined).map((m) =>
+        normalizeMethod(m)
+      );
       detailedNodes.push(
         createDetailedSymbolNode(iface.id, 'interface', iface.name, properties, methods, options.direction)
       );
       if (iface.extended_interfaces) {
-        mapTypeCollection(iface.extended_interfaces, (extended: InterfaceRef) => {
+        mapTypeCollection(iface.extended_interfaces, (extended: IInterface) => {
           if (extended.id) detailedEdges.push(createSymbolEdge(iface.id, extended.id, 'inheritance'));
         });
       }

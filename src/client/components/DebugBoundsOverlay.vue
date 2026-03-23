@@ -5,9 +5,10 @@ import { buildAbsoluteNodeBoundsMap, getBoundsCenter } from '../layout/geometryB
 import { getHandleAnchor } from '../layout/handleAnchors';
 
 import type { Rect } from '../layout/geometryBounds';
-import type { CollisionConfig } from '../layout/collisionResolver';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+
+const GROUP_PADDING = { horizontal: 16, top: 40, bottom: 16 };
 
 interface ViewportState {
   x: number;
@@ -22,7 +23,6 @@ interface DebugBoundsOverlayProps {
   showBounds?: boolean;
   showHandles?: boolean;
   showNodeIds?: boolean;
-  collisionConfig: CollisionConfig;
 }
 
 interface ScreenRect {
@@ -62,7 +62,12 @@ const toScreenPoint = (point: { x: number; y: number }): { x: number; y: number 
   y: point.y * props.viewport.zoom + props.viewport.y,
 });
 
-const toScreenRect = (rect: { x: number; y: number; width: number; height: number }): {
+const toScreenRect = (rect: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): {
   x: number;
   y: number;
   width: number;
@@ -101,11 +106,7 @@ const scheduleBoundsRefresh = (): void => {
 };
 
 watch(() => props.nodes, scheduleBoundsRefresh, { flush: 'post' });
-watch(
-  () => [props.viewport.x, props.viewport.y, props.viewport.zoom],
-  scheduleBoundsRefresh,
-  { flush: 'post' },
-);
+watch(() => [props.viewport.x, props.viewport.y, props.viewport.zoom], scheduleBoundsRefresh, { flush: 'post' });
 
 refreshBounds();
 
@@ -122,7 +123,7 @@ const screenRects = computed<ScreenRect[]>(() => {
     return [];
   }
   const rects: ScreenRect[] = [];
-  const groupPadding = props.collisionConfig.groupPadding;
+  const groupPadding = GROUP_PADDING;
   const bounds = absoluteBoundsById.value;
 
   for (const node of props.nodes) {
@@ -279,7 +280,6 @@ const nodeLabels = computed<ScreenLabel[]>(() => {
         {{ label.id }}
       </text>
     </svg>
-
   </div>
 </template>
 
@@ -306,5 +306,4 @@ const nodeLabels = computed<ScreenLabel[]>(() => {
   font-size: 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
-
 </style>

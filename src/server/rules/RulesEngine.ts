@@ -1,8 +1,8 @@
 import { readFile } from 'fs/promises';
 
+import { consola } from 'consola';
 import jscodeshift from 'jscodeshift';
 
-import { createLogger } from '../../shared/utils/logger';
 import { defaultRulesConfig } from './RulesConfig';
 import { allRules } from './rules/index';
 
@@ -13,7 +13,7 @@ import type { RulesConfig } from './RulesConfig';
 export class RulesEngine {
   private readonly rules: Rule[];
   private readonly config: RulesConfig;
-  private readonly logger = createLogger('RulesEngine');
+  private readonly logger = consola.withTag('RulesEngine');
   private readonly j = jscodeshift.withParser('tsx');
 
   constructor(rules?: Rule[], config?: Partial<RulesConfig>) {
@@ -76,7 +76,9 @@ export class RulesEngine {
       }
     }
 
-    this.logger.info(`Analysis complete: ${String(issues.length)} issues found across ${String(parseResult.modules.length)} modules`);
+    this.logger.info(
+      `Analysis complete: ${String(issues.length)} issues found across ${String(parseResult.modules.length)} modules`
+    );
     return issues;
   }
 }

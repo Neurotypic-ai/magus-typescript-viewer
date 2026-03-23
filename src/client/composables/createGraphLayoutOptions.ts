@@ -1,5 +1,10 @@
 import type { Ref } from 'vue';
 
+import type { PackageGraph } from '../../shared/types/Package';
+import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
+import type { GraphViewMode } from '../stores/graphStore';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
 import type {
   FitView,
   GraphLayoutInteraction,
@@ -7,21 +12,15 @@ import type {
   GraphSettings,
   NodeDimensionTracker,
   ResetSearchHighlightState,
-  ResumeEdgeVirtualization,
-  SuspendEdgeVirtualization,
   SyncViewportState,
   UpdateNodeInternals,
   UseGraphLayoutOptions,
 } from './useGraphLayout';
-import type { ManualOffset } from '../types/ManualOffset';
-import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
-import type { GraphEdge } from '../types/GraphEdge';
-import type { GraphViewMode } from '../stores/graphStore';
-import type { RenderingStrategyId, RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
+import type { NodePremeasure } from './nodePremeasureTypes';
 
-export interface LayoutOptionsGraphStoreSource {
+interface LayoutOptionsGraphStoreSource {
   nodes: DependencyNode[];
+  edges: GraphEdge[];
   manualOffsets: Map<string, ManualOffset>;
   setNodes: (nodes: DependencyNode[]) => void;
   setEdges: (edges: GraphEdge[]) => void;
@@ -33,30 +32,23 @@ export interface LayoutOptionsGraphStoreSource {
   applyManualOffsets: (nodes: DependencyNode[]) => DependencyNode[];
 }
 
-export interface LayoutOptionsGraphSettingsSource {
-  enabledNodeTypes: string[];
+interface LayoutOptionsGraphSettingsSource {
   activeRelationshipTypes: string[];
-  clusterByFolder: boolean;
-  collapseScc: boolean;
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
-  memberNodeMode: 'compact' | 'graph';
   highlightOrphanGlobal: boolean;
-  renderingStrategyId: RenderingStrategyId;
-  strategyOptionsById: RenderingStrategyOptionsById;
 }
 
-export interface CreateGraphLayoutOptionsOptions {
-  propsData: Ref<DependencyPackageGraph>;
+interface CreateGraphLayoutOptionsOptions {
+  propsData: Ref<PackageGraph>;
   graphStore: LayoutOptionsGraphStoreSource;
   graphSettings: LayoutOptionsGraphSettingsSource;
   interaction: GraphLayoutInteraction;
   fitView: FitView;
   updateNodeInternals: UpdateNodeInternals;
-  suspendEdgeVirtualization: SuspendEdgeVirtualization;
-  resumeEdgeVirtualization: ResumeEdgeVirtualization;
   syncViewportState: SyncViewportState;
   nodeDimensionTracker: NodeDimensionTracker;
+  nodePremeasure: NodePremeasure;
   resetSearchHighlightState: ResetSearchHighlightState;
   isFirefox: Ref<boolean>;
   graphRootRef: Ref<HTMLElement | null>;
@@ -70,10 +62,9 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
     interaction,
     fitView,
     updateNodeInternals,
-    suspendEdgeVirtualization,
-    resumeEdgeVirtualization,
     syncViewportState,
     nodeDimensionTracker,
+    nodePremeasure,
     resetSearchHighlightState,
     isFirefox,
     graphRootRef,
@@ -82,6 +73,9 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
   const graphLayoutStore: GraphLayoutStore = {
     get nodes() {
       return graphStore.nodes;
+    },
+    get edges() {
+      return graphStore.edges;
     },
     setNodes: (n) => {
       graphStore.setNodes(n);
@@ -111,17 +105,8 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
   };
 
   const graphLayoutSettings: GraphSettings = {
-    get enabledNodeTypes() {
-      return graphSettings.enabledNodeTypes;
-    },
     get activeRelationshipTypes() {
       return graphSettings.activeRelationshipTypes;
-    },
-    get clusterByFolder() {
-      return graphSettings.clusterByFolder;
-    },
-    get collapseScc() {
-      return graphSettings.collapseScc;
     },
     get collapsedFolderIds() {
       return graphSettings.collapsedFolderIds;
@@ -129,17 +114,8 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
     get hideTestFiles() {
       return graphSettings.hideTestFiles;
     },
-    get memberNodeMode() {
-      return graphSettings.memberNodeMode;
-    },
     get highlightOrphanGlobal() {
       return graphSettings.highlightOrphanGlobal;
-    },
-    get renderingStrategyId() {
-      return graphSettings.renderingStrategyId;
-    },
-    get strategyOptionsById() {
-      return graphSettings.strategyOptionsById;
     },
   };
 
@@ -150,10 +126,9 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
     interaction,
     fitView,
     updateNodeInternals,
-    suspendEdgeVirtualization,
-    resumeEdgeVirtualization,
     syncViewportState,
     nodeDimensionTracker,
+    nodePremeasure,
     resetSearchHighlightState,
     isFirefox,
     graphRootRef,

@@ -1,38 +1,39 @@
 import { nextTick, ref } from 'vue';
 
+import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../graph/buildGraphView';
 import { buildParentMap } from '../graph/cluster/folderMembership';
 import { clusterByFolder } from '../graph/cluster/folders';
 import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
 import { traverseGraph } from '../graph/traversal';
-import { getEdgeStyle } from '../theme/graphTheme';
-import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../graph/buildGraphView';
 import { mergeNodeInteractionStyle, stripNodeClass } from '../theme/graphClasses';
+import { getEdgeStyle, graphTheme } from '../theme/graphTheme';
+import { cssVar, graphCssVariableNames } from '../theme/graphTokens';
 import { waitForNextPaint } from '../utils/dom';
 
 import type { Ref } from 'vue';
 
+import type { PackageGraph } from '../../shared/types/Package';
+import type { GraphViewMode } from '../stores/graphStore';
+import type { DependencyNode } from '../types/DependencyNode';
+import type { GraphEdge } from '../types/GraphEdge';
+import type { ScopeMode } from './useGraphInteractionController';
 import type {
   FitView,
   FitViewOptions,
   GraphSnapshot,
+  LayoutConfig,
   MeasureAllNodeDimensions,
   ProcessGraphLayout,
   ShouldRunTwoPassMeasure,
 } from './useGraphLayout';
-import type { LayoutConfig } from '../layout/config';
-import type { ScopeMode } from './useGraphInteractionController';
-import type { GraphViewMode } from '../stores/graphStore';
-import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
-import type { GraphEdge } from '../types/GraphEdge';
 
 // ── Isolate graph store (subset of full graph store) ──
 
 /** Restores the overview snapshot; returns true if restored. */
-export type RestoreOverviewSnapshot = () => boolean;
+type RestoreOverviewSnapshot = () => boolean;
 
 /** Graph store API used by isolation mode (setNodes, setEdges, snapshots, restore). */
-export interface IsolateGraphStore {
+interface IsolateGraphStore {
   setNodes: (nodes: DependencyNode[]) => void;
   setEdges: (edges: GraphEdge[]) => void;
   setViewMode: (mode: GraphViewMode) => void;
@@ -42,34 +43,30 @@ export interface IsolateGraphStore {
 }
 
 /** Graph settings used by isolation mode. */
-export interface IsolateGraphSettings {
-  clusterByFolder: boolean;
+interface IsolateGraphSettings {
   activeRelationshipTypes: string[];
 }
 
 /** Interaction API for scope mode (isolate, symbolDrilldown, overview). */
-export interface IsolateInteraction {
+interface IsolateInteraction {
   setScopeMode: (mode: ScopeMode) => void;
   scopeMode: Readonly<Ref<ScopeMode>>;
 }
 
-/** Requests edge virtualization to recalc viewport (optionally force). */
-export type RequestEdgeVirtualizationViewportRecalc = (force?: boolean) => void;
-
 /** Sets the currently selected node (or null). */
-export type SetSelectedNode = (node: DependencyNode | null) => void;
+type SetSelectedNode = (node: DependencyNode | null) => void;
 
 /** Requests full graph initialization (overview layout). */
-export type RequestGraphInitialization = () => Promise<void>;
+type RequestGraphInitialization = () => Promise<void>;
 
 /** Map of node id → position (x, y). */
-export type NodePositionMap = Map<string, { x: number; y: number }>;
+type NodePositionMap = Map<string, { x: number; y: number }>;
 
 /** Layout direction for isolate layout (LR, RL, TB, BT). */
-export type LayoutDirection = LayoutConfig['direction'];
+type LayoutDirection = LayoutConfig['direction'];
 
-export interface UseIsolationModeOptions {
-  propsData: Ref<DependencyPackageGraph>;
+interface UseIsolationModeOptions {
+  propsData: Ref<PackageGraph>;
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   graphStore: IsolateGraphStore;
@@ -80,7 +77,6 @@ export interface UseIsolationModeOptions {
   fitView: FitView;
   updateNodeInternals: (ids: string[]) => void;
   syncViewportState: () => void;
-  requestEdgeVirtualizationViewportRecalc: RequestEdgeVirtualizationViewportRecalc;
   setSelectedNode: SetSelectedNode;
   processGraphLayout: ProcessGraphLayout;
   measureAllNodeDimensions: MeasureAllNodeDimensions;
@@ -89,15 +85,15 @@ export interface UseIsolationModeOptions {
 }
 
 /** Isolates the neighborhood of a node (inbound/outbound). */
-export type IsolateNeighborhood = (nodeId: string) => Promise<void>;
+type IsolateNeighborhood = (nodeId: string) => Promise<void>;
 
 /** Opens the symbol drilldown graph for a node. */
-export type HandleOpenSymbolUsageGraph = (nodeId: string) => Promise<void>;
+type HandleOpenSymbolUsageGraph = (nodeId: string) => Promise<void>;
 
 /** Returns to overview (restore snapshot or re-init). */
-export type HandleReturnToOverview = () => Promise<void>;
+type HandleReturnToOverview = () => Promise<void>;
 
-export interface IsolationMode {
+interface IsolationMode {
   isIsolateAnimating: Readonly<Ref<boolean>>;
   isolateExpandAll: Ref<boolean>;
   isolateNeighborhood: IsolateNeighborhood;
@@ -120,7 +116,6 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     fitView,
     updateNodeInternals,
     syncViewportState,
-    requestEdgeVirtualizationViewportRecalc,
     setSelectedNode,
     processGraphLayout,
     measureAllNodeDimensions,
@@ -263,17 +258,12 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
         (edge) => semanticResult.nodeIds.has(edge.source) && semanticResult.nodeIds.has(edge.target)
       );
 
-      if (graphSettings.clusterByFolder) {
-        const clustered = clusterByFolder(isolatedSemanticNodes, isolatedSemanticEdges);
-        const highwayProjected = applyEdgeHighways(clustered.nodes, clustered.edges, {
-          direction: layoutConfig.direction,
-        });
-        sourceNodes = highwayProjected.nodes;
-        sourceEdges = highwayProjected.edges;
-      } else {
-        sourceNodes = isolatedSemanticNodes;
-        sourceEdges = isolatedSemanticEdges;
-      }
+      const clustered = clusterByFolder(isolatedSemanticNodes, isolatedSemanticEdges);
+      const highwayProjected = applyEdgeHighways(clustered.nodes, clustered.edges, {
+        direction: layoutConfig.direction,
+      });
+      sourceNodes = highwayProjected.nodes;
+      sourceEdges = highwayProjected.edges;
     }
 
     const targetNode = sourceNodes.find((node) => node.id === nodeId);
@@ -343,10 +333,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     }
 
     const isolatedSourceNodes = sourceNodes.filter((node) => connectedNodeIds.has(node.id));
-    const styleIsolatedNode = (
-      node: DependencyNode,
-      layoutPositions?: NodePositionMap
-    ) => {
+    const styleIsolatedNode = (node: DependencyNode, layoutPositions?: NodePositionMap) => {
       const baseNode = stripNodeClass(node);
       const layoutPos = layoutPositions?.get(node.id);
       return {
@@ -355,8 +342,8 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
         selected: node.id === nodeId,
         style: mergeNodeInteractionStyle(baseNode, {
           opacity: node.id === nodeId ? 1 : 0.9,
-          borderColor: node.id === nodeId ? '#22d3ee' : undefined,
-          borderWidth: node.id === nodeId ? '2px' : undefined,
+          borderColor: node.id === nodeId ? cssVar(graphCssVariableNames.selection.targetBorder) : undefined,
+          borderWidth: node.id === nodeId ? graphTheme.nodes.highlight.borderWidth.selected : undefined,
         }),
       };
     };
@@ -371,7 +358,10 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
           style: {
             ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
             opacity: 0.9,
-            strokeWidth: edge.source === nodeId || edge.target === nodeId ? 3 : 2,
+            strokeWidth:
+              edge.source === nodeId || edge.target === nodeId
+                ? graphTheme.edges.sizes.width.highlighted
+                : graphTheme.edges.sizes.width.isolated,
           },
           zIndex: edge.source === nodeId || edge.target === nodeId ? 5 : 1,
         })),
@@ -414,10 +404,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
         .filter((node) => {
           const prev = provisionalNodes.find((p) => p.id === node.id);
           if (!prev) return true;
-          return (
-            prev.position.x !== node.position.x ||
-            prev.position.y !== node.position.y
-          );
+          return prev.position.x !== node.position.x || prev.position.y !== node.position.y;
         })
         .map((node) => node.id);
       if (changedNodeIds.length > 0) {
@@ -437,7 +424,6 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     };
     await fitView(fitOpts);
     syncViewportState();
-    requestEdgeVirtualizationViewportRecalc(true);
   };
 
   const handleOpenSymbolUsageGraph = async (nodeId: string): Promise<void> => {
@@ -450,8 +436,9 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     graphStore.setViewMode('symbolDrilldown');
     interaction.setScopeMode('symbolDrilldown');
 
+    const sourceData: PackageGraph = propsData.value;
     const symbolGraph = buildSymbolDrilldownGraph({
-      data: propsData.value,
+      data: sourceData,
       selectedNode: targetNode,
       direction: layoutConfig.direction,
       enabledRelationshipTypes: graphSettings.activeRelationshipTypes,
@@ -474,7 +461,6 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
       startIsolateAnimation();
       await fitView({ duration: 350, padding: 0.1 });
       syncViewportState();
-      requestEdgeVirtualizationViewportRecalc(true);
       return;
     }
 

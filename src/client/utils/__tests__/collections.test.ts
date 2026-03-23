@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import { mapTypeCollection, typeCollectionToArray } from '../collections';
 
 describe('mapTypeCollection', () => {

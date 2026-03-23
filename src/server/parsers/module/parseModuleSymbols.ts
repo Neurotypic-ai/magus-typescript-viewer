@@ -1,12 +1,15 @@
+import { generateEnumUUID, generateFunctionUUID, generateTypeAliasUUID, generateVariableUUID } from '../../utils/uuid';
+import { getIdentifierName, getReturnTypeFromNode, getTypeFromAnnotation } from './astUtils';
+
 import type { ASTNode, ASTPath, Identifier, JSCodeshift, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
-import type { ModuleParserContext } from './types';
+
+import type { IEnumCreateDTO } from '../../../shared/types/dto/EnumDTO';
+import type { IFunctionCreateDTO } from '../../../shared/types/dto/FunctionDTO';
+import type { ParentType } from '../../../shared/types/ParentType';
+import type { ITypeAliasCreateDTO } from '../../../shared/types/dto/TypeAliasDTO';
+import type { IVariableCreateDTO } from '../../../shared/types/dto/VariableDTO';
 import type { ParseResult, SymbolUsageRef } from '../ParseResult';
-import type { IFunctionCreateDTO } from '../../db/repositories/FunctionRepository';
-import type { ITypeAliasCreateDTO } from '../../db/repositories/TypeAliasRepository';
-import type { IEnumCreateDTO } from '../../db/repositories/EnumRepository';
-import type { IVariableCreateDTO } from '../../db/repositories/VariableRepository';
-import { getIdentifierName, getTypeFromAnnotation, getReturnTypeFromNode } from './astUtils';
-import { generateFunctionUUID, generateTypeAliasUUID, generateEnumUUID, generateVariableUUID } from '../../utils/uuid';
+import type { ModuleParserContext } from './types';
 
 // ---------------------------------------------------------------------------
 // File-private helper: extract symbol usages from a function/method body.
@@ -23,7 +26,7 @@ function extractSymbolUsages(
     sourceSymbolType: 'method' | 'function';
     sourceSymbolName?: string | undefined;
     sourceParentName?: string | undefined;
-    sourceParentType?: 'class' | 'interface' | undefined;
+    sourceParentType?: ParentType | undefined;
   }
 ): SymbolUsageRef[] {
   const usages: SymbolUsageRef[] = [];
@@ -179,7 +182,12 @@ export function parseTypeAliases(ctx: ModuleParserContext, exports: Set<string>,
     // Extract the type body as source text
     let typeBody = 'unknown';
     try {
-      typeBody = ctx.j(node.typeAnnotation as ASTNode).toSource().replace(/[\n\s]+/g, ' ').trim() || 'unknown';
+      typeBody =
+        ctx
+          .j(node.typeAnnotation as ASTNode)
+          .toSource()
+          .replace(/[\n\s]+/g, ' ')
+          .trim() || 'unknown';
     } catch {
       typeBody = 'unknown';
     }
@@ -362,7 +370,11 @@ export function parseVariables(ctx: ModuleParserContext, exports: Set<string>, r
         let initializer: string | undefined;
         try {
           if ('init' in declarator && declarator.init) {
-            const initSource = ctx.j(declarator.init as ASTNode).toSource().replace(/[\n\s]+/g, ' ').trim();
+            const initSource = ctx
+              .j(declarator.init as ASTNode)
+              .toSource()
+              .replace(/[\n\s]+/g, ' ')
+              .trim();
             if (initSource) {
               initializer = initSource.length > 500 ? initSource.slice(0, 500) + '...' : initSource;
             }

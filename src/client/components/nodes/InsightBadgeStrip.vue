@@ -10,13 +10,25 @@ const props = defineProps<InsightBadgeStripProps>();
 
 <template>
   <div v-if="props.critical > 0 || props.warning > 0 || props.info > 0" class="insight-badge-strip">
-    <span v-if="props.critical > 0" class="insight-badge insight-badge--critical" :title="`${props.critical} critical insight${props.critical > 1 ? 's' : ''}`">
+    <span
+      v-if="props.critical > 0"
+      class="insight-badge insight-badge--critical"
+      :title="`${props.critical} critical insight${props.critical > 1 ? 's' : ''}`"
+    >
       !{{ props.critical }}
     </span>
-    <span v-if="props.warning > 0" class="insight-badge insight-badge--warning" :title="`${props.warning} warning insight${props.warning > 1 ? 's' : ''}`">
+    <span
+      v-if="props.warning > 0"
+      class="insight-badge insight-badge--warning"
+      :title="`${props.warning} warning insight${props.warning > 1 ? 's' : ''}`"
+    >
       ~{{ props.warning }}
     </span>
-    <span v-if="props.info > 0" class="insight-badge insight-badge--info" :title="`${props.info} info insight${props.info > 1 ? 's' : ''}`">
+    <span
+      v-if="props.info > 0"
+      class="insight-badge insight-badge--info"
+      :title="`${props.info} info insight${props.info > 1 ? 's' : ''}`"
+    >
       i{{ props.info }}
     </span>
   </div>
@@ -42,17 +54,17 @@ const props = defineProps<InsightBadgeStripProps>();
 }
 
 .insight-badge--critical {
-  background-color: rgba(239, 68, 68, 0.18);
-  color: #f87171;
+  background-color: var(--graph-insight-critical-bg);
+  color: var(--graph-insight-critical-text);
 }
 
 .insight-badge--warning {
-  background-color: rgba(251, 191, 36, 0.18);
-  color: #fbbf24;
+  background-color: var(--graph-insight-warning-bg);
+  color: var(--graph-insight-warning-text);
 }
 
 .insight-badge--info {
-  background-color: rgba(96, 165, 250, 0.12);
-  color: #93c5fd;
+  background-color: var(--graph-insight-info-bg);
+  color: var(--graph-insight-info-text);
 }
 </style>

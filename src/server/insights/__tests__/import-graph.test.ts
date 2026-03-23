@@ -1,6 +1,8 @@
-import type { DatabaseRow, IDatabaseAdapter, QueryResult } from '../../db/adapter/IDatabaseAdapter';
+import { beforeEach, describe, expect, it } from 'vitest';
+
 import { buildImportGraph } from '../import-graph';
 
+import type { DatabaseRow, IDatabaseAdapter, QueryResult } from '../../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from '../import-graph';
 
 // ---------------------------------------------------------------------------
@@ -28,10 +30,7 @@ interface ImportRowData {
  * Builds a minimal mock IDatabaseAdapter whose `query` method dispatches
  * pre-canned rows based on the SQL statement prefix.
  */
-function createMockAdapter(
-  moduleRows: ModuleRowData[],
-  importRows: ImportRowData[],
-): IDatabaseAdapter {
+function createMockAdapter(moduleRows: ModuleRowData[], importRows: ImportRowData[]): IDatabaseAdapter {
   return {
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     async init() {},
@@ -57,11 +56,7 @@ function createMockAdapter(
 }
 
 /** Shorthand to build a module row with sensible defaults. */
-function mod(
-  id: string,
-  relativePath: string,
-  overrides: Partial<ModuleRowData> = {},
-): ModuleRowData {
+function mod(id: string, relativePath: string, overrides: Partial<ModuleRowData> = {}): ModuleRowData {
   return {
     id,
     package_id: overrides.package_id ?? 'pkg-1',
@@ -74,12 +69,7 @@ function mod(
 }
 
 /** Shorthand to build an import row. */
-function imp(
-  id: string,
-  moduleId: string,
-  source: string,
-  isTypeOnly: boolean | string = false,
-): ImportRowData {
+function imp(id: string, moduleId: string, source: string, isTypeOnly: boolean | string = false): ImportRowData {
   return { id, module_id: moduleId, source, is_type_only: isTypeOnly };
 }
 
@@ -110,10 +100,7 @@ describe('buildImportGraph', () => {
     let graph: ImportGraph;
 
     beforeEach(async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/utils/helpers.ts')],
-        [],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/utils/helpers.ts')], []);
       graph = await buildImportGraph(adapter);
     });
 
@@ -141,46 +128,31 @@ describe('buildImportGraph', () => {
   // -----------------------------------------------------------------------
   describe('module metadata', () => {
     it('converts is_barrel string "true" to boolean true', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/index.ts', { is_barrel: 'true' })],
-        [],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/index.ts', { is_barrel: 'true' })], []);
       const graph = await buildImportGraph(adapter);
       expect(graph.modules.get('m1')!.isBarrel).toBe(true);
     });
 
     it('converts is_barrel string "1" to boolean true', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/index.ts', { is_barrel: '1' })],
-        [],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/index.ts', { is_barrel: '1' })], []);
       const graph = await buildImportGraph(adapter);
       expect(graph.modules.get('m1')!.isBarrel).toBe(true);
     });
 
     it('converts is_barrel string "false" to boolean false', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/foo.ts', { is_barrel: 'false' })],
-        [],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/foo.ts', { is_barrel: 'false' })], []);
       const graph = await buildImportGraph(adapter);
       expect(graph.modules.get('m1')!.isBarrel).toBe(false);
     });
 
     it('converts line_count string to number', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/foo.ts', { line_count: '42' })],
-        [],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/foo.ts', { line_count: '42' })], []);
       const graph = await buildImportGraph(adapter);
       expect(graph.modules.get('m1')!.lineCount).toBe(42);
     });
 
     it('defaults lineCount to 0 for non-numeric values', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/foo.ts', { line_count: 'NaN' as unknown as string })],
-        [],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/foo.ts', { line_count: 'NaN' as unknown as string })], []);
       const graph = await buildImportGraph(adapter);
       expect(graph.modules.get('m1')!.lineCount).toBe(0);
     });
@@ -192,11 +164,8 @@ describe('buildImportGraph', () => {
   describe('relative imports', () => {
     it('resolves a simple relative import between two modules', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/components/App.ts'),
-          mod('m2', 'src/utils/helpers.ts'),
-        ],
-        [imp('i1', 'm1', '../utils/helpers')],
+        [mod('m1', 'src/components/App.ts'), mod('m2', 'src/utils/helpers.ts')],
+        [imp('i1', 'm1', '../utils/helpers')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -206,11 +175,8 @@ describe('buildImportGraph', () => {
 
     it('resolves a same-directory relative import', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/utils/foo.ts'),
-          mod('m2', 'src/utils/bar.ts'),
-        ],
-        [imp('i1', 'm1', './bar')],
+        [mod('m1', 'src/utils/foo.ts'), mod('m2', 'src/utils/bar.ts')],
+        [imp('i1', 'm1', './bar')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -218,13 +184,7 @@ describe('buildImportGraph', () => {
     });
 
     it('resolves import with file extension', async () => {
-      const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/a.ts'),
-          mod('m2', 'src/b.ts'),
-        ],
-        [imp('i1', 'm1', './b.ts')],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/a.ts'), mod('m2', 'src/b.ts')], [imp('i1', 'm1', './b.ts')]);
       const graph = await buildImportGraph(adapter);
 
       expect(graph.adjacency.get('m1')?.has('m2')).toBe(true);
@@ -232,11 +192,8 @@ describe('buildImportGraph', () => {
 
     it('resolves import of an index barrel file', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/app.ts'),
-          mod('m2', 'src/components/index.ts', { is_barrel: true }),
-        ],
-        [imp('i1', 'm1', './components/index')],
+        [mod('m1', 'src/app.ts'), mod('m2', 'src/components/index.ts', { is_barrel: true })],
+        [imp('i1', 'm1', './components/index')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -252,11 +209,8 @@ describe('buildImportGraph', () => {
   describe('alias imports', () => {
     it('resolves @/ alias imports', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/views/Dashboard.ts'),
-          mod('m2', 'src/utils/api.ts'),
-        ],
-        [imp('i1', 'm1', '@/utils/api')],
+        [mod('m1', 'src/views/Dashboard.ts'), mod('m2', 'src/utils/api.ts')],
+        [imp('i1', 'm1', '@/utils/api')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -265,11 +219,8 @@ describe('buildImportGraph', () => {
 
     it('resolves src/ prefix imports', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/views/Dashboard.ts'),
-          mod('m2', 'src/utils/api.ts'),
-        ],
-        [imp('i1', 'm1', 'src/utils/api')],
+        [mod('m1', 'src/views/Dashboard.ts'), mod('m2', 'src/utils/api.ts')],
+        [imp('i1', 'm1', 'src/utils/api')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -282,20 +233,14 @@ describe('buildImportGraph', () => {
   // -----------------------------------------------------------------------
   describe('external imports', () => {
     it('ignores bare-specifier npm imports', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/app.ts')],
-        [imp('i1', 'm1', 'lodash')],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/app.ts')], [imp('i1', 'm1', 'lodash')]);
       const graph = await buildImportGraph(adapter);
 
       expect(graph.adjacency.get('m1')?.size).toBe(0);
     });
 
     it('ignores scoped npm packages', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/app.ts')],
-        [imp('i1', 'm1', '@vue/runtime-core')],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/app.ts')], [imp('i1', 'm1', '@vue/runtime-core')]);
       const graph = await buildImportGraph(adapter);
 
       // @vue/... does NOT start with @/ so isInternalImport returns false
@@ -308,10 +253,7 @@ describe('buildImportGraph', () => {
   // -----------------------------------------------------------------------
   describe('self-imports', () => {
     it('does not add an edge when a module imports itself', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/utils/helpers.ts')],
-        [imp('i1', 'm1', './helpers')],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/utils/helpers.ts')], [imp('i1', 'm1', './helpers')]);
       const graph = await buildImportGraph(adapter);
 
       expect(graph.adjacency.get('m1')?.has('m1')).toBeFalsy();
@@ -323,10 +265,7 @@ describe('buildImportGraph', () => {
   // -----------------------------------------------------------------------
   describe('unresolved imports', () => {
     it('ignores internal imports that do not resolve to a known module', async () => {
-      const adapter = createMockAdapter(
-        [mod('m1', 'src/app.ts')],
-        [imp('i1', 'm1', './nonExistentModule')],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/app.ts')], [imp('i1', 'm1', './nonExistentModule')]);
       const graph = await buildImportGraph(adapter);
 
       expect(graph.adjacency.get('m1')?.size).toBe(0);
@@ -341,15 +280,8 @@ describe('buildImportGraph', () => {
 
     beforeEach(async () => {
       const adapter = createMockAdapter(
-        [
-          mod('a', 'src/a.ts'),
-          mod('b', 'src/b.ts'),
-          mod('c', 'src/c.ts'),
-        ],
-        [
-          imp('i1', 'a', './b'),
-          imp('i2', 'b', './c'),
-        ],
+        [mod('a', 'src/a.ts'), mod('b', 'src/b.ts'), mod('c', 'src/c.ts')],
+        [imp('i1', 'a', './b'), imp('i2', 'b', './c')]
       );
       graph = await buildImportGraph(adapter);
     });
@@ -380,14 +312,8 @@ describe('buildImportGraph', () => {
 
     beforeEach(async () => {
       const adapter = createMockAdapter(
-        [
-          mod('a', 'src/a.ts'),
-          mod('b', 'src/b.ts'),
-        ],
-        [
-          imp('i1', 'a', './b'),
-          imp('i2', 'b', './a'),
-        ],
+        [mod('a', 'src/a.ts'), mod('b', 'src/b.ts')],
+        [imp('i1', 'a', './b'), imp('i2', 'b', './a')]
       );
       graph = await buildImportGraph(adapter);
     });
@@ -411,16 +337,8 @@ describe('buildImportGraph', () => {
 
     beforeEach(async () => {
       const adapter = createMockAdapter(
-        [
-          mod('a', 'src/a.ts'),
-          mod('b', 'src/b.ts'),
-          mod('c', 'src/c.ts'),
-        ],
-        [
-          imp('i1', 'a', './b'),
-          imp('i2', 'b', './c'),
-          imp('i3', 'c', './a'),
-        ],
+        [mod('a', 'src/a.ts'), mod('b', 'src/b.ts'), mod('c', 'src/c.ts')],
+        [imp('i1', 'a', './b'), imp('i2', 'b', './c'), imp('i3', 'c', './a')]
       );
       graph = await buildImportGraph(adapter);
     });
@@ -450,14 +368,8 @@ describe('buildImportGraph', () => {
   describe('multiple imports from same source', () => {
     it('deduplicates edges in adjacency', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/a.ts'),
-          mod('m2', 'src/b.ts'),
-        ],
-        [
-          imp('i1', 'm1', './b'),
-          imp('i2', 'm1', './b'),
-        ],
+        [mod('m1', 'src/a.ts'), mod('m2', 'src/b.ts')],
+        [imp('i1', 'm1', './b'), imp('i2', 'm1', './b')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -473,17 +385,8 @@ describe('buildImportGraph', () => {
   describe('fan-out pattern', () => {
     it('records all outbound edges from a single module', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('hub', 'src/hub.ts'),
-          mod('a', 'src/a.ts'),
-          mod('b', 'src/b.ts'),
-          mod('c', 'src/c.ts'),
-        ],
-        [
-          imp('i1', 'hub', './a'),
-          imp('i2', 'hub', './b'),
-          imp('i3', 'hub', './c'),
-        ],
+        [mod('hub', 'src/hub.ts'), mod('a', 'src/a.ts'), mod('b', 'src/b.ts'), mod('c', 'src/c.ts')],
+        [imp('i1', 'hub', './a'), imp('i2', 'hub', './b'), imp('i3', 'hub', './c')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -500,17 +403,8 @@ describe('buildImportGraph', () => {
   describe('fan-in pattern', () => {
     it('records all inbound edges to a single module', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('shared', 'src/shared.ts'),
-          mod('a', 'src/a.ts'),
-          mod('b', 'src/b.ts'),
-          mod('c', 'src/c.ts'),
-        ],
-        [
-          imp('i1', 'a', './shared'),
-          imp('i2', 'b', './shared'),
-          imp('i3', 'c', './shared'),
-        ],
+        [mod('shared', 'src/shared.ts'), mod('a', 'src/a.ts'), mod('b', 'src/b.ts'), mod('c', 'src/c.ts')],
+        [imp('i1', 'a', './shared'), imp('i2', 'b', './shared'), imp('i3', 'c', './shared')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -539,10 +433,7 @@ describe('buildImportGraph', () => {
         getDbPath() {
           return ':memory:';
         },
-        query<T extends DatabaseRow>(
-          sql: string,
-          params: unknown[] = [],
-        ): Promise<QueryResult<T>> {
+        query<T extends DatabaseRow>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> {
           queryCalls.push({ sql, params });
           return Promise.resolve([] as unknown as QueryResult<T>);
         },
@@ -575,10 +466,7 @@ describe('buildImportGraph', () => {
         getDbPath() {
           return ':memory:';
         },
-        query<T extends DatabaseRow>(
-          sql: string,
-          params: unknown[] = [],
-        ): Promise<QueryResult<T>> {
+        query<T extends DatabaseRow>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> {
           queryCalls.push({ sql, params });
           return Promise.resolve([] as unknown as QueryResult<T>);
         },
@@ -600,11 +488,8 @@ describe('buildImportGraph', () => {
   describe('nested directory path resolution', () => {
     it('resolves deeply nested relative imports', async () => {
       const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/features/auth/login/LoginForm.ts'),
-          mod('m2', 'src/shared/utils/validation.ts'),
-        ],
-        [imp('i1', 'm1', '../../../shared/utils/validation')],
+        [mod('m1', 'src/features/auth/login/LoginForm.ts'), mod('m2', 'src/shared/utils/validation.ts')],
+        [imp('i1', 'm1', '../../../shared/utils/validation')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -617,13 +502,7 @@ describe('buildImportGraph', () => {
   // -----------------------------------------------------------------------
   describe('type-only imports', () => {
     it('tracks type-only imports in the graph', async () => {
-      const adapter = createMockAdapter(
-        [
-          mod('m1', 'src/a.ts'),
-          mod('m2', 'src/b.ts'),
-        ],
-        [imp('i1', 'm1', './b', true)],
-      );
+      const adapter = createMockAdapter([mod('m1', 'src/a.ts'), mod('m2', 'src/b.ts')], [imp('i1', 'm1', './b', true)]);
       const graph = await buildImportGraph(adapter);
 
       // The function does not differentiate type-only imports
@@ -639,7 +518,7 @@ describe('buildImportGraph', () => {
       const adapter = createMockAdapter(
         [mod('m1', 'src/a.ts')],
         // module_id 'ghost' does not exist in modules
-        [imp('i1', 'ghost', './a')],
+        [imp('i1', 'ghost', './a')]
       );
       const graph = await buildImportGraph(adapter);
 
@@ -657,11 +536,8 @@ describe('buildImportGraph', () => {
     for (const ext of extensions) {
       it(`resolves import to module with ${ext} extension`, async () => {
         const adapter = createMockAdapter(
-          [
-            mod('m1', 'src/a.ts'),
-            mod('m2', `src/b${ext}`),
-          ],
-          [imp('i1', 'm1', `./b${ext}`)],
+          [mod('m1', 'src/a.ts'), mod('m2', `src/b${ext}`)],
+          [imp('i1', 'm1', `./b${ext}`)]
         );
         const graph = await buildImportGraph(adapter);
 

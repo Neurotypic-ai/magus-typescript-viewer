@@ -5,32 +5,32 @@ export interface IEnum {
   /**
    * The unique identifier for the enum
    */
-  id: string;
+  readonly id: string;
 
   /**
    * The UUID of the parent package
    */
-  package_id: string;
+  readonly package_id: string;
 
   /**
    * The UUID of the parent module
    */
-  module_id: string;
+  readonly module_id: string;
 
   /**
    * The name of the enum
    */
-  name: string;
+  readonly name: string;
 
   /**
    * An array of enum member names
    */
-  members: string[];
+  readonly members: string[];
 
   /**
    * The creation date of the enum
    */
-  created_at: Date;
+  readonly created_at: string;
 }
 
 export class Enum implements IEnum {
@@ -40,6 +40,6 @@ export class Enum implements IEnum {
     public readonly module_id: string,
     public readonly name: string,
     public readonly members: string[] = [],
-    public readonly created_at: Date = new Date()
+    public readonly created_at: string = new Date().toISOString()
   ) {}
 }

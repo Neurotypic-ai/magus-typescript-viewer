@@ -4,58 +4,9 @@ import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { IParameterCreateDTO } from '../../../shared/types/dto/ParameterDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IParameterRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new parameter.
- */
-export interface IParameterCreateDTO {
-  /**
-   * The unique identifier for the parameter.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The UUID of the parent method.
-   */
-  method_id: string;
-
-  /**
-   * The name of the parameter.
-   */
-  name: string;
-
-  /**
-   * The type of the parameter.
-   */
-  type: string;
-
-  /**
-   * Whether the parameter is optional.
-   */
-  is_optional: boolean;
-
-  /**
-   * Whether the parameter is a rest parameter.
-   */
-  is_rest: boolean;
-
-  /**
-   * The default value of the parameter, if any.
-   */
-  default_value?: string;
-}
 
 /**
  * Repository for managing parameters in the database.
@@ -126,7 +77,7 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
         dto.module_id,
         dto.method_id,
         dto.name,
-        new Date(),
+        new Date().toISOString(),
         dto.type,
         dto.is_optional,
         dto.is_rest,
@@ -230,7 +181,7 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
             param.module_id,
             param.method_id,
             param.name,
-            new Date(param.created_at),
+            String(param.created_at),
             param.type,
             Boolean(param.is_optional),
             Boolean(param.is_rest),
@@ -268,7 +219,7 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
             String(param.module_id),
             String(param.method_id),
             String(param.name),
-            new Date(String(param.created_at)),
+            String(param.created_at),
             String(param.type),
             Boolean(param.is_optional),
             Boolean(param.is_rest),

@@ -1,6 +1,7 @@
 import type { Position } from '@vue-flow/core';
-import type { DependencyKind } from './DependencyKind';
-import type { DependencyData } from './DependencyData';
+
+import type { DependencyData } from '../../shared/types/graph/DependencyData';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 
 /**
  * Props for dependency node components - adapted to work with XYFlow's requirements.

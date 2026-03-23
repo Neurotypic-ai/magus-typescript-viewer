@@ -1,6 +1,7 @@
 import { getNodeStyle } from './graphTheme';
+import { cssVar, graphCssVariableNames } from './graphTokens';
 
-import type { DependencyKind } from '../types/DependencyKind';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
@@ -9,7 +10,7 @@ import type { GraphEdge } from '../types/GraphEdge';
 export const EDGE_HOVER_CLASS = 'edge-hover-highlighted';
 export const EDGE_HOVER_Z_INDEX = 12;
 export const EDGE_HOVER_BASE_STROKE_VAR = '--edge-hover-base-stroke';
-export const EDGE_HOVER_FALLBACK_STROKE = '#404040';
+export const EDGE_HOVER_FALLBACK_STROKE: string = cssVar(graphCssVariableNames.edgeKinds.default.color);
 export const NODE_SELECTION_CLASS_TOKENS = ['selection-target', 'selection-connected', 'selection-dimmed'] as const;
 export const EDGE_SELECTION_CLASS_TOKENS: readonly [string, string, string] = [
   'edge-selection-highlighted',

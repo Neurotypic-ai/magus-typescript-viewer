@@ -1,5 +1,5 @@
+import type { ConsolaInstance } from 'consola';
 import type { ASTNode, Identifier, JSCodeshift, JSXIdentifier, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
-import type { Logger } from '../../../shared/utils/logger';
 
 /**
  * Safely get identifier name to work around type issues.
@@ -42,7 +42,7 @@ export function getHeritageClauseName(node: ASTNode): string | null {
 export function getTypeFromAnnotation(
   j: JSCodeshift,
   annotation: TSTypeAnnotation | null | undefined,
-  logger: Logger
+  logger: ConsolaInstance
 ): string {
   if (!annotation) {
     return 'any';
@@ -65,7 +65,7 @@ export function getTypeFromAnnotation(
  * Get return type from a function-like AST node.
  * Returns 'void' if no explicit return type annotation is present.
  */
-export function getReturnTypeFromNode(j: JSCodeshift, node: ASTNode, logger: Logger): string {
+export function getReturnTypeFromNode(j: JSCodeshift, node: ASTNode, logger: ConsolaInstance): string {
   try {
     if ('returnType' in node && node.returnType) {
       const returnType = node.returnType as TSTypeAnnotation;

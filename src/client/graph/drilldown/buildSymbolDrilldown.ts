@@ -2,56 +2,52 @@
  * Symbol drilldown graph: expand a selected class/interface/module into members and usages.
  */
 
+import { getEdgeStyle, getNodeStyle, graphTheme } from '../../theme/graphTheme';
+import { cssVar, graphCssVariableNames } from '../../theme/graphTokens';
 import { mapTypeCollection, typeCollectionToArray } from '../../utils/collections';
 import { createEdgeMarker } from '../../utils/edgeMarkers';
-import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
+import { applyEdgeVisibility, filterEdgesByNodeSet } from '../graphViewShared';
 import { getHandlePositions } from '../handleRouting';
-import { filterEdgesByNodeSet, applyEdgeVisibility } from '../graphViewShared';
-import {
-  findModuleById,
-  toNodeProperty,
-  toNodeMethod,
-  createSymbolEdge,
-} from './symbolHelpers';
+import { createSymbolEdge, findModuleById, normalizeMethod, normalizeProperty } from './symbolHelpers';
 
-import type { ClassStructure } from '../../types/ClassStructure';
+import type { IClass } from '../../../shared/types/Class';
+import type { IInterface } from '../../../shared/types/Interface';
+import type { Method } from '../../../shared/types/Method';
+import type { IModule } from '../../../shared/types/Module';
+import type { PackageGraph } from '../../../shared/types/Package';
+import type { ParentType } from '../../../shared/types/ParentType';
+import type { Property } from '../../../shared/types/Property';
+import type { ISymbolReference } from '../../../shared/types/SymbolReference';
 import type { DependencyNode } from '../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
 import type { GraphEdge } from '../../types/GraphEdge';
-import type { InterfaceStructure } from '../../types/InterfaceStructure';
-import type { ModuleStructure } from '../../types/ModuleStructure';
-import type { NodeMethod } from '../../types/NodeMethod';
-import type { NodeProperty } from '../../types/NodeProperty';
-import type { SymbolReferenceRef } from '../../types/SymbolReferenceRef';
 import type { GraphViewData } from '../graphViewShared';
 
 export interface BuildSymbolDrilldownGraphOptions {
-  data: DependencyPackageGraph;
+  data: PackageGraph;
   selectedNode: DependencyNode;
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   enabledRelationshipTypes: string[];
 }
 
 interface SymbolContext {
-  module: ModuleStructure;
-  focusType: 'module' | 'class' | 'interface';
+  module: IModule;
+  focusType: 'module' | ParentType;
   focusId: string;
 }
 
-function findSymbolContext(data: DependencyPackageGraph, node: DependencyNode): SymbolContext | undefined {
+function findSymbolContext(data: PackageGraph, node: DependencyNode): SymbolContext | undefined {
   if (node.type === 'module') {
     const module = findModuleById(data, node.id);
     if (!module) return undefined;
     return { module, focusType: 'module', focusId: node.id };
   }
   for (const pkg of data.packages) {
-    if (!pkg.modules) continue;
     for (const module of mapTypeCollection(pkg.modules, (entry) => entry)) {
-      if (node.type === 'class' && module.classes) {
+      if (node.type === 'class') {
         const classMatch = mapTypeCollection(module.classes, (cls) => cls).find((cls) => cls.id === node.id);
         if (classMatch) return { module, focusType: 'class', focusId: node.id };
       }
-      if (node.type === 'interface' && module.interfaces) {
+      if (node.type === 'interface') {
         const interfaceMatch = mapTypeCollection(module.interfaces, (iface) => iface).find(
           (iface) => iface.id === node.id
         );
@@ -88,9 +84,9 @@ function createUsageEdge(source: string, target: string, usageKind: 'method' | '
     hidden: false,
     data: { type: 'uses', usageKind },
     style: {
-      ...getEdgeStyle('import'),
-      stroke: '#67e8f9',
-      strokeWidth: 2,
+      ...getEdgeStyle('uses'),
+      stroke: cssVar(graphCssVariableNames.edgeKinds.import.color),
+      strokeWidth: graphTheme.edges.sizes.width.isolated,
       strokeDasharray: '4 2',
     },
     markerEnd: createEdgeMarker(),
@@ -114,7 +110,11 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
       sourcePosition,
       targetPosition,
       data: { label: moduleName, properties: [] },
-      style: { ...getNodeStyle('module'), borderColor: '#00ffff', borderWidth: '3px' },
+      style: {
+        ...getNodeStyle('module'),
+        borderColor: cssVar(graphCssVariableNames.selection.targetBorder),
+        borderWidth: `${String(graphTheme.edges.sizes.width.highlighted)}px`,
+      },
     } as DependencyNode,
   ];
   const graphEdges: GraphEdge[] = [];
@@ -126,10 +126,10 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
 
   const addSymbol = (
     symbolId: string,
-    type: 'class' | 'interface',
+    type: ParentType,
     label: string,
-    properties: NodeProperty[],
-    methods: NodeMethod[]
+    properties: Property[],
+    methods: Method[]
   ) => {
     if (nodeById.has(symbolId)) return;
     const symbolNode: DependencyNode = {
@@ -146,18 +146,23 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
     includedSymbolIds.add(symbolId);
     graphEdges.push(createSymbolEdge(moduleId, symbolId, 'contains'));
     properties.forEach((property) => {
-      const propertyId = property.id ?? `${symbolId}:property:${property.name}`;
-      const memberNode = createMemberNode(propertyId, 'property', `${property.name}: ${property.type}`, options.direction);
+      const propertyId = property.id || `${symbolId}:property:${property.name}`;
+      const memberNode = createMemberNode(
+        propertyId,
+        'property',
+        `${property.name}: ${property.type}`,
+        options.direction
+      );
       graphNodes.push(memberNode);
       nodeById.set(propertyId, memberNode);
       graphEdges.push(createSymbolEdge(symbolId, propertyId, 'contains'));
     });
     methods.forEach((method) => {
-      const methodId = method.id ?? `${symbolId}:method:${method.name}`;
+      const methodId = method.id || `${symbolId}:method:${method.name}`;
       const memberNode = createMemberNode(
         methodId,
         'method',
-        `${method.name}(): ${method.returnType}`,
+        `${method.name}(): ${method.return_type}`,
         options.direction
       );
       graphNodes.push(memberNode);
@@ -166,41 +171,35 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
     });
   };
 
-  if (context.module.classes) {
-    mapTypeCollection(context.module.classes, (cls: ClassStructure) => {
-      if (!includeAllSymbols && cls.id !== context.focusId) return;
-      const properties = typeCollectionToArray(
-        cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
-      ).map((p) => toNodeProperty(p));
-      const methods = typeCollectionToArray(
-        cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined
-      ).map((m) => toNodeMethod(m));
-      addSymbol(cls.id, 'class', cls.name, properties, methods);
-    });
-  }
-  if (context.module.interfaces) {
-    mapTypeCollection(context.module.interfaces, (iface: InterfaceStructure) => {
-      if (!includeAllSymbols && iface.id !== context.focusId) return;
-      const properties = typeCollectionToArray(
-        iface.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
-      ).map((p) => toNodeProperty(p));
-      const methods = typeCollectionToArray(
-        iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined
-      ).map((m) => toNodeMethod(m));
-      addSymbol(iface.id, 'interface', iface.name, properties, methods);
-    });
-  }
-  if (context.module.symbol_references) {
-    mapTypeCollection(context.module.symbol_references, (reference: SymbolReferenceRef) => {
-      const targetId = reference.target_symbol_id;
-      const accessKind = reference.access_kind;
-      const sourceId = reference.source_symbol_id ?? moduleId;
-      if (!targetId || !nodeById.has(targetId)) return;
-      if (!nodeById.has(sourceId)) return;
-      if (!includeAllSymbols && sourceId !== context.focusId && !includedSymbolIds.has(sourceId)) return;
-      graphEdges.push(createUsageEdge(sourceId, targetId, accessKind));
-    });
-  }
+  mapTypeCollection(context.module.classes, (cls: IClass) => {
+    if (!includeAllSymbols && cls.id !== context.focusId) return;
+    const properties = typeCollectionToArray(cls.properties as Record<string, Property> | Property[] | undefined).map(
+      (p) => normalizeProperty(p)
+    );
+    const methods = typeCollectionToArray(cls.methods as Record<string, Method> | Method[] | undefined).map((m) =>
+      normalizeMethod(m)
+    );
+    addSymbol(cls.id, 'class', cls.name, properties, methods);
+  });
+  mapTypeCollection(context.module.interfaces, (iface: IInterface) => {
+    if (!includeAllSymbols && iface.id !== context.focusId) return;
+    const properties = typeCollectionToArray(iface.properties as Record<string, Property> | Property[] | undefined).map(
+      (p) => normalizeProperty(p)
+    );
+    const methods = typeCollectionToArray(iface.methods as Record<string, Method> | Method[] | undefined).map((m) =>
+      normalizeMethod(m)
+    );
+    addSymbol(iface.id, 'interface', iface.name, properties, methods);
+  });
+  mapTypeCollection(context.module.symbol_references, (reference: ISymbolReference) => {
+    const targetId = reference.target_symbol_id;
+    const accessKind = reference.access_kind;
+    const sourceId = reference.source_symbol_id ?? moduleId;
+    if (!nodeById.has(targetId)) return;
+    if (!nodeById.has(sourceId)) return;
+    if (!includeAllSymbols && sourceId !== context.focusId && !includedSymbolIds.has(sourceId)) return;
+    graphEdges.push(createUsageEdge(sourceId, targetId, accessKind));
+  });
 
   const filteredEdges = filterEdgesByNodeSet(graphNodes, graphEdges);
   return {

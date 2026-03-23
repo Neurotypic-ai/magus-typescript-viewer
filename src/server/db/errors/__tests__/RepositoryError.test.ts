@@ -1,8 +1,10 @@
+import { describe, expect, it } from 'vitest';
+
 import {
-  RepositoryError,
+  ConstraintViolationError,
   EntityNotFoundError,
   NoFieldsToUpdateError,
-  ConstraintViolationError,
+  RepositoryError,
   SchemaError,
   TransactionError,
 } from '../RepositoryError';
@@ -101,18 +103,14 @@ describe('RepositoryError', () => {
       const cause = new RepositoryError('inner', 'query', 'InnerRepo');
       const error = new RepositoryError('outer', 'save', 'OuterRepo', cause);
 
-      expect(error.getErrorChain()).toBe(
-        '[OuterRepo] save: outer -> [InnerRepo] query: inner',
-      );
+      expect(error.getErrorChain()).toBe('[OuterRepo] save: outer -> [InnerRepo] query: inner');
     });
 
     it('includes a plain Error cause message', () => {
       const cause = new Error('sql syntax error');
       const error = new RepositoryError('query failed', 'select', 'Repo', cause);
 
-      expect(error.getErrorChain()).toBe(
-        '[Repo] select: query failed -> sql syntax error',
-      );
+      expect(error.getErrorChain()).toBe('[Repo] select: query failed -> sql syntax error');
     });
 
     it('stops after a plain Error cause (does not continue beyond)', () => {
@@ -132,7 +130,7 @@ describe('RepositoryError', () => {
       const level3 = new RepositoryError('lookup failed', 'findById', 'Service', level2);
 
       expect(level3.getErrorChain()).toBe(
-        '[Service] findById: lookup failed -> [UserRepo] select: query failed -> [DBPool] connect: connect failed -> connection refused',
+        '[Service] findById: lookup failed -> [UserRepo] select: query failed -> [DBPool] connect: connect failed -> connection refused'
       );
     });
   });
@@ -238,9 +236,7 @@ describe('ConstraintViolationError', () => {
   it('getErrorChain includes the cause message', () => {
     const cause = new Error('SQLITE_CONSTRAINT');
     const error = new ConstraintViolationError('dup', 'insert', 'Repo', cause);
-    expect(error.getErrorChain()).toBe(
-      '[Repo] insert: Constraint violation: dup -> SQLITE_CONSTRAINT',
-    );
+    expect(error.getErrorChain()).toBe('[Repo] insert: Constraint violation: dup -> SQLITE_CONSTRAINT');
   });
 });
 

@@ -1,7 +1,9 @@
-import { defineStore, type SetupStoreDefinition } from 'pinia';
-import { computed, ref, type ComputedRef, type Ref } from 'vue';
-import { isRenderingStrategyId, type RenderingStrategyId, type RenderingStrategyOptionsById } from '../rendering/RenderingStrategy';
-import { createDefaultStrategyOptionsById, sanitizeStrategyOptionsById } from '../rendering/strategyRegistry';
+import { computed, ref } from 'vue';
+
+import { defineStore } from 'pinia';
+
+import type { SetupStoreDefinition } from 'pinia';
+import type { ComputedRef, Ref } from 'vue';
 
 export const DEFAULT_RELATIONSHIP_TYPES = [
   'import',
@@ -12,177 +14,66 @@ export const DEFAULT_RELATIONSHIP_TYPES = [
   'peerDependency',
 ] as const;
 
-export const DEFAULT_NODE_TYPES = ['module'] as const;
-const GRAPH_SETTINGS_CACHE_KEY = 'v1:typescript-viewer-graph-settings';
-export const GRAPH_CONTROL_SECTION_KEYS = [
-  'nodeTypes',
-  'renderingStrategy',
-  'analysis',
-  'moduleSections',
-  'memberDisplay',
-  'relationshipTypes',
-  'performance',
-  'debug',
-] as const;
+const GRAPH_SETTINGS_CACHE_KEY = 'v2:typescript-viewer-graph-settings';
 
 type RelationshipType = (typeof DEFAULT_RELATIONSHIP_TYPES)[number];
-type NodeTypeFilter = (typeof DEFAULT_NODE_TYPES)[number] | 'class' | 'interface' | 'package';
-export type ModuleMemberType = 'function' | 'type' | 'enum' | 'const' | 'var';
-type MemberNodeMode = 'compact' | 'graph';
-type LegacyEdgeRendererMode = 'hybrid-canvas' | 'vue-flow';
-export type GraphControlSectionKey = (typeof GRAPH_CONTROL_SECTION_KEYS)[number];
 
-export const DEFAULT_MODULE_MEMBER_TYPES: ModuleMemberType[] = ['function', 'type', 'enum', 'const', 'var'];
-
-const LEGACY_EDGE_RENDERER_MODE_TO_STRATEGY_ID: Record<LegacyEdgeRendererMode, RenderingStrategyId> = {
-  'hybrid-canvas': 'canvas',
-  'vue-flow': 'vueflow',
-};
-
-const STRATEGY_ID_TO_LEGACY_EDGE_RENDERER_MODE: Record<RenderingStrategyId, LegacyEdgeRendererMode> = {
-  canvas: 'hybrid-canvas',
-  vueflow: 'vue-flow',
-  folderDistributor: 'vue-flow',
-};
-
-export interface RelationshipAvailability {
+interface RelationshipAvailability {
   available: boolean;
   reason?: string;
-}
-
-function createUnavailable(reason: string): RelationshipAvailability {
-  return { available: false, reason };
 }
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function createDefaultCollapsedSections(): Record<GraphControlSectionKey, boolean> {
-  return GRAPH_CONTROL_SECTION_KEYS.reduce(
-    (acc, key) => {
-      acc[key] = false;
-      return acc;
-    },
-    {} as Record<GraphControlSectionKey, boolean>
-  );
-}
-
-function isGraphControlSectionKey(value: string): value is GraphControlSectionKey {
-  return (GRAPH_CONTROL_SECTION_KEYS as readonly string[]).includes(value);
-}
-
 interface PersistedGraphSettings {
-  collapseScc?: boolean;
-  clusterByFolder?: boolean;
   enabledRelationshipTypes?: string[];
-  enabledNodeTypes?: string[];
   hideTestFiles?: boolean;
-  memberNodeMode?: MemberNodeMode;
   highlightOrphanGlobal?: boolean;
-  degreeWeightedLayers?: boolean;
   showFps?: boolean;
   showFpsAdvanced?: boolean;
-  renderingStrategyId?: RenderingStrategyId;
-  strategyOptionsById?: RenderingStrategyOptionsById;
-  edgeRendererMode?: LegacyEdgeRendererMode;
-  enabledModuleMemberTypes?: string[];
   collapsedFolderIds?: string[];
-  collapsedSections?: Record<string, boolean>;
-  showDebugBounds?: boolean;
-  showDebugHandles?: boolean;
   showDebugNodeIds?: boolean;
 }
 
 interface GraphSettingsStore {
-  collapseScc: Ref<boolean>;
-  clusterByFolder: Ref<boolean>;
   enabledRelationshipTypes: Ref<string[]>;
-  enabledNodeTypes: Ref<string[]>;
   hideTestFiles: Ref<boolean>;
-  memberNodeMode: Ref<MemberNodeMode>;
   highlightOrphanGlobal: Ref<boolean>;
   showFps: Ref<boolean>;
   showFpsAdvanced: Ref<boolean>;
-  renderingStrategyId: Ref<RenderingStrategyId>;
-  strategyOptionsById: Ref<RenderingStrategyOptionsById>;
   relationshipAvailability: ComputedRef<Record<RelationshipType, RelationshipAvailability>>;
   activeRelationshipTypes: ComputedRef<string[]>;
-  setCollapseScc: (value: boolean) => void;
-  setClusterByFolder: (value: boolean) => void;
   setEnabledRelationshipTypes: (types: string[]) => void;
   toggleRelationshipType: (type: RelationshipType, enabled: boolean) => void;
-  setEnabledNodeTypes: (types: string[]) => void;
-  toggleNodeType: (type: NodeTypeFilter, enabled: boolean) => void;
   setHideTestFiles: (value: boolean) => void;
-  setMemberNodeMode: (value: MemberNodeMode) => void;
   setHighlightOrphanGlobal: (value: boolean) => void;
   setShowFps: (value: boolean) => void;
   setShowFpsAdvanced: (value: boolean) => void;
-  initializeRenderingStrategyId: (value: RenderingStrategyId) => void;
-  setRenderingStrategyId: (value: RenderingStrategyId) => void;
-  setRenderingStrategyOption: (
-    strategyId: RenderingStrategyId,
-    optionId: string,
-    value: unknown
-  ) => void;
-  enabledModuleMemberTypes: Ref<string[]>;
-  toggleModuleMemberType: (type: ModuleMemberType, enabled: boolean) => void;
   collapsedFolderIds: Ref<Set<string>>;
   toggleFolderCollapsed: (folderId: string) => void;
-  collapsedSections: Ref<Record<GraphControlSectionKey, boolean>>;
-  setCollapsedSection: (sectionId: GraphControlSectionKey, collapsed: boolean) => void;
-  showDebugBounds: Ref<boolean>;
-  setShowDebugBounds: (value: boolean) => void;
-  showDebugHandles: Ref<boolean>;
-  setShowDebugHandles: (value: boolean) => void;
   showDebugNodeIds: Ref<boolean>;
   setShowDebugNodeIds: (value: boolean) => void;
 }
 
 const createGraphSettingsStore = (): GraphSettingsStore => {
-  const collapseScc = ref<boolean>(true);
-  const clusterByFolder = ref<boolean>(false);
   const enabledRelationshipTypes = ref<string[]>([...DEFAULT_RELATIONSHIP_TYPES]);
-  const enabledNodeTypes = ref<string[]>([...DEFAULT_NODE_TYPES]);
   const hideTestFiles = ref<boolean>(true);
-  const memberNodeMode = ref<MemberNodeMode>('compact');
   const highlightOrphanGlobal = ref<boolean>(false);
   const showFps = ref<boolean>(false);
   const showFpsAdvanced = ref<boolean>(false);
-  const renderingStrategyId = ref<RenderingStrategyId>('canvas');
-  const strategyOptionsById = ref<RenderingStrategyOptionsById>(createDefaultStrategyOptionsById());
-  const enabledModuleMemberTypes = ref<string[]>([...DEFAULT_MODULE_MEMBER_TYPES]);
   const collapsedFolderIds = ref<Set<string>>(new Set());
-  const collapsedSections = ref<Record<GraphControlSectionKey, boolean>>(createDefaultCollapsedSections());
-  const showDebugBounds = ref<boolean>(false);
-  const showDebugHandles = ref<boolean>(false);
   const showDebugNodeIds = ref<boolean>(false);
-  let hasPersistedRenderingStrategyId = false;
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
-    const enabledNodeTypeSet = new Set(enabledNodeTypes.value);
-    const hasModules = enabledNodeTypeSet.has('module');
-    const hasPackages = enabledNodeTypeSet.has('package');
-    const hasSymbols = enabledNodeTypeSet.has('class') || enabledNodeTypeSet.has('interface');
-
     return {
-      import: hasModules ? { available: true } : createUnavailable('Requires module nodes'),
-      inheritance:
-        hasSymbols || hasModules
-          ? { available: true }
-          : createUnavailable('Requires module, class, or interface nodes'),
-      implements:
-        hasSymbols || hasModules
-          ? { available: true }
-          : createUnavailable('Requires module, class, or interface nodes'),
-      dependency: hasPackages ? { available: true } : createUnavailable('Requires package nodes'),
-      devDependency: hasPackages ? { available: true } : createUnavailable('Requires package nodes'),
-      peerDependency: hasPackages ? { available: true } : createUnavailable('Requires package nodes'),
+      import: { available: true },
+      inheritance: { available: true },
+      implements: { available: true },
+      dependency: { available: true },
+      devDependency: { available: true },
+      peerDependency: { available: true },
     };
   });
 
@@ -206,38 +97,14 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
       }
 
       const parsed = JSON.parse(raw) as PersistedGraphSettings;
-      if (typeof parsed.collapseScc === 'boolean') {
-        collapseScc.value = parsed.collapseScc;
-      }
-      if (typeof parsed.clusterByFolder === 'boolean') {
-        clusterByFolder.value = parsed.clusterByFolder;
-      }
       if (Array.isArray(parsed.enabledRelationshipTypes)) {
         enabledRelationshipTypes.value = uniqueStrings(parsed.enabledRelationshipTypes);
-      }
-      if (Array.isArray(parsed.enabledNodeTypes)) {
-        enabledNodeTypes.value = uniqueStrings(parsed.enabledNodeTypes);
       }
       if (typeof parsed.hideTestFiles === 'boolean') {
         hideTestFiles.value = parsed.hideTestFiles;
       }
-      if (parsed.memberNodeMode === 'compact' || parsed.memberNodeMode === 'graph') {
-        memberNodeMode.value = parsed.memberNodeMode;
-      }
       if (typeof parsed.highlightOrphanGlobal === 'boolean') {
         highlightOrphanGlobal.value = parsed.highlightOrphanGlobal;
-      }
-      // Migrate legacy degreeWeightedLayers into strategy options for canvas+vueflow before sanitize
-      let optionsToSanitize = parsed.strategyOptionsById;
-      if (typeof parsed.degreeWeightedLayers === 'boolean') {
-        const canvasOptions = isRecord(parsed.strategyOptionsById?.canvas) ? parsed.strategyOptionsById.canvas : {};
-        const vueflowOptions = isRecord(parsed.strategyOptionsById?.vueflow) ? parsed.strategyOptionsById.vueflow : {};
-        const migrated = {
-          canvas: { ...canvasOptions, degreeWeightedLayers: parsed.degreeWeightedLayers },
-          vueflow: { ...vueflowOptions, degreeWeightedLayers: parsed.degreeWeightedLayers },
-          folderDistributor: parsed.strategyOptionsById?.folderDistributor ?? {},
-        };
-        optionsToSanitize = migrated as RenderingStrategyOptionsById;
       }
       if (typeof parsed.showFps === 'boolean') {
         showFps.value = parsed.showFps;
@@ -245,35 +112,8 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
       if (typeof parsed.showFpsAdvanced === 'boolean') {
         showFpsAdvanced.value = parsed.showFpsAdvanced;
       }
-      if (isRenderingStrategyId(parsed.renderingStrategyId)) {
-        renderingStrategyId.value = parsed.renderingStrategyId;
-        hasPersistedRenderingStrategyId = true;
-      } else if (parsed.edgeRendererMode === 'hybrid-canvas' || parsed.edgeRendererMode === 'vue-flow') {
-        renderingStrategyId.value = LEGACY_EDGE_RENDERER_MODE_TO_STRATEGY_ID[parsed.edgeRendererMode];
-        hasPersistedRenderingStrategyId = true;
-      }
-      strategyOptionsById.value = sanitizeStrategyOptionsById(optionsToSanitize);
-      if (Array.isArray(parsed.enabledModuleMemberTypes)) {
-        enabledModuleMemberTypes.value = uniqueStrings(parsed.enabledModuleMemberTypes);
-      }
       if (Array.isArray(parsed.collapsedFolderIds)) {
         collapsedFolderIds.value = new Set(parsed.collapsedFolderIds);
-      }
-      if (isRecord(parsed.collapsedSections)) {
-        const nextCollapsedSections = createDefaultCollapsedSections();
-        for (const [key, rawValue] of Object.entries(parsed.collapsedSections)) {
-          if (!isGraphControlSectionKey(key) || typeof rawValue !== 'boolean') {
-            continue;
-          }
-          nextCollapsedSections[key] = rawValue;
-        }
-        collapsedSections.value = nextCollapsedSections;
-      }
-      if (typeof parsed.showDebugBounds === 'boolean') {
-        showDebugBounds.value = parsed.showDebugBounds;
-      }
-      if (typeof parsed.showDebugHandles === 'boolean') {
-        showDebugHandles.value = parsed.showDebugHandles;
       }
       if (typeof parsed.showDebugNodeIds === 'boolean') {
         showDebugNodeIds.value = parsed.showDebugNodeIds;
@@ -289,25 +129,13 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
     }
 
     try {
-      const legacyEdgeRendererMode = STRATEGY_ID_TO_LEGACY_EDGE_RENDERER_MODE[renderingStrategyId.value];
-      const payload: Omit<PersistedGraphSettings, 'degreeWeightedLayers'> = {
-        collapseScc: collapseScc.value,
-        clusterByFolder: clusterByFolder.value,
+      const payload: PersistedGraphSettings = {
         enabledRelationshipTypes: enabledRelationshipTypes.value,
-        enabledNodeTypes: enabledNodeTypes.value,
         hideTestFiles: hideTestFiles.value,
-        memberNodeMode: memberNodeMode.value,
         highlightOrphanGlobal: highlightOrphanGlobal.value,
         showFps: showFps.value,
         showFpsAdvanced: showFpsAdvanced.value,
-        renderingStrategyId: renderingStrategyId.value,
-        strategyOptionsById: strategyOptionsById.value,
-        edgeRendererMode: legacyEdgeRendererMode,
-        enabledModuleMemberTypes: enabledModuleMemberTypes.value,
         collapsedFolderIds: Array.from(collapsedFolderIds.value),
-        collapsedSections: collapsedSections.value,
-        showDebugBounds: showDebugBounds.value,
-        showDebugHandles: showDebugHandles.value,
         showDebugNodeIds: showDebugNodeIds.value,
       };
       localStorage.setItem(GRAPH_SETTINGS_CACHE_KEY, JSON.stringify(payload));
@@ -315,16 +143,6 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
       // Ignore persisted settings write failures.
     }
   };
-
-  function setCollapseScc(value: boolean): void {
-    collapseScc.value = value;
-    persistSettings();
-  }
-
-  function setClusterByFolder(value: boolean): void {
-    clusterByFolder.value = value;
-    persistSettings();
-  }
 
   function setEnabledRelationshipTypes(types: string[]): void {
     enabledRelationshipTypes.value = uniqueStrings(types);
@@ -341,28 +159,8 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
     persistSettings();
   }
 
-  function setEnabledNodeTypes(types: string[]): void {
-    enabledNodeTypes.value = uniqueStrings(types);
-    persistSettings();
-  }
-
-  function toggleNodeType(type: NodeTypeFilter, enabled: boolean): void {
-    if (enabled) {
-      enabledNodeTypes.value = uniqueStrings([...enabledNodeTypes.value, type]);
-      persistSettings();
-      return;
-    }
-    enabledNodeTypes.value = enabledNodeTypes.value.filter((t) => t !== type);
-    persistSettings();
-  }
-
   function setHideTestFiles(value: boolean): void {
     hideTestFiles.value = value;
-    persistSettings();
-  }
-
-  function setMemberNodeMode(value: MemberNodeMode): void {
-    memberNodeMode.value = value;
     persistSettings();
   }
 
@@ -381,42 +179,6 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
     persistSettings();
   }
 
-  function initializeRenderingStrategyId(value: RenderingStrategyId): void {
-    if (hasPersistedRenderingStrategyId) {
-      return;
-    }
-    renderingStrategyId.value = value;
-  }
-
-  function setRenderingStrategyId(value: RenderingStrategyId): void {
-    renderingStrategyId.value = value;
-    persistSettings();
-  }
-
-  function setRenderingStrategyOption(
-    strategyId: RenderingStrategyId,
-    optionId: string,
-    value: unknown
-  ): void {
-    if (!optionId) {
-      return;
-    }
-
-    const existingStrategyOptions = strategyOptionsById.value[strategyId];
-    if (existingStrategyOptions[optionId] === value) {
-      return;
-    }
-
-    strategyOptionsById.value = {
-      ...strategyOptionsById.value,
-      [strategyId]: {
-        ...existingStrategyOptions,
-        [optionId]: value,
-      },
-    };
-    persistSettings();
-  }
-
   function toggleFolderCollapsed(folderId: string): void {
     const next = new Set(collapsedFolderIds.value);
     if (next.has(folderId)) {
@@ -428,37 +190,6 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
     persistSettings();
   }
 
-  function toggleModuleMemberType(type: ModuleMemberType, enabled: boolean): void {
-    if (enabled) {
-      enabledModuleMemberTypes.value = uniqueStrings([...enabledModuleMemberTypes.value, type]);
-      persistSettings();
-      return;
-    }
-    enabledModuleMemberTypes.value = enabledModuleMemberTypes.value.filter((t) => t !== type);
-    persistSettings();
-  }
-
-  function setCollapsedSection(sectionId: GraphControlSectionKey, collapsed: boolean): void {
-    if (collapsedSections.value[sectionId] === collapsed) {
-      return;
-    }
-    collapsedSections.value = {
-      ...collapsedSections.value,
-      [sectionId]: collapsed,
-    };
-    persistSettings();
-  }
-
-  function setShowDebugBounds(value: boolean): void {
-    showDebugBounds.value = value;
-    persistSettings();
-  }
-
-  function setShowDebugHandles(value: boolean): void {
-    showDebugHandles.value = value;
-    persistSettings();
-  }
-
   function setShowDebugNodeIds(value: boolean): void {
     showDebugNodeIds.value = value;
     persistSettings();
@@ -467,49 +198,27 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
   loadSettings();
 
   return {
-    collapseScc: collapseScc,
-    clusterByFolder: clusterByFolder,
-    enabledRelationshipTypes: enabledRelationshipTypes,
-    enabledNodeTypes: enabledNodeTypes,
-    hideTestFiles: hideTestFiles,
-    memberNodeMode: memberNodeMode,
-    highlightOrphanGlobal: highlightOrphanGlobal,
-    showFps: showFps,
-    showFpsAdvanced: showFpsAdvanced,
-    renderingStrategyId: renderingStrategyId,
-    strategyOptionsById: strategyOptionsById,
-    relationshipAvailability: relationshipAvailability,
-    activeRelationshipTypes: activeRelationshipTypes,
-    setCollapseScc: setCollapseScc,
-    setClusterByFolder: setClusterByFolder,
-    setEnabledRelationshipTypes: setEnabledRelationshipTypes,
-    toggleRelationshipType: toggleRelationshipType,
-    setEnabledNodeTypes: setEnabledNodeTypes,
-    toggleNodeType: toggleNodeType,
-    setHideTestFiles: setHideTestFiles,
-    setMemberNodeMode: setMemberNodeMode,
-    setHighlightOrphanGlobal: setHighlightOrphanGlobal,
-    setShowFps: setShowFps,
-    setShowFpsAdvanced: setShowFpsAdvanced,
-    initializeRenderingStrategyId: initializeRenderingStrategyId,
-    setRenderingStrategyId: setRenderingStrategyId,
-    setRenderingStrategyOption: setRenderingStrategyOption,
-    enabledModuleMemberTypes: enabledModuleMemberTypes,
-    toggleModuleMemberType: toggleModuleMemberType,
-    collapsedFolderIds: collapsedFolderIds,
-    toggleFolderCollapsed: toggleFolderCollapsed,
-    collapsedSections: collapsedSections,
-    setCollapsedSection: setCollapsedSection,
-    showDebugBounds: showDebugBounds,
-    setShowDebugBounds: setShowDebugBounds,
-    showDebugHandles: showDebugHandles,
-    setShowDebugHandles: setShowDebugHandles,
-    showDebugNodeIds: showDebugNodeIds,
-    setShowDebugNodeIds: setShowDebugNodeIds,
+    enabledRelationshipTypes,
+    hideTestFiles,
+    highlightOrphanGlobal,
+    showFps,
+    showFpsAdvanced,
+    relationshipAvailability,
+    activeRelationshipTypes,
+    setEnabledRelationshipTypes,
+    toggleRelationshipType,
+    setHideTestFiles,
+    setHighlightOrphanGlobal,
+    setShowFps,
+    setShowFpsAdvanced,
+    collapsedFolderIds,
+    toggleFolderCollapsed,
+    showDebugNodeIds,
+    setShowDebugNodeIds,
   };
 };
 
-export const useGraphSettings: SetupStoreDefinition<
+export const useGraphSettings: SetupStoreDefinition<'graphSettings', GraphSettingsStore> = defineStore(
   'graphSettings',
-  GraphSettingsStore
-> = defineStore('graphSettings', createGraphSettingsStore);
+  createGraphSettingsStore
+);

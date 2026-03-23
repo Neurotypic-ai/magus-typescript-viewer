@@ -1,9 +1,9 @@
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InsightEngine } from '../InsightEngine';
+import { buildImportGraph, type ImportGraph } from '../import-graph';
 
-import type { IDatabaseAdapter, QueryParams, QueryResult, DatabaseRow } from '../../db/adapter/IDatabaseAdapter';
-import type { ImportGraph } from '../import-graph';
+import type { DatabaseRow, IDatabaseAdapter } from '../../db/adapter/IDatabaseAdapter';
 
 // ── Mock buildImportGraph ────────────────────────────────────────────────────
 
@@ -11,9 +11,7 @@ vi.mock('../import-graph', () => ({
   buildImportGraph: vi.fn(),
 }));
 
-// We need to import the mocked function so we can control its return value
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-const { buildImportGraph } = await import('../import-graph') as { buildImportGraph: ReturnType<typeof vi.fn> };
+const mockBuildImportGraph = vi.mocked(buildImportGraph);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,19 +31,17 @@ function createMockAdapter(queryResponses?: Map<string, DatabaseRow[]>): IDataba
     init: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     close: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     getDbPath: vi.fn<() => string>().mockReturnValue(':memory:'),
-    transaction: vi.fn<(cb: () => Promise<unknown>) => Promise<unknown>>().mockImplementation(
-      async (cb: () => Promise<unknown>) => cb(),
-    ),
-    query: vi.fn<(sql: string, params?: QueryParams) => Promise<QueryResult>>().mockImplementation(
-      async (sql: string) => {
+    transaction: vi.fn((cb: () => Promise<unknown>) => cb()) as IDatabaseAdapter['transaction'],
+    query: vi
+      .fn()
+      .mockImplementation((sql: string) => {
         if (queryResponses) {
           for (const [pattern, rows] of queryResponses) {
-            if (sql.includes(pattern)) return rows;
+            if (sql.includes(pattern)) return Promise.resolve(rows);
           }
         }
-        return [];
-      },
-    ),
+        return Promise.resolve([]);
+      }) as IDatabaseAdapter['query'],
   };
 }
 
@@ -63,8 +59,28 @@ function graphWithCycle(): ImportGraph {
     adjacency,
     reverseAdjacency,
     modules: new Map([
-      ['mod-a', { name: 'moduleA.ts', directory: '/src', relativePath: 'src/moduleA.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-      ['mod-b', { name: 'moduleB.ts', directory: '/src', relativePath: 'src/moduleB.ts', isBarrel: false, lineCount: 30, packageId: 'pkg-1' }],
+      [
+        'mod-a',
+        {
+          name: 'moduleA.ts',
+          directory: '/src',
+          relativePath: 'src/moduleA.ts',
+          isBarrel: false,
+          lineCount: 50,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-b',
+        {
+          name: 'moduleB.ts',
+          directory: '/src',
+          relativePath: 'src/moduleB.ts',
+          isBarrel: false,
+          lineCount: 30,
+          packageId: 'pkg-1',
+        },
+      ],
     ]),
     nodeIds: new Set(['mod-a', 'mod-b']),
   };
@@ -81,15 +97,33 @@ function graphWithHighFanIn(importerCount: number): ImportGraph {
   // Target module
   adjacency.set(targetId, new Set());
   reverseAdjacency.set(targetId, new Set());
-  modules.set(targetId, { name: 'target.ts', directory: '/src', relativePath: 'src/target.ts', isBarrel: false, lineCount: 100, packageId: 'pkg-1' });
+  modules.set(targetId, {
+    name: 'target.ts',
+    directory: '/src',
+    relativePath: 'src/target.ts',
+    isBarrel: false,
+    lineCount: 100,
+    packageId: 'pkg-1',
+  });
   nodeIds.add(targetId);
 
   for (let i = 0; i < importerCount; i++) {
-    const id = `mod-importer-${i}`;
+    const id = `mod-importer-${String(i)}`;
     adjacency.set(id, new Set([targetId]));
-    reverseAdjacency.get(targetId)!.add(id);
+    const targetRev = reverseAdjacency.get(targetId);
+    if (targetRev === undefined) {
+      throw new Error('expected reverseAdjacency entry for target');
+    }
+    targetRev.add(id);
     reverseAdjacency.set(id, new Set());
-    modules.set(id, { name: `importer${i}.ts`, directory: '/src', relativePath: `src/importer${i}.ts`, isBarrel: false, lineCount: 20, packageId: 'pkg-1' });
+    modules.set(id, {
+      name: `importer${String(i)}.ts`,
+      directory: '/src',
+      relativePath: `src/importer${String(i)}.ts`,
+      isBarrel: false,
+      lineCount: 20,
+      packageId: 'pkg-1',
+    });
     nodeIds.add(id);
   }
 
@@ -106,15 +140,33 @@ function graphWithHighFanOut(depCount: number): ImportGraph {
 
   adjacency.set(sourceId, new Set());
   reverseAdjacency.set(sourceId, new Set());
-  modules.set(sourceId, { name: 'source.ts', directory: '/src', relativePath: 'src/source.ts', isBarrel: false, lineCount: 200, packageId: 'pkg-1' });
+  modules.set(sourceId, {
+    name: 'source.ts',
+    directory: '/src',
+    relativePath: 'src/source.ts',
+    isBarrel: false,
+    lineCount: 200,
+    packageId: 'pkg-1',
+  });
   nodeIds.add(sourceId);
 
   for (let i = 0; i < depCount; i++) {
-    const id = `mod-dep-${i}`;
-    adjacency.get(sourceId)!.add(id);
+    const id = `mod-dep-${String(i)}`;
+    const sourceAdj = adjacency.get(sourceId);
+    if (sourceAdj === undefined) {
+      throw new Error('expected adjacency entry for source');
+    }
+    sourceAdj.add(id);
     adjacency.set(id, new Set());
     reverseAdjacency.set(id, new Set([sourceId]));
-    modules.set(id, { name: `dep${i}.ts`, directory: '/src', relativePath: `src/dep${i}.ts`, isBarrel: false, lineCount: 30, packageId: 'pkg-1' });
+    modules.set(id, {
+      name: `dep${String(i)}.ts`,
+      directory: '/src',
+      relativePath: `src/dep${String(i)}.ts`,
+      isBarrel: false,
+      lineCount: 30,
+      packageId: 'pkg-1',
+    });
     nodeIds.add(id);
   }
 
@@ -137,9 +189,39 @@ function graphWithOrphanedModule(): ImportGraph {
     adjacency,
     reverseAdjacency,
     modules: new Map([
-      ['mod-connected-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-      ['mod-connected-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-      ['mod-orphan', { name: 'orphan.ts', directory: '/src', relativePath: 'src/orphan.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+      [
+        'mod-connected-a',
+        {
+          name: 'a.ts',
+          directory: '/src',
+          relativePath: 'src/a.ts',
+          isBarrel: false,
+          lineCount: 50,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-connected-b',
+        {
+          name: 'b.ts',
+          directory: '/src',
+          relativePath: 'src/b.ts',
+          isBarrel: false,
+          lineCount: 50,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-orphan',
+        {
+          name: 'orphan.ts',
+          directory: '/src',
+          relativePath: 'src/orphan.ts',
+          isBarrel: false,
+          lineCount: 50,
+          packageId: 'pkg-1',
+        },
+      ],
     ]),
     nodeIds: new Set(['mod-connected-a', 'mod-connected-b', 'mod-orphan']),
   };
@@ -161,9 +243,39 @@ function graphWithNestedBarrels(): ImportGraph {
     adjacency,
     reverseAdjacency,
     modules: new Map([
-      ['mod-barrel-outer', { name: 'index.ts', directory: '/src', relativePath: 'src/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
-      ['mod-barrel-inner', { name: 'index.ts', directory: '/src/utils', relativePath: 'src/utils/index.ts', isBarrel: true, lineCount: 5, packageId: 'pkg-1' }],
-      ['mod-leaf', { name: 'helper.ts', directory: '/src/utils', relativePath: 'src/utils/helper.ts', isBarrel: false, lineCount: 100, packageId: 'pkg-1' }],
+      [
+        'mod-barrel-outer',
+        {
+          name: 'index.ts',
+          directory: '/src',
+          relativePath: 'src/index.ts',
+          isBarrel: true,
+          lineCount: 5,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-barrel-inner',
+        {
+          name: 'index.ts',
+          directory: '/src/utils',
+          relativePath: 'src/utils/index.ts',
+          isBarrel: true,
+          lineCount: 5,
+          packageId: 'pkg-1',
+        },
+      ],
+      [
+        'mod-leaf',
+        {
+          name: 'helper.ts',
+          directory: '/src/utils',
+          relativePath: 'src/utils/helper.ts',
+          isBarrel: false,
+          lineCount: 100,
+          packageId: 'pkg-1',
+        },
+      ],
     ]),
     nodeIds: new Set(['mod-barrel-outer', 'mod-barrel-inner', 'mod-leaf']),
   };
@@ -179,7 +291,7 @@ describe('InsightEngine', () => {
     vi.clearAllMocks();
     adapter = createMockAdapter();
     engine = new InsightEngine(adapter);
-    buildImportGraph.mockResolvedValue(emptyGraph());
+    mockBuildImportGraph.mockResolvedValue(emptyGraph());
   });
 
   // ── compute() orchestration ──────────────────────────────────────────────
@@ -218,16 +330,14 @@ describe('InsightEngine', () => {
 
     it('calculates health score: deducts 5 per critical', async () => {
       // Set up a cycle to produce a critical insight
-      buildImportGraph.mockResolvedValue(graphWithCycle());
+      mockBuildImportGraph.mockResolvedValue(graphWithCycle());
 
       const report = await engine.compute();
       const criticalCount = report.summary.critical;
 
       expect(criticalCount).toBeGreaterThan(0);
       // Health score should be reduced by critical * 5 + warning * 2
-      expect(report.healthScore).toBe(
-        Math.max(0, 100 - criticalCount * 5 - report.summary.warning * 2),
-      );
+      expect(report.healthScore).toBe(Math.max(0, 100 - criticalCount * 5 - report.summary.warning * 2));
     });
 
     it('clamps health score to minimum 0', async () => {
@@ -239,19 +349,33 @@ describe('InsightEngine', () => {
 
       // Create 30 pairs of mutually importing modules -> 30 critical cycles
       for (let i = 0; i < 30; i++) {
-        const a = `mod-a-${i}`;
-        const b = `mod-b-${i}`;
+        const a = `mod-a-${String(i)}`;
+        const b = `mod-b-${String(i)}`;
         adjacency.set(a, new Set([b]));
         adjacency.set(b, new Set([a]));
         reverseAdjacency.set(a, new Set([b]));
         reverseAdjacency.set(b, new Set([a]));
-        modules.set(a, { name: `a${i}.ts`, directory: '/src', relativePath: `src/a${i}.ts`, isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
-        modules.set(b, { name: `b${i}.ts`, directory: '/src', relativePath: `src/b${i}.ts`, isBarrel: false, lineCount: 10, packageId: 'pkg-1' });
+        modules.set(a, {
+          name: `a${String(i)}.ts`,
+          directory: '/src',
+          relativePath: `src/a${String(i)}.ts`,
+          isBarrel: false,
+          lineCount: 10,
+          packageId: 'pkg-1',
+        });
+        modules.set(b, {
+          name: `b${String(i)}.ts`,
+          directory: '/src',
+          relativePath: `src/b${String(i)}.ts`,
+          isBarrel: false,
+          lineCount: 10,
+          packageId: 'pkg-1',
+        });
         nodeIds.add(a);
         nodeIds.add(b);
       }
 
-      buildImportGraph.mockResolvedValue({ adjacency, reverseAdjacency, modules, nodeIds });
+      mockBuildImportGraph.mockResolvedValue({ adjacency, reverseAdjacency, modules, nodeIds });
 
       const report = await engine.compute();
       expect(report.healthScore).toBe(0);
@@ -261,16 +385,14 @@ describe('InsightEngine', () => {
       // Make the adapter throw on certain queries but succeed on others
       const failAdapter: IDatabaseAdapter = {
         ...createMockAdapter(),
-        query: vi.fn<(sql: string, params?: QueryParams) => Promise<QueryResult>>().mockImplementation(
-          async (sql: string) => {
-            if (sql.includes('classes')) throw new Error('DB error for classes');
-            return [];
-          },
-        ),
+        query: vi.fn().mockImplementation((sql: string) => {
+          if (sql.includes('classes')) return Promise.reject(new Error('DB error for classes'));
+          return Promise.resolve([]);
+        }) as IDatabaseAdapter['query'],
       };
 
       const failEngine = new InsightEngine(failAdapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       // Should not throw - failed insights are logged, not propagated
       const report = await failEngine.compute();
@@ -289,16 +411,20 @@ describe('InsightEngine', () => {
     });
 
     it('detects a 2-module cycle', async () => {
-      buildImportGraph.mockResolvedValue(graphWithCycle());
+      mockBuildImportGraph.mockResolvedValue(graphWithCycle());
 
       const report = await engine.compute();
       const circular = report.insights.filter((i) => i.type === 'circular-imports');
 
       expect(circular).toHaveLength(1);
-      expect(circular[0]!.severity).toBe('critical');
-      expect(circular[0]!.category).toBe('dependency-health');
-      expect(circular[0]!.entities).toHaveLength(2);
-      expect(circular[0]!.value).toBe(2);
+      const [circularInsight] = circular;
+      if (circularInsight === undefined) {
+        throw new Error('expected circular import insight');
+      }
+      expect(circularInsight.severity).toBe('critical');
+      expect(circularInsight.category).toBe('dependency-health');
+      expect(circularInsight.entities).toHaveLength(2);
+      expect(circularInsight.value).toBe(2);
     });
   });
 
@@ -306,7 +432,7 @@ describe('InsightEngine', () => {
 
   describe('import fan-in', () => {
     it('returns no insight when fan-in is below threshold', async () => {
-      buildImportGraph.mockResolvedValue(graphWithHighFanIn(5));
+      mockBuildImportGraph.mockResolvedValue(graphWithHighFanIn(5));
 
       const report = await engine.compute();
       const fanIn = report.insights.filter((i) => i.type === 'import-fan-in');
@@ -314,17 +440,17 @@ describe('InsightEngine', () => {
     });
 
     it('detects modules with fan-in >= 10', async () => {
-      buildImportGraph.mockResolvedValue(graphWithHighFanIn(12));
+      mockBuildImportGraph.mockResolvedValue(graphWithHighFanIn(12));
 
       const report = await engine.compute();
       const fanIn = report.insights.filter((i) => i.type === 'import-fan-in');
 
       expect(fanIn).toHaveLength(1);
-      expect(fanIn[0]!.severity).toBe('warning');
-      expect(fanIn[0]!.entities).toHaveLength(1);
-      expect(fanIn[0]!.entities[0]!.name).toBe('target.ts');
-      expect(fanIn[0]!.value).toBe(12);
-      expect(fanIn[0]!.threshold).toBe(10);
+      expect(fanIn[0]?.severity).toBe('warning');
+      expect(fanIn[0]?.entities).toHaveLength(1);
+      expect(fanIn[0]?.entities[0]?.name).toBe('target.ts');
+      expect(fanIn[0]?.value).toBe(12);
+      expect(fanIn[0]?.threshold).toBe(10);
     });
   });
 
@@ -332,7 +458,7 @@ describe('InsightEngine', () => {
 
   describe('import fan-out', () => {
     it('returns no insight when fan-out is below threshold', async () => {
-      buildImportGraph.mockResolvedValue(graphWithHighFanOut(5));
+      mockBuildImportGraph.mockResolvedValue(graphWithHighFanOut(5));
 
       const report = await engine.compute();
       const fanOut = report.insights.filter((i) => i.type === 'import-fan-out');
@@ -340,17 +466,17 @@ describe('InsightEngine', () => {
     });
 
     it('detects modules with fan-out >= 10', async () => {
-      buildImportGraph.mockResolvedValue(graphWithHighFanOut(11));
+      mockBuildImportGraph.mockResolvedValue(graphWithHighFanOut(11));
 
       const report = await engine.compute();
       const fanOut = report.insights.filter((i) => i.type === 'import-fan-out');
 
       expect(fanOut).toHaveLength(1);
-      expect(fanOut[0]!.severity).toBe('warning');
-      expect(fanOut[0]!.entities).toHaveLength(1);
-      expect(fanOut[0]!.entities[0]!.name).toBe('source.ts');
-      expect(fanOut[0]!.value).toBe(11);
-      expect(fanOut[0]!.threshold).toBe(10);
+      expect(fanOut[0]?.severity).toBe('warning');
+      expect(fanOut[0]?.entities).toHaveLength(1);
+      expect(fanOut[0]?.entities[0]?.name).toBe('source.ts');
+      expect(fanOut[0]?.value).toBe(11);
+      expect(fanOut[0]?.threshold).toBe(10);
     });
   });
 
@@ -358,7 +484,7 @@ describe('InsightEngine', () => {
 
   describe('orphaned modules', () => {
     it('returns no insight when all modules are connected', async () => {
-      buildImportGraph.mockResolvedValue(graphWithCycle());
+      mockBuildImportGraph.mockResolvedValue(graphWithCycle());
 
       const report = await engine.compute();
       const orphans = report.insights.filter((i) => i.type === 'orphaned-modules');
@@ -366,15 +492,15 @@ describe('InsightEngine', () => {
     });
 
     it('detects orphaned modules with zero connections', async () => {
-      buildImportGraph.mockResolvedValue(graphWithOrphanedModule());
+      mockBuildImportGraph.mockResolvedValue(graphWithOrphanedModule());
 
       const report = await engine.compute();
       const orphans = report.insights.filter((i) => i.type === 'orphaned-modules');
 
       expect(orphans).toHaveLength(1);
-      expect(orphans[0]!.severity).toBe('warning');
-      expect(orphans[0]!.entities).toHaveLength(1);
-      expect(orphans[0]!.entities[0]!.name).toBe('orphan.ts');
+      expect(orphans[0]?.severity).toBe('warning');
+      expect(orphans[0]?.entities).toHaveLength(1);
+      expect(orphans[0]?.entities[0]?.name).toBe('orphan.ts');
     });
   });
 
@@ -382,7 +508,7 @@ describe('InsightEngine', () => {
 
   describe('hub modules', () => {
     it('returns no insight when no module exceeds hub threshold', async () => {
-      buildImportGraph.mockResolvedValue(graphWithHighFanIn(5));
+      mockBuildImportGraph.mockResolvedValue(graphWithHighFanIn(5));
 
       const report = await engine.compute();
       const hubs = report.insights.filter((i) => i.type === 'hub-modules');
@@ -391,14 +517,18 @@ describe('InsightEngine', () => {
 
     it('detects hub modules with combined degree >= 15', async () => {
       // Fan-in of 15 means inDeg=15, outDeg=0, total=15 >= HUB_DEGREE(15)
-      buildImportGraph.mockResolvedValue(graphWithHighFanIn(15));
+      mockBuildImportGraph.mockResolvedValue(graphWithHighFanIn(15));
 
       const report = await engine.compute();
       const hubs = report.insights.filter((i) => i.type === 'hub-modules');
 
       expect(hubs).toHaveLength(1);
-      expect(hubs[0]!.severity).toBe('info');
-      expect(hubs[0]!.entities.some((e) => e.name === 'target.ts')).toBe(true);
+      const [hub] = hubs;
+      if (hub === undefined) {
+        throw new Error('expected hub insight');
+      }
+      expect(hub.severity).toBe('info');
+      expect(hub.entities.some((e) => e.name === 'target.ts')).toBe(true);
     });
   });
 
@@ -406,7 +536,7 @@ describe('InsightEngine', () => {
 
   describe('bridge modules', () => {
     it('returns no insight when there are no articulation points', async () => {
-      buildImportGraph.mockResolvedValue(graphWithCycle());
+      mockBuildImportGraph.mockResolvedValue(graphWithCycle());
 
       const report = await engine.compute();
       const bridges = report.insights.filter((i) => i.type === 'bridge-modules');
@@ -429,21 +559,51 @@ describe('InsightEngine', () => {
         adjacency,
         reverseAdjacency,
         modules: new Map([
-          ['mod-a', { name: 'a.ts', directory: '/src', relativePath: 'src/a.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-          ['mod-b', { name: 'b.ts', directory: '/src', relativePath: 'src/b.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
-          ['mod-c', { name: 'c.ts', directory: '/src', relativePath: 'src/c.ts', isBarrel: false, lineCount: 50, packageId: 'pkg-1' }],
+          [
+            'mod-a',
+            {
+              name: 'a.ts',
+              directory: '/src',
+              relativePath: 'src/a.ts',
+              isBarrel: false,
+              lineCount: 50,
+              packageId: 'pkg-1',
+            },
+          ],
+          [
+            'mod-b',
+            {
+              name: 'b.ts',
+              directory: '/src',
+              relativePath: 'src/b.ts',
+              isBarrel: false,
+              lineCount: 50,
+              packageId: 'pkg-1',
+            },
+          ],
+          [
+            'mod-c',
+            {
+              name: 'c.ts',
+              directory: '/src',
+              relativePath: 'src/c.ts',
+              isBarrel: false,
+              lineCount: 50,
+              packageId: 'pkg-1',
+            },
+          ],
         ]),
         nodeIds: new Set(['mod-a', 'mod-b', 'mod-c']),
       };
 
-      buildImportGraph.mockResolvedValue(graph);
+      mockBuildImportGraph.mockResolvedValue(graph);
 
       const report = await engine.compute();
       const bridges = report.insights.filter((i) => i.type === 'bridge-modules');
 
       expect(bridges).toHaveLength(1);
-      expect(bridges[0]!.severity).toBe('warning');
-      expect(bridges[0]!.entities.some((e) => e.name === 'b.ts')).toBe(true);
+      expect(bridges[0]?.severity).toBe('warning');
+      expect(bridges[0]?.entities.some((e) => e.name === 'b.ts')).toBe(true);
     });
   });
 
@@ -458,16 +618,16 @@ describe('InsightEngine', () => {
     });
 
     it('detects barrel files re-exporting through other barrel files', async () => {
-      buildImportGraph.mockResolvedValue(graphWithNestedBarrels());
+      mockBuildImportGraph.mockResolvedValue(graphWithNestedBarrels());
 
       const report = await engine.compute();
       const barrels = report.insights.filter((i) => i.type === 'barrel-file-depth');
 
       expect(barrels).toHaveLength(1);
-      expect(barrels[0]!.severity).toBe('info');
-      expect(barrels[0]!.entities).toHaveLength(1);
+      expect(barrels[0]?.severity).toBe('info');
+      expect(barrels[0]?.entities).toHaveLength(1);
       // Only the outer barrel should be flagged (it imports the inner barrel)
-      expect(barrels[0]!.entities[0]!.id).toBe('mod-barrel-outer');
+      expect(barrels[0]?.entities[0]?.id).toBe('mod-barrel-outer');
     });
   });
 
@@ -475,7 +635,7 @@ describe('InsightEngine', () => {
 
   describe('cluster detection', () => {
     it('returns no insight when graph has fewer than 3 nodes', async () => {
-      buildImportGraph.mockResolvedValue(graphWithCycle());
+      mockBuildImportGraph.mockResolvedValue(graphWithCycle());
 
       const report = await engine.compute();
       const clusters = report.insights.filter((i) => i.type === 'cluster-detection');
@@ -502,7 +662,14 @@ describe('InsightEngine', () => {
 
       const modules = new Map<string, ImportGraph['modules'] extends Map<string, infer V> ? V : never>();
       for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
-        modules.set(id, { name: `${id}.ts`, directory: '/src', relativePath: `src/${id}.ts`, isBarrel: false, lineCount: 30, packageId: 'pkg-1' });
+        modules.set(id, {
+          name: `${id}.ts`,
+          directory: '/src',
+          relativePath: `src/${id}.ts`,
+          isBarrel: false,
+          lineCount: 30,
+          packageId: 'pkg-1',
+        });
       }
 
       const graph: ImportGraph = {
@@ -512,7 +679,7 @@ describe('InsightEngine', () => {
         nodeIds: new Set(['a', 'b', 'c', 'd', 'e', 'f']),
       };
 
-      buildImportGraph.mockResolvedValue(graph);
+      mockBuildImportGraph.mockResolvedValue(graph);
 
       const report = await engine.compute();
       const clusters = report.insights.filter((i) => i.type === 'cluster-detection');
@@ -545,16 +712,16 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const gods = report.insights.filter((i) => i.type === 'god-class');
 
       expect(gods).toHaveLength(1);
-      expect(gods[0]!.severity).toBe('warning');
-      expect(gods[0]!.entities[0]!.name).toBe('BigClass');
-      expect(gods[0]!.value).toBe(16);
-      expect(gods[0]!.threshold).toBe(15);
+      expect(gods[0]?.severity).toBe('warning');
+      expect(gods[0]?.entities[0]?.name).toBe('BigClass');
+      expect(gods[0]?.value).toBe(16);
+      expect(gods[0]?.threshold).toBe(15);
     });
 
     it('detects god class at critical level (20+ members)', async () => {
@@ -565,14 +732,14 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const gods = report.insights.filter((i) => i.type === 'god-class');
 
       expect(gods).toHaveLength(1);
-      expect(gods[0]!.severity).toBe('critical');
-      expect(gods[0]!.value).toBe(23);
+      expect(gods[0]?.severity).toBe('critical');
+      expect(gods[0]?.value).toBe(23);
     });
 
     it('handles string-typed numeric fields from database', async () => {
@@ -583,13 +750,13 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const gods = report.insights.filter((i) => i.type === 'god-class');
 
       expect(gods).toHaveLength(1);
-      expect(gods[0]!.value).toBe(17);
+      expect(gods[0]?.value).toBe(17);
     });
   });
 
@@ -605,37 +772,33 @@ describe('InsightEngine', () => {
 
     it('detects methods at warning level (4+ params)', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM methods', [
-        { id: 'method-1', name: 'doSomething', module_id: 'mod-1', cnt: 5 },
-      ]);
+      responses.set('FROM methods', [{ id: 'method-1', name: 'doSomething', module_id: 'mod-1', cnt: 5 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const longParams = report.insights.filter((i) => i.type === 'long-parameter-lists');
 
       expect(longParams).toHaveLength(1);
-      expect(longParams[0]!.severity).toBe('warning');
-      expect(longParams[0]!.entities[0]!.detail).toBe('5 parameters');
+      expect(longParams[0]?.severity).toBe('warning');
+      expect(longParams[0]?.entities[0]?.detail).toBe('5 parameters');
     });
 
     it('escalates to critical at 6+ params', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM methods', [
-        { id: 'method-1', name: 'tooManyArgs', module_id: 'mod-1', cnt: 7 },
-      ]);
+      responses.set('FROM methods', [{ id: 'method-1', name: 'tooManyArgs', module_id: 'mod-1', cnt: 7 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const longParams = report.insights.filter((i) => i.type === 'long-parameter-lists');
 
       expect(longParams).toHaveLength(1);
-      expect(longParams[0]!.severity).toBe('critical');
+      expect(longParams[0]?.severity).toBe('critical');
     });
   });
 
@@ -651,37 +814,33 @@ describe('InsightEngine', () => {
 
     it('detects large modules at warning level (300+ lines)', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM modules', [
-        { id: 'mod-1', name: 'bigModule.ts', module_id: '', cnt: 350 },
-      ]);
+      responses.set('FROM modules', [{ id: 'mod-1', name: 'bigModule.ts', module_id: '', cnt: 350 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const moduleSize = report.insights.filter((i) => i.type === 'module-size');
 
       expect(moduleSize).toHaveLength(1);
-      expect(moduleSize[0]!.severity).toBe('warning');
-      expect(moduleSize[0]!.entities[0]!.detail).toBe('350 lines');
+      expect(moduleSize[0]?.severity).toBe('warning');
+      expect(moduleSize[0]?.entities[0]?.detail).toBe('350 lines');
     });
 
     it('escalates to critical at 500+ lines', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM modules', [
-        { id: 'mod-1', name: 'hugeModule.ts', module_id: '', cnt: 600 },
-      ]);
+      responses.set('FROM modules', [{ id: 'mod-1', name: 'hugeModule.ts', module_id: '', cnt: 600 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const moduleSize = report.insights.filter((i) => i.type === 'module-size');
 
       expect(moduleSize).toHaveLength(1);
-      expect(moduleSize[0]!.severity).toBe('critical');
+      expect(moduleSize[0]?.severity).toBe('critical');
     });
   });
 
@@ -697,37 +856,33 @@ describe('InsightEngine', () => {
 
     it('detects deep inheritance at warning level (depth 3+)', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM chain', [
-        { id: 'class-deep', name: 'DeepChild', module_id: 'mod-1', max_depth: 4 },
-      ]);
+      responses.set('FROM chain', [{ id: 'class-deep', name: 'DeepChild', module_id: 'mod-1', max_depth: 4 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const deep = report.insights.filter((i) => i.type === 'deep-inheritance');
 
       expect(deep).toHaveLength(1);
-      expect(deep[0]!.severity).toBe('warning');
-      expect(deep[0]!.entities[0]!.detail).toBe('inheritance depth 4');
+      expect(deep[0]?.severity).toBe('warning');
+      expect(deep[0]?.entities[0]?.detail).toBe('inheritance depth 4');
     });
 
     it('escalates to critical at depth 5+', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM chain', [
-        { id: 'class-deep', name: 'VeryDeepChild', module_id: 'mod-1', max_depth: 6 },
-      ]);
+      responses.set('FROM chain', [{ id: 'class-deep', name: 'VeryDeepChild', module_id: 'mod-1', max_depth: 6 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const deep = report.insights.filter((i) => i.type === 'deep-inheritance');
 
       expect(deep).toHaveLength(1);
-      expect(deep[0]!.severity).toBe('critical');
+      expect(deep[0]?.severity).toBe('critical');
     });
   });
 
@@ -749,14 +904,14 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const leaky = report.insights.filter((i) => i.type === 'leaky-encapsulation');
 
       expect(leaky).toHaveLength(1);
-      expect(leaky[0]!.severity).toBe('warning');
-      expect(leaky[0]!.entities[0]!.detail).toBe('90% public (9/10 members)');
+      expect(leaky[0]?.severity).toBe('warning');
+      expect(leaky[0]?.entities[0]?.detail).toBe('90% public (9/10 members)');
     });
   });
 
@@ -781,14 +936,14 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const unexported = report.insights.filter((i) => i.type === 'unexported-entities');
 
       expect(unexported).toHaveLength(1);
-      expect(unexported[0]!.severity).toBe('info');
-      expect(unexported[0]!.entities).toHaveLength(2);
+      expect(unexported[0]?.severity).toBe('info');
+      expect(unexported[0]?.entities).toHaveLength(2);
     });
   });
 
@@ -804,20 +959,18 @@ describe('InsightEngine', () => {
 
     it('detects modules with type-only imports', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('is_type_only', [
-        { id: 'mod-1', name: 'types.ts', type_only_count: 3, total_count: 5 },
-      ]);
+      responses.set('is_type_only', [{ id: 'mod-1', name: 'types.ts', type_only_count: 3, total_count: 5 }]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const typeOnly = report.insights.filter((i) => i.type === 'type-only-dependencies');
 
       expect(typeOnly).toHaveLength(1);
-      expect(typeOnly[0]!.severity).toBe('info');
-      expect(typeOnly[0]!.entities[0]!.detail).toBe('3/5 imports are type-only');
+      expect(typeOnly[0]?.severity).toBe('info');
+      expect(typeOnly[0]?.entities[0]?.detail).toBe('3/5 imports are type-only');
     });
   });
 
@@ -835,10 +988,10 @@ describe('InsightEngine', () => {
       const externalRows: DatabaseRow[] = [];
       for (let i = 0; i < 9; i++) {
         externalRows.push({
-          id: `import-${i}`,
+          id: `import-${String(i)}`,
           module_id: 'mod-1',
           module_name: 'heavy.ts',
-          source: `ext-package-${i}`,
+          source: `ext-package-${String(i)}`,
         });
       }
 
@@ -847,14 +1000,14 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const heavy = report.insights.filter((i) => i.type === 'heavy-external-dependency');
 
       expect(heavy).toHaveLength(1);
-      expect(heavy[0]!.severity).toBe('warning');
-      expect(heavy[0]!.entities[0]!.name).toBe('heavy.ts');
+      expect(heavy[0]?.severity).toBe('warning');
+      expect(heavy[0]?.entities[0]?.name).toBe('heavy.ts');
     });
 
     it('correctly groups scoped packages like @scope/name', async () => {
@@ -862,10 +1015,10 @@ describe('InsightEngine', () => {
       // 8 distinct scoped packages for one module
       for (let i = 0; i < 8; i++) {
         externalRows.push({
-          id: `import-${i}`,
+          id: `import-${String(i)}`,
           module_id: 'mod-1',
           module_name: 'heavy.ts',
-          source: `@scope/package-${i}`,
+          source: `@scope/package-${String(i)}`,
         });
       }
 
@@ -874,13 +1027,13 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const heavy = report.insights.filter((i) => i.type === 'heavy-external-dependency');
 
       expect(heavy).toHaveLength(1);
-      expect(heavy[0]!.entities[0]!.detail).toBe('8 external packages');
+      expect(heavy[0]?.entities[0]?.detail).toBe('8 external packages');
     });
 
     it('ignores relative/internal imports', async () => {
@@ -896,7 +1049,7 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const heavy = report.insights.filter((i) => i.type === 'heavy-external-dependency');
@@ -911,16 +1064,14 @@ describe('InsightEngine', () => {
   describe('unused exports', () => {
     it('returns no insight when all exports are imported', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM exports', [
-        { id: 'exp-1', name: 'usedSymbol', module_id: 'mod-1' },
-      ]);
+      responses.set('FROM exports', [{ id: 'exp-1', name: 'usedSymbol', module_id: 'mod-1' }]);
       responses.set('FROM imports', [
         { id: 'imp-1', module_id: 'mod-2', source: './mod1', specifiers_json: '[{"imported": "usedSymbol"}]' },
       ]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const unused = report.insights.filter((i) => i.type === 'unused-exports');
@@ -940,29 +1091,28 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const unused = report.insights.filter((i) => i.type === 'unused-exports');
 
       expect(unused).toHaveLength(1);
-      expect(unused[0]!.severity).toBe('warning');
-      expect(unused[0]!.entities).toHaveLength(1);
-      expect(unused[0]!.entities[0]!.name).toBe('unusedSymbol');
+      expect(unused[0]?.severity).toBe('warning');
+      expect(unused[0]?.entities).toHaveLength(1);
+      expect(unused[0]?.entities[0]?.name).toBe('unusedSymbol');
+      expect(unused[0]?.entities[0]?.name).toBe('unusedSymbol');
     });
 
     it('handles malformed specifiers_json gracefully', async () => {
       const responses = new Map<string, DatabaseRow[]>();
-      responses.set('FROM exports', [
-        { id: 'exp-1', name: 'someSymbol', module_id: 'mod-1' },
-      ]);
+      responses.set('FROM exports', [{ id: 'exp-1', name: 'someSymbol', module_id: 'mod-1' }]);
       responses.set('FROM imports', [
         { id: 'imp-1', module_id: 'mod-2', source: './mod1', specifiers_json: 'not valid json' },
       ]);
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       // Should not throw
       const report = await engine.compute();
@@ -991,14 +1141,14 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const isp = report.insights.filter((i) => i.type === 'interface-segregation-violations');
 
       expect(isp).toHaveLength(1);
-      expect(isp[0]!.severity).toBe('warning');
-      expect(isp[0]!.entities[0]!.detail).toBe('10 members, implemented by 3 classes');
+      expect(isp[0]?.severity).toBe('warning');
+      expect(isp[0]?.entities[0]?.detail).toBe('10 members, implemented by 3 classes');
     });
   });
 
@@ -1021,14 +1171,14 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const missing = report.insights.filter((i) => i.type === 'missing-return-types');
 
       expect(missing).toHaveLength(1);
-      expect(missing[0]!.severity).toBe('info');
-      expect(missing[0]!.entities).toHaveLength(2);
+      expect(missing[0]?.severity).toBe('info');
+      expect(missing[0]?.entities).toHaveLength(2);
     });
   });
 
@@ -1050,14 +1200,14 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(emptyGraph());
+      mockBuildImportGraph.mockResolvedValue(emptyGraph());
 
       const report = await engine.compute();
       const asyncMismatch = report.insights.filter((i) => i.type === 'async-boundary-mismatches');
 
       expect(asyncMismatch).toHaveLength(1);
-      expect(asyncMismatch[0]!.severity).toBe('info');
-      expect(asyncMismatch[0]!.entities[0]!.detail).toBe('sync method calls async fetchData');
+      expect(asyncMismatch[0]?.severity).toBe('info');
+      expect(asyncMismatch[0]?.entities[0]?.detail).toBe('sync method calls async fetchData');
     });
   });
 
@@ -1073,7 +1223,7 @@ describe('InsightEngine', () => {
 
       adapter = createMockAdapter(responses);
       engine = new InsightEngine(adapter);
-      buildImportGraph.mockResolvedValue(graphWithCycle());
+      mockBuildImportGraph.mockResolvedValue(graphWithCycle());
 
       const report = await engine.compute();
 

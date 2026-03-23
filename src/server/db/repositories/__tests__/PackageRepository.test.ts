@@ -1,12 +1,12 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PackageRepository } from '../PackageRepository';
 import { Package } from '../../../../shared/types/Package';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
+import { PackageRepository } from '../PackageRepository';
 
-import type { IDatabaseAdapter, QueryParams } from '../../adapter/IDatabaseAdapter';
-import type { IPackageCreateDTO } from '../PackageRepository';
+import type { IPackageCreateDTO } from '../../../../shared/types/dto/PackageDTO';
+import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IPackageRow } from '../../types/DatabaseResults';
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ describe('PackageRepository', () => {
   describe('create', () => {
     it('inserts a package row and returns a Package instance', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([row]);
 
       const result = await repo.create(makeCreateDTO());
 
@@ -83,23 +83,23 @@ describe('PackageRepository', () => {
       expect(result.name).toBe('@scope/my-package');
       expect(result.version).toBe('1.0.0');
       expect(result.path).toBe('/packages/my-package');
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.created_at).toBeTypeOf('string');
     });
 
     it('passes the correct SQL and parameters to the adapter', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([row]);
 
       await repo.create(makeCreateDTO());
 
-      expect(adapter.query).toHaveBeenCalledWith(
+      expect(vi.mocked(adapter).query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO packages'),
         expect.arrayContaining(['pkg-1', '@scope/my-package', '1.0.0', '/packages/my-package'])
       );
     });
 
     it('throws EntityNotFoundError when INSERT returns no rows', async () => {
-      vi.mocked(adapter.query).mockResolvedValueOnce([]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([]);
 
       await expect(repo.create(makeCreateDTO())).rejects.toThrow(EntityNotFoundError);
     });
@@ -115,7 +115,7 @@ describe('PackageRepository', () => {
       };
 
       // First call: INSERT package, second call: INSERT dependency
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // package INSERT
         .mockResolvedValueOnce([depRow]); // dependency INSERT
 
@@ -127,12 +127,12 @@ describe('PackageRepository', () => {
 
       expect(result).toBeInstanceOf(Package);
       // The dependency INSERT should have been called
-      expect(adapter.query).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(adapter).query).toHaveBeenCalledTimes(2);
     });
 
     it('creates devDependency records', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // package INSERT
         .mockResolvedValueOnce([
           {
@@ -151,12 +151,12 @@ describe('PackageRepository', () => {
       await repo.create(dto);
 
       // Package INSERT + dependency INSERT
-      expect(adapter.query).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(adapter).query).toHaveBeenCalledTimes(2);
     });
 
     it('creates peerDependency records', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // package INSERT
         .mockResolvedValueOnce([
           {
@@ -174,12 +174,12 @@ describe('PackageRepository', () => {
 
       await repo.create(dto);
 
-      expect(adapter.query).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(adapter).query).toHaveBeenCalledTimes(2);
     });
 
     it('skips self-referencing dependencies', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([row]);
 
       const dto = makeCreateDTO({
         dependencies: new Map([['self', 'pkg-1']]), // same id as the package itself
@@ -188,12 +188,12 @@ describe('PackageRepository', () => {
       await repo.create(dto);
 
       // Only the package INSERT -- no dependency INSERT because the target equals the source
-      expect(adapter.query).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(adapter).query).toHaveBeenCalledTimes(1);
     });
 
     it('silently skips dependency creation failures (external packages)', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // package INSERT
         .mockRejectedValueOnce(new Error('foreign key constraint')); // dependency INSERT fails
 
@@ -207,13 +207,13 @@ describe('PackageRepository', () => {
     });
 
     it('wraps unexpected errors in RepositoryError', async () => {
-      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('connection lost'));
+      vi.mocked(adapter).query.mockRejectedValueOnce(new Error('connection lost'));
 
       await expect(repo.create(makeCreateDTO())).rejects.toThrow(RepositoryError);
     });
 
     it('rethrows RepositoryError subclasses without wrapping', async () => {
-      vi.mocked(adapter.query).mockResolvedValueOnce([]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([]);
 
       try {
         await repo.create(makeCreateDTO());
@@ -227,11 +227,17 @@ describe('PackageRepository', () => {
 
     it('handles all three dependency types in a single create call', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // package INSERT
-        .mockResolvedValueOnce([{ id: 'pkg-1_d1', source_id: 'pkg-1', target_id: 'd1', type: 'dependency', created_at: NOW_ISO }])
-        .mockResolvedValueOnce([{ id: 'pkg-1_d2', source_id: 'pkg-1', target_id: 'd2', type: 'devDependency', created_at: NOW_ISO }])
-        .mockResolvedValueOnce([{ id: 'pkg-1_d3', source_id: 'pkg-1', target_id: 'd3', type: 'peerDependency', created_at: NOW_ISO }]);
+        .mockResolvedValueOnce([
+          { id: 'pkg-1_d1', source_id: 'pkg-1', target_id: 'd1', type: 'dependency', created_at: NOW_ISO },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'pkg-1_d2', source_id: 'pkg-1', target_id: 'd2', type: 'devDependency', created_at: NOW_ISO },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'pkg-1_d3', source_id: 'pkg-1', target_id: 'd3', type: 'peerDependency', created_at: NOW_ISO },
+        ]);
 
       const dto = makeCreateDTO({
         dependencies: new Map([['dep-a', 'd1']]),
@@ -243,7 +249,7 @@ describe('PackageRepository', () => {
 
       expect(result).toBeInstanceOf(Package);
       // 1 package INSERT + 3 dependency INSERTs
-      expect(adapter.query).toHaveBeenCalledTimes(4);
+      expect(vi.mocked(adapter).query).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -254,7 +260,7 @@ describe('PackageRepository', () => {
   describe('update', () => {
     it('updates the name field and returns the updated Package', async () => {
       const updatedRow = makePackageRow({ name: 'new-name' });
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([updatedRow]) // UPDATE query
         .mockResolvedValueOnce([updatedRow]) // SELECT for retrieveById -> retrieve
         .mockResolvedValueOnce([]); // findBySourceId for dependency hydration
@@ -267,7 +273,7 @@ describe('PackageRepository', () => {
 
     it('updates the version field', async () => {
       const updatedRow = makePackageRow({ version: '2.0.0' });
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([updatedRow]) // UPDATE
         .mockResolvedValueOnce([updatedRow]) // SELECT
         .mockResolvedValueOnce([]); // dependency hydration
@@ -279,7 +285,7 @@ describe('PackageRepository', () => {
 
     it('updates the path field', async () => {
       const updatedRow = makePackageRow({ path: '/new/path' });
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([updatedRow]) // UPDATE
         .mockResolvedValueOnce([updatedRow]) // SELECT
         .mockResolvedValueOnce([]); // dependency hydration
@@ -291,7 +297,7 @@ describe('PackageRepository', () => {
 
     it('updates multiple fields simultaneously', async () => {
       const updatedRow = makePackageRow({ name: 'renamed', version: '3.0.0' });
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([updatedRow]) // UPDATE
         .mockResolvedValueOnce([updatedRow]) // SELECT
         .mockResolvedValueOnce([]); // dependency hydration
@@ -304,16 +310,16 @@ describe('PackageRepository', () => {
 
     it('constructs a SET clause with only the provided fields', async () => {
       const updatedRow = makePackageRow({ name: 'updated' });
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([updatedRow]) // UPDATE
         .mockResolvedValueOnce([updatedRow]) // SELECT
         .mockResolvedValueOnce([]); // dependency hydration
 
       await repo.update('pkg-1', { name: 'updated' });
 
-      const updateCall = vi.mocked(adapter.query).mock.calls[0];
+      const updateCall = vi.mocked(adapter).query.mock.calls[0];
       expect(updateCall).toBeDefined();
-      const sql = updateCall![0] as string;
+      const sql = updateCall?.[0];
       expect(sql).toContain('UPDATE packages SET name = ?');
       expect(sql).not.toContain('version');
       expect(sql).not.toContain('path');
@@ -324,7 +330,7 @@ describe('PackageRepository', () => {
     });
 
     it('throws EntityNotFoundError when the package does not exist after update', async () => {
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([]) // UPDATE returns empty
         .mockResolvedValueOnce([]); // SELECT returns empty (package not found)
 
@@ -332,7 +338,7 @@ describe('PackageRepository', () => {
     });
 
     it('wraps unexpected errors in RepositoryError', async () => {
-      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('disk full'));
+      vi.mocked(adapter).query.mockRejectedValueOnce(new Error('disk full'));
 
       await expect(repo.update('pkg-1', { name: 'x' })).rejects.toThrow(RepositoryError);
     });
@@ -349,7 +355,7 @@ describe('PackageRepository', () => {
   describe('retrieve', () => {
     it('retrieves all packages when called with no arguments', async () => {
       const rows = [makePackageRow({ id: 'pkg-1' }), makePackageRow({ id: 'pkg-2', name: 'other' })];
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce(rows) // SELECT *
         .mockResolvedValueOnce([]) // dependency hydration for pkg-1
         .mockResolvedValueOnce([]); // dependency hydration for pkg-2
@@ -363,48 +369,44 @@ describe('PackageRepository', () => {
 
     it('filters by id when id is provided', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // SELECT with WHERE id = ?
         .mockResolvedValueOnce([]); // dependency hydration
 
       await repo.retrieve('pkg-1');
 
-      const selectCall = vi.mocked(adapter.query).mock.calls[0];
-      const sql = selectCall![0] as string;
+      const selectCall = vi.mocked(adapter).query.mock.calls[0];
+      const sql = selectCall?.[0];
       expect(sql).toContain('WHERE');
       expect(sql).toContain('id = ?');
-      expect(selectCall![1]).toContain('pkg-1');
+      expect(selectCall?.[1]).toContain('pkg-1');
     });
 
     it('filters by module_id when module_id is provided', async () => {
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([]) // SELECT with WHERE module_id = ?
-        ;
+      vi.mocked(adapter).query.mockResolvedValueOnce([]); // SELECT with WHERE module_id = ?
 
       await repo.retrieve(undefined, 'mod-1');
 
-      const selectCall = vi.mocked(adapter.query).mock.calls[0];
-      const sql = selectCall![0] as string;
+      const selectCall = vi.mocked(adapter).query.mock.calls[0];
+      const sql = selectCall?.[0];
       expect(sql).toContain('module_id = ?');
-      expect(selectCall![1]).toContain('mod-1');
+      expect(selectCall?.[1]).toContain('mod-1');
     });
 
     it('filters by both id and module_id when both are provided', async () => {
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([]) // SELECT with WHERE id = ? AND module_id = ?
-        ;
+      vi.mocked(adapter).query.mockResolvedValueOnce([]); // SELECT with WHERE id = ? AND module_id = ?
 
       await repo.retrieve('pkg-1', 'mod-1');
 
-      const selectCall = vi.mocked(adapter.query).mock.calls[0];
-      const sql = selectCall![0] as string;
+      const selectCall = vi.mocked(adapter).query.mock.calls[0];
+      const sql = selectCall?.[0];
       expect(sql).toContain('id = ?');
       expect(sql).toContain('AND');
       expect(sql).toContain('module_id = ?');
     });
 
     it('returns an empty array when no packages match', async () => {
-      vi.mocked(adapter.query).mockResolvedValueOnce([]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([]);
 
       const results = await repo.retrieve('nonexistent');
 
@@ -413,7 +415,7 @@ describe('PackageRepository', () => {
 
     it('hydrates dependencies from the dependency repository', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // SELECT packages
         .mockResolvedValueOnce([
           { id: 'pkg-1_dep-1', source_id: 'pkg-1', target_id: 'dep-1', type: 'dependency', created_at: NOW_ISO },
@@ -424,31 +426,32 @@ describe('PackageRepository', () => {
       const results = await repo.retrieve('pkg-1');
 
       expect(results).toHaveLength(1);
-      const pkg = results[0]!;
-      expect(pkg.dependencies).toBeInstanceOf(Map);
-      expect((pkg.dependencies as Map<string, Package>).has('dep-1')).toBe(true);
-      expect((pkg.devDependencies as Map<string, Package>).has('dev-1')).toBe(true);
-      expect((pkg.peerDependencies as Map<string, Package>).has('peer-1')).toBe(true);
+      const pkg = results[0];
+      expect(pkg).toBeDefined();
+      expect(pkg?.dependencies).toBeInstanceOf(Map);
+      expect((pkg?.dependencies as Map<string, Package>)?.has('dep-1')).toBe(true);
+      expect((pkg?.devDependencies as Map<string, Package>)?.has('dev-1')).toBe(true);
+      expect((pkg?.peerDependencies as Map<string, Package>)?.has('peer-1')).toBe(true);
     });
 
     it('returns package with empty dependency maps when hydration fails', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // SELECT packages
         .mockRejectedValueOnce(new Error('dependency table missing')); // findBySourceId fails
 
       const results = await repo.retrieve('pkg-1');
 
       expect(results).toHaveLength(1);
-      const pkg = results[0]!;
+      const pkg = results[0];
       expect(pkg).toBeInstanceOf(Package);
-      expect((pkg.dependencies as Map<string, Package>).size).toBe(0);
-      expect((pkg.devDependencies as Map<string, Package>).size).toBe(0);
-      expect((pkg.peerDependencies as Map<string, Package>).size).toBe(0);
+      expect((pkg?.dependencies as Map<string, Package>)?.size).toBe(0);
+      expect((pkg?.devDependencies as Map<string, Package>)?.size).toBe(0);
+      expect((pkg?.peerDependencies as Map<string, Package>)?.size).toBe(0);
     });
 
     it('wraps unexpected errors in RepositoryError', async () => {
-      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('timeout'));
+      vi.mocked(adapter).query.mockRejectedValueOnce(new Error('timeout'));
 
       await expect(repo.retrieve()).rejects.toThrow(RepositoryError);
     });
@@ -461,7 +464,7 @@ describe('PackageRepository', () => {
   describe('retrieveById', () => {
     it('returns a Package when found', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // SELECT
         .mockResolvedValueOnce([]); // dependency hydration
 
@@ -472,7 +475,7 @@ describe('PackageRepository', () => {
     });
 
     it('returns undefined when the package is not found', async () => {
-      vi.mocked(adapter.query).mockResolvedValueOnce([]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([]);
 
       const result = await repo.retrieveById('nonexistent');
 
@@ -486,18 +489,18 @@ describe('PackageRepository', () => {
 
   describe('retrieveByModuleId', () => {
     it('delegates to retrieve with module_id parameter', async () => {
-      vi.mocked(adapter.query).mockResolvedValueOnce([]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([]);
 
       await repo.retrieveByModuleId('mod-1');
 
-      const selectCall = vi.mocked(adapter.query).mock.calls[0];
-      const sql = selectCall![0] as string;
+      const selectCall = vi.mocked(adapter).query.mock.calls[0];
+      const sql = selectCall?.[0];
       expect(sql).toContain('module_id = ?');
     });
 
     it('returns matching packages', async () => {
       const rows = [makePackageRow({ id: 'pkg-a' }), makePackageRow({ id: 'pkg-b' })];
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce(rows) // SELECT
         .mockResolvedValueOnce([]) // dep hydration for pkg-a
         .mockResolvedValueOnce([]); // dep hydration for pkg-b
@@ -514,38 +517,38 @@ describe('PackageRepository', () => {
 
   describe('delete', () => {
     it('deletes dependencies first, then the package', async () => {
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([]) // DELETE dependencies
         .mockResolvedValueOnce([]); // DELETE package
 
       await repo.delete('pkg-1');
 
-      expect(adapter.query).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(adapter).query).toHaveBeenCalledTimes(2);
 
       // First call: delete dependencies
-      const depDeleteCall = vi.mocked(adapter.query).mock.calls[0];
-      const depSql = depDeleteCall![0] as string;
+      const depDeleteCall = vi.mocked(adapter).query.mock.calls[0];
+      const depSql = depDeleteCall?.[0];
       expect(depSql).toContain('DELETE FROM dependencies');
       expect(depSql).toContain('source_id = ?');
       expect(depSql).toContain('target_id = ?');
-      expect(depDeleteCall![1]).toEqual(['pkg-1', 'pkg-1']);
+      expect(depDeleteCall?.[1]).toEqual(['pkg-1', 'pkg-1']);
 
       // Second call: delete the package
-      const pkgDeleteCall = vi.mocked(adapter.query).mock.calls[1];
-      const pkgSql = pkgDeleteCall![0] as string;
+      const pkgDeleteCall = vi.mocked(adapter).query.mock.calls[1];
+      const pkgSql = pkgDeleteCall?.[0];
       expect(pkgSql).toContain('DELETE FROM packages');
-      expect(pkgDeleteCall![1]).toEqual(['pkg-1']);
+      expect(pkgDeleteCall?.[1]).toEqual(['pkg-1']);
     });
 
     it('wraps unexpected errors in RepositoryError', async () => {
-      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('constraint violation'));
+      vi.mocked(adapter).query.mockRejectedValueOnce(new Error('constraint violation'));
 
       await expect(repo.delete('pkg-1')).rejects.toThrow(RepositoryError);
     });
 
     it('rethrows RepositoryError subclasses without wrapping', async () => {
       const repoError = new RepositoryError('already gone', 'delete', '[PackageRepository]');
-      vi.mocked(adapter.query).mockRejectedValueOnce(repoError);
+      vi.mocked(adapter).query.mockRejectedValueOnce(repoError);
 
       await expect(repo.delete('pkg-1')).rejects.toThrow(RepositoryError);
     });
@@ -577,7 +580,7 @@ describe('PackageRepository', () => {
   describe('edge cases', () => {
     it('handles empty dependency maps without errors', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
+      vi.mocked(adapter).query.mockResolvedValueOnce([row]);
 
       const dto = makeCreateDTO({
         dependencies: new Map(),
@@ -589,16 +592,22 @@ describe('PackageRepository', () => {
 
       expect(result).toBeInstanceOf(Package);
       // Only the package INSERT -- no dependency INSERTs because maps are empty
-      expect(adapter.query).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(adapter).query).toHaveBeenCalledTimes(1);
     });
 
     it('handles multiple dependencies of the same type', async () => {
       const row = makePackageRow();
-      vi.mocked(adapter.query)
+      vi.mocked(adapter).query
         .mockResolvedValueOnce([row]) // package INSERT
-        .mockResolvedValueOnce([{ id: 'd1', source_id: 'pkg-1', target_id: 'a', type: 'dependency', created_at: NOW_ISO }])
-        .mockResolvedValueOnce([{ id: 'd2', source_id: 'pkg-1', target_id: 'b', type: 'dependency', created_at: NOW_ISO }])
-        .mockResolvedValueOnce([{ id: 'd3', source_id: 'pkg-1', target_id: 'c', type: 'dependency', created_at: NOW_ISO }]);
+        .mockResolvedValueOnce([
+          { id: 'd1', source_id: 'pkg-1', target_id: 'a', type: 'dependency', created_at: NOW_ISO },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'd2', source_id: 'pkg-1', target_id: 'b', type: 'dependency', created_at: NOW_ISO },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'd3', source_id: 'pkg-1', target_id: 'c', type: 'dependency', created_at: NOW_ISO },
+        ]);
 
       const dto = makeCreateDTO({
         dependencies: new Map([
@@ -611,19 +620,17 @@ describe('PackageRepository', () => {
       await repo.create(dto);
 
       // 1 package INSERT + 3 dependency INSERTs
-      expect(adapter.query).toHaveBeenCalledTimes(4);
+      expect(vi.mocked(adapter).query).toHaveBeenCalledTimes(4);
     });
 
     it('returns Package instances with correct Date objects from retrieve', async () => {
       const row = makePackageRow({ created_at: '2024-06-15T09:30:00.000Z' });
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([row])
-        .mockResolvedValueOnce([]); // dep hydration
+      vi.mocked(adapter).query.mockResolvedValueOnce([row]).mockResolvedValueOnce([]); // dep hydration
 
       const results = await repo.retrieve('pkg-1');
 
-      expect(results[0]!.created_at).toBeInstanceOf(Date);
-      expect(results[0]!.created_at.toISOString()).toBe('2024-06-15T09:30:00.000Z');
+      expect(results[0]?.created_at).toBeTypeOf('string');
+      expect(results[0]?.created_at).toBe('2024-06-15T09:30:00.000Z');
     });
 
     it('converts IPackageRow field values to strings in createPackageWithDependencies', async () => {
@@ -636,17 +643,15 @@ describe('PackageRepository', () => {
         created_at: '2025-01-01T00:00:00.000Z',
       } as IPackageRow;
 
-      vi.mocked(adapter.query)
-        .mockResolvedValueOnce([row])
-        .mockResolvedValueOnce([]); // dep hydration
+      vi.mocked(adapter).query.mockResolvedValueOnce([row]).mockResolvedValueOnce([]); // dep hydration
 
       const results = await repo.retrieve('pkg-1');
-      const pkg = results[0]!;
+      const pkg = results[0];
 
-      expect(typeof pkg.id).toBe('string');
-      expect(typeof pkg.name).toBe('string');
-      expect(typeof pkg.version).toBe('string');
-      expect(typeof pkg.path).toBe('string');
+      expect(typeof pkg?.id).toBe('string');
+      expect(typeof pkg?.name).toBe('string');
+      expect(typeof pkg?.version).toBe('string');
+      expect(typeof pkg?.path).toBe('string');
     });
   });
 });

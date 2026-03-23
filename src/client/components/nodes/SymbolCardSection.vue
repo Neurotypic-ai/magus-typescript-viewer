@@ -2,11 +2,12 @@
 import CollapsibleSection from './CollapsibleSection.vue';
 import MemberListSection from './MemberListSection.vue';
 
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { FormattedMember } from './utils';
 
-export interface FormattedSymbol {
+interface FormattedSymbol {
   id: string;
-  type: 'class' | 'interface';
+  type: ParentType;
   name: string;
   formattedProperties: FormattedMember[];
   formattedMethods: FormattedMember[];

@@ -9,69 +9,9 @@ import type { DuckDBValue } from '@duckdb/node-api';
 import type { Interface } from '../../../shared/types/Interface';
 import type { Method } from '../../../shared/types/Method';
 import type { Property } from '../../../shared/types/Property';
+import type { IClassCreateDTO, IClassUpdateDTO } from '../../../shared/types/dto/ClassDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../types/DatabaseResults';
-
-
-/**
- * Data transfer object for creating a new class.
- */
-export interface IClassCreateDTO {
-  /**
-   * The unique identifier for the class.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The name of the class.
-   */
-  name: string;
-
-  /**
-   * The ID of the parent class (if this class extends another).
-   */
-  extends_id?: string | undefined;
-}
-
-interface IClassUpdateDTO {
-  name?: string;
-  extends_id?: string;
-}
-
-/**
- * Repository interface for managing classes.
- */
-export interface IClassRepository {
-  /**
-   * Creates a new class.
-   */
-  create(dto: IClassCreateDTO): Promise<Class>;
-
-  /**
-   * Finds a class by its ID.
-   */
-  findById(id: string): Promise<IClassCreateDTO | null>;
-
-  /**
-   * Finds all classes in a module.
-   */
-  findByModuleId(moduleId: string): Promise<IClassCreateDTO[]>;
-
-  /**
-   * Deletes a class by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
 
 export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, IClassUpdateDTO> {
   private readonly methodRepository: MethodRepository;
@@ -87,12 +27,13 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
    * Batch-insert multiple classes at once. Ignores duplicates.
    */
   async createBatch(items: IClassCreateDTO[]): Promise<void> {
-    await this.executeBatchInsert(
-      '(id, package_id, module_id, name, extends_id)',
-      5,
-      items,
-      (dto) => [dto.id, dto.package_id, dto.module_id, dto.name, dto.extends_id ?? null]
-    );
+    await this.executeBatchInsert('(id, package_id, module_id, name, extends_id)', 5, items, (dto) => [
+      dto.id,
+      dto.package_id,
+      dto.module_id,
+      dto.name,
+      dto.extends_id ?? null,
+    ]);
   }
 
   async create(dto: IClassCreateDTO): Promise<Class> {
@@ -117,7 +58,7 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
         cls.package_id,
         cls.module_id,
         cls.name,
-        new Date(cls.created_at),
+        cls.created_at,
         new Map<string, Method>(),
         new Map<string, Property>(),
         new Map<string, Interface>(),
@@ -234,7 +175,7 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
                 package_id: iface.package_id,
                 module_id: iface.module_id,
                 name: iface.name,
-                created_at: new Date(iface.created_at),
+                created_at: iface.created_at,
                 methods: new Map(),
                 properties: new Map(),
                 extended_interfaces: new Map(),
@@ -246,7 +187,7 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
               cls.package_id,
               cls.module_id,
               cls.name,
-              new Date(cls.created_at),
+              cls.created_at,
               methodsMap,
               propertiesMap,
               interfacesMap,
@@ -334,7 +275,7 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
             cls.package_id,
             cls.module_id,
             cls.name,
-            new Date(cls.created_at),
+            cls.created_at,
             new Map<string, Method>(),
             new Map<string, Property>(),
             new Map<string, Interface>(),
@@ -345,8 +286,12 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
       if (error instanceof RepositoryError) {
         throw error;
       }
-      throw new RepositoryError('Failed to retrieve classes by module IDs', 'retrieveByModuleIds', this.errorTag, error as Error);
+      throw new RepositoryError(
+        'Failed to retrieve classes by module IDs',
+        'retrieveByModuleIds',
+        this.errorTag,
+        error as Error
+      );
     }
   }
-
 }

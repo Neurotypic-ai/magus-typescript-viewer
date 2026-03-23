@@ -1,4 +1,4 @@
-import type { InsightCategory, InsightReport, InsightResult } from '../../server/insights/types';
+import type { InsightCategory, InsightReport, InsightResult } from '../../shared/types/api/Insight';
 
 function downloadBlob(content: string, filename: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
@@ -72,7 +72,8 @@ export function exportInsightsMarkdown(report: InsightReport): void {
     lines.push('');
 
     for (const insight of insights) {
-      const severityBadge = insight.severity === 'critical' ? '**CRITICAL**' : insight.severity === 'warning' ? '*Warning*' : 'Info';
+      const severityBadge =
+        insight.severity === 'critical' ? '**CRITICAL**' : insight.severity === 'warning' ? '*Warning*' : 'Info';
       lines.push(`### ${insight.title} [${severityBadge}]`);
       lines.push('');
       lines.push(insight.description);

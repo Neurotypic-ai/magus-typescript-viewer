@@ -1,11 +1,11 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Interface } from '../../../../shared/types/Interface';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { InterfaceRepository } from '../InterfaceRepository';
 
-import type { IInterfaceCreateDTO } from '../InterfaceRepository';
+import type { IInterfaceCreateDTO } from '../../../../shared/types/dto/InterfaceDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../../types/DatabaseResults';
 
@@ -67,7 +67,7 @@ describe('InterfaceRepository', () => {
       expect(result.package_id).toBe(SAMPLE_DTO.package_id);
       expect(result.module_id).toBe(SAMPLE_DTO.module_id);
       expect(result.name).toBe(SAMPLE_DTO.name);
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.created_at).toBeTypeOf('string');
     });
 
     it('should pass the correct INSERT SQL and parameters to the adapter', async () => {
@@ -531,9 +531,7 @@ describe('InterfaceRepository', () => {
     });
 
     it('should re-throw non-duplicate errors during batch insert', async () => {
-      const items: IInterfaceCreateDTO[] = [
-        { id: 'id-1', package_id: 'pkg-1', module_id: 'mod-1', name: 'IFirst' },
-      ];
+      const items: IInterfaceCreateDTO[] = [{ id: 'id-1', package_id: 'pkg-1', module_id: 'mod-1', name: 'IFirst' }];
 
       (mockAdapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Disk full'));
 

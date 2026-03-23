@@ -1,68 +1,9 @@
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
+import type { IExportCreateDTO, IExportUpdateDTO } from '../../../shared/types/dto/ExportDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IDatabaseRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new export.
- */
-export interface IExportCreateDTO {
-  /**
-   * The unique identifier for the export.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The name of the exported symbol.
-   */
-  name: string;
-
-  /**
-   * Whether this is a default export.
-   */
-  is_default: boolean;
-}
-
-/**
- * Repository interface for managing exports.
- */
-export interface IExportRepository {
-  /**
-   * Creates a new export.
-   */
-  create(dto: IExportCreateDTO): Promise<IExportCreateDTO>;
-
-  /**
-   * Finds an export by its ID.
-   */
-  findById(id: string): Promise<IExportCreateDTO | null>;
-
-  /**
-   * Finds all exports in a module.
-   */
-  findByModuleId(moduleId: string): Promise<IExportCreateDTO[]>;
-
-  /**
-   * Deletes an export by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
-interface IExportUpdateDTO {
-  name?: string;
-  is_default?: boolean;
-}
 
 interface IExportRow extends IDatabaseRow {
   id: string;
@@ -82,12 +23,13 @@ export class ExportRepository extends BaseRepository<IExportCreateDTO, IExportCr
    * Batch-insert multiple exports at once. Ignores duplicates.
    */
   async createBatch(items: IExportCreateDTO[]): Promise<void> {
-    await this.executeBatchInsert(
-      '(id, package_id, module_id, name, is_default)',
-      5,
-      items,
-      (dto) => [dto.id, dto.package_id, dto.module_id, dto.name, dto.is_default]
-    );
+    await this.executeBatchInsert('(id, package_id, module_id, name, is_default)', 5, items, (dto) => [
+      dto.id,
+      dto.package_id,
+      dto.module_id,
+      dto.name,
+      dto.is_default,
+    ]);
   }
 
   async create(dto: IExportCreateDTO): Promise<IExportCreateDTO> {

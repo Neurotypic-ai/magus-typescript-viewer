@@ -5,36 +5,28 @@ export interface EdgeGeometryPoint {
 
 export type EdgeHandleSide = 'top' | 'right' | 'bottom' | 'left';
 
-export interface EdgePolylineOptions {
+interface EdgePolylineOptions {
   sourceHandle?: string | null;
   targetHandle?: string | null;
   sourceNodeType?: string;
   targetNodeType?: string;
 }
 
-export interface EdgeLineSegment {
-  start: EdgeGeometryPoint;
-  end: EdgeGeometryPoint;
-}
-
-export interface RoundedPolylineSegment {
+interface RoundedPolylineSegment {
   kind: 'line' | 'quadratic';
   to: EdgeGeometryPoint;
   control?: EdgeGeometryPoint;
 }
 
-export interface RoundedPolylinePath {
+interface RoundedPolylinePath {
   start: EdgeGeometryPoint;
   segments: RoundedPolylineSegment[];
 }
 
 // Single source of truth for arrow-driven geometry.
-export const EDGE_ARROW_SIZE_PX: number = 12;
+const EDGE_ARROW_SIZE_PX = 12;
 export const EDGE_MARKER_WIDTH_PX: number = EDGE_ARROW_SIZE_PX;
 export const EDGE_MARKER_HEIGHT_PX: number = EDGE_ARROW_SIZE_PX;
-export const DEFAULT_CANVAS_EDGE_CORNER_RADIUS_PX: number = 10;
-
-export const GROUP_EXCLUSION_ZONE_PX: number = EDGE_ARROW_SIZE_PX * 4;
 export const GROUP_ENTRY_STUB_PX: number = EDGE_ARROW_SIZE_PX;
 export const NODE_PRE_APPROACH_STUB_PX: number = EDGE_ARROW_SIZE_PX;
 export const NODE_FINAL_APPROACH_PX: number = EDGE_ARROW_SIZE_PX * 2;
@@ -61,7 +53,7 @@ const offsetPoint = (point: EdgeGeometryPoint, normal: EdgeGeometryPoint, distan
   y: point.y + normal.y * distance,
 });
 
-export const pointsEqual = (a: EdgeGeometryPoint, b: EdgeGeometryPoint): boolean =>
+const pointsEqual = (a: EdgeGeometryPoint, b: EdgeGeometryPoint): boolean =>
   Math.abs(a.x - b.x) <= EPSILON && Math.abs(a.y - b.y) <= EPSILON;
 
 /**
@@ -99,10 +91,8 @@ export function buildEdgePolyline(
   targetPoint: EdgeGeometryPoint,
   options: EdgePolylineOptions = {}
 ): EdgeGeometryPoint[] {
-  const sourceSide =
-    getHandleSide(options.sourceHandle) ?? inferHandleSide(sourcePoint, targetPoint);
-  const targetSide =
-    getHandleSide(options.targetHandle) ?? inferHandleSide(targetPoint, sourcePoint);
+  const sourceSide = getHandleSide(options.sourceHandle) ?? inferHandleSide(sourcePoint, targetPoint);
+  const targetSide = getHandleSide(options.targetHandle) ?? inferHandleSide(targetPoint, sourcePoint);
 
   const points: EdgeGeometryPoint[] = [{ x: sourcePoint.x, y: sourcePoint.y }];
 
@@ -111,9 +101,7 @@ export function buildEdgePolyline(
   if (isGroupNode(options.sourceNodeType)) {
     points.push(offsetPoint(sourcePoint, sourceNormal, GROUP_ENTRY_STUB_PX));
   } else {
-    points.push(
-      offsetPoint(sourcePoint, sourceNormal, NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX)
-    );
+    points.push(offsetPoint(sourcePoint, sourceNormal, NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX));
   }
 
   // -- Target-side stubs --
@@ -229,18 +217,6 @@ export function insertOrthogonalMidpoints(
 
   // Replace any existing intermediate points with the new orthogonal waypoints.
   points.splice(freeStartIdx + 1, freeEndIdx - freeStartIdx - 1, ...midpoints);
-}
-
-export function toLineSegments(polyline: EdgeGeometryPoint[]): EdgeLineSegment[] {
-  const segments: EdgeLineSegment[] = [];
-  for (let i = 0; i < polyline.length - 1; i += 1) {
-    const start = polyline[i];
-    const end = polyline[i + 1];
-    if (start !== undefined && end !== undefined && !pointsEqual(start, end)) {
-      segments.push({ start, end });
-    }
-  }
-  return segments;
 }
 
 const normalizePoint = (point: EdgeGeometryPoint): EdgeGeometryPoint => ({ x: point.x, y: point.y });

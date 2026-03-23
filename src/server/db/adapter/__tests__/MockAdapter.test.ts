@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
 import { MockAdapter } from '../MockAdapter';
 
 describe('MockAdapter', () => {
@@ -41,30 +43,31 @@ describe('MockAdapter', () => {
         const result = await adapter.query('INSERT INTO users (name) VALUES (?)', ['Alice']);
 
         expect(result).toHaveLength(1);
-        expect(result[0]).toHaveProperty('id');
-        expect(typeof result[0]!.id).toBe('string');
+        const row = result[0];
+        expect(row).toBeDefined();
+        expect(row).toHaveProperty('id');
+        expect(typeof row?.id).toBe('string');
       });
 
       it('maps positional params to param0, param1, ...', async () => {
-        const result = await adapter.query('INSERT INTO users (name, age) VALUES (?, ?)', [
-          'Bob',
-          30,
-        ]);
+        const result = await adapter.query('INSERT INTO users (name, age) VALUES (?, ?)', ['Bob', 30]);
 
         expect(result).toHaveLength(1);
-        const row = result[0]!;
-        expect(row.param0).toBe('Bob');
-        expect(row.param1).toBe(30);
+        const row = result[0];
+        expect(row).toBeDefined();
+        expect(row?.['param0']).toBe('Bob');
+        expect(row?.['param1']).toBe(30);
       });
 
       it('creates a row with only id when no params are provided', async () => {
         const result = await adapter.query('INSERT INTO users DEFAULT VALUES');
 
         expect(result).toHaveLength(1);
-        const row = result[0]!;
+        const row = result[0];
+        expect(row).toBeDefined();
         expect(row).toHaveProperty('id');
         // Only the auto-generated id key should exist
-        const keys = Object.keys(row);
+        const keys = Object.keys(row ?? {});
         expect(keys).toEqual(['id']);
       });
 
@@ -86,8 +89,12 @@ describe('MockAdapter', () => {
 
         expect(cats).toHaveLength(1);
         expect(dogs).toHaveLength(1);
-        expect(cats[0]!.param0).toBe('Whiskers');
-        expect(dogs[0]!.param0).toBe('Rex');
+        const catRow = cats[0];
+        const dogRow = dogs[0];
+        expect(catRow).toBeDefined();
+        expect(dogRow).toBeDefined();
+        expect(catRow?.['param0']).toBe('Whiskers');
+        expect(dogRow?.['param0']).toBe('Rex');
       });
     });
 
@@ -103,17 +110,18 @@ describe('MockAdapter', () => {
 
         const result = await adapter.query('SELECT * FROM products');
         expect(result).toHaveLength(2);
-        expect(result[0]!.param0).toBe('AAA');
-        expect(result[1]!.param0).toBe('BBB');
+        const row0 = result[0];
+        const row1 = result[1];
+        expect(row0).toBeDefined();
+        expect(row1).toBeDefined();
+        expect(row0?.['param0']).toBe('AAA');
+        expect(row1?.['param0']).toBe('BBB');
       });
     });
 
     describe('unrecognized SQL', () => {
       it('returns an empty array for UPDATE statements', async () => {
-        const result = await adapter.query('UPDATE users SET name = ? WHERE id = ?', [
-          'Charlie',
-          '123',
-        ]);
+        const result = await adapter.query('UPDATE users SET name = ? WHERE id = ?', ['Charlie', '123']);
         expect(result).toEqual([]);
       });
 
@@ -156,7 +164,9 @@ describe('MockAdapter', () => {
       // Data should persist after transaction
       const rows = await adapter.query('SELECT * FROM orders');
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.param0).toBe('widget');
+      const row = rows[0];
+      expect(row).toBeDefined();
+      expect(row?.['param0']).toBe('widget');
     });
 
     it('rolls back changes when the callback throws an Error', async () => {
@@ -208,9 +218,9 @@ describe('MockAdapter', () => {
     });
 
     it('returns the value from a successful callback', async () => {
-      const result = await adapter.transaction(async () => {
-        return { status: 'ok', count: 42 };
-      });
+      const result = await adapter.transaction(() =>
+        Promise.resolve({ status: 'ok', count: 42 })
+      );
 
       expect(result).toEqual({ status: 'ok', count: 42 });
     });

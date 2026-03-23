@@ -1,9 +1,11 @@
+import { generateClassUUID } from '../../utils/uuid';
+import { getHeritageClauseName, getIdentifierName } from './astUtils';
+import { parseMethods, parseProperties } from './parseMembersShared';
+
 import type { ASTNode } from 'jscodeshift';
+
 import type { ParseResult } from '../ParseResult';
 import type { ModuleParserContext } from './types';
-import { getIdentifierName, getHeritageClauseName } from './astUtils';
-import { parseMethods, parseProperties } from './parseMembersShared';
-import { generateClassUUID } from '../../utils/uuid';
 
 export function parseClasses(ctx: ModuleParserContext, result: ParseResult): void {
   ctx.root.find(ctx.j.ClassDeclaration).forEach((path) => {
@@ -46,9 +48,7 @@ export function parseClasses(ctx: ModuleParserContext, result: ParseResult): voi
 
     // Parse methods and properties
     const parentName =
-      typeof node.id === 'object' && 'name' in node.id && typeof node.id.name === 'string'
-        ? node.id.name
-        : undefined;
+      typeof node.id === 'object' && 'name' in node.id && typeof node.id.name === 'string' ? node.id.name : undefined;
 
     try {
       const methods = parseMethods(ctx, ctx.j(node), 'class', classId, result, parentName);

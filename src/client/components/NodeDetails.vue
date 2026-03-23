@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
-import { GraphDataAssembler } from '../assemblers/GraphDataAssembler';
+import { GraphHydrator } from '../assemblers/GraphHydrator';
 import { mapTypeCollection } from '../utils/collections';
+import TypeAnnotationDisplay from './nodes/TypeAnnotationDisplay.vue';
+import { buildTypeDisplayModel } from './nodes/typeDisplay';
 
+import type { IImportSpecifier, Import } from '../../shared/types/Import';
+import type { IModule } from '../../shared/types/Module';
+import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { ModuleStructure } from '../types/ModuleStructure';
 
 interface NodeDetailsProps {
   node: DependencyNode;
-  data: DependencyPackageGraph;
+  data: PackageGraph;
   nodes: DependencyNode[];
   edges: GraphEdge[];
 }
@@ -27,7 +30,7 @@ interface DisplayMember {
 interface DisplayMethod {
   id?: string | undefined;
   name: string;
-  returnType: string;
+  return_type: string;
   visibility?: string | undefined;
   usedBy: string[];
 }
@@ -40,91 +43,61 @@ interface SymbolSummary {
 }
 
 interface GraphDetailsIndex {
-  moduleById: Map<string, ModuleStructure>;
+  moduleById: Map<string, IModule>;
   symbolToModuleId: Map<string, string>;
   usageByTargetSymbolId: Map<string, string[]>;
 }
 
-const graphDetailsIndexCache = new WeakMap<DependencyPackageGraph, GraphDetailsIndex>();
-const moduleDetailsAssembler = new GraphDataAssembler();
+const graphDetailsIndexCache = new WeakMap<PackageGraph, GraphDetailsIndex>();
+const moduleDetailsAssembler = new GraphHydrator();
 
-function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex {
-  const moduleById = new Map<string, ModuleStructure>();
+function buildGraphDetailsIndex(data: PackageGraph): GraphDetailsIndex {
+  const moduleById = new Map<string, IModule>();
   const symbolToModuleId = new Map<string, string>();
   const symbolLabelById = new Map<string, string>();
   const usageByTargetSymbolIdSets = new Map<string, Set<string>>();
 
   data.packages.forEach((pkg) => {
-    if (!pkg.modules) {
-      return;
-    }
-
     mapTypeCollection(pkg.modules, (module) => {
       moduleById.set(module.id, module);
       symbolToModuleId.set(module.id, module.id);
-      symbolLabelById.set(module.id, module.name ?? module.id);
+      symbolLabelById.set(module.id, module.name);
 
-      if (module.classes) {
         mapTypeCollection(module.classes, (cls) => {
-          const classLabel = cls.name ?? 'Unnamed class';
+          const classLabel = cls.name;
           symbolToModuleId.set(cls.id, module.id);
           symbolLabelById.set(cls.id, classLabel);
 
-          if (cls.properties) {
             mapTypeCollection(cls.properties, (prop) => {
-              if (!prop.id) return;
               symbolToModuleId.set(prop.id, module.id);
-              symbolLabelById.set(prop.id, `${classLabel}.${prop.name ?? 'unnamed'}`);
-            });
-          }
-
-          if (cls.methods) {
+              symbolLabelById.set(prop.id, `${classLabel}.${prop.name}`);
+            });  
             mapTypeCollection(cls.methods, (method) => {
-              if (!method.id) return;
               symbolToModuleId.set(method.id, module.id);
-              symbolLabelById.set(method.id, `${classLabel}.${method.name ?? 'unnamed'}()`);
-            });
-          }
+              symbolLabelById.set(method.id, `${classLabel}.${method.name}()`);
+            });  
         });
-      }
 
-      if (module.interfaces) {
         mapTypeCollection(module.interfaces, (iface) => {
-          const interfaceLabel = iface.name ?? 'Unnamed interface';
+          const interfaceLabel = iface.name;
           symbolToModuleId.set(iface.id, module.id);
           symbolLabelById.set(iface.id, interfaceLabel);
 
-          if (iface.properties) {
             mapTypeCollection(iface.properties, (prop) => {
-              if (!prop.id) return;
               symbolToModuleId.set(prop.id, module.id);
-              symbolLabelById.set(prop.id, `${interfaceLabel}.${prop.name ?? 'unnamed'}`);
+              symbolLabelById.set(prop.id, `${interfaceLabel}.${prop.name}`);
             });
-          }
-
-          if (iface.methods) {
             mapTypeCollection(iface.methods, (method) => {
-              if (!method.id) return;
               symbolToModuleId.set(method.id, module.id);
-              symbolLabelById.set(method.id, `${interfaceLabel}.${method.name ?? 'unnamed'}()`);
+              symbolLabelById.set(method.id, `${interfaceLabel}.${method.name}()`);
             });
-          }
         });
-      }
     });
   });
 
   data.packages.forEach((pkg) => {
-    if (!pkg.modules) {
-      return;
-    }
-
     mapTypeCollection(pkg.modules, (module) => {
-      if (!module.symbol_references) {
-        return;
-      }
-
-      const moduleLabel = module.name ?? module.id;
+      const moduleLabel = module.name;
       mapTypeCollection(module.symbol_references, (reference) => reference).forEach((reference) => {
         const targetId = reference.target_symbol_id;
         if (!targetId) {
@@ -176,7 +149,7 @@ const graphDetailsIndex = computed<GraphDetailsIndex>(() => {
   return index;
 });
 
-const hydratedModule = ref<ModuleStructure | null>(null);
+const hydratedModule = ref<IModule | null>(null);
 const hydratedModuleId = ref<string | null>(null);
 const isHydratingDetails = ref(false);
 const detailsLoadError = ref<string | null>(null);
@@ -271,7 +244,7 @@ function getUsedBy(symbolId: string | undefined): string[] {
   return graphDetailsIndex.value.usageByTargetSymbolId.get(symbolId) ?? [];
 }
 
-const selectedModule = computed<ModuleStructure | undefined>(() => {
+const selectedModule = computed<IModule | undefined>(() => {
   const moduleId = activeModuleId.value;
   if (!moduleId) {
     return undefined;
@@ -291,17 +264,17 @@ const moduleClasses = computed<SymbolSummary[]>(() => {
   return mapTypeCollection(module.classes, (cls) => ({
     id: cls.id,
     name: cls.name ?? 'Unnamed class',
-    properties: (cls.properties ?? []).map((prop) => ({
+    properties: mapTypeCollection(cls.properties, (prop) => ({
       id: prop.id,
       name: prop.name ?? 'unnamed',
       type: prop.type ?? 'unknown',
       visibility: prop.visibility,
       usedBy: getUsedBy(prop.id),
     })),
-    methods: (cls.methods ?? []).map((method) => ({
+    methods: mapTypeCollection(cls.methods, (method) => ({
       id: method.id,
       name: method.name ?? 'unnamed',
-      returnType: method.returnType ?? 'void',
+      return_type: method.return_type ?? 'void',
       visibility: method.visibility,
       usedBy: getUsedBy(method.id),
     })),
@@ -315,17 +288,17 @@ const moduleInterfaces = computed<SymbolSummary[]>(() => {
   return mapTypeCollection(module.interfaces, (iface) => ({
     id: iface.id,
     name: iface.name ?? 'Unnamed interface',
-    properties: (iface.properties ?? []).map((prop) => ({
+    properties: mapTypeCollection(iface.properties, (prop) => ({
       id: prop.id,
       name: prop.name ?? 'unnamed',
       type: prop.type ?? 'unknown',
       visibility: prop.visibility,
       usedBy: getUsedBy(prop.id),
     })),
-    methods: (iface.methods ?? []).map((method) => ({
+    methods: mapTypeCollection(iface.methods, (method) => ({
       id: method.id,
       name: method.name ?? 'unnamed',
-      returnType: method.returnType ?? 'void',
+      return_type: method.return_type ?? 'void',
       visibility: method.visibility,
       usedBy: getUsedBy(method.id),
     })),
@@ -338,7 +311,9 @@ const hydratedSymbolDetails = computed(() => {
   }
 
   if (selectedModule.value.classes) {
-    const cls = mapTypeCollection(selectedModule.value.classes, (entry) => entry).find((entry) => entry.id === props.node.id);
+    const cls = mapTypeCollection(selectedModule.value.classes, (entry) => entry).find(
+      (entry) => entry.id === props.node.id
+    );
     if (cls) {
       return {
         properties: Array.isArray(cls.properties) ? cls.properties : [],
@@ -348,7 +323,9 @@ const hydratedSymbolDetails = computed(() => {
   }
 
   if (selectedModule.value.interfaces) {
-    const iface = mapTypeCollection(selectedModule.value.interfaces, (entry) => entry).find((entry) => entry.id === props.node.id);
+    const iface = mapTypeCollection(selectedModule.value.interfaces, (entry) => entry).find(
+      (entry) => entry.id === props.node.id
+    );
     if (iface) {
       return {
         properties: Array.isArray(iface.properties) ? iface.properties : [],
@@ -378,7 +355,7 @@ const nodeMethods = computed<DisplayMethod[]>(() => {
   return methods.map((method) => ({
     id: method.id,
     name: method.name ?? 'unnamed',
-    returnType: method.returnType ?? 'void',
+    return_type: method.return_type ?? 'void',
     visibility: method.visibility,
     usedBy: getUsedBy(method.id),
   }));
@@ -429,6 +406,10 @@ function labelsForIncomingType(type: string): string[] {
   return labelsFromNodeIds(nodeRelationships.value.incomingByType.get(type) ?? []);
 }
 
+function firstImportAlias(specifier: IImportSpecifier): string | undefined {
+  return Array.from(specifier.aliases)[0];
+}
+
 const imports = computed(() => labelsForOutgoingType('import'));
 const importedBy = computed(() => labelsForIncomingType('import'));
 const extendsTargets = computed(() => labelsForOutgoingType('inheritance'));
@@ -445,7 +426,13 @@ interface ExternalImportGroup {
 }
 
 function isExternalImportPath(path: string): boolean {
-  if (path.startsWith('./') || path.startsWith('../') || path.startsWith('/') || path.startsWith('@/') || path.startsWith('src/')) {
+  if (
+    path.startsWith('./') ||
+    path.startsWith('../') ||
+    path.startsWith('/') ||
+    path.startsWith('@/') ||
+    path.startsWith('src/')
+  ) {
     return false;
   }
   return true;
@@ -478,20 +465,19 @@ const externalImports = computed<ExternalImportGroup[]>(() => {
 
   const grouped = new Map<string, Set<string>>();
 
-  mapTypeCollection(module.imports, (imp) => imp).forEach((imp) => {
-    const packageName = imp.packageName ?? (typeof imp.path === 'string' && isExternalImportPath(imp.path) ? imp.path : undefined);
-    const isExternal = imp.isExternal ?? Boolean(packageName);
-    if (!isExternal || !packageName) {
+  mapTypeCollection(module.imports, (imp) => imp).forEach((imp: Import) => {
+    const importPath = imp.relativePath || imp.fullPath || imp.name;
+    const packageName = typeof importPath === 'string' && isExternalImportPath(importPath) ? importPath : undefined;
+    if (!packageName) {
       return;
     }
 
     const existing = grouped.get(packageName) ?? new Set<string>();
 
-    if (Array.isArray(imp.specifiers)) {
-      imp.specifiers.forEach((specifier) => {
-        const label = specifier.local && specifier.local !== specifier.imported
-          ? `${specifier.imported} as ${specifier.local}`
-          : specifier.imported;
+    if (imp.specifiers instanceof Map) {
+      Array.from(imp.specifiers.values()).forEach((specifier) => {
+        const local = firstImportAlias(specifier);
+        const label = local && local !== specifier.name ? `${specifier.name} as ${local}` : specifier.name;
         if (label.length > 0) {
           existing.add(label);
         }
@@ -513,11 +499,21 @@ const externalImports = computed<ExternalImportGroup[]>(() => {
     }));
 });
 
-const canOpenSymbolUsageGraph = computed(() => ['module', 'class', 'interface'].includes(String(props.node.type ?? '')));
+const canOpenSymbolUsageGraph = computed(() =>
+  ['module', 'class', 'interface'].includes(String(props.node.type ?? ''))
+);
 
 const openSymbolUsageGraph = () => {
   emit('open-symbol-usage', props.node.id);
 };
+
+function typeModel(typeText: string) {
+  return buildTypeDisplayModel(typeText);
+}
+
+function isRichType(typeText: string): boolean {
+  return buildTypeDisplayModel(typeText).kind !== 'plain';
+}
 </script>
 
 <template>
@@ -535,28 +531,18 @@ const openSymbolUsageGraph = () => {
       Type: <span class="font-semibold text-primary-main">{{ props.node.type }}</span>
     </p>
 
-    <p
-      v-if="isHydratingDetails"
-      role="status"
-      aria-live="polite"
-      class="text-xs text-text-secondary mb-3"
-    >
+    <p v-if="isHydratingDetails" role="status" aria-live="polite" class="text-xs text-text-secondary mb-3">
       Loading module details...
     </p>
-    <p
-      v-else-if="detailsLoadError"
-      role="alert"
-      aria-live="assertive"
-      class="text-xs text-red-300 mb-3"
-    >
+    <p v-else-if="detailsLoadError" role="alert" aria-live="assertive" class="text-xs text-red-300 mb-3">
       {{ detailsLoadError }}
     </p>
 
     <button
       v-if="canOpenSymbolUsageGraph"
       type="button"
-      @click="openSymbolUsageGraph"
       class="w-full mb-4 px-3 py-2 bg-primary-main/20 text-primary-main border border-primary-main/30 rounded hover:bg-primary-main/30 transition-fast text-xs font-semibold"
+      @click="openSymbolUsageGraph"
     >
       Open Symbol Usage Graph
     </button>
@@ -567,17 +553,46 @@ const openSymbolUsageGraph = () => {
         <details v-for="cls in moduleClasses" :key="cls.id" class="ml-2 mb-2">
           <summary class="cursor-pointer text-sm text-text-primary">{{ cls.name }}</summary>
           <div class="ml-3 mt-1 space-y-1">
-            <div v-if="cls.properties.length > 0" class="text-xs text-text-secondary">
-              <div v-for="(prop, propIndex) in cls.properties" :key="prop.id ?? `${cls.id}-p-${propIndex}`">
-                {{ prop.name }}: {{ prop.type }}
+            <div v-if="cls.properties.length > 0" class="text-xs text-text-secondary space-y-2">
+              <div
+                v-for="(prop, propIndex) in cls.properties"
+                :key="prop.id ?? `${cls.id}-p-${propIndex}`"
+                class="space-y-1"
+              >
+                <div v-if="isRichType(prop.type)" class="flex flex-col gap-1">
+                  <span
+                    ><span class="text-text-primary font-semibold">{{ prop.name }}</span
+                    ><span class="text-text-muted">:</span></span
+                  >
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(prop.type)" />
+                </div>
+                <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+                  <span
+                    ><span class="text-text-primary font-semibold">{{ prop.name }}</span
+                    ><span class="text-text-muted">:</span></span
+                  >
+                  <code class="wrap-break-word text-text-secondary">{{ prop.type }}</code>
+                </div>
                 <div v-if="prop.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ prop.usedBy.join(', ') }}
                 </div>
               </div>
             </div>
-            <div v-if="cls.methods.length > 0" class="text-xs text-text-secondary">
-              <div v-for="(method, methodIndex) in cls.methods" :key="method.id ?? `${cls.id}-m-${methodIndex}`">
-                {{ method.name }}(): {{ method.returnType }}
+            <div v-if="cls.methods.length > 0" class="text-xs text-text-secondary space-y-2">
+              <div
+                v-for="(method, methodIndex) in cls.methods"
+                :key="method.id ?? `${cls.id}-m-${methodIndex}`"
+                class="space-y-1"
+              >
+                <div v-if="isRichType(method.return_type)" class="flex flex-col gap-1">
+                  <span class="text-text-primary font-semibold">{{ method.name }}()</span>
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
+                </div>
+                <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+                  <span class="text-text-primary font-semibold">{{ method.name }}()</span>
+                  <span class="text-text-muted">:</span>
+                  <code class="wrap-break-word text-text-secondary">{{ method.return_type }}</code>
+                </div>
                 <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ method.usedBy.join(', ') }}
                 </div>
@@ -592,17 +607,46 @@ const openSymbolUsageGraph = () => {
         <details v-for="iface in moduleInterfaces" :key="iface.id" class="ml-2 mb-2">
           <summary class="cursor-pointer text-sm text-text-primary">{{ iface.name }}</summary>
           <div class="ml-3 mt-1 space-y-1">
-            <div v-if="iface.properties.length > 0" class="text-xs text-text-secondary">
-              <div v-for="(prop, propIndex) in iface.properties" :key="prop.id ?? `${iface.id}-p-${propIndex}`">
-                {{ prop.name }}: {{ prop.type }}
+            <div v-if="iface.properties.length > 0" class="text-xs text-text-secondary space-y-2">
+              <div
+                v-for="(prop, propIndex) in iface.properties"
+                :key="prop.id ?? `${iface.id}-p-${propIndex}`"
+                class="space-y-1"
+              >
+                <div v-if="isRichType(prop.type)" class="flex flex-col gap-1">
+                  <span
+                    ><span class="text-text-primary font-semibold">{{ prop.name }}</span
+                    ><span class="text-text-muted">:</span></span
+                  >
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(prop.type)" />
+                </div>
+                <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+                  <span
+                    ><span class="text-text-primary font-semibold">{{ prop.name }}</span
+                    ><span class="text-text-muted">:</span></span
+                  >
+                  <code class="wrap-break-word text-text-secondary">{{ prop.type }}</code>
+                </div>
                 <div v-if="prop.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ prop.usedBy.join(', ') }}
                 </div>
               </div>
             </div>
-            <div v-if="iface.methods.length > 0" class="text-xs text-text-secondary">
-              <div v-for="(method, methodIndex) in iface.methods" :key="method.id ?? `${iface.id}-m-${methodIndex}`">
-                {{ method.name }}(): {{ method.returnType }}
+            <div v-if="iface.methods.length > 0" class="text-xs text-text-secondary space-y-2">
+              <div
+                v-for="(method, methodIndex) in iface.methods"
+                :key="method.id ?? `${iface.id}-m-${methodIndex}`"
+                class="space-y-1"
+              >
+                <div v-if="isRichType(method.return_type)" class="flex flex-col gap-1">
+                  <span class="text-text-primary font-semibold">{{ method.name }}()</span>
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
+                </div>
+                <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+                  <span class="text-text-primary font-semibold">{{ method.name }}()</span>
+                  <span class="text-text-muted">:</span>
+                  <code class="wrap-break-word text-text-secondary">{{ method.return_type }}</code>
+                </div>
                 <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ method.usedBy.join(', ') }}
                 </div>
@@ -619,10 +663,22 @@ const openSymbolUsageGraph = () => {
         <div
           v-for="(prop, index) in nodeProperties"
           :key="prop.id ?? `prop-${index}`"
-          class="text-sm text-text-secondary ml-3 font-mono"
+          class="text-sm text-text-secondary ml-3 font-mono space-y-1"
         >
-          <span class="text-primary-main">{{ prop.name }}</span><span class="text-text-muted">:</span>
-          {{ prop.type }}
+          <div v-if="isRichType(prop.type)" class="flex flex-col gap-1">
+            <span
+              ><span class="text-primary-main">{{ prop.name }}</span
+              ><span class="text-text-muted">:</span></span
+            >
+            <TypeAnnotationDisplay text-align="left" :model="typeModel(prop.type)" />
+          </div>
+          <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+            <span
+              ><span class="text-primary-main">{{ prop.name }}</span
+              ><span class="text-text-muted">:</span></span
+            >
+            <code class="wrap-break-word">{{ prop.type }}</code>
+          </div>
           <div v-if="prop.usedBy.length > 0" class="text-xs text-text-muted ml-1">
             used by: {{ prop.usedBy.join(', ') }}
           </div>
@@ -636,10 +692,22 @@ const openSymbolUsageGraph = () => {
         <div
           v-for="(method, index) in nodeMethods"
           :key="method.id ?? `method-${index}`"
-          class="text-sm text-text-secondary ml-3 font-mono"
+          class="text-sm text-text-secondary ml-3 font-mono space-y-1"
         >
-          <span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
-          ><span class="text-text-muted">:</span> {{ method.returnType }}
+          <div v-if="isRichType(method.return_type)" class="flex flex-col gap-1">
+            <span
+              ><span class="text-primary-main">{{ method.name }}</span
+              ><span class="text-text-muted">()</span><span class="text-text-muted">:</span></span
+            >
+            <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
+          </div>
+          <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
+            <span
+              ><span class="text-primary-main">{{ method.name }}</span
+              ><span class="text-text-muted">()</span><span class="text-text-muted">:</span></span
+            >
+            <code class="wrap-break-word">{{ method.return_type }}</code>
+          </div>
           <div v-if="method.usedBy.length > 0" class="text-xs text-text-muted ml-1">
             used by: {{ method.usedBy.join(', ') }}
           </div>
@@ -699,9 +767,11 @@ const openSymbolUsageGraph = () => {
       <div class="space-y-2">
         <div v-for="group in externalImports" :key="group.packageName" class="ml-2">
           <div class="text-xs font-semibold text-primary-main">{{ group.packageName }}</div>
-          <div class="text-xs text-text-secondary ml-2">
-            {{ group.specifiers.join(', ') }}
-          </div>
+          <ul class="text-xs text-text-secondary ml-2 mt-1 list-none p-0 space-y-0.5" role="list">
+            <li v-for="(spec, sIdx) in group.specifiers" :key="`${group.packageName}-${sIdx}-${spec}`" role="listitem">
+              <code class="block font-mono wrap-break-word whitespace-pre-wrap">{{ spec }}</code>
+            </li>
+          </ul>
         </div>
       </div>
     </div>

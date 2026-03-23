@@ -1,11 +1,12 @@
-import type { ASTPath, ExportNamedDeclaration, ImportDeclaration } from 'jscodeshift';
-
 import { Import, ImportSpecifier } from '../../../shared/types/Import';
 import { generateImportUUID } from '../../utils/uuid';
 import { getIdentifierName } from './astUtils';
+
+import type { ASTPath, ExportNamedDeclaration, ImportDeclaration } from 'jscodeshift';
+
 import type { ModuleParserContext } from './types';
 
-export interface ImportsExportsResult {
+interface ImportsExportsResult {
   imports: Map<string, Import>;
   exports: Set<string>;
   reExports: Set<string>;
@@ -39,14 +40,7 @@ export function parseImportsAndExports(ctx: ModuleParserContext): ImportsExports
         if (localName !== importedName) {
           aliases.add(localName);
         }
-        const importSpecifier = new ImportSpecifier(
-          uuid,
-          importedName,
-          kind,
-          undefined,
-          new Set(),
-          aliases
-        );
+        const importSpecifier = new ImportSpecifier(uuid, importedName, kind, undefined, new Set(), aliases);
         importSpecifiers.set(localName, importSpecifier);
       } else if (specifier.type === 'ImportDefaultSpecifier' && specifier.local?.type === 'Identifier') {
         const name = specifier.local.name;

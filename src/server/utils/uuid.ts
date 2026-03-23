@@ -1,5 +1,7 @@
 import { v5 as uuidv5 } from 'uuid';
 
+import type { ParentType } from '../../shared/types/ParentType';
+
 /**
  * UUID v5 namespaces for each entity type in the typescript viewer project
  */
@@ -52,7 +54,7 @@ export const generatePropertyUUID = (
   moduleId: string,
   parentId: string,
   name: string,
-  parentType: 'class' | 'interface'
+  parentType: ParentType
 ): string => generateUUID('property', `${packageId}.${moduleId}.${parentId}.${parentType}.${name}`);
 
 export const generateParameterUUID = (methodId: string, name: string): string =>

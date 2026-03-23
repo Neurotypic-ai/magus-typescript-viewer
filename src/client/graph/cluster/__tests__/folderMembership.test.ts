@@ -1,9 +1,6 @@
-import {
-  buildParentMap,
-  findCollapsedAncestor,
-  buildNodeToFolderMap,
-  getAncestorFolders,
-} from '../folderMembership';
+import { describe, expect, it } from 'vitest';
+
+import { buildNodeToFolderMap, buildParentMap, findCollapsedAncestor, getAncestorFolders } from '../folderMembership';
 
 import type { DependencyNode } from '../../../types/DependencyNode';
 
@@ -11,11 +8,7 @@ import type { DependencyNode } from '../../../types/DependencyNode';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeNode(
-  id: string,
-  type: string = 'module',
-  parentNode?: string
-): DependencyNode {
+function makeNode(id: string, type = 'module', parentNode?: string): DependencyNode {
   return {
     id,
     type,
@@ -44,10 +37,7 @@ describe('buildParentMap', () => {
   });
 
   it('excludes root-level nodes that have no parentNode', () => {
-    const nodes = [
-      makeNode('root-module', 'module'),
-      makeNode('child', 'module', 'root-module'),
-    ];
+    const nodes = [makeNode('root-module', 'module'), makeNode('child', 'module', 'root-module')];
 
     const parentMap = buildParentMap(nodes);
 
@@ -56,10 +46,7 @@ describe('buildParentMap', () => {
   });
 
   it('returns an empty map when all nodes are root-level', () => {
-    const nodes = [
-      makeNode('a', 'module'),
-      makeNode('b', 'module'),
-    ];
+    const nodes = [makeNode('a', 'module'), makeNode('b', 'module')];
 
     const parentMap = buildParentMap(nodes);
 
@@ -100,9 +87,7 @@ describe('findCollapsedAncestor', () => {
   });
 
   it('returns the immediate parent when it is collapsed', () => {
-    const parentMap = new Map([
-      ['m1', 'folder-a'],
-    ]);
+    const parentMap = new Map([['m1', 'folder-a']]);
     const collapsed = new Set(['folder-a']);
 
     const result = findCollapsedAncestor('m1', parentMap, collapsed);
@@ -225,10 +210,7 @@ describe('buildNodeToFolderMap', () => {
   });
 
   it('returns empty map when there are no group nodes', () => {
-    const nodes = [
-      makeNode('m1', 'module'),
-      makeNode('m2', 'module'),
-    ];
+    const nodes = [makeNode('m1', 'module'), makeNode('m2', 'module')];
 
     const folderMap = buildNodeToFolderMap(nodes);
 
@@ -243,10 +225,7 @@ describe('buildNodeToFolderMap', () => {
 
   it('maps group children to their parent group folder', () => {
     // group nodes themselves can be children of other groups
-    const nodes = [
-      makeNode('root-group', 'group'),
-      makeNode('child-group', 'group', 'root-group'),
-    ];
+    const nodes = [makeNode('root-group', 'group'), makeNode('child-group', 'group', 'root-group')];
 
     const folderMap = buildNodeToFolderMap(nodes);
 
@@ -270,11 +249,7 @@ describe('getAncestorFolders', () => {
   });
 
   it('returns empty array when ancestors exist but none are groups', () => {
-    const nodes = [
-      makeNode('root', 'module'),
-      makeNode('mid', 'module', 'root'),
-      makeNode('m1', 'module', 'mid'),
-    ];
+    const nodes = [makeNode('root', 'module'), makeNode('mid', 'module', 'root'), makeNode('m1', 'module', 'mid')];
     const parentMap = buildParentMap(nodes);
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
@@ -284,11 +259,7 @@ describe('getAncestorFolders', () => {
   });
 
   it('returns ancestor folders from nearest to outermost', () => {
-    const nodes = [
-      makeNode('outer', 'group'),
-      makeNode('inner', 'group', 'outer'),
-      makeNode('m1', 'module', 'inner'),
-    ];
+    const nodes = [makeNode('outer', 'group'), makeNode('inner', 'group', 'outer'), makeNode('m1', 'module', 'inner')];
     const parentMap = buildParentMap(nodes);
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
@@ -314,10 +285,7 @@ describe('getAncestorFolders', () => {
   });
 
   it('handles a single group ancestor', () => {
-    const nodes = [
-      makeNode('folder', 'group'),
-      makeNode('m1', 'module', 'folder'),
-    ];
+    const nodes = [makeNode('folder', 'group'), makeNode('m1', 'module', 'folder')];
     const parentMap = buildParentMap(nodes);
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
 

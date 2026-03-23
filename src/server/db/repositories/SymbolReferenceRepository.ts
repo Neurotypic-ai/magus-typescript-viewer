@@ -1,36 +1,13 @@
 import { EntityNotFoundError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
+import type { SymbolSourceType, SymbolTargetType } from '../../../shared/types/SymbolReference';
+import type {
+  ISymbolReferenceCreateDTO,
+  ISymbolReferenceUpdateDTO,
+} from '../../../shared/types/dto/SymbolReferenceDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IDatabaseRow } from '../types/DatabaseResults';
-
-export type SymbolSourceType = 'module' | 'class' | 'interface' | 'function' | 'method' | 'property';
-export type SymbolTargetType = 'method' | 'property';
-
-export interface ISymbolReferenceCreateDTO {
-  id: string;
-  package_id: string;
-  module_id: string;
-  source_symbol_id?: string | undefined;
-  source_symbol_type: SymbolSourceType;
-  source_symbol_name?: string | undefined;
-  target_symbol_id: string;
-  target_symbol_type: SymbolTargetType;
-  target_symbol_name: string;
-  access_kind: SymbolTargetType;
-  qualifier_name?: string | undefined;
-}
-
-interface ISymbolReferenceUpdateDTO {
-  source_symbol_id?: string;
-  source_symbol_type?: SymbolSourceType;
-  source_symbol_name?: string;
-  target_symbol_id?: string;
-  target_symbol_type?: SymbolTargetType;
-  target_symbol_name?: string;
-  access_kind?: SymbolTargetType;
-  qualifier_name?: string;
-}
 
 interface ISymbolReferenceRow extends IDatabaseRow {
   package_id: string;

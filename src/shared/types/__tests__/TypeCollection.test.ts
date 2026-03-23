@@ -7,7 +7,10 @@
  * The utility functions that operate on TypeCollection live in
  * src/client/utils/collections.ts: typeCollectionToArray() and mapTypeCollection().
  */
+import { describe, expect, it } from 'vitest';
+
 import { mapTypeCollection, typeCollectionToArray } from '../../../client/utils/collections';
+
 import type { TypeCollection } from '../TypeCollection';
 
 describe('typeCollectionToArray', () => {
@@ -132,7 +135,7 @@ describe('typeCollectionToArray', () => {
 
 describe('mapTypeCollection', () => {
   const double = (n: number): number => n * 2;
-  const toString = (n: number): string => `#${n}`;
+  const toString = (n: number): string => `#${String(n)}`;
 
   describe('with Array input', () => {
     it('maps over array elements', () => {
@@ -224,7 +227,10 @@ describe('mapTypeCollection', () => {
 
     it('handles mapper that returns arrays', () => {
       const result = mapTypeCollection([1, 2], (n) => [n, n * 2]);
-      expect(result).toEqual([[1, 2], [2, 4]]);
+      expect(result).toEqual([
+        [1, 2],
+        [2, 4],
+      ]);
     });
   });
 

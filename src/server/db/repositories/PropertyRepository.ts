@@ -1,104 +1,30 @@
 import { Property } from '../../../shared/types/Property';
+import { isValidParentType } from '../../../shared/types/ParentType';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { VisibilityType } from '../../../shared/types/VisibilityType';
+import type { IPropertyCreateDTO, IPropertyUpdateDTO } from '../../../shared/types/dto/PropertyDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IPropertyRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new property.
- */
-export interface IPropertyCreateDTO {
-  /**
-   * The unique identifier for the property.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The UUID of the parent class or interface.
-   */
-  parent_id: string;
-
-  /**
-   * The type of the parent (class or interface).
-   */
-  parent_type: 'class' | 'interface';
-
-  /**
-   * The name of the property.
-   */
-  name: string;
-
-  /**
-   * The type of the property.
-   */
-  type: string;
-
-  /**
-   * Whether the property is static.
-   */
-  is_static: boolean;
-
-  /**
-   * Whether the property is readonly.
-   */
-  is_readonly: boolean;
-
-  /**
-   * The visibility of the property (public, private, protected).
-   */
-  visibility: string;
-}
-
-/**
- * Repository interface for managing properties.
- */
-export interface IPropertyRepository {
-  /**
-   * Creates a new property.
-   */
-  create(dto: IPropertyCreateDTO): Promise<Property>;
-
-  /**
-   * Finds a property by its ID.
-   */
-  findById(id: string): Promise<IPropertyCreateDTO | null>;
-
-  /**
-   * Finds all properties in a parent (class or interface).
-   */
-  findByParentId(parentId: string): Promise<IPropertyCreateDTO[]>;
-
-  /**
-   * Deletes a property by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
-interface IPropertyUpdateDTO {
-  name?: string;
-  type?: string;
-  is_static?: boolean;
-  is_readonly?: boolean;
-  visibility?: VisibilityType;
-}
 
 export class PropertyRepository extends BaseRepository<Property, IPropertyCreateDTO, IPropertyUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
     super(adapter, '[PropertyRepository]', 'properties');
+  }
+
+  private assertValidParentType(parentType: ParentType, operation: 'retrieveByParent' | 'retrieveByParentIds'): void {
+    if (isValidParentType(parentType)) return;
+
+    throw new RepositoryError(
+      `Invalid parent type: ${String(parentType)}`,
+      operation,
+      this.errorTag,
+      new Error(`Invalid parent type: ${String(parentType)}`)
+    );
   }
 
   /**
@@ -151,7 +77,7 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
         dto.module_id,
         dto.parent_id,
         dto.name,
-        new Date(),
+        new Date().toISOString(),
         dto.type,
         dto.is_static,
         dto.is_readonly,
@@ -234,7 +160,7 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
             prop.module_id,
             prop.parent_id,
             prop.name,
-            new Date(prop.created_at),
+            prop.created_at,
             prop.type,
             prop.is_static,
             prop.is_readonly,
@@ -262,8 +188,10 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
    */
   async retrieveByParentIds(
     parentIds: string[],
-    parentType: 'class' | 'interface'
+    parentType: ParentType
   ): Promise<Map<string, Map<string, Property>>> {
+    this.assertValidParentType(parentType, 'retrieveByParentIds');
+
     const result = new Map<string, Map<string, Property>>();
     if (parentIds.length === 0) return result;
 
@@ -287,7 +215,7 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
           prop.module_id,
           prop.parent_id,
           prop.name,
-          new Date(prop.created_at),
+          prop.created_at,
           prop.type,
           prop.is_static,
           prop.is_readonly,
@@ -312,7 +240,9 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
     }
   }
 
-  async retrieveByParent(parentId: string, parentType: 'class' | 'interface'): Promise<Map<string, Property>> {
+  async retrieveByParent(parentId: string, parentType: ParentType): Promise<Map<string, Property>> {
+    this.assertValidParentType(parentType, 'retrieveByParent');
+
     try {
       // Fetch properties with proper parameter handling
       const properties = await this.executeQuery<IPropertyRow>(
@@ -334,7 +264,7 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
             prop.module_id,
             prop.parent_id,
             prop.name,
-            new Date(prop.created_at),
+            prop.created_at,
             prop.type,
             prop.is_static,
             prop.is_readonly,

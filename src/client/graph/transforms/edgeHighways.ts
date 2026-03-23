@@ -1,28 +1,32 @@
-import { type EdgeHandleSide, GROUP_ENTRY_STUB_PX, getHandleSide } from '../../layout/edgeGeometryPolicy';
+import { consola } from 'consola';
+
+import { GROUP_ENTRY_STUB_PX, getHandleSide } from '../../layout/edgeGeometryPolicy';
 import { buildAbsoluteNodeBoundsMap } from '../../layout/geometryBounds';
+import { getHandleAnchor } from '../../layout/handleAnchors';
 import { getEdgeStyle } from '../../theme/graphTheme';
 import { createEdgeMarker } from '../../utils/edgeMarkers';
-import { getHandleAnchor } from '../../layout/handleAnchors';
 import { buildNodeToFolderMap } from '../cluster/folderMembership';
 import { EDGE_KIND_PRIORITY } from '../edgePriority';
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
 
+import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
+import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
+import type { EdgeHandleSide } from '../../layout/edgeGeometryPolicy';
 import type { Rect } from '../../layout/geometryBounds';
-import type { DependencyEdgeKind } from '../../types/DependencyEdgeKind';
-import type { DependencyKind } from '../../types/DependencyKind';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 
 const EDGE_REGISTRY_DEBUG =
   import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
 const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
+const edgeHighwaysLogger = consola.withTag('EdgeHighways');
 
-export interface EdgeHighwayOptions {
+interface EdgeHighwayOptions {
   direction: 'LR' | 'RL' | 'TB' | 'BT';
 }
 
-export interface EdgeHighwayResult {
+interface EdgeHighwayResult {
   nodes: DependencyNode[];
   edges: GraphEdge[];
 }
@@ -149,7 +153,6 @@ const chooseClosestHandle = (
   return bestHandle;
 };
 
-
 export function applyEdgeHighways(
   nodes: DependencyNode[],
   edges: GraphEdge[],
@@ -208,10 +211,8 @@ export function applyEdgeHighways(
   }
 
   if (EDGE_REGISTRY_DEBUG && invalidEdgeRegistryCount > 0) {
-    console.warn(
-      '[edgeHighways] skipped ' +
-        String(invalidEdgeRegistryCount) +
-        ' edge(s) with invalid type/source/target kind combinations.',
+    edgeHighwaysLogger.warn(
+      'Skipped ' + String(invalidEdgeRegistryCount) + ' edge(s) with invalid type/source/target kind combinations.',
       { sample: invalidEdgeRegistrySamples }
     );
   }

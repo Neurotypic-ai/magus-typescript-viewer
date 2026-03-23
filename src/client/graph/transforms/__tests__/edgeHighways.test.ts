@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { collapseFolders } from '../../cluster/collapseFolders';
 import { GROUP_ENTRY_STUB_PX } from '../../../layout/edgeGeometryPolicy';
+import { collapseFolders } from '../../cluster/collapseFolders';
 import { applyEdgeHighways, optimizeHighwayHandleRouting } from '../edgeHighways';
 
-import type { DependencyEdgeKind } from '../../../types/DependencyEdgeKind';
+import type { DependencyEdgeKind } from '../../../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyNode } from '../../../types/DependencyNode';
 import type { GraphEdge } from '../../../types/GraphEdge';
 
@@ -237,4 +237,3 @@ describe('applyEdgeHighways', () => {
     expect(optimized[0]?.type).not.toBe('straight');
   });
 });
-

@@ -3,7 +3,7 @@ import { MarkerType } from '@vue-flow/core';
 import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../layout/edgeGeometryPolicy';
 import { getNodeStyle } from '../../theme/graphTheme';
 
-import type { DependencyKind } from '../../types/DependencyKind';
+import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 

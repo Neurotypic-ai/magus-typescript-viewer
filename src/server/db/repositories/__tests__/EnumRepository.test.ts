@@ -1,25 +1,18 @@
-import { vi } from 'vitest';
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn adapter methods */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { Enum } from '../../../../shared/types/Enum';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { EnumRepository } from '../EnumRepository';
 
-import type { IEnumCreateDTO, IEnumRow } from '../EnumRepository';
+import type { IEnumCreateDTO } from '../../../../shared/types/dto/EnumDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
+import type { IEnumRow } from '../../types/DatabaseResults';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn<IDatabaseAdapter['init']>().mockResolvedValue(undefined),
-    query: vi.fn<IDatabaseAdapter['query']>().mockResolvedValue([]),
-    close: vi.fn<IDatabaseAdapter['close']>().mockResolvedValue(undefined),
-    transaction: vi.fn<IDatabaseAdapter['transaction']>(),
-    getDbPath: vi.fn<IDatabaseAdapter['getDbPath']>().mockReturnValue(':memory:'),
-  };
-}
 
 const NOW_ISO = '2025-01-15T12:00:00.000Z';
 
@@ -44,7 +37,7 @@ describe('EnumRepository', () => {
   let repo: EnumRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new EnumRepository(adapter);
   });
 
@@ -66,10 +59,13 @@ describe('EnumRepository', () => {
 
       const result = await repo.create(dto);
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO enums'),
-        [dto.id, dto.package_id, dto.module_id, dto.name, dto.members_json ?? null]
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO enums'), [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.name,
+        dto.members_json ?? null,
+      ]);
       expect(result).toBeInstanceOf(Enum);
       expect(result.id).toBe(row.id);
       expect(result.name).toBe('Status');
@@ -89,10 +85,13 @@ describe('EnumRepository', () => {
 
       await repo.create(dto);
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO enums'),
-        [dto.id, dto.package_id, dto.module_id, dto.name, null]
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO enums'), [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.name,
+        null,
+      ]);
     });
 
     it('should throw RepositoryError when INSERT returns no rows', async () => {
@@ -177,9 +176,7 @@ describe('EnumRepository', () => {
     });
 
     it('should rethrow non-duplicate errors from batch insert', async () => {
-      const items: IEnumCreateDTO[] = [
-        { id: 'e1', package_id: 'p1', module_id: 'm1', name: 'A' },
-      ];
+      const items: IEnumCreateDTO[] = [{ id: 'e1', package_id: 'p1', module_id: 'm1', name: 'A' }];
 
       vi.mocked(adapter.query).mockRejectedValueOnce(new Error('Connection lost'));
 
@@ -187,9 +184,7 @@ describe('EnumRepository', () => {
     });
 
     it('should rethrow non-duplicate errors from individual fallback inserts', async () => {
-      const items: IEnumCreateDTO[] = [
-        { id: 'e1', package_id: 'p1', module_id: 'm1', name: 'A' },
-      ];
+      const items: IEnumCreateDTO[] = [{ id: 'e1', package_id: 'p1', module_id: 'm1', name: 'A' }];
 
       vi.mocked(adapter.query)
         .mockRejectedValueOnce(new Error('already exists'))
@@ -209,10 +204,10 @@ describe('EnumRepository', () => {
 
       const result = await repo.update('enum-id-1', { name: 'UpdatedStatus' });
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE enums SET name = ?'),
-        ['UpdatedStatus', 'enum-id-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE enums SET name = ?'), [
+        'UpdatedStatus',
+        'enum-id-1',
+      ]);
       expect(result.name).toBe('UpdatedStatus');
     });
 
@@ -223,10 +218,10 @@ describe('EnumRepository', () => {
 
       const result = await repo.update('enum-id-1', { members_json: newMembers });
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('members_json = ?'),
-        [newMembers, 'enum-id-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('members_json = ?'), [
+        newMembers,
+        'enum-id-1',
+      ]);
       expect(result.members).toEqual(['A', 'B', 'C']);
     });
 
@@ -237,10 +232,11 @@ describe('EnumRepository', () => {
 
       const result = await repo.update('enum-id-1', { name: 'NewName', members_json: newMembers });
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('name = ?, members_json = ?'),
-        ['NewName', newMembers, 'enum-id-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('name = ?, members_json = ?'), [
+        'NewName',
+        newMembers,
+        'enum-id-1',
+      ]);
       expect(result.name).toBe('NewName');
       expect(result.members).toEqual(['X']);
     });
@@ -279,10 +275,9 @@ describe('EnumRepository', () => {
 
       const result = await repo.retrieveById('enum-id-1');
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT * FROM enums WHERE id = ?'),
-        ['enum-id-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('SELECT * FROM enums WHERE id = ?'), [
+        'enum-id-1',
+      ]);
       expect(result).toBeInstanceOf(Enum);
       expect(result?.id).toBe('enum-id-1');
     });
@@ -301,18 +296,12 @@ describe('EnumRepository', () => {
   // -----------------------------------------------------------------------
   describe('retrieveByModuleId', () => {
     it('should return all enums for a given module', async () => {
-      const rows = [
-        makeRow({ id: 'e1', name: 'Alpha' }),
-        makeRow({ id: 'e2', name: 'Beta' }),
-      ];
+      const rows = [makeRow({ id: 'e1', name: 'Alpha' }), makeRow({ id: 'e2', name: 'Beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieveByModuleId('mod-1');
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE module_id = ?'),
-        ['mod-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('WHERE module_id = ?'), ['mod-1']);
       expect(results).toHaveLength(2);
       expect(results[0]).toBeInstanceOf(Enum);
       expect(results[1]).toBeInstanceOf(Enum);
@@ -340,10 +329,10 @@ describe('EnumRepository', () => {
 
       const results = await repo.retrieveByModuleIds(['mod-1', 'mod-2']);
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE module_id IN (?, ?)'),
-        ['mod-1', 'mod-2']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('WHERE module_id IN (?, ?)'), [
+        'mod-1',
+        'mod-2',
+      ]);
       expect(results).toHaveLength(2);
     });
 
@@ -360,18 +349,12 @@ describe('EnumRepository', () => {
   // -----------------------------------------------------------------------
   describe('retrieve', () => {
     it('should return all enums ordered by name', async () => {
-      const rows = [
-        makeRow({ id: 'e1', name: 'Alpha' }),
-        makeRow({ id: 'e2', name: 'Beta' }),
-      ];
+      const rows = [makeRow({ id: 'e1', name: 'Alpha' }), makeRow({ id: 'e2', name: 'Beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieve();
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT * FROM enums ORDER BY name'),
-        []
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('SELECT * FROM enums ORDER BY name'), []);
       expect(results).toHaveLength(2);
       expect(results.every((e) => e instanceof Enum)).toBe(true);
     });
@@ -394,10 +377,9 @@ describe('EnumRepository', () => {
 
       await repo.delete('enum-id-1');
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM enums WHERE id = ?'),
-        ['enum-id-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM enums WHERE id = ?'), [
+        'enum-id-1',
+      ]);
     });
   });
 
@@ -490,8 +472,8 @@ describe('EnumRepository', () => {
         name: row.name,
       });
 
-      expect(result.created_at).toBeInstanceOf(Date);
-      expect(result.created_at.toISOString()).toBe('2025-06-01T08:30:00.000Z');
+      expect(result.created_at).toBeTypeOf('string');
+      expect(result.created_at).toBe('2025-06-01T08:30:00.000Z');
     });
   });
 
@@ -513,9 +495,7 @@ describe('EnumRepository', () => {
     });
 
     it('should include query details for prepared statement errors', async () => {
-      vi.mocked(adapter.query).mockRejectedValueOnce(
-        new Error('prepared statement error: invalid syntax')
-      );
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('prepared statement error: invalid syntax'));
 
       await expect(repo.retrieve()).rejects.toThrow(/prepared statement/);
     });

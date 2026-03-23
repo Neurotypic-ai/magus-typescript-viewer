@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  getHandleCategory,
-  isValidEdgeConnection,
-} from '../edgeTypeRegistry';
+import { getHandleCategory, isValidEdgeConnection } from '../edgeTypeRegistry';
 
 describe('edgeTypeRegistry', () => {
   it('validates documented and invalid edge connections', () => {
@@ -24,4 +21,3 @@ describe('edgeTypeRegistry', () => {
     expect(getHandleCategory('uses')).toBe('relational');
   });
 });
-

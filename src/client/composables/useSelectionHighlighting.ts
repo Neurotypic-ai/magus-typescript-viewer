@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 
-import { measurePerformance } from '../utils/performanceMonitoring';
+import { applyEdgeHoverStrokeVariable, getEdgeBaseStroke, toEdgeStyleRecord } from '../theme/edgeStyles';
 import {
   EDGE_HOVER_BASE_STROKE_VAR,
   EDGE_HOVER_CLASS,
@@ -15,29 +15,28 @@ import {
   stripEdgeClass,
   stripNodeClass,
 } from '../theme/graphClasses';
-import { applyEdgeHoverStrokeVariable, getEdgeBaseStroke, toEdgeStyleRecord } from '../theme/edgeStyles';
+import { measurePerformance } from '../utils/performanceMonitoring';
 
 import type { Ref } from 'vue';
 
-import type { CameraMode, ScopeMode } from './useGraphInteractionController';
-import type { SearchHighlightState } from './useSearchHighlighting';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { CameraMode, ScopeMode } from './useGraphInteractionController';
+import type { SearchHighlightState } from './useSearchHighlighting';
 
 const EMPTY_EDGE_SET = new Set<string>();
 
-export interface SelectionAdjacency {
+interface SelectionAdjacency {
   connectedNodeIds: Set<string>;
   connectedEdgeIds: Set<string>;
 }
 
-export interface UseSelectionHighlightingOptions {
+interface UseSelectionHighlightingOptions {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   selectedNode: Ref<DependencyNode | null>;
   scopeMode: Readonly<Ref<ScopeMode>>;
   searchHighlightState: SearchHighlightState;
-  activeDraggedNodeIds: Readonly<Ref<Set<string>>>;
   useCssSelectionHover: boolean;
   perfMarksEnabled: boolean;
   graphStore: {
@@ -53,7 +52,7 @@ export interface UseSelectionHighlightingOptions {
   restoreHoverZIndex: (nodeId: string) => void;
 }
 
-export interface SelectionHighlighting {
+interface SelectionHighlighting {
   hoveredNodeId: Ref<string | null>;
   visualNodes: Ref<DependencyNode[]>;
   visualEdges: Ref<GraphEdge[]>;
@@ -76,7 +75,6 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     selectedNode,
     scopeMode,
     searchHighlightState,
-    activeDraggedNodeIds,
     useCssSelectionHover,
     perfMarksEnabled,
     graphStore,
@@ -176,11 +174,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
   });
 
   const hoveredConnectedEdgeIds = computed<Set<string>>(() => {
-    if (
-      hoveredNodeId.value === null ||
-      selectedNode.value !== null ||
-      scopeMode.value === 'isolate'
-    ) {
+    if (hoveredNodeId.value === null || selectedNode.value !== null || scopeMode.value === 'isolate') {
       return EMPTY_EDGE_SET;
     }
     return selectionAdjacencyByNodeId.value.get(hoveredNodeId.value)?.connectedEdgeIds ?? EMPTY_EDGE_SET;
@@ -225,26 +219,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     const nextStyledIds = new Set<string>();
     let nextNodes: DependencyNode[] | null = null;
 
-    // Cache the set of actively-dragged node IDs so we can avoid creating new
-    // object references for them. VueFlow tracks drag state internally on the
-    // node object; if we replace the object reference mid-drag, VueFlow
-    // re-syncs the node from the prop and snaps the position back to the
-    // (potentially stale) store position, causing rubber-banding.
-    const dragging = activeDraggedNodeIds.value;
-
     nodes.value.forEach((node, index) => {
-      // CRITICAL: Never create a new object reference for a node that is actively
-      // being dragged. Doing so resets VueFlow's internal drag tracking and
-      // causes the node to snap back to the store position.
-      if (dragging.size > 0 && dragging.has(node.id)) {
-        // Still track as styled so we re-apply when drag ends.
-        const selectionClass = resolveNodeSelectionClass(node);
-        if (selectionClass) {
-          nextStyledIds.add(node.id);
-        }
-        return;
-      }
-
       const classTokens = getClassTokens(node.class);
       NODE_SELECTION_CLASS_TOKENS.forEach((token) => classTokens.delete(token));
 
@@ -405,8 +380,7 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
       return;
     }
 
-    const shouldHighlightEdges =
-      nodeId !== null && selectedNode.value === null && scopeMode.value !== 'isolate';
+    const shouldHighlightEdges = nodeId !== null && selectedNode.value === null && scopeMode.value !== 'isolate';
     const nextHoveredEdgeIds = shouldHighlightEdges
       ? (selectionAdjacencyByNodeId.value.get(nodeId)?.connectedEdgeIds ?? new Set<string>())
       : new Set<string>();

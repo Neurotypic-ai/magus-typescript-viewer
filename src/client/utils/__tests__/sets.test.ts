@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import { addSetDiff } from '../sets';
 
 describe('addSetDiff', () => {
@@ -140,8 +142,12 @@ describe('addSetDiff', () => {
 
     // All 200 items should be in the target since sets are fully disjoint
     expect(target.size).toBe(200);
-    previousItems.forEach((item) => expect(target.has(item)).toBe(true));
-    nextItems.forEach((item) => expect(target.has(item)).toBe(true));
+    previousItems.forEach((item) => {
+      expect(target.has(item)).toBe(true);
+    });
+    nextItems.forEach((item) => {
+      expect(target.has(item)).toBe(true);
+    });
   });
 
   it('handles overlapping sets with shared items excluded from target', () => {

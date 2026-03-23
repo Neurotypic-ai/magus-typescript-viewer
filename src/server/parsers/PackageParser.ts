@@ -1,28 +1,28 @@
 import { readFile, readdir } from 'fs/promises';
 import { dirname, join, relative, resolve } from 'path';
 
+import { consola } from 'consola';
 import { readPackage } from 'read-pkg';
 import ts from 'typescript';
 
 import { PackageImport } from '../../shared/types/Import';
-import { createLogger } from '../../shared/utils/logger';
 import { generateImportUUID, generatePackageUUID, generateRelationshipUUID } from '../utils/uuid';
 import { ModuleParser } from './ModuleParser';
 
 import type { Export } from '../../shared/types/Export';
 import type { Import } from '../../shared/types/Import';
-import type { IClassCreateDTO } from '../db/repositories/ClassRepository';
-import type { IEnumCreateDTO } from '../db/repositories/EnumRepository';
-import type { IFunctionCreateDTO } from '../db/repositories/FunctionRepository';
-import type { IInterfaceCreateDTO } from '../db/repositories/InterfaceRepository';
-import type { IMethodCreateDTO } from '../db/repositories/MethodRepository';
-import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
-import type { IPackageCreateDTO } from '../db/repositories/PackageRepository';
-import type { IParameterCreateDTO } from '../db/repositories/ParameterRepository';
-import type { IPropertyCreateDTO } from '../db/repositories/PropertyRepository';
-import type { ISymbolReferenceCreateDTO } from '../db/repositories/SymbolReferenceRepository';
-import type { ITypeAliasCreateDTO } from '../db/repositories/TypeAliasRepository';
-import type { IVariableCreateDTO } from '../db/repositories/VariableRepository';
+import type { IClassCreateDTO } from '../../shared/types/dto/ClassDTO';
+import type { IEnumCreateDTO } from '../../shared/types/dto/EnumDTO';
+import type { IFunctionCreateDTO } from '../../shared/types/dto/FunctionDTO';
+import type { IInterfaceCreateDTO } from '../../shared/types/dto/InterfaceDTO';
+import type { IMethodCreateDTO } from '../../shared/types/dto/MethodDTO';
+import type { IModuleCreateDTO } from '../../shared/types/dto/ModuleDTO';
+import type { IPackageCreateDTO } from '../../shared/types/dto/PackageDTO';
+import type { IParameterCreateDTO } from '../../shared/types/dto/ParameterDTO';
+import type { IPropertyCreateDTO } from '../../shared/types/dto/PropertyDTO';
+import type { ISymbolReferenceCreateDTO } from '../../shared/types/dto/SymbolReferenceDTO';
+import type { ITypeAliasCreateDTO } from '../../shared/types/dto/TypeAliasDTO';
+import type { IVariableCreateDTO } from '../../shared/types/dto/VariableDTO';
 import type { ParseResult, SymbolUsageRef } from './ParseResult';
 
 interface PackageDependencies {
@@ -60,11 +60,7 @@ interface DeferredInterfaceExtendsRef {
  * Runs an async mapping function over items with bounded concurrency.
  * Workers pull from a shared index to keep all slots busy.
  */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length) as R[];
   let nextIndex = 0;
 
@@ -98,7 +94,7 @@ const ALWAYS_EXCLUDED_DIRECTORIES = new Set([
 ]);
 
 export class PackageParser {
-  private readonly logger = createLogger('PackageParser');
+  private readonly logger = consola.withTag('PackageParser');
 
   constructor(
     private readonly packagePath: string,
@@ -361,7 +357,11 @@ export class PackageParser {
   }
 
   private async collectFilesFromTsConfig(): Promise<string[] | null> {
-    const tsConfigPath = ts.findConfigFile(this.packagePath, (fileName) => ts.sys.fileExists(fileName), 'tsconfig.json');
+    const tsConfigPath = ts.findConfigFile(
+      this.packagePath,
+      (fileName) => ts.sys.fileExists(fileName),
+      'tsconfig.json'
+    );
     if (!tsConfigPath) {
       return null;
     }

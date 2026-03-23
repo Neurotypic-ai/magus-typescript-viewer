@@ -1,22 +1,14 @@
+/* eslint-disable @typescript-eslint/unbound-method -- IDatabaseAdapter vi.fn doubles in expects */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { ModuleFunction } from '../../../../shared/types/Function';
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { FunctionRepository } from '../FunctionRepository';
 
-import type { IFunctionCreateDTO, IFunctionRow } from '../FunctionRepository';
+import type { IFunctionCreateDTO } from '../../../../shared/types/dto/FunctionDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
-
-/**
- * Creates a mock IDatabaseAdapter with vi.fn() stubs for every method.
- */
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue([]),
-    close: vi.fn().mockResolvedValue(undefined),
-    transaction: vi.fn().mockImplementation(async (cb: () => Promise<unknown>) => cb()),
-    getDbPath: vi.fn().mockReturnValue(':memory:'),
-  };
-}
+import type { IFunctionRow } from '../../types/DatabaseResults';
 
 /**
  * Returns a realistic IFunctionRow as DuckDB would return it.
@@ -51,12 +43,22 @@ function makeCreateDTO(overrides: Partial<IFunctionCreateDTO> = {}): IFunctionCr
   };
 }
 
+function firstQueryCall(adapter: IDatabaseAdapter): [string, unknown[]] {
+  const raw = vi.mocked(adapter.query).mock.calls[0];
+  if (raw === undefined) {
+    throw new Error('expected adapter.query to have been called');
+  }
+  const sql = raw[0];
+  const params = raw[1] ?? [];
+  return [typeof sql === 'string' ? sql : String(sql), Array.isArray(params) ? params : []];
+}
+
 describe('FunctionRepository', () => {
   let adapter: IDatabaseAdapter;
   let repo: FunctionRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new FunctionRepository(adapter);
   });
 
@@ -84,7 +86,7 @@ describe('FunctionRepository', () => {
       expect(result.is_exported).toBe(true);
 
       expect(adapter.query).toHaveBeenCalledOnce();
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('INSERT INTO functions');
       expect(sql).toContain('RETURNING *');
       expect(params).toEqual([
@@ -103,25 +105,18 @@ describe('FunctionRepository', () => {
       const row = makeFunctionRow({ return_type: null, is_async: 'false', is_exported: 'false' });
       vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
-      const dto = makeCreateDTO({
-        return_type: undefined,
-        is_async: undefined,
-        is_exported: undefined,
-      });
+      const base = makeCreateDTO();
+      const dto: IFunctionCreateDTO = {
+        id: base.id,
+        package_id: base.package_id,
+        module_id: base.module_id,
+        name: base.name,
+      };
       const result = await repo.create(dto);
 
-      const [, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [, params] = firstQueryCall(adapter);
       // return_type defaults to null, is_async/is_exported default to false
-      expect(params).toEqual([
-        dto.id,
-        dto.package_id,
-        dto.module_id,
-        dto.name,
-        null,
-        false,
-        false,
-        false,
-      ]);
+      expect(params).toEqual([dto.id, dto.package_id, dto.module_id, dto.name, null, false, false, false]);
 
       expect(result.return_type).toBe('void'); // null return_type maps to 'void'
       expect(result.is_async).toBe(false);
@@ -155,7 +150,7 @@ describe('FunctionRepository', () => {
       expect(result?.id).toBe('func-uuid-1');
       expect(result?.name).toBe('myFunction');
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('SELECT * FROM functions WHERE id = ?');
       expect(params).toEqual(['func-uuid-1']);
     });
@@ -195,10 +190,7 @@ describe('FunctionRepository', () => {
   // ---------------------------------------------------------------------------
   describe('findByModuleId', () => {
     it('should return all functions for a module', async () => {
-      const rows = [
-        makeFunctionRow({ id: 'func-1', name: 'alpha' }),
-        makeFunctionRow({ id: 'func-2', name: 'beta' }),
-      ];
+      const rows = [makeFunctionRow({ id: 'func-1', name: 'alpha' }), makeFunctionRow({ id: 'func-2', name: 'beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.findByModuleId('mod-uuid-1');
@@ -208,7 +200,7 @@ describe('FunctionRepository', () => {
       expect(results[0]?.name).toBe('alpha');
       expect(results[1]?.name).toBe('beta');
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('WHERE module_id = ?');
       expect(sql).toContain('ORDER BY name');
       expect(params).toEqual(['mod-uuid-1']);
@@ -258,7 +250,7 @@ describe('FunctionRepository', () => {
       expect(results).toHaveLength(2);
       expect(results[0]).toBeInstanceOf(ModuleFunction);
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('WHERE module_id IN (?, ?)');
       expect(params).toEqual(['mod-1', 'mod-2']);
     });
@@ -282,10 +274,7 @@ describe('FunctionRepository', () => {
   // ---------------------------------------------------------------------------
   describe('retrieve', () => {
     it('should return all functions ordered by name', async () => {
-      const rows = [
-        makeFunctionRow({ id: 'func-1', name: 'alpha' }),
-        makeFunctionRow({ id: 'func-2', name: 'beta' }),
-      ];
+      const rows = [makeFunctionRow({ id: 'func-1', name: 'alpha' }), makeFunctionRow({ id: 'func-2', name: 'beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieve();
@@ -293,7 +282,7 @@ describe('FunctionRepository', () => {
       expect(results).toHaveLength(2);
       expect(results[0]?.name).toBe('alpha');
 
-      const [sql] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql] = firstQueryCall(adapter);
       expect(sql).toContain('SELECT * FROM functions ORDER BY name');
     });
 
@@ -323,7 +312,7 @@ describe('FunctionRepository', () => {
       expect(result.name).toBe('renamedFunction');
       expect(result.is_async).toBe(false);
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('UPDATE functions SET');
       expect(sql).toContain('name = ?');
       expect(sql).toContain('is_async = ?');
@@ -340,7 +329,7 @@ describe('FunctionRepository', () => {
 
       expect(result.return_type).toBe('number');
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('return_type = ?');
       expect(params).toEqual(['number', 'func-uuid-1']);
     });
@@ -353,7 +342,7 @@ describe('FunctionRepository', () => {
 
       expect(result.is_exported).toBe(false);
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('is_exported = ?');
       expect(params).toEqual([false, 'func-uuid-1']);
     });
@@ -368,7 +357,7 @@ describe('FunctionRepository', () => {
       expect(result.id).toBe('func-uuid-1');
 
       // The query should be a SELECT (from findById), not an UPDATE
-      const [sql] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql] = firstQueryCall(adapter);
       expect(sql).toContain('SELECT * FROM functions WHERE id = ?');
     });
 
@@ -381,17 +370,13 @@ describe('FunctionRepository', () => {
     it('should throw RepositoryError when update returns empty result', async () => {
       vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
-      await expect(
-        repo.update('nonexistent', { name: 'newName' })
-      ).rejects.toThrow(RepositoryError);
+      await expect(repo.update('nonexistent', { name: 'newName' })).rejects.toThrow(RepositoryError);
     });
 
     it('should throw RepositoryError when adapter throws', async () => {
       vi.mocked(adapter.query).mockRejectedValueOnce(new Error('db error'));
 
-      await expect(
-        repo.update('func-uuid-1', { name: 'newName' })
-      ).rejects.toThrow(RepositoryError);
+      await expect(repo.update('func-uuid-1', { name: 'newName' })).rejects.toThrow(RepositoryError);
     });
   });
 
@@ -405,7 +390,7 @@ describe('FunctionRepository', () => {
       await repo.delete('func-uuid-1');
 
       expect(adapter.query).toHaveBeenCalledOnce();
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('DELETE FROM functions WHERE id = ?');
       expect(params).toEqual(['func-uuid-1']);
     });
@@ -432,7 +417,7 @@ describe('FunctionRepository', () => {
       await repo.createBatch(items);
 
       expect(adapter.query).toHaveBeenCalledOnce();
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('INSERT INTO functions');
       expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?)');
       // 2 items x 8 columns = 16 params
@@ -530,8 +515,8 @@ describe('FunctionRepository', () => {
 
       const result = await repo.findById('func-uuid-1');
 
-      expect(result?.created_at).toBeInstanceOf(Date);
-      expect(result?.created_at.toISOString()).toBe('2025-06-15T12:30:00.000Z');
+      expect(result?.created_at).toBeTypeOf('string');
+      expect(result?.created_at).toBe('2025-06-15T12:30:00.000Z');
     });
 
     it('should initialize parameters as an empty Map', async () => {
@@ -540,8 +525,10 @@ describe('FunctionRepository', () => {
 
       const result = await repo.findById('func-uuid-1');
 
-      expect(result?.parameters).toBeInstanceOf(Map);
-      expect(result?.parameters.size).toBe(0);
+      const parameters = result?.parameters;
+      expect(parameters).toBeInstanceOf(Map);
+      if (!(parameters instanceof Map)) throw new Error('expected parameters Map');
+      expect(parameters.size).toBe(0);
     });
   });
 });

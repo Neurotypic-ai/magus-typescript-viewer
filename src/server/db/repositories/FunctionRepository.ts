@@ -5,43 +5,9 @@ import { BaseRepository } from './BaseRepository';
 import type { DuckDBValue } from '@duckdb/node-api';
 
 import type { Parameter } from '../../../shared/types/Parameter';
+import type { IFunctionCreateDTO, IFunctionUpdateDTO } from '../../../shared/types/dto/FunctionDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
-
-/**
- * Row type for functions table
- */
-export interface IFunctionRow {
-  [key: string]: string | null;
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  return_type: string | null;
-  is_async: string;
-  is_exported: string;
-  created_at: string;
-}
-
-/**
- * Data transfer object for creating a new function.
- */
-export interface IFunctionCreateDTO {
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  return_type?: string;
-  is_async?: boolean;
-  is_exported?: boolean;
-  has_explicit_return_type?: boolean;
-}
-
-interface IFunctionUpdateDTO {
-  name?: string;
-  return_type?: string;
-  is_async?: boolean;
-  is_exported?: boolean;
-}
+import type { IFunctionRow } from '../types/DatabaseResults';
 
 export class FunctionRepository extends BaseRepository<ModuleFunction, IFunctionCreateDTO, IFunctionUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
@@ -100,7 +66,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
         func.package_id,
         func.module_id,
         func.name,
-        new Date(func.created_at),
+        String(func.created_at),
         new Map<string, Parameter>(),
         func.return_type ?? 'void',
         func.is_async === 'true' || func.is_async === '1',
@@ -163,7 +129,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
         func.package_id,
         func.module_id,
         func.name,
-        new Date(func.created_at),
+        String(func.created_at),
         new Map<string, Parameter>(),
         func.return_type ?? 'void',
         func.is_async === 'true' || func.is_async === '1',
@@ -177,11 +143,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
 
   async findById(id: string): Promise<ModuleFunction | undefined> {
     try {
-      const results = await this.executeQuery<IFunctionRow>(
-        'find by id',
-        'SELECT * FROM functions WHERE id = ?',
-        [id]
-      );
+      const results = await this.executeQuery<IFunctionRow>('find by id', 'SELECT * FROM functions WHERE id = ?', [id]);
 
       if (results.length === 0) {
         return undefined;
@@ -197,7 +159,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
         func.package_id,
         func.module_id,
         func.name,
-        new Date(func.created_at),
+        String(func.created_at),
         new Map<string, Parameter>(),
         func.return_type ?? 'void',
         func.is_async === 'true' || func.is_async === '1',
@@ -224,7 +186,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
             func.package_id,
             func.module_id,
             func.name,
-            new Date(func.created_at),
+            String(func.created_at),
             new Map<string, Parameter>(),
             func.return_type ?? 'void',
             func.is_async === 'true' || func.is_async === '1',
@@ -278,7 +240,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
       row.package_id,
       row.module_id,
       row.name,
-      new Date(row.created_at),
+      String(row.created_at),
       new Map<string, Parameter>(),
       row.return_type ?? 'void',
       row.is_async === 'true' || row.is_async === '1',
@@ -296,10 +258,7 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
   }
 
   async retrieve(): Promise<ModuleFunction[]> {
-    const results = await this.executeQuery<IFunctionRow>(
-      'retrieve all',
-      'SELECT * FROM functions ORDER BY name'
-    );
+    const results = await this.executeQuery<IFunctionRow>('retrieve all', 'SELECT * FROM functions ORDER BY name');
     return results.map((row) => this.mapToEntity(row));
   }
 }

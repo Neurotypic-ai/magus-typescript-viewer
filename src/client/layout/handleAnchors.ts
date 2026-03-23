@@ -1,6 +1,6 @@
 import { GROUP_ENTRY_STUB_PX } from './edgeGeometryPolicy';
 
-export interface HandleAnchorNodeBounds {
+interface HandleAnchorNodeBounds {
   x: number;
   y: number;
   width: number;

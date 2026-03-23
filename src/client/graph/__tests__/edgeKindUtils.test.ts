@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import { toDependencyEdgeKind } from '../edgeKindUtils';
 
 describe('edgeKindUtils', () => {

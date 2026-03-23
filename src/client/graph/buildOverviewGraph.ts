@@ -1,66 +1,43 @@
 /**
- * Overview graph building: nodes/edges from package graph, folder/SCC transforms, visibility.
+ * Overview graph building: nodes/edges from package graph, folder transforms, visibility.
  */
 
-import { collapseFolders } from './cluster/collapseFolders';
-import { clusterByFolder } from './cluster/folders';
-import { collapseSccs } from './cluster/scc';
-import { isValidEdgeConnection } from './edgeTypeRegistry';
-import { applyEdgeHighways } from './transforms/edgeHighways';
+import { consola } from 'consola';
+
 import { createGraphEdges } from '../utils/createGraphEdges';
 import { createGraphNodes } from '../utils/createGraphNodes';
-import {
-  filterEdgesByNodeSet,
-  bundleParallelEdges,
-  applyEdgeVisibility,
-  type GraphViewData,
-} from './graphViewShared';
+import { collapseFolders } from './cluster/collapseFolders';
+import { clusterByFolder } from './cluster/folders';
+import { isValidEdgeConnection } from './edgeTypeRegistry';
+import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
+import { applyEdgeHighways } from './transforms/edgeHighways';
 
-import type { DependencyKind } from '../types/DependencyKind';
+import type { PackageGraph } from '../../shared/types/Package';
+import type { DependencyData } from '../../shared/types/graph/DependencyData';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { GraphViewData } from './graphViewShared';
 
 const EDGE_REGISTRY_DEBUG =
   import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
 const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
+const overviewGraphLogger = consola.withTag('OverviewGraph');
 
 export interface BuildOverviewGraphOptions {
-  data: DependencyPackageGraph;
-  enabledNodeTypes: Iterable<string>;
+  data: PackageGraph;
   enabledRelationshipTypes: string[];
   direction: 'LR' | 'RL' | 'TB' | 'BT';
-  clusterByFolder: boolean;
-  collapseScc: boolean;
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
-  memberNodeMode: 'compact' | 'graph';
   highlightOrphanGlobal: boolean;
 }
 
-function applyGraphTransforms(
-  graphData: GraphViewData,
-  options: Pick<BuildOverviewGraphOptions, 'clusterByFolder' | 'collapseScc'>
-): GraphViewData {
-  let transformedNodes = graphData.nodes;
-  let transformedEdges = graphData.edges;
-  const folderClusteringEnabled = options.clusterByFolder;
-
-  if (!folderClusteringEnabled && options.collapseScc) {
-    const collapsed = collapseSccs(transformedNodes, transformedEdges);
-    transformedNodes = collapsed.nodes;
-    transformedEdges = collapsed.edges;
-  }
-
-  if (folderClusteringEnabled) {
-    const clustered = clusterByFolder(transformedNodes, transformedEdges);
-    transformedNodes = clustered.nodes;
-    transformedEdges = clustered.edges;
-  }
-
+function applyGraphTransforms(graphData: GraphViewData): GraphViewData {
+  const clustered = clusterByFolder(graphData.nodes, graphData.edges);
   return {
-    nodes: transformedNodes,
-    edges: filterEdgesByNodeSet(transformedNodes, transformedEdges),
+    nodes: clustered.nodes,
+    edges: filterEdgesByNodeSet(clustered.nodes, clustered.edges),
   };
 }
 
@@ -101,8 +78,8 @@ function validateEdgesAgainstRegistry(nodes: DependencyNode[], edges: GraphEdge[
     }
   });
   if (invalidCount > 0) {
-    console.warn(
-      `[buildGraphView] ${String(invalidCount)} edge(s) failed edge-type registry validation. ` +
+    overviewGraphLogger.warn(
+      `${String(invalidCount)} edge(s) failed edge-type registry validation. ` +
         'Set VITE_DEBUG_EDGE_REGISTRY=false (or unset) to silence this check.',
       { sample }
     );
@@ -111,18 +88,17 @@ function validateEdgesAgainstRegistry(nodes: DependencyNode[], edges: GraphEdge[
 
 function filterGraphByTestVisibility(graphData: GraphViewData, hideTestFiles: boolean): GraphViewData {
   if (!hideTestFiles) return graphData;
-  const filteredNodes = graphData.nodes.filter((node) => node.data?.diagnostics?.isTestFile !== true);
+  const filteredNodes = graphData.nodes.filter((node) => {
+    const data = node.data;
+    return data?.diagnostics?.isTestFile !== true;
+  });
   return {
     nodes: filteredNodes,
     edges: filterEdgesByNodeSet(filteredNodes, graphData.edges),
   };
 }
 
-function buildDegreeMap(
-  nodes: DependencyNode[],
-  edges: GraphEdge[],
-  includeHiddenEdges = false
-): Map<string, number> {
+function buildDegreeMap(nodes: DependencyNode[], edges: GraphEdge[], includeHiddenEdges = false): Map<string, number> {
   const degreeMap = new Map<string, number>();
   nodes.forEach((node) => degreeMap.set(node.id, 0));
   edges.forEach((edge) => {
@@ -141,8 +117,8 @@ function annotateOrphanDiagnostics(
   return nodes.map((node) => {
     const orphanCurrent = (currentDegreeMap.get(node.id) ?? 0) === 0;
     const orphanGlobal = (globalDegreeMap.get(node.id) ?? 0) === 0;
-    const existingData = node.data ?? { label: node.id };
-    const existingDiagnostics = node.data?.diagnostics;
+    const existingData: DependencyData = node.data ?? { label: node.id };
+    const existingDiagnostics = existingData.diagnostics;
     return {
       ...node,
       data: {
@@ -162,34 +138,23 @@ function annotateOrphanDiagnostics(
 }
 
 export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphViewData {
-  const enabledNodeTypeSet = new Set(options.enabledNodeTypes);
-  const includePackages = enabledNodeTypeSet.has('package');
-  const includeModules = enabledNodeTypeSet.has('module');
-  const includeClassNodes = enabledNodeTypeSet.has('class');
-  const includeInterfaceNodes = enabledNodeTypeSet.has('interface');
-  const includeClassEdges = includeClassNodes || includeInterfaceNodes;
-  const symbolNodesRequested = includeClassNodes || includeInterfaceNodes;
-  const resolvedMemberNodeMode: 'compact' | 'graph' =
-    !includeModules && symbolNodesRequested ? 'graph' : options.memberNodeMode;
-
   const graphNodes = createGraphNodes(options.data, {
-    includePackages,
-    includeModules,
-    includeClasses: includeClassEdges,
-    includeClassNodes,
-    includeInterfaceNodes,
-    nestSymbolsInModules: !options.clusterByFolder,
-    memberNodeMode: resolvedMemberNodeMode,
+    includePackages: false,
+    includeModules: true,
+    includeClasses: false,
+    includeClassNodes: true,
+    includeInterfaceNodes: true,
+    nestSymbolsInModules: false,
+    memberNodeMode: 'compact',
     direction: options.direction,
   });
 
-  const includeClassEdgesInGraph = includeClassEdges && resolvedMemberNodeMode === 'graph';
   const graphEdges = createGraphEdges(options.data, {
-    includePackageEdges: includePackages,
-    includeClassEdges: includeClassEdgesInGraph,
-    liftClassEdgesToModuleLevel: !includeClassEdgesInGraph,
+    includePackageEdges: false,
+    includeClassEdges: false,
+    liftClassEdgesToModuleLevel: true,
     importDirection: 'importer-to-imported',
-  }) as unknown as GraphEdge[];
+  });
 
   const unfilteredGraph = {
     nodes: graphNodes,
@@ -199,35 +164,21 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const semanticSnapshot = { nodes: filteredGraph.nodes, edges: filteredGraph.edges };
   validateEdgesAgainstRegistry(semanticSnapshot.nodes, semanticSnapshot.edges);
 
-  const transformedGraph = applyGraphTransforms(filteredGraph, {
-    clusterByFolder: options.clusterByFolder,
-    collapseScc: options.collapseScc,
-  });
+  const transformedGraph = applyGraphTransforms(filteredGraph);
 
-  let projectedGraph = transformedGraph;
-  if (options.clusterByFolder) {
-    projectedGraph = applyEdgeHighways(transformedGraph.nodes, transformedGraph.edges, {
-      direction: options.direction,
-    });
-    if (options.collapsedFolderIds.size > 0) {
-      const folderCollapsed = collapseFolders(
-        projectedGraph.nodes,
-        projectedGraph.edges,
-        options.collapsedFolderIds
-      );
-      projectedGraph = { nodes: folderCollapsed.nodes, edges: folderCollapsed.edges };
-    }
+  let projectedGraph = applyEdgeHighways(transformedGraph.nodes, transformedGraph.edges, {
+    direction: options.direction,
+  });
+  if (options.collapsedFolderIds.size > 0) {
+    const folderCollapsed = collapseFolders(projectedGraph.nodes, projectedGraph.edges, options.collapsedFolderIds);
+    projectedGraph = { nodes: folderCollapsed.nodes, edges: folderCollapsed.edges };
   }
 
   const visibleEdges = applyEdgeVisibility(projectedGraph.edges, options.enabledRelationshipTypes);
   const bundledEdges = bundleParallelEdges(visibleEdges);
   const currentDegreeMap = buildDegreeMap(projectedGraph.nodes, bundledEdges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
-  const nodesWithDiagnostics = annotateOrphanDiagnostics(
-    projectedGraph.nodes,
-    currentDegreeMap,
-    globalDegreeMap
-  );
+  const nodesWithDiagnostics = annotateOrphanDiagnostics(projectedGraph.nodes, currentDegreeMap, globalDegreeMap);
 
   return {
     nodes: nodesWithDiagnostics,

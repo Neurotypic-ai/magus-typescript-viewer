@@ -9,7 +9,7 @@ export interface IVariable {
   readonly kind: 'const' | 'let' | 'var';
   readonly type: string;
   readonly initializer?: string;
-  readonly created_at: Date;
+  readonly created_at: string;
 }
 
 export class Variable implements IVariable {
@@ -21,6 +21,6 @@ export class Variable implements IVariable {
     public readonly kind: 'const' | 'let' | 'var',
     public readonly type: string = 'unknown',
     public readonly initializer: string = '',
-    public readonly created_at: Date = new Date()
+    public readonly created_at: string = new Date().toISOString()
   ) {}
 }

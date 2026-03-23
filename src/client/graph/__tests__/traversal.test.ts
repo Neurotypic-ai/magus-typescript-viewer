@@ -113,4 +113,3 @@ describe('traverseGraph', () => {
     expect(result.depthMap.get('module:c')).toBe(2);
   });
 });
-

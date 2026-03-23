@@ -1,15 +1,23 @@
 import { computed } from 'vue';
-import { useVueFlow } from '@vue-flow/core';
-import type { ObstacleRect } from '../layout/orthogonalPathfinder';
 
-export interface FolderObstacleSnapshot {
+import { useVueFlow } from '@vue-flow/core';
+
+/** Axis-aligned bounding rectangle used for obstacle-aware routing. */
+interface ObstacleRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface FolderObstacleSnapshot {
   folderId: string;
   ready: boolean;
   version: string;
   obstacles: (ObstacleRect & { nodeId: string })[];
 }
 
-export interface IntraFolderObstacleIndex {
+interface IntraFolderObstacleIndex {
   getSnapshot(folderId: string): FolderObstacleSnapshot | null;
 }
 
@@ -88,9 +96,7 @@ export function useIntraFolderObstacleIndex(): IntraFolderObstacleIndex {
       // Sorting by nodeId ensures stability regardless of iteration order.
       const sortedEntries = [...group].sort((a, b) => (a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0));
       const versionInput = sortedEntries
-        .map((entry) =>
-          [entry.nodeId, entry.x, entry.y, entry.width, entry.height].join(':'),
-        )
+        .map((entry) => [entry.nodeId, entry.x, entry.y, entry.width, entry.height].join(':'))
         .join('|');
       const version = simpleHash(versionInput);
 

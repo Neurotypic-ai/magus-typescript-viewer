@@ -1,10 +1,10 @@
 import { getHandleCategory } from './edgeTypeRegistry';
 
-import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
-export interface TraversalOptions {
+interface TraversalOptions {
   maxDepth: number;
   edgeFilter?: Set<DependencyEdgeKind>;
   semanticEdges: GraphEdge[];
@@ -12,7 +12,7 @@ export interface TraversalOptions {
   parentMap: Map<string, string>;
 }
 
-export interface TraversalResult {
+interface TraversalResult {
   nodeIds: Set<string>;
   edges: GraphEdge[];
   inbound: Set<string>;
@@ -151,4 +151,3 @@ export function traverseGraph(startNodeId: string, options: TraversalOptions): T
     depthMap,
   };
 }
-

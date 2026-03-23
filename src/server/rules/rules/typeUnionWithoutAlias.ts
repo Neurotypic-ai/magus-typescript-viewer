@@ -1,15 +1,11 @@
 import { generateCodeIssueUUID } from '../../utils/uuid';
 
-import type {
-  ASTPath,
-  ClassDeclaration,
-  TSInterfaceDeclaration,
-  TSTypeAnnotation,
-  TSUnionType,
-} from 'jscodeshift';
-import type { IClassCreateDTO } from '../../db/repositories/ClassRepository';
-import type { IInterfaceCreateDTO } from '../../db/repositories/InterfaceRepository';
-import type { IPropertyCreateDTO } from '../../db/repositories/PropertyRepository';
+import type { ASTPath, ClassDeclaration, TSInterfaceDeclaration, TSTypeAnnotation, TSUnionType } from 'jscodeshift';
+
+import type { ParentType } from '../../../shared/types/ParentType';
+import type { IClassCreateDTO } from '../../../shared/types/dto/ClassDTO';
+import type { IInterfaceCreateDTO } from '../../../shared/types/dto/InterfaceDTO';
+import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
 import type { CodeIssue, Rule, RuleContext } from '../Rule';
 
 function toPascalCase(str: string): string {
@@ -33,7 +29,7 @@ function findPropertyDTO(
   context: RuleContext,
   parentId: string,
   propertyName: string,
-  parentType: 'class' | 'interface'
+  parentType: ParentType
 ): IPropertyCreateDTO | undefined {
   return context.parseResult.properties.find(
     (p) =>
@@ -45,15 +41,11 @@ function findPropertyDTO(
 }
 
 function findClassDTO(context: RuleContext, name: string): IClassCreateDTO | undefined {
-  return context.parseResult.classes.find(
-    (c) => c.module_id === context.moduleId && c.name === name
-  );
+  return context.parseResult.classes.find((c) => c.module_id === context.moduleId && c.name === name);
 }
 
 function findInterfaceDTO(context: RuleContext, name: string): IInterfaceCreateDTO | undefined {
-  return context.parseResult.interfaces.find(
-    (i) => i.module_id === context.moduleId && i.name === name
-  );
+  return context.parseResult.interfaces.find((i) => i.module_id === context.moduleId && i.name === name);
 }
 
 function checkUnionProperty(
@@ -62,7 +54,7 @@ function checkUnionProperty(
   typeAnnotation: TSTypeAnnotation | undefined,
   parentName: string,
   parentId: string,
-  parentType: 'class' | 'interface',
+  parentType: ParentType,
   loc: { line: number; column: number } | undefined
 ): CodeIssue | undefined {
   if (!typeAnnotation) return undefined;
@@ -79,11 +71,7 @@ function checkUnionProperty(
 
   const propertyDTO = findPropertyDTO(context, parentId, propertyName, parentType);
 
-  const issueId = generateCodeIssueUUID(
-    context.moduleId,
-    'type-union-without-alias',
-    `${parentName}.${propertyName}`
-  );
+  const issueId = generateCodeIssueUUID(context.moduleId, 'type-union-without-alias', `${parentName}.${propertyName}`);
 
   const issue: CodeIssue = {
     id: issueId,

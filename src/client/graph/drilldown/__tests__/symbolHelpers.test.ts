@@ -1,33 +1,33 @@
 import { Position } from '@vue-flow/core';
+import { describe, expect, it } from 'vitest';
 
 import {
-  toNodeProperty,
-  toNodeMethod,
-  findModuleById,
-  createSymbolEdge,
   createDetailedSymbolNode,
+  createSymbolEdge,
+  findModuleById,
+  normalizeMethod,
+  normalizeProperty,
 } from '../symbolHelpers';
 
-import type { DependencyPackageGraph } from '../../../types/DependencyPackageGraph';
-import type { ModuleStructure } from '../../../types/ModuleStructure';
-import type { NodeMethod } from '../../../types/NodeMethod';
-import type { NodeProperty } from '../../../types/NodeProperty';
-import type { PackageStructure } from '../../../types/PackageStructure';
+import type { Method } from '../../../../shared/types/Method';
+import type { Module } from '../../../../shared/types/Module';
+import type { Package, PackageGraph } from '../../../../shared/types/Package';
+import type { Property } from '../../../../shared/types/Property';
 
 // ---------------------------------------------------------------------------
-// toNodeProperty
+// normalizeProperty
 // ---------------------------------------------------------------------------
 
-describe('toNodeProperty', () => {
-  it('passes through a well-formed NodeProperty', () => {
-    const input: NodeProperty = {
+describe('normalizeProperty', () => {
+  it('passes through a well-formed Property', () => {
+    const input = {
       id: 'prop-1',
       name: 'count',
       type: 'number',
       visibility: 'private',
     };
-    const result = toNodeProperty(input);
-    expect(result).toEqual({
+    const result = normalizeProperty(input);
+    expect(result).toMatchObject({
       id: 'prop-1',
       name: 'count',
       type: 'number',
@@ -36,7 +36,7 @@ describe('toNodeProperty', () => {
   });
 
   it('defaults name to "unknown" when not a string', () => {
-    const result = toNodeProperty({ name: 42, type: 'string', visibility: 'public' } as unknown as Record<
+    const result = normalizeProperty({ name: 42, type: 'string', visibility: 'public' } as unknown as Record<
       string,
       unknown
     >);
@@ -44,7 +44,7 @@ describe('toNodeProperty', () => {
   });
 
   it('defaults type to "unknown" when not a string', () => {
-    const result = toNodeProperty({ name: 'foo', type: null, visibility: 'public' } as unknown as Record<
+    const result = normalizeProperty({ name: 'foo', type: null, visibility: 'public' } as unknown as Record<
       string,
       unknown
     >);
@@ -52,12 +52,12 @@ describe('toNodeProperty', () => {
   });
 
   it('defaults visibility to "public" when not a string', () => {
-    const result = toNodeProperty({ name: 'foo', type: 'string' } as unknown as Record<string, unknown>);
+    const result = normalizeProperty({ name: 'foo', type: 'string' } as unknown as Record<string, unknown>);
     expect(result.visibility).toBe('public');
   });
 
   it('sets id to undefined when not a string', () => {
-    const result = toNodeProperty({ id: 123, name: 'x', type: 'y', visibility: 'protected' } as unknown as Record<
+    const result = normalizeProperty({ id: 123, name: 'x', type: 'y', visibility: 'protected' } as unknown as Record<
       string,
       unknown
     >);
@@ -65,8 +65,8 @@ describe('toNodeProperty', () => {
   });
 
   it('handles a completely empty object', () => {
-    const result = toNodeProperty({} as Record<string, unknown>);
-    expect(result).toEqual({
+    const result = normalizeProperty({} as Record<string, unknown>);
+    expect(result).toMatchObject({
       id: undefined,
       name: 'unknown',
       type: 'unknown',
@@ -75,36 +75,36 @@ describe('toNodeProperty', () => {
   });
 
   it('preserves id when it is a valid string', () => {
-    const result = toNodeProperty({ id: 'abc', name: 'n', type: 't', visibility: 'v' });
+    const result = normalizeProperty({ id: 'abc', name: 'n', type: 't', visibility: 'v' });
     expect(result.id).toBe('abc');
   });
 });
 
 // ---------------------------------------------------------------------------
-// toNodeMethod
+// normalizeMethod
 // ---------------------------------------------------------------------------
 
-describe('toNodeMethod', () => {
-  it('passes through a well-formed NodeMethod', () => {
-    const input: NodeMethod = {
+describe('normalizeMethod', () => {
+  it('passes through a well-formed Method', () => {
+    const input = {
       id: 'meth-1',
       name: 'getData',
       returnType: 'Promise<void>',
       visibility: 'public',
       signature: 'getData(): Promise<void>',
     };
-    const result = toNodeMethod(input);
-    expect(result).toEqual({
+    const result = normalizeMethod(input);
+    expect(result).toMatchObject({
       id: 'meth-1',
       name: 'getData',
-      returnType: 'Promise<void>',
+      return_type: 'Promise<void>',
       visibility: 'public',
       signature: 'getData(): Promise<void>',
     });
   });
 
   it('defaults name to "unknown" when not a string', () => {
-    const result = toNodeMethod({ name: 123, returnType: 'void', visibility: 'public' } as unknown as Record<
+    const result = normalizeMethod({ name: 123, returnType: 'void', visibility: 'public' } as unknown as Record<
       string,
       unknown
     >);
@@ -112,20 +112,20 @@ describe('toNodeMethod', () => {
   });
 
   it('defaults returnType to "void" when not a string', () => {
-    const result = toNodeMethod({ name: 'foo', returnType: undefined, visibility: 'public' } as unknown as Record<
+    const result = normalizeMethod({ name: 'foo', returnType: undefined, visibility: 'public' } as unknown as Record<
       string,
       unknown
     >);
-    expect(result.returnType).toBe('void');
+    expect(result.return_type).toBe('void');
   });
 
   it('defaults visibility to "public" when not a string', () => {
-    const result = toNodeMethod({ name: 'foo', returnType: 'void' } as unknown as Record<string, unknown>);
+    const result = normalizeMethod({ name: 'foo', returnType: 'void' } as unknown as Record<string, unknown>);
     expect(result.visibility).toBe('public');
   });
 
   it('sets id to undefined when not a string', () => {
-    const result = toNodeMethod({ id: 99, name: 'x', returnType: 'y', visibility: 'z' } as unknown as Record<
+    const result = normalizeMethod({ id: 99, name: 'x', returnType: 'y', visibility: 'z' } as unknown as Record<
       string,
       unknown
     >);
@@ -133,7 +133,7 @@ describe('toNodeMethod', () => {
   });
 
   it('generates a default signature when signature is missing', () => {
-    const result = toNodeMethod({
+    const result = normalizeMethod({
       name: 'run',
       returnType: 'boolean',
       visibility: 'public',
@@ -142,7 +142,7 @@ describe('toNodeMethod', () => {
   });
 
   it('generates a default signature when signature is an empty string', () => {
-    const result = toNodeMethod({
+    const result = normalizeMethod({
       name: 'run',
       returnType: 'boolean',
       visibility: 'public',
@@ -152,7 +152,7 @@ describe('toNodeMethod', () => {
   });
 
   it('uses the provided signature when non-empty', () => {
-    const result = toNodeMethod({
+    const result = normalizeMethod({
       name: 'run',
       returnType: 'boolean',
       visibility: 'public',
@@ -162,18 +162,18 @@ describe('toNodeMethod', () => {
   });
 
   it('generates signature using fallback name/returnType when both are missing', () => {
-    const result = toNodeMethod({} as Record<string, unknown>);
+    const result = normalizeMethod({} as Record<string, unknown>);
     expect(result.signature).toBe('unknown(): void');
     expect(result.name).toBe('unknown');
-    expect(result.returnType).toBe('void');
+    expect(result.return_type).toBe('void');
   });
 
   it('handles a completely empty object', () => {
-    const result = toNodeMethod({} as Record<string, unknown>);
-    expect(result).toEqual({
+    const result = normalizeMethod({} as Record<string, unknown>);
+    expect(result).toMatchObject({
       id: undefined,
       name: 'unknown',
-      returnType: 'void',
+      return_type: 'void',
       visibility: 'public',
       signature: 'unknown(): void',
     });
@@ -184,16 +184,16 @@ describe('toNodeMethod', () => {
 // findModuleById
 // ---------------------------------------------------------------------------
 
-function makeModule(id: string, name: string): ModuleStructure {
+function makeModule(id: string, name: string): Module {
   return {
     id,
     name,
     package_id: 'pkg-1',
-    source: { relativePath: `src/${name}.ts` },
-  };
+    source: { relativePath: `src/${name}.ts`, directory: '', name, filename: `src/${name}.ts` },
+  } as unknown as Module;
 }
 
-function makePackage(id: string, modules: Record<string, ModuleStructure>): PackageStructure {
+function makePackage(id: string, modules: Record<string, Module>): Package {
   return {
     id,
     name: `package-${id}`,
@@ -201,6 +201,9 @@ function makePackage(id: string, modules: Record<string, ModuleStructure>): Pack
     path: `/packages/${id}`,
     created_at: '2025-01-01',
     modules,
+    dependencies: {},
+    devDependencies: {},
+    peerDependencies: {},
   };
 }
 
@@ -209,7 +212,7 @@ describe('findModuleById', () => {
   const moduleB = makeModule('mod-b', 'moduleB');
   const moduleC = makeModule('mod-c', 'moduleC');
 
-  const graph: DependencyPackageGraph = {
+  const graph: PackageGraph = {
     packages: [
       makePackage('pkg-1', { 'mod-a': moduleA, 'mod-b': moduleB }),
       makePackage('pkg-2', { 'mod-c': moduleC }),
@@ -233,7 +236,7 @@ describe('findModuleById', () => {
   });
 
   it('skips packages with no modules field', () => {
-    const graphWithNoModules: DependencyPackageGraph = {
+    const graphWithNoModules: PackageGraph = {
       packages: [
         {
           id: 'pkg-empty',
@@ -241,7 +244,7 @@ describe('findModuleById', () => {
           version: '0.0.0',
           path: '/',
           created_at: '2025-01-01',
-        } as PackageStructure,
+        } as Package,
         makePackage('pkg-2', { 'mod-c': moduleC }),
       ],
     };
@@ -250,11 +253,8 @@ describe('findModuleById', () => {
 
   it('returns the first match when duplicate IDs exist across packages', () => {
     const duplicateModule = makeModule('mod-a', 'duplicateA');
-    const graphWithDuplicates: DependencyPackageGraph = {
-      packages: [
-        makePackage('pkg-1', { 'mod-a': moduleA }),
-        makePackage('pkg-3', { 'mod-a': duplicateModule }),
-      ],
+    const graphWithDuplicates: PackageGraph = {
+      packages: [makePackage('pkg-1', { 'mod-a': moduleA }), makePackage('pkg-3', { 'mod-a': duplicateModule })],
     };
     // Should return the first found (from pkg-1)
     expect(findModuleById(graphWithDuplicates, 'mod-a')).toBe(moduleA);
@@ -289,7 +289,7 @@ describe('createSymbolEdge', () => {
 
   it('has a strokeWidth of 3 in the style', () => {
     const edge = createSymbolEdge('a', 'b', 'dependency');
-    expect(edge.style?.strokeWidth).toBe(3);
+    expect((edge.style as Record<string, unknown>)['strokeWidth']).toBe(3);
   });
 
   it('includes a marker end', () => {
@@ -301,7 +301,7 @@ describe('createSymbolEdge', () => {
     const edge = createSymbolEdge('a', 'b', 'import');
     // The style should contain the stroke color from the theme for 'import' type
     expect(edge.style).toBeDefined();
-    expect(edge.style?.stroke).toBeDefined();
+    expect((edge.style as Record<string, unknown>)['stroke']).toBeDefined();
   });
 
   it('works with all supported edge kinds', () => {
@@ -331,14 +331,14 @@ describe('createSymbolEdge', () => {
 // ---------------------------------------------------------------------------
 
 describe('createDetailedSymbolNode', () => {
-  const sampleProperties: NodeProperty[] = [
+  const sampleProperties = [
     { id: 'p1', name: 'name', type: 'string', visibility: 'public' },
     { id: 'p2', name: 'age', type: 'number', visibility: 'private' },
-  ];
+  ] as unknown as Property[];
 
-  const sampleMethods: NodeMethod[] = [
-    { id: 'm1', name: 'greet', returnType: 'void', visibility: 'public', signature: 'greet(): void' },
-  ];
+  const sampleMethods = [
+    { id: 'm1', name: 'greet', return_type: 'void', visibility: 'public', signature: 'greet(): void' },
+  ] as unknown as Method[];
 
   it('creates a node with the correct id', () => {
     const node = createDetailedSymbolNode('node-1', 'class', 'MyClass', [], [], 'LR');
@@ -357,15 +357,15 @@ describe('createDetailedSymbolNode', () => {
 
   it('includes label, properties and methods in data', () => {
     const node = createDetailedSymbolNode('node-1', 'class', 'MyClass', sampleProperties, sampleMethods, 'LR');
-    expect(node.data.label).toBe('MyClass');
-    expect(node.data.properties).toEqual(sampleProperties);
-    expect(node.data.methods).toEqual(sampleMethods);
+    expect(node.data!.label).toBe('MyClass');
+    expect(node.data!.properties).toEqual(sampleProperties);
+    expect(node.data!.methods).toEqual(sampleMethods);
   });
 
   it('handles empty properties and methods arrays', () => {
     const node = createDetailedSymbolNode('node-1', 'class', 'Empty', [], [], 'LR');
-    expect(node.data.properties).toEqual([]);
-    expect(node.data.methods).toEqual([]);
+    expect(node.data!.properties).toEqual([]);
+    expect(node.data!.methods).toEqual([]);
   });
 
   it('has a style object from the theme', () => {

@@ -1,14 +1,15 @@
+import { consola } from 'consola';
+
+import { isClass } from '../shared/types/Class';
+import { isInterface } from '../shared/types/Interface';
+import { isMethod } from '../shared/types/Method';
 import { Module } from '../shared/types/Module';
-import { createLogger } from '../shared/utils/logger';
+import { isProperty } from '../shared/types/Property';
 import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
 import { RepositoryError } from './db/errors/RepositoryError';
-import { CodeIssueRepository } from './db/repositories/CodeIssueRepository';
-import { InsightEngine } from './insights/InsightEngine';
-
-import type { CodeIssueEntity } from './db/repositories/CodeIssueRepository';
-import type { InsightReport } from './insights/types';
 import { ClassRepository } from './db/repositories/ClassRepository';
+import { CodeIssueRepository } from './db/repositories/CodeIssueRepository';
 import { EnumRepository } from './db/repositories/EnumRepository';
 import { FunctionRepository } from './db/repositories/FunctionRepository';
 import { ImportRepository } from './db/repositories/ImportRepository';
@@ -20,11 +21,17 @@ import { PropertyRepository } from './db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from './db/repositories/SymbolReferenceRepository';
 import { TypeAliasRepository } from './db/repositories/TypeAliasRepository';
 import { VariableRepository } from './db/repositories/VariableRepository';
+import { InsightEngine } from './insights/InsightEngine';
 
-import type { Package } from '../shared/types/Package';
+import type { Method } from '../shared/types/Method';
+import type { IPackage } from '../shared/types/Package';
+import type { Property } from '../shared/types/Property';
 import type { TypeCollection } from '../shared/types/TypeCollection';
+import type { CodeIssueRef } from '../shared/types/api/CodeIssueRef';
+import type { InsightReport } from '../shared/types/api/Insight';
+import type { CodeIssueEntity } from './db/types/CodeIssueEntity';
 
-export interface ApiServerResponderOptions {
+interface ApiServerResponderOptions {
   dbPath?: string;
   readOnly?: boolean;
 }
@@ -34,10 +41,10 @@ interface PackagesResponseItem {
   name: string;
   version: string;
   path: string;
-  created_at: Date;
-  dependencies: TypeCollection<Package>;
-  devDependencies: TypeCollection<Package>;
-  peerDependencies: TypeCollection<Package>;
+  created_at: string;
+  dependencies: TypeCollection<IPackage>;
+  devDependencies: TypeCollection<IPackage>;
+  peerDependencies: TypeCollection<IPackage>;
   modules: string[];
 }
 
@@ -99,7 +106,13 @@ function parseImportSpecifiers(specifiersJson: string | undefined): PersistedImp
 }
 
 function inferExternalPackageName(source: string): string | undefined {
-  if (!source || source.startsWith('.') || source.startsWith('/') || source.startsWith('@/') || source.startsWith('src/')) {
+  if (
+    !source ||
+    source.startsWith('.') ||
+    source.startsWith('/') ||
+    source.startsWith('@/') ||
+    source.startsWith('src/')
+  ) {
     return undefined;
   }
 
@@ -128,10 +141,66 @@ const typeCollectionToArray = <T>(collection: TypeCollection<T> | undefined): T[
   return Object.values(collection);
 };
 
+function filterHydratedMethods(methods: unknown): Map<string, Method> {
+  if (!(methods instanceof Map)) {
+    return new Map<string, Method>();
+  }
+
+  const filtered = new Map<string, Method>();
+  for (const [id, method] of methods.entries()) {
+    if (!isMethod(method)) continue;
+    filtered.set(id as string, method);
+  }
+
+  return filtered;
+}
+
+function filterHydratedProperties(properties: unknown): Map<string, Property> {
+  if (!(properties instanceof Map)) {
+    return new Map<string, Property>();
+  }
+
+  const filtered = new Map<string, Property>();
+  for (const [id, property] of properties.entries()) {
+    if (!isProperty(property)) continue;
+    filtered.set(id as string, property);
+  }
+
+  return filtered;
+}
+
+function codeIssueSeverityToPublic(severity: string): 'info' | 'warning' | 'error' {
+  if (severity === 'info' || severity === 'warning' || severity === 'error') {
+    return severity;
+  }
+  return 'info';
+}
+
+function codeIssueEntityToRef(entity: CodeIssueEntity): CodeIssueRef {
+  return {
+    id: entity.id,
+    rule_code: entity.rule_code,
+    severity: codeIssueSeverityToPublic(entity.severity),
+    message: entity.message,
+    ...(entity.suggestion !== undefined ? { suggestion: entity.suggestion } : {}),
+    module_id: entity.module_id,
+    ...(entity.entity_id !== undefined ? { entity_id: entity.entity_id } : {}),
+    ...(entity.entity_type !== undefined ? { entity_type: entity.entity_type } : {}),
+    ...(entity.entity_name !== undefined ? { entity_name: entity.entity_name } : {}),
+    ...(entity.parent_entity_id !== undefined ? { parent_entity_id: entity.parent_entity_id } : {}),
+    ...(entity.parent_entity_type !== undefined ? { parent_entity_type: entity.parent_entity_type } : {}),
+    ...(entity.parent_entity_name !== undefined ? { parent_entity_name: entity.parent_entity_name } : {}),
+    ...(entity.property_name !== undefined ? { property_name: entity.property_name } : {}),
+    ...(entity.line !== undefined ? { line: entity.line } : {}),
+    ...(entity.column !== undefined ? { column: entity.column } : {}),
+    ...(entity.refactor_action !== undefined ? { refactor_action: entity.refactor_action } : {}),
+  };
+}
+
 export class ApiServerResponder {
   private readonly database: Database;
   private readonly dbAdapter: DuckDBAdapter;
-  private readonly logger;
+  private readonly logger = consola.withTag('ApiServerResponder');
   private readonly readOnly: boolean;
 
   private readonly classRepository: ClassRepository;
@@ -153,7 +222,6 @@ export class ApiServerResponder {
     this.readOnly = options.readOnly ?? false;
     this.dbAdapter = new DuckDBAdapter(dbPath, { allowWrite: !this.readOnly });
     this.database = new Database(this.dbAdapter, dbPath);
-    this.logger = createLogger('ApiServerResponder');
 
     // Initialize repositories
     this.classRepository = new ClassRepository(this.dbAdapter);
@@ -189,9 +257,7 @@ export class ApiServerResponder {
     }
   }
 
-  async getPackages(): Promise<
-    PackagesResponseItem[]
-  > {
+  async getPackages(): Promise<PackagesResponseItem[]> {
     try {
       const packages = await this.packageRepository.retrieve();
       return packages.map((pkg) => ({
@@ -261,7 +327,9 @@ export class ApiServerResponder {
       await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
       return {
-        packages: packages.map((_, index) => responses.get(index)).filter((item): item is GraphResponseItem => Boolean(item)),
+        packages: packages
+          .map((_, index) => responses.get(index))
+          .filter((item): item is GraphResponseItem => Boolean(item)),
       };
     } catch (error) {
       this.logger.error('Failed to build graph payload, returning empty graph', error);
@@ -276,7 +344,7 @@ export class ApiServerResponder {
         package_id: string;
         module_id: string;
         name: string;
-        created_at: Date;
+        created_at: string;
         extends_id?: string;
         methods?: TypeCollection<unknown>;
         properties?: TypeCollection<unknown>;
@@ -285,7 +353,7 @@ export class ApiServerResponder {
           package_id: string;
           module_id: string;
           name: string;
-          created_at: Date;
+          created_at: string;
         }>;
       }>
     ).map((cls) => ({
@@ -312,7 +380,7 @@ export class ApiServerResponder {
         package_id: string;
         module_id: string;
         name: string;
-        created_at: Date;
+        created_at: string;
         methods?: TypeCollection<unknown>;
         properties?: TypeCollection<unknown>;
         extended_interfaces?: TypeCollection<{
@@ -320,7 +388,7 @@ export class ApiServerResponder {
           package_id: string;
           module_id: string;
           name: string;
-          created_at: Date;
+          created_at: string;
         }>;
       }>
     ).map((iface) => ({
@@ -431,7 +499,9 @@ export class ApiServerResponder {
       await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
       return {
-        packages: packages.map((_, index) => responses.get(index)).filter((item): item is GraphResponseItem => Boolean(item)),
+        packages: packages
+          .map((_, index) => responses.get(index))
+          .filter((item): item is GraphResponseItem => Boolean(item)),
       };
     } catch (error) {
       this.logger.error('Failed to build graph summary payload, returning empty graph', error);
@@ -463,17 +533,25 @@ export class ApiServerResponder {
       const moduleIds = modules.map((m) => m.id);
 
       // Batch-fetch all entities for all modules in one query each
-      const [allClasses, allInterfaces, allFunctions, allTypeAliases, allEnums, allVariables, allImports, allSymbolRefs] =
-        await Promise.all([
-          this.classRepository.retrieveByModuleIds(moduleIds),
-          this.interfaceRepository.retrieveByModuleIds(moduleIds),
-          this.functionRepository.retrieveByModuleIds(moduleIds),
-          this.typeAliasRepository.retrieveByModuleIds(moduleIds),
-          this.enumRepository.retrieveByModuleIds(moduleIds),
-          this.variableRepository.retrieveByModuleIds(moduleIds),
-          this.importRepository.retrieveByModuleIds(moduleIds),
-          this.symbolReferenceRepository.retrieveByModuleIds(moduleIds),
-        ]);
+      const [
+        allClasses,
+        allInterfaces,
+        allFunctions,
+        allTypeAliases,
+        allEnums,
+        allVariables,
+        allImports,
+        allSymbolRefs,
+      ] = await Promise.all([
+        this.classRepository.retrieveByModuleIds(moduleIds),
+        this.interfaceRepository.retrieveByModuleIds(moduleIds),
+        this.functionRepository.retrieveByModuleIds(moduleIds),
+        this.typeAliasRepository.retrieveByModuleIds(moduleIds),
+        this.enumRepository.retrieveByModuleIds(moduleIds),
+        this.variableRepository.retrieveByModuleIds(moduleIds),
+        this.importRepository.retrieveByModuleIds(moduleIds),
+        this.symbolReferenceRepository.retrieveByModuleIds(moduleIds),
+      ]);
 
       // Collect all class IDs and interface IDs for batch method/property retrieval
       const classIds = allClasses.map((c) => c.id);
@@ -583,8 +661,10 @@ export class ApiServerResponder {
           const classes = new Map();
           const moduleClasses = classesByModule.get(mod.id) ?? [];
           for (const cls of moduleClasses) {
-            const methods = classMethodsMap.get(cls.id) ?? new Map();
-            const properties = classPropertiesMap.get(cls.id) ?? new Map();
+            if (!isClass(cls)) continue;
+
+            const methods = filterHydratedMethods(classMethodsMap.get(cls.id));
+            const properties = filterHydratedProperties(classPropertiesMap.get(cls.id));
             classes.set(cls.id, {
               id: cls.id,
               package_id: cls.package_id,
@@ -602,8 +682,10 @@ export class ApiServerResponder {
           const interfaces = new Map();
           const moduleInterfaces = interfacesByModule.get(mod.id) ?? [];
           for (const iface of moduleInterfaces) {
-            const methods = ifaceMethodsMap.get(iface.id) ?? new Map();
-            const properties = ifacePropertiesMap.get(iface.id) ?? new Map();
+            if (!isInterface(iface)) continue;
+
+            const methods = filterHydratedMethods(ifaceMethodsMap.get(iface.id));
+            const properties = filterHydratedProperties(ifacePropertiesMap.get(iface.id));
             interfaces.set(iface.id, {
               id: iface.id,
               package_id: iface.package_id,
@@ -668,7 +750,7 @@ export class ApiServerResponder {
           for (const ref of moduleSymbolRefs) {
             symbolReferences.set(ref.id, {
               ...ref,
-              created_at: new Date(),
+              created_at: new Date().toISOString(),
             });
           }
 
@@ -705,16 +787,29 @@ export class ApiServerResponder {
     }
   }
 
-  async getCodeIssues(): Promise<CodeIssueEntity[]> {
+  async getCodeIssues(): Promise<CodeIssueRef[]> {
     try {
-      return await this.codeIssueRepository.retrieve();
+      const rows = await this.codeIssueRepository.retrieve();
+      return rows.map(codeIssueEntityToRef);
     } catch {
       // Table may not exist if analysis hasn't been run
       return [];
     }
   }
 
-  async getCodeIssueById(id: string): Promise<CodeIssueEntity | undefined> {
+  async getCodeIssueById(id: string): Promise<CodeIssueRef | undefined> {
+    try {
+      const entity = await this.codeIssueRepository.retrieveById(id);
+      return entity ? codeIssueEntityToRef(entity) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Full stored issue for server-only routes (e.g. /refactor) that need file_path and refactor_context.
+   */
+  async getCodeIssueEntityById(id: string): Promise<CodeIssueEntity | undefined> {
     try {
       return await this.codeIssueRepository.retrieveById(id);
     } catch {

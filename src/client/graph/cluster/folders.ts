@@ -1,6 +1,6 @@
 import { getNodeStyle } from '../../theme/graphTheme';
 
-import type { DependencyKind } from '../../types/DependencyKind';
+import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 
@@ -54,6 +54,11 @@ export function clusterByFolder(
         ...getNodeStyle('group'),
         zIndex: 0,
         overflow: 'visible',
+        // GroupNode.vue handles its own padding/border/background via CSS.
+        // Zeroing padding here prevents the Vue Flow wrapper from creating a
+        // content-area offset that would make child positions (relative to the
+        // wrapper's top-left) appear to extend beyond the visible border.
+        padding: 0,
       },
       draggable: true,
     });
@@ -61,19 +66,17 @@ export function clusterByFolder(
   }
 
   // Deterministic group creation order keeps folder IDs/ordering stable between renders.
-  const sortedModules = modules
-    .slice()
-    .sort((a, b) => {
-      const pkgA = getPackageFromNode(a) ?? '';
-      const pkgB = getPackageFromNode(b) ?? '';
-      if (pkgA !== pkgB) return pkgA.localeCompare(pkgB);
+  const sortedModules = modules.slice().sort((a, b) => {
+    const pkgA = getPackageFromNode(a) ?? '';
+    const pkgB = getPackageFromNode(b) ?? '';
+    if (pkgA !== pkgB) return pkgA.localeCompare(pkgB);
 
-      const pathA = getPathFromNode(a) ?? '';
-      const pathB = getPathFromNode(b) ?? '';
-      if (pathA !== pathB) return pathA.localeCompare(pathB);
+    const pathA = getPathFromNode(a) ?? '';
+    const pathB = getPathFromNode(b) ?? '';
+    if (pathA !== pathB) return pathA.localeCompare(pathB);
 
-      return a.id.localeCompare(b.id);
-    });
+    return a.id.localeCompare(b.id);
+  });
 
   sortedModules.forEach((moduleNode) => {
     const pkg = getPackageFromNode(moduleNode);

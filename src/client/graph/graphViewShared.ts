@@ -5,7 +5,7 @@
 
 import { EDGE_KIND_PRIORITY } from './edgePriority';
 
-import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 

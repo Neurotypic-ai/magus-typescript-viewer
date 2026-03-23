@@ -5,23 +5,25 @@
 
 import { mapTypeCollection } from './collections';
 
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
-import type { ModuleStructure } from '../types/ModuleStructure';
-import type { PackageStructure } from '../types/PackageStructure';
+import type { IImport } from '../../shared/types/Import';
+import type { IModule } from '../../shared/types/Module';
+import type { IPackage, PackageGraph } from '../../shared/types/Package';
 
 export interface ModulePathLookup {
   packagePathMap: Map<string, Map<string, string>>;
   globalPathMap: Map<string, Set<string>>;
 }
 
-export function isExternalImportRef(imp: {
-  isExternal?: boolean;
-  packageName?: string;
-  path?: string | undefined;
-}): boolean {
+export function isExternalImport(
+  imp: Pick<IImport, 'relativePath' | 'fullPath' | 'name'> & {
+    path?: string;
+    isExternal?: boolean;
+    packageName?: string;
+  }
+): boolean {
   if (imp.isExternal === true) return true;
   if (typeof imp.packageName === 'string' && imp.packageName.length > 0) return true;
-  const path = imp.path;
+  const path = imp.relativePath || imp.fullPath || imp.path || imp.name;
   if (!path) return false;
   if (!path.startsWith('.') && !path.startsWith('/') && !path.startsWith('@/') && !path.startsWith('src/')) {
     return true;
@@ -70,15 +72,15 @@ function addModulePathEntry(pathMap: Map<string, string>, relativePath: string, 
   }
 }
 
-export function buildModulePathLookup(data: DependencyPackageGraph): ModulePathLookup {
+export function buildModulePathLookup(data: PackageGraph): ModulePathLookup {
   const packagePathMap = new Map<string, Map<string, string>>();
   const globalPathMap = new Map<string, Set<string>>();
 
-  data.packages.forEach((pkg: PackageStructure) => {
+  data.packages.forEach((pkg: IPackage) => {
     const pathMap = new Map<string, string>();
     packagePathMap.set(pkg.id, pathMap);
     if (!pkg.modules) return;
-    mapTypeCollection(pkg.modules, (module: ModuleStructure) => {
+    mapTypeCollection(pkg.modules, (module: IModule) => {
       const relativePath: string = module.source.relativePath;
       const moduleId: string = module.id;
       addModulePathEntry(pathMap, relativePath, moduleId);

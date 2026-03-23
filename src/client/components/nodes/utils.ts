@@ -1,11 +1,14 @@
+import { buildTypeDisplayModel } from './typeDisplay';
+
 import type { Position } from '@vue-flow/core';
 import type { InjectionKey, Ref } from 'vue';
 
-import type { DependencyData } from '../../types/DependencyData';
-import type { DependencyKind } from '../../types/DependencyKind';
-import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
-import type { NodeMethod } from '../../types/NodeMethod';
-import type { NodeProperty } from '../../types/NodeProperty';
+import type { Method } from '../../../shared/types/Method';
+import type { Property } from '../../../shared/types/Property';
+import type { DependencyData } from '../../../shared/types/graph/DependencyData';
+import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
+import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
+import type { TypeDisplayModel } from './typeDisplay';
 
 /**
  * Injection key for node actions provided by the graph root.
@@ -39,8 +42,7 @@ export interface FolderCollapseActions {
   toggleFolderCollapsed: (folderId: string) => void;
 }
 
-export const FOLDER_COLLAPSE_ACTIONS_KEY: InjectionKey<FolderCollapseActions> =
-  Symbol('folder-collapse-actions');
+export const FOLDER_COLLAPSE_ACTIONS_KEY: InjectionKey<FolderCollapseActions> = Symbol('folder-collapse-actions');
 
 /**
  * Input type compatible with Vue's DefineProps, which adds `| undefined` to optional properties.
@@ -60,14 +62,14 @@ interface DependencyPropsInput {
   readonly parentNodeId?: string | undefined;
 }
 
-export interface BuildBaseNodePropsOverrides {
+interface BuildBaseNodePropsOverrides {
   isContainer?: boolean;
   showSubnodes?: boolean;
   subnodesCount?: number;
   zIndex?: number;
 }
 
-export interface BaseNodeProps extends BuildBaseNodePropsOverrides {
+interface BaseNodeProps extends BuildBaseNodePropsOverrides {
   id: string;
   type: DependencyKind;
   data: DependencyData;
@@ -111,6 +113,7 @@ export interface FormattedMember {
   key: string;
   name: string;
   typeAnnotation: string;
+  typeDisplay: TypeDisplayModel;
   indicator: string;
 }
 
@@ -119,7 +122,7 @@ function normalizeTypeAnnotation(annotation: string | undefined, fallback: strin
   return normalized && normalized.length > 0 ? normalized : fallback;
 }
 
-export function visibilityIndicator(visibility: string): string {
+function visibilityIndicator(visibility: string): string {
   switch (visibility) {
     case 'public':
       return 'p';
@@ -132,27 +135,31 @@ export function visibilityIndicator(visibility: string): string {
   }
 }
 
-export function formatProperty(prop: NodeProperty): FormattedMember {
+export function formatProperty(prop: Property): FormattedMember {
+  const typeAnnotation = normalizeTypeAnnotation(prop.type, 'unknown');
   return {
     key: `${prop.name}:${prop.type || 'unknown'}:${prop.visibility || 'default'}`,
     indicator: visibilityIndicator(prop.visibility),
     name: prop.name,
-    typeAnnotation: normalizeTypeAnnotation(prop.type, 'unknown'),
+    typeAnnotation,
+    typeDisplay: buildTypeDisplayModel(typeAnnotation),
   };
 }
 
-export function formatMethod(method: NodeMethod): FormattedMember {
+export function formatMethod(method: Method): FormattedMember {
+  const typeAnnotation = normalizeTypeAnnotation(method.return_type, 'void');
   return {
-    key: `${method.name}:${method.returnType || 'void'}:${method.visibility || 'default'}`,
+    key: `${method.name}:${method.return_type || 'void'}:${method.visibility || 'default'}`,
     indicator: visibilityIndicator(method.visibility),
     name: method.name,
-    typeAnnotation: normalizeTypeAnnotation(method.returnType, 'void'),
+    typeAnnotation,
+    typeDisplay: buildTypeDisplayModel(typeAnnotation),
   };
 }
 
 // ── Entity type display config ────────────────────────────────────
 
-export interface EntityTypeConfig {
+interface EntityTypeConfig {
   type: EmbeddedModuleEntity['type'];
   title: string;
   badgeText: string;
@@ -169,7 +176,7 @@ export const ENTITY_TYPE_CONFIGS: EntityTypeConfig[] = [
 
 // ── Subnodes count resolution ─────────────────────────────────────
 
-export interface SubnodesCount {
+interface SubnodesCount {
   count: number;
   totalCount: number;
   hiddenCount: number;
@@ -180,12 +187,11 @@ export interface SubnodesCount {
  * Normalizes the loosely-typed `subnodes` bag into concrete numbers.
  */
 export function resolveSubnodesCount(
-  subnodes: { count?: number; totalCount?: number; hiddenCount?: number } | undefined,
+  subnodes: { count?: number; totalCount?: number; hiddenCount?: number } | undefined
 ): SubnodesCount {
   const count = typeof subnodes?.count === 'number' ? subnodes.count : 0;
   const totalCount = typeof subnodes?.totalCount === 'number' ? subnodes.totalCount : count;
-  const hiddenCount = typeof subnodes?.hiddenCount === 'number'
-    ? Math.max(0, subnodes.hiddenCount)
-    : Math.max(0, totalCount - count);
+  const hiddenCount =
+    typeof subnodes?.hiddenCount === 'number' ? Math.max(0, subnodes.hiddenCount) : Math.max(0, totalCount - count);
   return { count, totalCount, hiddenCount };
 }

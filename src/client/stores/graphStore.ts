@@ -1,11 +1,13 @@
-import { defineStore, type SetupStoreDefinition } from 'pinia';
 import { ref, shallowRef, watch } from 'vue';
 
+import { defineStore } from 'pinia';
+
+import type { SetupStoreDefinition } from 'pinia';
 import type { Ref, ShallowRef } from 'vue';
 
+import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { ManualOffset } from '../types/ManualOffset';
 
 export type GraphViewMode = 'overview' | 'isolate' | 'moduleDrilldown' | 'symbolDrilldown';
 
@@ -17,7 +19,7 @@ const CACHE_DEBOUNCE_MS = 500;
 const MAX_CACHEABLE_NODE_COUNT = 1200;
 const MAX_CACHEABLE_EDGE_COUNT = 5000;
 
-interface GraphStore {
+interface IGraphStore {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   selectedNode: Ref<DependencyNode | null>;
@@ -31,7 +33,6 @@ interface GraphStore {
   setEdges: (newEdges: GraphEdge[]) => void;
   updateNodesById: (updates: Map<string, DependencyNode>) => void;
   updateEdgesById: (updates: Map<string, GraphEdge>) => void;
-  setEdgeVisibility: (visibilityMap: Map<string, boolean>) => void;
   setSelectedNode: (node: DependencyNode | null) => void;
   setCacheKey: (key: string | null) => void;
   setViewMode: (mode: GraphViewMode) => void;
@@ -64,7 +65,7 @@ function debounce<P extends unknown[]>(func: (...args: P) => void, wait: number)
 /**
  * Pinia store for graph state management
  */
-export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineStore('graph', (): GraphStore => {
+export const useGraphStore: SetupStoreDefinition<'graph', IGraphStore> = defineStore('graph', (): IGraphStore => {
   // State
   const nodes = ref<DependencyNode[]>([]);
   const edges = ref<GraphEdge[]>([]);
@@ -94,7 +95,7 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
     }
   };
 
-  const writeCache = debounce((nodesToCache: DependencyNode[], edgesToCache: GraphEdge[]) => {
+  const writeCache = debounce((nodesToCache: readonly unknown[], edgesToCache: readonly unknown[]) => {
     if (nodesToCache.length > MAX_CACHEABLE_NODE_COUNT || edgesToCache.length > MAX_CACHEABLE_EDGE_COUNT) {
       return;
     }
@@ -123,9 +124,9 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
   // Watch for reference changes to nodes/edges and update cache when we have a cache key.
   // Shallow watch is sufficient since setNodes/setEdges replace the entire array reference.
   // Avoids expensive deep comparison on large graphs (drag/hover would trigger O(n×m) diffs).
-  watch([nodes, edges, cacheKey], ([newNodes, newEdges, newCacheKey]) => {
-    if (!newCacheKey || cacheWriteSuspended.value) return;
-    writeCache(newNodes, newEdges);
+  watch([nodes, edges, cacheKey], () => {
+    if (!cacheKey.value || cacheWriteSuspended.value) return;
+    writeCache(nodes.value, edges.value);
   });
 
   // Actions
@@ -142,25 +143,20 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
       return;
     }
 
-    let nextNodes: DependencyNode[] | null = null;
-    const nodeIndexById = new Map<string, number>();
-    nodes.value.forEach((node, index) => {
-      nodeIndexById.set(node.id, index);
-    });
-
-    for (const [nodeId, nextNode] of updates) {
-      const nodeIndex = nodeIndexById.get(nodeId);
-      if (nodeIndex !== undefined) {
-        const current = (nextNodes ?? nodes.value)[nodeIndex];
-        if (current !== nextNode) {
-          nextNodes ??= [...nodes.value];
-          nextNodes[nodeIndex] = nextNode;
-        }
+    const currentNodes = nodes.value as unknown as { id: string }[];
+    const nextNodes = [...currentNodes];
+    let changed = false;
+    for (let index = 0; index < nextNodes.length; index += 1) {
+      const currentNode = nextNodes[index];
+      const nextNode = currentNode ? updates.get(currentNode.id) : undefined;
+      if (currentNode !== undefined && nextNode !== undefined && nextNode !== currentNode) {
+        nextNodes[index] = nextNode as unknown as { id: string };
+        changed = true;
       }
     }
 
-    if (nextNodes !== null) {
-      nodes.value = nextNodes;
+    if (changed) {
+      nodes.value = nextNodes as unknown as DependencyNode[];
     }
   };
 
@@ -169,55 +165,27 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
       return;
     }
 
-    let nextEdges: GraphEdge[] | null = null;
+    const currentEdges = edges.value as unknown as { id: string }[];
+    const nextEdges = [...currentEdges];
     const edgeIndexById = new Map<string, number>();
-    edges.value.forEach((edge, index) => {
+    currentEdges.forEach((edge, index) => {
       edgeIndexById.set(edge.id, index);
     });
 
+    let changed = false;
     for (const [edgeId, nextEdge] of updates) {
       const edgeIndex = edgeIndexById.get(edgeId);
       if (edgeIndex !== undefined) {
-        const current = (nextEdges ?? edges.value)[edgeIndex];
+        const current = nextEdges[edgeIndex];
         if (current !== nextEdge) {
-          nextEdges ??= [...edges.value];
-          nextEdges[edgeIndex] = nextEdge;
+          nextEdges[edgeIndex] = nextEdge as unknown as { id: string };
+          changed = true;
         }
       }
     }
 
-    if (nextEdges !== null) {
-      edges.value = nextEdges;
-    }
-  };
-
-  const setEdgeVisibility = (visibilityMap: Map<string, boolean>) => {
-    if (visibilityMap.size === 0 || edges.value.length === 0) {
-      return;
-    }
-
-    let updated: GraphEdge[] | null = null;
-    const edgeIndexById = new Map<string, number>();
-    edges.value.forEach((edge, index) => {
-      edgeIndexById.set(edge.id, index);
-    });
-
-    for (const [edgeId, hidden] of visibilityMap) {
-      const edgeIndex = edgeIndexById.get(edgeId);
-      if (edgeIndex !== undefined) {
-        const current = (updated ?? edges.value)[edgeIndex];
-        if (current && current.hidden !== hidden) {
-          updated ??= [...edges.value];
-          updated[edgeIndex] = {
-            ...current,
-            hidden,
-          };
-        }
-      }
-    }
-
-    if (updated !== null) {
-      edges.value = updated;
+    if (changed) {
+      edges.value = nextEdges as unknown as GraphEdge[];
     }
   };
 
@@ -325,7 +293,6 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
     setEdges,
     updateNodesById,
     updateEdgesById,
-    setEdgeVisibility,
     setSelectedNode,
     setCacheKey,
     setViewMode,
@@ -342,5 +309,5 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
     resumeCacheWrites: () => {
       cacheWriteSuspended.value = false;
     },
-  };
+  } as unknown as IGraphStore;
 });

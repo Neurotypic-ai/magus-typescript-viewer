@@ -1,23 +1,18 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { CodeIssueRepository } from '../CodeIssueRepository';
-import { RepositoryError } from '../../errors/RepositoryError';
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn adapter methods */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ICodeIssueCreateDTO, ICodeIssueRow } from '../CodeIssueRepository';
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
+import { RepositoryError } from '../../errors/RepositoryError';
+import { CodeIssueRepository } from '../CodeIssueRepository';
+
+import type { ICodeIssueCreateDTO } from '../../../../shared/types/dto/CodeIssueDTO';
 import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
+import type { ICodeIssueRow } from '../../types/DatabaseResults';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn<IDatabaseAdapter['init']>().mockResolvedValue(undefined),
-    query: vi.fn<IDatabaseAdapter['query']>().mockResolvedValue([]),
-    close: vi.fn<IDatabaseAdapter['close']>().mockResolvedValue(undefined),
-    transaction: vi.fn<IDatabaseAdapter['transaction']>(),
-    getDbPath: vi.fn<IDatabaseAdapter['getDbPath']>().mockReturnValue(':memory:'),
-  };
-}
 
 function makeRow(overrides: Partial<ICodeIssueRow> = {}): ICodeIssueRow {
   return {
@@ -67,7 +62,7 @@ describe('CodeIssueRepository', () => {
   let repo: CodeIssueRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new CodeIssueRepository(adapter);
   });
 
@@ -233,9 +228,7 @@ describe('CodeIssueRepository', () => {
     it('rethrows non-duplicate errors from batch insert', async () => {
       vi.mocked(adapter.query).mockRejectedValueOnce(new Error('Connection lost'));
 
-      await expect(
-        repo.createBatch([makeCreateDTO()])
-      ).rejects.toThrow('Connection lost');
+      await expect(repo.createBatch([makeCreateDTO()])).rejects.toThrow('Connection lost');
     });
 
     it('rethrows non-duplicate errors from individual fallback inserts', async () => {
@@ -254,9 +247,7 @@ describe('CodeIssueRepository', () => {
   // -----------------------------------------------------------------------
   describe('update', () => {
     it('throws "Not supported" error', () => {
-      expect(() => repo.update('id', {} as Record<string, never>)).toThrow(
-        'Not supported for CodeIssueRepository'
-      );
+      expect(() => repo.update('id', {} as Record<string, never>)).toThrow('Not supported for CodeIssueRepository');
     });
   });
 
@@ -292,10 +283,7 @@ describe('CodeIssueRepository', () => {
   // -----------------------------------------------------------------------
   describe('retrieveByModuleId', () => {
     it('returns an array of entities for the given module', async () => {
-      const rows = [
-        makeRow({ id: 'issue-1', module_id: 'mod-5' }),
-        makeRow({ id: 'issue-2', module_id: 'mod-5' }),
-      ];
+      const rows = [makeRow({ id: 'issue-1', module_id: 'mod-5' }), makeRow({ id: 'issue-2', module_id: 'mod-5' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows as QueryResult);
 
       const results = await repo.retrieveByModuleId('mod-5');
@@ -459,9 +447,7 @@ describe('CodeIssueRepository', () => {
     });
 
     it('includes operation context in the error for prepared statement errors', async () => {
-      vi.mocked(adapter.query).mockRejectedValue(
-        new Error('prepared statement already exists')
-      );
+      vi.mocked(adapter.query).mockRejectedValue(new Error('prepared statement already exists'));
 
       try {
         await repo.retrieve();

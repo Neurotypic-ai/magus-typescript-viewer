@@ -1,7 +1,11 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockReadFileSync = vi.fn();
+import { loadSchema } from '../schema-loader';
+
+const { mockReadFileSync } = vi.hoisted(() => ({
+  mockReadFileSync: vi.fn(),
+}));
 
 vi.mock('node:fs', () => ({
   readFileSync: mockReadFileSync,
@@ -17,55 +21,49 @@ describe('loadSchema with mocked filesystem', () => {
     vi.restoreAllMocks();
   });
 
-  it('propagates errors from readFileSync', async () => {
+  it('propagates errors from readFileSync', () => {
     mockReadFileSync.mockImplementation(() => {
       throw new Error('ENOENT: no such file or directory');
     });
 
-    const { loadSchema } = await import('../schema-loader');
     expect(() => loadSchema()).toThrow('ENOENT');
   });
 
-  it('returns an empty string when schema file is empty', async () => {
+  it('returns an empty string when schema file is empty', () => {
     mockReadFileSync.mockReturnValue('');
 
-    const { loadSchema } = await import('../schema-loader');
     const result = loadSchema();
     expect(result).toBe('');
   });
 
-  it('returns whatever readFileSync provides without validation', async () => {
+  it('returns whatever readFileSync provides without validation', () => {
     mockReadFileSync.mockReturnValue('not valid sql at all');
 
-    const { loadSchema } = await import('../schema-loader');
     const result = loadSchema();
     expect(result).toBe('not valid sql at all');
   });
 
-  it('passes utf-8 encoding to readFileSync', async () => {
+  it('passes utf-8 encoding to readFileSync', () => {
     mockReadFileSync.mockReturnValue('CREATE TABLE test (id INT);');
 
-    const { loadSchema } = await import('../schema-loader');
     loadSchema();
 
     expect(mockReadFileSync).toHaveBeenCalledTimes(1);
     expect(mockReadFileSync).toHaveBeenCalledWith(expect.any(String), 'utf-8');
   });
 
-  it('reads from a path ending in schema.sql', async () => {
+  it('reads from a path ending in schema.sql', () => {
     mockReadFileSync.mockReturnValue('CREATE TABLE test (id INT);');
 
-    const { loadSchema } = await import('../schema-loader');
     loadSchema();
 
-    const calledPath = mockReadFileSync.mock.calls[0][0] as string;
+    const calledPath = mockReadFileSync.mock.calls[0]?.[0] as string;
     expect(calledPath).toMatch(/schema\.sql$/);
   });
 
-  it('handles readFileSync returning content with unusual whitespace', async () => {
+  it('handles readFileSync returning content with unusual whitespace', () => {
     mockReadFileSync.mockReturnValue('  \n\n  CREATE TABLE foo (id INT);  \n\n  ');
 
-    const { loadSchema } = await import('../schema-loader');
     const result = loadSchema();
     expect(result).toBe('  \n\n  CREATE TABLE foo (id INT);  \n\n  ');
   });

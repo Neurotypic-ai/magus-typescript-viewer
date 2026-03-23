@@ -1,5 +1,8 @@
-import type { DependencyNode } from '../../types/DependencyNode';
+import { describe, expect, it } from 'vitest';
+
 import { collectNodesNeedingInternalsUpdate } from '../nodeDiff';
+
+import type { DependencyNode } from '../../types/DependencyNode';
 
 /**
  * Helper to build a minimal DependencyNode for testing.
@@ -109,47 +112,56 @@ describe('collectNodesNeedingInternalsUpdate', () => {
   // -----------------------------------------------------------------------
 
   it('detects a width change via measured property', () => {
-    const previous = [makeNode({ id: 'a' })];
-    Object.assign(previous[0], { measured: { width: 100, height: 50 } });
+    const prevNode = makeNode({ id: 'a' });
+    Object.assign(prevNode, { measured: { width: 100, height: 50 } });
+    const previous = [prevNode];
 
-    const next = [makeNode({ id: 'a' })];
-    Object.assign(next[0], { measured: { width: 200, height: 50 } });
+    const nextNode = makeNode({ id: 'a' });
+    Object.assign(nextNode, { measured: { width: 200, height: 50 } });
+    const next = [nextNode];
 
     expect(collectNodesNeedingInternalsUpdate(previous, next)).toEqual(['a']);
   });
 
   it('detects a height change via measured property', () => {
-    const previous = [makeNode({ id: 'a' })];
-    Object.assign(previous[0], { measured: { width: 100, height: 50 } });
+    const prevNode = makeNode({ id: 'a' });
+    Object.assign(prevNode, { measured: { width: 100, height: 50 } });
+    const previous = [prevNode];
 
-    const next = [makeNode({ id: 'a' })];
-    Object.assign(next[0], { measured: { width: 100, height: 200 } });
+    const nextNode = makeNode({ id: 'a' });
+    Object.assign(nextNode, { measured: { width: 100, height: 200 } });
+    const next = [nextNode];
 
     expect(collectNodesNeedingInternalsUpdate(previous, next)).toEqual(['a']);
   });
 
   it('ignores dimension changes within the 1px tolerance', () => {
-    const previous = [makeNode({ id: 'a' })];
-    Object.assign(previous[0], { measured: { width: 100, height: 50 } });
+    const prevNode = makeNode({ id: 'a' });
+    Object.assign(prevNode, { measured: { width: 100, height: 50 } });
+    const previous = [prevNode];
 
-    const next = [makeNode({ id: 'a' })];
-    Object.assign(next[0], { measured: { width: 100.5, height: 50.5 } });
+    const nextNode = makeNode({ id: 'a' });
+    Object.assign(nextNode, { measured: { width: 100.5, height: 50.5 } });
+    const next = [nextNode];
 
     expect(collectNodesNeedingInternalsUpdate(previous, next)).toEqual([]);
   });
 
   it('flags a change at exactly the 1px boundary (> 1, not >=)', () => {
-    const previous = [makeNode({ id: 'a' })];
-    Object.assign(previous[0], { measured: { width: 100, height: 50 } });
+    const prevNode = makeNode({ id: 'a' });
+    Object.assign(prevNode, { measured: { width: 100, height: 50 } });
+    const previous = [prevNode];
 
     // Exactly 1px difference -- should NOT be flagged (threshold is > 1)
-    const next1px = [makeNode({ id: 'a' })];
-    Object.assign(next1px[0], { measured: { width: 101, height: 50 } });
+    const next1pxNode = makeNode({ id: 'a' });
+    Object.assign(next1pxNode, { measured: { width: 101, height: 50 } });
+    const next1px = [next1pxNode];
     expect(collectNodesNeedingInternalsUpdate(previous, next1px)).toEqual([]);
 
     // 1.01px difference -- should be flagged
-    const nextOver1px = [makeNode({ id: 'a' })];
-    Object.assign(nextOver1px[0], { measured: { width: 101.01, height: 50 } });
+    const nextOver1pxNode = makeNode({ id: 'a' });
+    Object.assign(nextOver1pxNode, { measured: { width: 101.01, height: 50 } });
+    const nextOver1px = [nextOver1pxNode];
     expect(collectNodesNeedingInternalsUpdate(previous, nextOver1px)).toEqual(['a']);
   });
 
@@ -192,11 +204,13 @@ describe('collectNodesNeedingInternalsUpdate', () => {
   it('prefers measured dimensions over style dimensions', () => {
     // Both have the same measured values but different style values.
     // Since measured takes priority, no change should be detected.
-    const previous = [makeNode({ id: 'a', style: { width: '100px' } })];
-    Object.assign(previous[0], { measured: { width: 200, height: 50 } });
+    const prevNode = makeNode({ id: 'a', style: { width: '100px' } });
+    Object.assign(prevNode, { measured: { width: 200, height: 50 } });
+    const previous = [prevNode];
 
-    const next = [makeNode({ id: 'a', style: { width: '300px' } })];
-    Object.assign(next[0], { measured: { width: 200, height: 50 } });
+    const nextNode = makeNode({ id: 'a', style: { width: '300px' } });
+    Object.assign(nextNode, { measured: { width: 200, height: 50 } });
+    const next = [nextNode];
 
     expect(collectNodesNeedingInternalsUpdate(previous, next)).toEqual([]);
   });

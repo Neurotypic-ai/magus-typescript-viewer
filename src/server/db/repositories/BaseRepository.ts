@@ -1,40 +1,44 @@
-import { createLogger } from '../../../shared/utils/logger';
+import { consola } from 'consola';
+
 import { RepositoryError } from '../errors/RepositoryError';
 
-import type { Logger } from '../../../shared/utils/logger';
+import type { ConsolaInstance } from 'consola';
+
 import type { DatabaseRow, IDatabaseAdapter, QueryParams } from '../adapter/IDatabaseAdapter';
 
-export interface IBaseEntity {
+interface IBaseEntity {
   id: string;
 }
 
-export interface IBaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO> {
+interface IBaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO> {
   create(dto: CreateDTO): Promise<T>;
   update(id: string, dto: UpdateDTO): Promise<T>;
   retrieve(id?: string, module_id?: string): Promise<T | T[]>;
   delete(id: string): Promise<void>;
 }
 
-export class DatabaseResultError extends RepositoryError {
+class DatabaseResultError extends RepositoryError {
   constructor(message: string, operation: string, repository: string) {
     super(message, operation, repository);
     this.name = 'DatabaseResultError';
   }
 }
 
-export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO>
-  implements IBaseRepository<T, CreateDTO, UpdateDTO>
-{
+export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO> implements IBaseRepository<
+  T,
+  CreateDTO,
+  UpdateDTO
+> {
   protected adapter: IDatabaseAdapter;
   protected readonly errorTag: string;
   protected readonly tableName: string;
-  protected readonly logger: Logger;
+  protected readonly logger: ConsolaInstance;
 
   constructor(adapter: IDatabaseAdapter, errorTag: string, tableName: string) {
     this.adapter = adapter;
     this.errorTag = errorTag;
     this.tableName = tableName;
-    this.logger = createLogger(errorTag);
+    this.logger = consola.withTag(errorTag);
   }
 
   abstract create(dto: CreateDTO): Promise<T>;
@@ -142,10 +146,7 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
       const placeholders = chunk.map(() => singleRowPlaceholder).join(', ');
       const params = chunk.flatMap(itemToParams);
       try {
-        await this.adapter.query(
-          `INSERT INTO ${this.tableName} ${columns} VALUES ${placeholders}`,
-          params
-        );
+        await this.adapter.query(`INSERT INTO ${this.tableName} ${columns} VALUES ${placeholders}`, params);
       } catch (error) {
         const msg = error instanceof Error ? error.message : '';
         // Ignore duplicate constraint violations
@@ -159,7 +160,11 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
               );
             } catch (innerError) {
               const innerMsg = innerError instanceof Error ? innerError.message : '';
-              if (innerMsg.includes('Duplicate') || innerMsg.includes('UNIQUE') || innerMsg.includes('already exists')) {
+              if (
+                innerMsg.includes('Duplicate') ||
+                innerMsg.includes('UNIQUE') ||
+                innerMsg.includes('already exists')
+              ) {
                 continue;
               }
               throw innerError;

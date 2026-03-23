@@ -1,86 +1,31 @@
 import { Method } from '../../../shared/types/Method';
 import { Parameter } from '../../../shared/types/Parameter';
+import { isValidParentType } from '../../../shared/types/ParentType';
 import { EntityNotFoundError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { VisibilityType } from '../../../shared/types/VisibilityType';
+import type { IMethodCreateDTO, IMethodUpdateDTO } from '../../../shared/types/dto/MethodDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IMethodRow, IParameterRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new method.
- */
-export interface IMethodCreateDTO {
-  /**
-   * The unique identifier for the method.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The UUID of the parent class or interface.
-   */
-  parent_id: string;
-
-  /**
-   * The type of the parent (class or interface).
-   */
-  parent_type: 'class' | 'interface';
-
-  /**
-   * The name of the method.
-   */
-  name: string;
-
-  /**
-   * The return type of the method.
-   */
-  return_type: string;
-
-  /**
-   * Whether the method is static.
-   */
-  is_static: boolean;
-
-  /**
-   * Whether the method is async.
-   */
-  is_async: boolean;
-
-  /**
-   * The visibility of the method (public, private, protected).
-   */
-  visibility: string;
-
-  /**
-   * Whether the method has an explicit return type annotation.
-   */
-  has_explicit_return_type?: boolean;
-}
-
-export interface IMethodUpdateDTO {
-  name?: string;
-  return_type?: string;
-  parent_type?: 'class' | 'interface';
-  is_static?: boolean;
-  is_async?: boolean;
-  visibility?: string;
-}
 
 export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, IMethodUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
     super(adapter, '[MethodRepository]', 'methods');
+  }
+
+  private assertValidParentType(parentType: ParentType, operation: 'retrieveByParent' | 'retrieveByParentIds'): void {
+    if (isValidParentType(parentType)) return;
+
+    throw new RepositoryError(
+      `Invalid parent type: ${String(parentType)}`,
+      operation,
+      this.errorTag,
+      new Error(`Invalid parent type: ${String(parentType)}`)
+    );
   }
 
   /**
@@ -135,7 +80,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
         dto.module_id,
         dto.parent_id,
         dto.name,
-        new Date(),
+        new Date().toISOString(),
         new Map<string, Parameter>(),
         dto.return_type,
         dto.is_static,
@@ -215,7 +160,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
             method.module_id,
             method.parent_id,
             method.name,
-            new Date(method.created_at),
+            method.created_at,
             new Map<string, Parameter>(),
             method.return_type,
             method.is_static,
@@ -257,8 +202,10 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
    */
   async retrieveByParentIds(
     parentIds: string[],
-    parentType: 'class' | 'interface'
+    parentType: ParentType
   ): Promise<Map<string, Map<string, Method>>> {
+    this.assertValidParentType(parentType, 'retrieveByParentIds');
+
     const result = new Map<string, Map<string, Method>>();
     if (parentIds.length === 0) return result;
 
@@ -310,7 +257,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
               p.module_id,
               p.method_id,
               p.name,
-              new Date(p.created_at),
+              p.created_at,
               p.type,
               Boolean(p.is_optional),
               Boolean(p.is_rest),
@@ -325,7 +272,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
           method.module_id,
           method.parent_id,
           method.name,
-          new Date((method as unknown as { created_at?: string }).created_at ?? new Date().toISOString()),
+          (method as unknown as { created_at?: string }).created_at ?? new Date().toISOString(),
           methodParameters,
           method.return_type,
           method.is_static,
@@ -351,7 +298,9 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
     }
   }
 
-  async retrieveByParent(parentId: string, parentType: 'class' | 'interface'): Promise<Map<string, Method>> {
+  async retrieveByParent(parentId: string, parentType: ParentType): Promise<Map<string, Method>> {
+    this.assertValidParentType(parentType, 'retrieveByParent');
+
     try {
       // Fetch methods with proper parameter handling
       const methods = await this.executeQuery<IMethodRow>(
@@ -401,7 +350,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
                 p.module_id,
                 p.method_id,
                 p.name,
-                new Date(p.created_at),
+                p.created_at,
                 p.type,
                 Boolean(p.is_optional),
                 Boolean(p.is_rest),
@@ -419,7 +368,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
             method.module_id,
             method.parent_id,
             method.name,
-            new Date((method as unknown as { created_at?: string }).created_at ?? new Date().toISOString()),
+            (method as unknown as { created_at?: string }).created_at ?? new Date().toISOString(),
             methodParameters,
             method.return_type,
             method.is_static,
@@ -440,29 +389,4 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
       );
     }
   }
-}
-
-/**
- * Repository interface for managing methods.
- */
-export interface IMethodRepository {
-  /**
-   * Creates a new method.
-   */
-  create(dto: IMethodCreateDTO): Promise<Method>;
-
-  /**
-   * Finds a method by its ID.
-   */
-  findById(id: string): Promise<IMethodCreateDTO | null>;
-
-  /**
-   * Finds all methods in a parent (class or interface).
-   */
-  findByParentId(parentId: string): Promise<IMethodCreateDTO[]>;
-
-  /**
-   * Deletes a method by its ID.
-   */
-  delete(id: string): Promise<void>;
 }

@@ -1,21 +1,23 @@
+import { describe, expect, it } from 'vitest';
+
 import {
-  generateUUID,
   generateClassUUID,
-  generateInterfaceUUID,
-  generatePackageUUID,
-  generateMethodUUID,
-  generatePropertyUUID,
-  generateParameterUUID,
-  generateModuleUUID,
+  generateCodeIssueUUID,
   generateEnumUUID,
   generateExportUUID,
-  generateImportUUID,
-  generateTypeAliasUUID,
-  generateVariableUUID,
-  generateModuleDefinitionUUID,
   generateFunctionUUID,
-  generateCodeIssueUUID,
+  generateImportUUID,
+  generateInterfaceUUID,
+  generateMethodUUID,
+  generateModuleDefinitionUUID,
+  generateModuleUUID,
+  generatePackageUUID,
+  generateParameterUUID,
+  generatePropertyUUID,
   generateRelationshipUUID,
+  generateTypeAliasUUID,
+  generateUUID,
+  generateVariableUUID,
 } from '../uuid';
 
 // UUID v5 format regex: 8-4-4-4-12 hex chars with version nibble = 5

@@ -3,12 +3,14 @@ import { fileURLToPath } from 'url';
 
 import chalk from 'chalk';
 import { Command } from 'commander';
+import { consola } from 'consola';
 import ora from 'ora';
 import { readPackage } from 'read-pkg';
 
 import { Database } from '../db/Database';
 import { DuckDBAdapter } from '../db/adapter/DuckDBAdapter';
 import { ClassRepository } from '../db/repositories/ClassRepository';
+import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
 import { EnumRepository } from '../db/repositories/EnumRepository';
 import { ExportRepository } from '../db/repositories/ExportRepository';
 import { FunctionRepository } from '../db/repositories/FunctionRepository';
@@ -22,9 +24,8 @@ import { PropertyRepository } from '../db/repositories/PropertyRepository';
 import { SymbolReferenceRepository } from '../db/repositories/SymbolReferenceRepository';
 import { TypeAliasRepository } from '../db/repositories/TypeAliasRepository';
 import { VariableRepository } from '../db/repositories/VariableRepository';
-import { PackageParser } from '../parsers/PackageParser';
-import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
 import { InsightEngine } from '../insights/InsightEngine';
+import { PackageParser } from '../parsers/PackageParser';
 import { RulesEngine } from '../rules/RulesEngine';
 import { generateRelationshipUUID } from '../utils/uuid';
 
@@ -32,14 +33,10 @@ import type { IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const cliLogger = consola.withTag('CLI');
 
 /** Insert a row, ignoring duplicate key errors */
-async function safeInsert(
-  adapter: IDatabaseAdapter,
-  table: string,
-  columns: string,
-  values: string[]
-): Promise<void> {
+async function safeInsert(adapter: IDatabaseAdapter, table: string, columns: string, values: string[]): Promise<void> {
   const placeholders = values.map(() => '?').join(', ');
   try {
     await adapter.query(`INSERT INTO ${table} ${columns} VALUES (${placeholders})`, values);
@@ -65,7 +62,7 @@ async function safeUpdate(
     await adapter.query(`UPDATE ${table} SET ${column} = ? WHERE id = ?`, [value, id]);
   } catch (error) {
     const msg = error instanceof Error ? error.message : '';
-    console.warn(`Warning: failed to update ${table}.${column}:`, msg);
+    cliLogger.warn(`Failed to update ${table}.${column}:`, msg);
   }
 }
 
@@ -85,14 +82,12 @@ function normalizeSpecifierKind(kind: string): PersistedImportSpecifier['kind'] 
   return 'value';
 }
 
-function serializeImportSpecifiers(
-  imp: {
-    name?: string;
-    relativePath?: string;
-    fullPath?: string;
-    specifiers?: unknown;
-  }
-): string | undefined {
+function serializeImportSpecifiers(imp: {
+  name?: string;
+  relativePath?: string;
+  fullPath?: string;
+  specifiers?: unknown;
+}): string | undefined {
   const serialized: PersistedImportSpecifier[] = [];
   const sourceLabel = imp.name ?? imp.relativePath ?? imp.fullPath ?? '(side-effect)';
 
@@ -213,13 +208,13 @@ program
     const spinner = ora('Analyzing TypeScript project...').start();
 
     try {
-      console.log('options.output', options.output);
+      cliLogger.info('options.output', options.output);
       // Initialize database and repositories
       const adapter = new DuckDBAdapter(options.output, { allowWrite: true });
       const db = new Database(adapter, options.output);
       // Default to reset=true for idempotent behavior, unless --no-reset is specified
       const shouldReset = options.reset !== false;
-      console.log(
+      cliLogger.info(
         'reset mode:',
         shouldReset ? 'RESET (will delete existing data)' : 'APPEND (will keep existing data)'
       );
@@ -298,7 +293,9 @@ program
         // Batch-insert imports with module context (use relativePath for client-side resolution)
         if (parseResult.importsWithModules) {
           const dedupedImports = Array.from(
-            new Map(parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])).values()
+            new Map(
+              parseResult.importsWithModules.map((entry) => [`${entry.moduleId}:${entry.import.uuid}`, entry])
+            ).values()
           );
 
           const importDTOs = dedupedImports.map(({ import: imp, moduleId }) => {
@@ -369,20 +366,12 @@ program
       // Cross-package resolution: only fetch classes/interfaces whose names
       // match unresolved references (Issue #18: avoid full-table scans)
       const unresolvedClassNames = [
-        ...new Set(
-          parseResult.classExtends
-            .filter((ref) => !ref.parentId)
-            .map((ref) => ref.parentName)
-        ),
+        ...new Set(parseResult.classExtends.filter((ref) => !ref.parentId).map((ref) => ref.parentName)),
       ];
       const unresolvedInterfaceNames = [
         ...new Set([
-          ...parseResult.classImplements
-            .filter((ref) => !ref.interfaceId)
-            .map((ref) => ref.interfaceName),
-          ...parseResult.interfaceExtends
-            .filter((ref) => !ref.parentId)
-            .map((ref) => ref.parentName),
+          ...parseResult.classImplements.filter((ref) => !ref.interfaceId).map((ref) => ref.interfaceName),
+          ...parseResult.interfaceExtends.filter((ref) => !ref.parentId).map((ref) => ref.parentName),
         ]),
       ];
 
@@ -499,7 +488,10 @@ program
           const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
           const params = chunk.flat();
           try {
-            await adapter.query(`INSERT INTO class_implements (id, class_id, interface_id) VALUES ${placeholders}`, params);
+            await adapter.query(
+              `INSERT INTO class_implements (id, class_id, interface_id) VALUES ${placeholders}`,
+              params
+            );
           } catch (error) {
             const msg = error instanceof Error ? error.message : '';
             if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
@@ -517,7 +509,10 @@ program
           const placeholders = chunk.map(() => '(?, ?, ?)').join(', ');
           const params = chunk.flat();
           try {
-            await adapter.query(`INSERT INTO interface_extends (id, interface_id, extended_id) VALUES ${placeholders}`, params);
+            await adapter.query(
+              `INSERT INTO interface_extends (id, interface_id, extended_id) VALUES ${placeholders}`,
+              params
+            );
           } catch (error) {
             const msg = error instanceof Error ? error.message : '';
             if (!msg.includes('Duplicate') && !msg.includes('UNIQUE') && !msg.includes('already exists')) {
@@ -531,24 +526,24 @@ program
       });
 
       spinner.succeed(chalk.green('Analysis complete!'));
-      console.log();
-      console.log(chalk.blue('Statistics:'));
-      console.log(chalk.gray('- Files analyzed:'), parseResult.modules.length);
-      console.log(chalk.gray('- Modules found:'), parseResult.modules.length);
-      console.log(chalk.gray('- Classes found:'), parseResult.classes.length);
-      console.log(chalk.gray('- Interfaces found:'), parseResult.interfaces.length);
-      console.log(chalk.gray('- Functions found:'), parseResult.functions.length);
-      console.log(chalk.gray('- Type aliases found:'), parseResult.typeAliases.length);
-      console.log(chalk.gray('- Enums found:'), parseResult.enums.length);
-      console.log(chalk.gray('- Variables found:'), parseResult.variables.length);
-      console.log(chalk.gray('- Methods found:'), parseResult.methods.length);
-      console.log(chalk.gray('- Properties found:'), parseResult.properties.length);
-      console.log(chalk.gray('- Parameters found:'), parseResult.parameters.length);
-      console.log(chalk.gray('- Imports found:'), parseResult.importsWithModules?.length ?? 0);
-      console.log(chalk.gray('- Exports found:'), parseResult.exports.length);
-      console.log(chalk.gray('- Code issues found:'), codeIssues.length);
-      console.log(chalk.gray('- Relationships found:'), relationshipCount);
-      console.log(
+      cliLogger.log('');
+      cliLogger.info(chalk.blue('Statistics:'));
+      cliLogger.info(chalk.gray('- Files analyzed:'), parseResult.modules.length);
+      cliLogger.info(chalk.gray('- Modules found:'), parseResult.modules.length);
+      cliLogger.info(chalk.gray('- Classes found:'), parseResult.classes.length);
+      cliLogger.info(chalk.gray('- Interfaces found:'), parseResult.interfaces.length);
+      cliLogger.info(chalk.gray('- Functions found:'), parseResult.functions.length);
+      cliLogger.info(chalk.gray('- Type aliases found:'), parseResult.typeAliases.length);
+      cliLogger.info(chalk.gray('- Enums found:'), parseResult.enums.length);
+      cliLogger.info(chalk.gray('- Variables found:'), parseResult.variables.length);
+      cliLogger.info(chalk.gray('- Methods found:'), parseResult.methods.length);
+      cliLogger.info(chalk.gray('- Properties found:'), parseResult.properties.length);
+      cliLogger.info(chalk.gray('- Parameters found:'), parseResult.parameters.length);
+      cliLogger.info(chalk.gray('- Imports found:'), parseResult.importsWithModules?.length ?? 0);
+      cliLogger.info(chalk.gray('- Exports found:'), parseResult.exports.length);
+      cliLogger.info(chalk.gray('- Code issues found:'), codeIssues.length);
+      cliLogger.info(chalk.gray('- Relationships found:'), relationshipCount);
+      cliLogger.info(
         chalk.gray('- class_extends resolution:'),
         'resolved=',
         relationStats.classExtends.resolved,
@@ -557,7 +552,7 @@ program
         'unresolved=',
         relationStats.classExtends.unresolved
       );
-      console.log(
+      cliLogger.info(
         chalk.gray('- class_implements resolution:'),
         'resolved=',
         relationStats.classImplements.resolved,
@@ -566,7 +561,7 @@ program
         'unresolved=',
         relationStats.classImplements.unresolved
       );
-      console.log(
+      cliLogger.info(
         chalk.gray('- interface_extends resolution:'),
         'resolved=',
         relationStats.interfaceExtends.resolved,
@@ -577,54 +572,54 @@ program
       );
 
       // Compute codebase insights
-      console.log();
+      cliLogger.log('');
       const insightSpinner = ora('Computing codebase insights...').start();
       try {
         const engine = new InsightEngine(adapter);
         const report = await engine.compute();
 
         insightSpinner.succeed(chalk.green('Insights computed!'));
-        console.log();
+        cliLogger.log('');
 
         const scoreColor = report.healthScore >= 80 ? chalk.green : report.healthScore >= 50 ? chalk.yellow : chalk.red;
-        console.log(chalk.blue('Health Score:'), scoreColor(`${report.healthScore.toString()}/100`));
-        console.log();
+        cliLogger.info(chalk.blue('Health Score:'), scoreColor(`${report.healthScore.toString()}/100`));
+        cliLogger.log('');
 
         if (report.summary.critical > 0) {
-          console.log(chalk.red(`  Critical: ${report.summary.critical.toString()}`));
+          cliLogger.error(chalk.red(`  Critical: ${report.summary.critical.toString()}`));
         }
         if (report.summary.warning > 0) {
-          console.log(chalk.yellow(`  Warning:  ${report.summary.warning.toString()}`));
+          cliLogger.warn(chalk.yellow(`  Warning:  ${report.summary.warning.toString()}`));
         }
         if (report.summary.info > 0) {
-          console.log(chalk.cyan(`  Info:     ${report.summary.info.toString()}`));
+          cliLogger.info(chalk.cyan(`  Info:     ${report.summary.info.toString()}`));
         }
 
         if (report.insights.length > 0) {
-          console.log();
-          console.log(chalk.blue('Top Insights:'));
+          cliLogger.log('');
+          cliLogger.info(chalk.blue('Top Insights:'));
           const criticals = report.insights.filter((i) => i.severity === 'critical');
           const warnings = report.insights.filter((i) => i.severity === 'warning');
           const topInsights = [...criticals, ...warnings].slice(0, 10);
           for (const insight of topInsights) {
             const icon = insight.severity === 'critical' ? chalk.red('!') : chalk.yellow('~');
             const entityCount = insight.entities.length.toString();
-            console.log(`  ${icon} ${insight.title} (${entityCount} entities)`);
+            cliLogger.info(`  ${icon} ${insight.title} (${entityCount} entities)`);
           }
           if (report.insights.length > topInsights.length) {
             const remaining = report.insights.length - topInsights.length;
-            console.log(chalk.gray(`  ... and ${remaining.toString()} more info-level insights`));
+            cliLogger.info(chalk.gray(`  ... and ${remaining.toString()} more info-level insights`));
           }
         }
       } catch (insightError) {
         insightSpinner.warn(chalk.yellow('Insight computation skipped'));
-        console.log(chalk.gray('  ' + (insightError instanceof Error ? insightError.message : 'Unknown error')));
+        cliLogger.warn(chalk.gray('  ' + (insightError instanceof Error ? insightError.message : 'Unknown error')));
       }
 
       await db.close();
     } catch (error) {
       spinner.fail(chalk.red('Analysis failed!'));
-      console.error(error);
+      cliLogger.error(error);
       process.exit(1);
     }
   });
@@ -652,11 +647,11 @@ program
       await server.listen();
 
       spinner.succeed(chalk.green('Server started!'));
-      console.log();
-      console.log(chalk.blue('Visualization available at:'), chalk.cyan(`http://localhost:${options.port}`));
+      cliLogger.log('');
+      cliLogger.success(chalk.blue('Visualization available at:'), chalk.cyan(`http://localhost:${options.port}`));
     } catch (error) {
       spinner.fail(chalk.red('Failed to start server!'));
-      console.error(error);
+      cliLogger.error(error);
       process.exit(1);
     }
   });

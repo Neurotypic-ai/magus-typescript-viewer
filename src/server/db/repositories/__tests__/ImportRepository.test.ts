@@ -1,24 +1,13 @@
 // @vitest-environment node
+/* eslint-disable @typescript-eslint/unbound-method -- IDatabaseAdapter vi.fn doubles in expects */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
+import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { ImportRepository } from '../ImportRepository';
-import { RepositoryError, EntityNotFoundError, NoFieldsToUpdateError } from '../../errors/RepositoryError';
 
-import type { IImportCreateDTO } from '../ImportRepository';
+import type { IImportCreateDTO } from '../../../../shared/types/dto/ImportDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
-
-// ---------------------------------------------------------------------------
-// Mock adapter factory
-// ---------------------------------------------------------------------------
-
-function createMockAdapter(overrides?: Partial<IDatabaseAdapter>): IDatabaseAdapter {
-  return {
-    init: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue([]),
-    close: vi.fn().mockResolvedValue(undefined),
-    transaction: vi.fn().mockImplementation(async (cb: () => Promise<unknown>) => cb()),
-    getDbPath: vi.fn().mockReturnValue(':memory:'),
-    ...overrides,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Test data helpers
@@ -58,7 +47,7 @@ describe('ImportRepository', () => {
   let repo: ImportRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new ImportRepository(adapter);
   });
 
@@ -73,31 +62,38 @@ describe('ImportRepository', () => {
       expect(result).toBe(dto);
       expect(adapter.query).toHaveBeenCalledTimes(1);
 
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('INSERT INTO imports');
-      expect(params).toEqual([
-        dto.id,
-        dto.package_id,
-        dto.module_id,
-        dto.source,
-        dto.specifiers_json,
-        false,
-      ]);
+      expect(params).toEqual([dto.id, dto.package_id, dto.module_id, dto.source, dto.specifiers_json, false]);
     });
 
     it('defaults specifiers_json to null when undefined', async () => {
-      const dto = makeImportDTO({ specifiers_json: undefined });
+      const base = makeImportDTO();
+      const dto: IImportCreateDTO = {
+        id: base.id,
+        package_id: base.package_id,
+        module_id: base.module_id,
+        source: base.source,
+        is_type_only: false,
+      };
       await repo.create(dto);
 
-      const [, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(params[4]).toBeNull();
     });
 
     it('defaults is_type_only to false when undefined', async () => {
-      const dto = makeImportDTO({ is_type_only: undefined });
+      const base = makeImportDTO();
+      const dto: IImportCreateDTO = {
+        id: base.id,
+        package_id: base.package_id,
+        module_id: base.module_id,
+        source: base.source,
+        specifiers_json: '["foo","bar"]',
+      };
       await repo.create(dto);
 
-      const [, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(params[5]).toBe(false);
     });
 
@@ -105,19 +101,19 @@ describe('ImportRepository', () => {
       const dto = makeImportDTO({ is_type_only: true });
       await repo.create(dto);
 
-      const [, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(params[5]).toBe(true);
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db boom'));
+      vi.mocked(adapter.query).mockRejectedValue(new Error('db boom'));
 
       await expect(repo.create(makeImportDTO())).rejects.toThrow(RepositoryError);
       await expect(repo.create(makeImportDTO())).rejects.toThrow(/Failed to create import/);
     });
 
     it('wraps non-Error throws in RepositoryError', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce('string error');
+      vi.mocked(adapter.query).mockRejectedValueOnce('string error');
 
       await expect(repo.create(makeImportDTO())).rejects.toThrow(RepositoryError);
     });
@@ -129,7 +125,7 @@ describe('ImportRepository', () => {
   describe('retrieveById', () => {
     it('returns mapped entity when found', async () => {
       const row = makeImportRow();
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
       const result = await repo.retrieveById('import-1');
 
@@ -144,7 +140,7 @@ describe('ImportRepository', () => {
     });
 
     it('returns undefined when no rows', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       const result = await repo.retrieveById('missing-id');
       expect(result).toBeUndefined();
@@ -152,7 +148,7 @@ describe('ImportRepository', () => {
 
     it('correctly maps is_type_only string "true" to boolean true', async () => {
       const row = makeImportRow({ is_type_only: 'true' });
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
       const result = await repo.retrieveById('import-1');
       expect(result?.is_type_only).toBe(true);
@@ -160,7 +156,7 @@ describe('ImportRepository', () => {
 
     it('correctly maps is_type_only string "1" to boolean true', async () => {
       const row = makeImportRow({ is_type_only: '1' });
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
       const result = await repo.retrieveById('import-1');
       expect(result?.is_type_only).toBe(true);
@@ -168,7 +164,7 @@ describe('ImportRepository', () => {
 
     it('maps is_type_only "false" to boolean false', async () => {
       const row = makeImportRow({ is_type_only: 'false' });
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
       const result = await repo.retrieveById('import-1');
       expect(result?.is_type_only).toBe(false);
@@ -176,14 +172,14 @@ describe('ImportRepository', () => {
 
     it('maps null specifiers_json to undefined', async () => {
       const row = makeImportRow({ specifiers_json: null });
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
       const result = await repo.retrieveById('import-1');
       expect(result?.specifiers_json).toBeUndefined();
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db fail'));
+      vi.mocked(adapter.query).mockRejectedValue(new Error('db fail'));
 
       await expect(repo.retrieveById('id')).rejects.toThrow(RepositoryError);
       await expect(repo.retrieveById('id')).rejects.toThrow(/Failed to retrieve import by id/);
@@ -196,48 +192,48 @@ describe('ImportRepository', () => {
   describe('retrieve', () => {
     it('retrieves all imports when no filters provided', async () => {
       const rows = [makeImportRow(), makeImportRow({ id: 'import-2', source: './other' })];
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(rows);
+      vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieve();
 
       expect(results).toHaveLength(2);
-      const [sql] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toBe('SELECT * FROM imports');
     });
 
     it('filters by id when provided', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([makeImportRow()]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([makeImportRow()]);
 
       await repo.retrieve('import-1');
 
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('WHERE id = ?');
       expect(params).toEqual(['import-1']);
     });
 
     it('filters by module_id when id is not provided', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([makeImportRow()]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([makeImportRow()]);
 
       await repo.retrieve(undefined, 'mod-1');
 
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('WHERE module_id = ?');
       expect(params).toEqual(['mod-1']);
     });
 
     it('prefers id filter over module_id filter', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([makeImportRow()]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([makeImportRow()]);
 
       await repo.retrieve('import-1', 'mod-1');
 
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('WHERE id = ?');
       expect(sql).not.toContain('module_id');
       expect(params).toEqual(['import-1']);
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('query fail'));
+      vi.mocked(adapter.query).mockRejectedValue(new Error('query fail'));
 
       await expect(repo.retrieve()).rejects.toThrow(RepositoryError);
       await expect(repo.retrieve()).rejects.toThrow(/Failed to retrieve imports/);
@@ -249,12 +245,12 @@ describe('ImportRepository', () => {
   // -----------------------------------------------------------------------
   describe('retrieveByModuleId', () => {
     it('delegates to retrieve with module_id', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([makeImportRow()]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([makeImportRow()]);
 
       const results = await repo.retrieveByModuleId('mod-1');
 
       expect(results).toHaveLength(1);
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('WHERE module_id = ?');
       expect(params).toEqual(['mod-1']);
     });
@@ -265,12 +261,12 @@ describe('ImportRepository', () => {
   // -----------------------------------------------------------------------
   describe('findByModuleId', () => {
     it('delegates to retrieveByModuleId', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([makeImportRow()]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([makeImportRow()]);
 
       const results = await repo.findByModuleId('mod-1');
 
       expect(results).toHaveLength(1);
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('WHERE module_id = ?');
       expect(params).toEqual(['mod-1']);
     });
@@ -287,32 +283,29 @@ describe('ImportRepository', () => {
     });
 
     it('builds IN clause with correct placeholders', async () => {
-      const rows = [
-        makeImportRow({ module_id: 'mod-1' }),
-        makeImportRow({ id: 'import-2', module_id: 'mod-2' }),
-      ];
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(rows);
+      const rows = [makeImportRow({ module_id: 'mod-1' }), makeImportRow({ id: 'import-2', module_id: 'mod-2' })];
+      vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieveByModuleIds(['mod-1', 'mod-2']);
 
       expect(results).toHaveLength(2);
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('WHERE module_id IN (?, ?)');
       expect(params).toEqual(['mod-1', 'mod-2']);
     });
 
     it('handles single module id', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([makeImportRow()]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([makeImportRow()]);
 
       await repo.retrieveByModuleIds(['mod-1']);
 
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('WHERE module_id IN (?)');
       expect(params).toEqual(['mod-1']);
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('batch fail'));
+      vi.mocked(adapter.query).mockRejectedValue(new Error('batch fail'));
 
       await expect(repo.retrieveByModuleIds(['mod-1'])).rejects.toThrow(RepositoryError);
       await expect(repo.retrieveByModuleIds(['mod-1'])).rejects.toThrow(/Failed to retrieve imports by module IDs/);
@@ -325,7 +318,7 @@ describe('ImportRepository', () => {
   describe('update', () => {
     it('updates source field', async () => {
       const updatedRow = makeImportRow({ source: './new-source' });
-      (adapter.query as ReturnType<typeof vi.fn>)
+      vi.mocked(adapter.query)
         .mockResolvedValueOnce([]) // UPDATE query
         .mockResolvedValueOnce([updatedRow]); // SELECT for retrieveById
 
@@ -334,7 +327,10 @@ describe('ImportRepository', () => {
       expect(result.source).toBe('./new-source');
       expect(adapter.query).toHaveBeenCalledTimes(2);
 
-      const [updateSql, updateParams] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [updateSql, updateParams] = vi.mocked(adapter.query).mock.calls[0] as [
+        string,
+        unknown[],
+      ];
       expect(updateSql).toContain('UPDATE imports SET');
       expect(updateSql).toContain('source = ?');
       expect(updateParams).toContain('./new-source');
@@ -343,9 +339,7 @@ describe('ImportRepository', () => {
 
     it('updates specifiers_json field', async () => {
       const updatedRow = makeImportRow({ specifiers_json: '["baz"]' });
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       const result = await repo.update('import-1', { specifiers_json: '["baz"]' });
 
@@ -354,9 +348,7 @@ describe('ImportRepository', () => {
 
     it('updates specifiers_json to null', async () => {
       const updatedRow = makeImportRow({ specifiers_json: null });
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       const result = await repo.update('import-1', { specifiers_json: null });
 
@@ -365,13 +357,11 @@ describe('ImportRepository', () => {
 
     it('updates both fields at once', async () => {
       const updatedRow = makeImportRow({ source: './changed', specifiers_json: '["x"]' });
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([updatedRow]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       await repo.update('import-1', { source: './changed', specifiers_json: '["x"]' });
 
-      const [sql] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('source = ?');
       expect(sql).toContain('specifiers_json = ?');
     });
@@ -381,16 +371,16 @@ describe('ImportRepository', () => {
     });
 
     it('throws EntityNotFoundError when updated row not found', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])  // UPDATE succeeds
+      vi.mocked(adapter.query)
+        .mockResolvedValueOnce([]) // UPDATE succeeds
         .mockResolvedValueOnce([]); // SELECT returns nothing
 
       await expect(repo.update('missing-id', { source: './x' })).rejects.toThrow(EntityNotFoundError);
     });
 
     it('re-throws RepositoryError subclasses as-is', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])  // UPDATE
+      vi.mocked(adapter.query)
+        .mockResolvedValueOnce([]) // UPDATE
         .mockResolvedValueOnce([]); // retrieveById returns empty
 
       try {
@@ -405,7 +395,7 @@ describe('ImportRepository', () => {
       // When the adapter throws a raw Error, BaseRepository.executeQuery wraps
       // it in a RepositoryError. The update() catch block sees it's already a
       // RepositoryError and re-throws as-is.
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('generic db error'));
+      vi.mocked(adapter.query).mockRejectedValue(new Error('generic db error'));
 
       await expect(repo.update('import-1', { source: './x' })).rejects.toThrow(RepositoryError);
       await expect(repo.update('import-1', { source: './x' })).rejects.toThrow(/generic db error/);
@@ -420,14 +410,14 @@ describe('ImportRepository', () => {
       await repo.delete('import-1');
 
       expect(adapter.query).toHaveBeenCalledTimes(1);
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('DELETE FROM imports');
       expect(sql).toContain('WHERE id = ?');
       expect(params).toEqual(['import-1']);
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('delete fail'));
+      vi.mocked(adapter.query).mockRejectedValue(new Error('delete fail'));
 
       await expect(repo.delete('import-1')).rejects.toThrow(RepositoryError);
       await expect(repo.delete('import-1')).rejects.toThrow(/Failed to delete import/);
@@ -444,38 +434,39 @@ describe('ImportRepository', () => {
     });
 
     it('inserts multiple rows in a single query', async () => {
-      const items = [
-        makeImportDTO({ id: 'imp-1' }),
-        makeImportDTO({ id: 'imp-2', source: './other' }),
-      ];
+      const items = [makeImportDTO({ id: 'imp-1' }), makeImportDTO({ id: 'imp-2', source: './other' })];
 
       await repo.createBatch(items);
 
       expect(adapter.query).toHaveBeenCalledTimes(1);
-      const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [sql, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('INSERT INTO imports');
       expect(sql).toContain('(?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?)');
       expect(params).toHaveLength(12);
     });
 
     it('defaults specifiers_json to null and is_type_only to false in batch', async () => {
-      const items = [makeImportDTO({ specifiers_json: undefined, is_type_only: undefined })];
+      const base = makeImportDTO();
+      const dto: IImportCreateDTO = {
+        id: base.id,
+        package_id: base.package_id,
+        module_id: base.module_id,
+        source: base.source,
+      };
+      const items = [dto];
 
       await repo.createBatch(items);
 
-      const [, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+      const [, params] = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(params[4]).toBeNull();
       expect(params[5]).toBe(false);
     });
 
     it('falls back to individual inserts on duplicate key error', async () => {
-      const items = [
-        makeImportDTO({ id: 'imp-1' }),
-        makeImportDTO({ id: 'imp-2' }),
-      ];
+      const items = [makeImportDTO({ id: 'imp-1' }), makeImportDTO({ id: 'imp-2' })];
 
       // First (batch) call fails with UNIQUE, then individual inserts succeed
-      (adapter.query as ReturnType<typeof vi.fn>)
+      vi.mocked(adapter.query)
         .mockRejectedValueOnce(new Error('UNIQUE constraint violated'))
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
@@ -487,12 +478,9 @@ describe('ImportRepository', () => {
     });
 
     it('skips individual duplicates during fallback', async () => {
-      const items = [
-        makeImportDTO({ id: 'imp-1' }),
-        makeImportDTO({ id: 'imp-2' }),
-      ];
+      const items = [makeImportDTO({ id: 'imp-1' }), makeImportDTO({ id: 'imp-2' })];
 
-      (adapter.query as ReturnType<typeof vi.fn>)
+      vi.mocked(adapter.query)
         .mockRejectedValueOnce(new Error('UNIQUE constraint violated'))
         .mockRejectedValueOnce(new Error('Duplicate entry'))
         .mockResolvedValueOnce([]);
@@ -505,7 +493,7 @@ describe('ImportRepository', () => {
     it('re-throws non-duplicate errors from batch insert', async () => {
       const items = [makeImportDTO()];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('disk full'));
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('disk full'));
 
       await expect(repo.createBatch(items)).rejects.toThrow('disk full');
     });
@@ -513,7 +501,7 @@ describe('ImportRepository', () => {
     it('re-throws non-duplicate errors from individual fallback insert', async () => {
       const items = [makeImportDTO({ id: 'imp-1' })];
 
-      (adapter.query as ReturnType<typeof vi.fn>)
+      vi.mocked(adapter.query)
         .mockRejectedValueOnce(new Error('UNIQUE constraint violated'))
         .mockRejectedValueOnce(new Error('disk full'));
 
@@ -525,16 +513,17 @@ describe('ImportRepository', () => {
   // constructor / metadata
   // -----------------------------------------------------------------------
   describe('constructor', () => {
-    it('sets the correct table name and error tag', () => {
+    it('sets the correct table name and error tag', async () => {
       // Verified indirectly: queries target "imports" table
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      vi.mocked(adapter.query).mockResolvedValue([]);
 
       // The table name is used in batch insert SQL
       const items = [makeImportDTO()];
-      repo.createBatch(items).then(() => {
-        const [sql] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
-        expect(sql).toContain('INSERT INTO imports');
-      });
+      await repo.createBatch(items);
+      const call = vi.mocked(adapter.query).mock.calls[0];
+      expect(call).toBeDefined();
+      const [sql] = call as [string];
+      expect(sql).toContain('INSERT INTO imports');
     });
   });
 });

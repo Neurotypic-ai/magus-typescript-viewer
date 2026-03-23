@@ -6,13 +6,17 @@ import type {
   TSInterfaceDeclaration,
   TSPropertySignature,
 } from 'jscodeshift';
+
+import { isValidParentType } from '../../../shared/types/ParentType';
+
 import type { Transform } from '../Transform';
+import type { ParentType } from '../../../shared/types/ParentType';
 
 interface ExtractTypeUnionContext {
   [key: string]: unknown;
   suggestedName: string;
   parentName: string;
-  parentType: 'class' | 'interface';
+  parentType: ParentType;
   propertyName: string;
   unionMembers: string[];
 }
@@ -22,6 +26,7 @@ function isExtractContext(context: Record<string, unknown>): context is ExtractT
     typeof context['suggestedName'] === 'string' &&
     typeof context['parentName'] === 'string' &&
     typeof context['parentType'] === 'string' &&
+    isValidParentType(context['parentType']) &&
     typeof context['propertyName'] === 'string' &&
     Array.isArray(context['unionMembers'])
   );
@@ -87,18 +92,13 @@ export const extractTypeUnion: Transform = {
       const unionType = innerType;
 
       // Replace property type with reference to new type alias
-      targetProp.typeAnnotation = j.tsTypeAnnotation(
-        j.tsTypeReference(j.identifier(suggestedName))
-      );
+      targetProp.typeAnnotation = j.tsTypeAnnotation(j.tsTypeReference(j.identifier(suggestedName)));
 
       // Determine if the parent is exported
       const isExported = isExportedDeclaration(ifacePath);
 
       // Build the type alias declaration
-      const typeAlias = j.tsTypeAliasDeclaration(
-        j.identifier(suggestedName),
-        unionType
-      );
+      const typeAlias = j.tsTypeAliasDeclaration(j.identifier(suggestedName), unionType);
 
       // Insert before the parent declaration (or its export wrapper)
       const insertTarget = getInsertTarget(ifacePath, isExported);
@@ -133,16 +133,17 @@ export const extractTypeUnion: Transform = {
       }
 
       const typeAnnotation = targetProp.typeAnnotation;
-      if (!typeAnnotation || (typeAnnotation as { typeAnnotation?: { type?: string } }).typeAnnotation?.type !== 'TSUnionType') {
+      if (
+        !typeAnnotation ||
+        (typeAnnotation as { typeAnnotation?: { type?: string } }).typeAnnotation?.type !== 'TSUnionType'
+      ) {
         throw new Error(`Property '${propertyName}' does not have a union type annotation`);
       }
 
       const fullAnnotation = typeAnnotation as { typeAnnotation: { type: string } };
       const unionType = fullAnnotation.typeAnnotation;
 
-      targetProp.typeAnnotation = j.tsTypeAnnotation(
-        j.tsTypeReference(j.identifier(suggestedName))
-      );
+      targetProp.typeAnnotation = j.tsTypeAnnotation(j.tsTypeReference(j.identifier(suggestedName)));
 
       const isExported = isExportedDeclaration(classPath);
 

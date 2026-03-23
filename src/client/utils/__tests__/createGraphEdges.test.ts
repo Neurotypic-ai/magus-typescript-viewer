@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { createGraphEdges } from '../createGraphEdges';
 
-import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
+import type { PackageGraph } from '../../../shared/types/Package';
 
-function createBaseGraph(): DependencyPackageGraph {
+function createBaseGraph(): PackageGraph {
   return {
     packages: [
       {
@@ -43,7 +43,7 @@ function createBaseGraph(): DependencyPackageGraph {
         },
       },
     ],
-  };
+  } as unknown as PackageGraph;
 }
 
 describe('createGraphEdges import resolution', () => {
@@ -58,7 +58,7 @@ describe('createGraphEdges import resolution', () => {
   });
 
   it('resolves directory imports to index.ts files', () => {
-    const graph: DependencyPackageGraph = {
+    const graph = {
       packages: [
         {
           id: 'pkg-1',
@@ -89,7 +89,7 @@ describe('createGraphEdges import resolution', () => {
           },
         },
       ],
-    };
+    } as unknown as PackageGraph;
 
     const edges = createGraphEdges(graph);
     const importEdge = edges.find(
@@ -100,7 +100,7 @@ describe('createGraphEdges import resolution', () => {
   });
 
   it('resolves directory imports to index.vue files', () => {
-    const graph: DependencyPackageGraph = {
+    const graph = {
       packages: [
         {
           id: 'pkg-1',
@@ -131,7 +131,7 @@ describe('createGraphEdges import resolution', () => {
           },
         },
       ],
-    };
+    } as unknown as PackageGraph;
 
     const edges = createGraphEdges(graph);
     const importEdge = edges.find(
@@ -142,7 +142,7 @@ describe('createGraphEdges import resolution', () => {
   });
 
   it('does not create edges for unresolved imports', () => {
-    const graph: DependencyPackageGraph = {
+    const graph = {
       packages: [
         {
           id: 'pkg-1',
@@ -167,7 +167,7 @@ describe('createGraphEdges import resolution', () => {
           },
         },
       ],
-    };
+    } as unknown as PackageGraph;
 
     const edges = createGraphEdges(graph);
     const importEdges = edges.filter((edge) => edge.data?.type === 'import');
@@ -175,7 +175,7 @@ describe('createGraphEdges import resolution', () => {
   });
 
   it('does not create graph edges for external metadata imports', () => {
-    const graph: DependencyPackageGraph = {
+    const graph = {
       packages: [
         {
           id: 'pkg-1',
@@ -203,7 +203,7 @@ describe('createGraphEdges import resolution', () => {
           },
         },
       ],
-    };
+    } as unknown as PackageGraph;
 
     const edges = createGraphEdges(graph);
     const importEdges = edges.filter((edge) => edge.data?.type === 'import');
@@ -217,9 +217,7 @@ describe('createGraphEdges options', () => {
     const edges = createGraphEdges(graph);
     const packageEdges = edges.filter(
       (edge) =>
-        edge.data?.type === 'dependency' ||
-        edge.data?.type === 'devDependency' ||
-        edge.data?.type === 'peerDependency'
+        edge.data?.type === 'dependency' || edge.data?.type === 'devDependency' || edge.data?.type === 'peerDependency'
     );
 
     expect(packageEdges).toHaveLength(0);
@@ -227,7 +225,7 @@ describe('createGraphEdges options', () => {
 
   it('includes package dependency edges when requested', () => {
     const graph = createBaseGraph();
-    graph.packages.push({
+    (graph.packages as unknown[]).push({
       id: 'pkg-external',
       name: 'external-package',
       version: '2.0.0',
@@ -256,7 +254,7 @@ describe('createGraphEdges options', () => {
 
 describe('createGraphEdges class relationships', () => {
   it('lifts class relationships to module level when requested', () => {
-    const graph: DependencyPackageGraph = {
+    const graph = {
       packages: [
         {
           id: 'pkg-1',
@@ -293,7 +291,7 @@ describe('createGraphEdges class relationships', () => {
           },
         },
       ],
-    };
+    } as unknown as PackageGraph;
 
     const edges = createGraphEdges(graph, { includeClassEdges: false, liftClassEdgesToModuleLevel: true });
     const liftedEdge = edges.find(
@@ -303,7 +301,7 @@ describe('createGraphEdges class relationships', () => {
   });
 
   it('includes class-level relationships when class edges are enabled', () => {
-    const graph: DependencyPackageGraph = {
+    const graph = {
       packages: [
         {
           id: 'pkg-1',
@@ -340,7 +338,7 @@ describe('createGraphEdges class relationships', () => {
           },
         },
       ],
-    };
+    } as unknown as PackageGraph;
 
     const edges = createGraphEdges(graph, { includeClassEdges: true, liftClassEdgesToModuleLevel: false });
     const classEdge = edges.find(
@@ -350,7 +348,7 @@ describe('createGraphEdges class relationships', () => {
   });
 
   it('deduplicates lifted module relationships', () => {
-    const graph: DependencyPackageGraph = {
+    const graph = {
       packages: [
         {
           id: 'pkg-1',
@@ -396,7 +394,7 @@ describe('createGraphEdges class relationships', () => {
           },
         },
       ],
-    };
+    } as unknown as PackageGraph;
 
     const edges = createGraphEdges(graph, { includeClassEdges: false, liftClassEdgesToModuleLevel: true });
     const liftedInheritanceEdges = edges.filter(

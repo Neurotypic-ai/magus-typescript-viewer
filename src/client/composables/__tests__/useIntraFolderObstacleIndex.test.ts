@@ -1,13 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ref } from 'vue';
+
+import { useVueFlow } from '@vue-flow/core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { useIntraFolderObstacleIndex } from '../useIntraFolderObstacleIndex';
 
 // Mock @vue-flow/core before importing the composable
 vi.mock('@vue-flow/core', () => ({
   useVueFlow: vi.fn(),
 }));
-
-import { useVueFlow } from '@vue-flow/core';
-import { useIntraFolderObstacleIndex } from '../useIntraFolderObstacleIndex';
 
 interface MockNode {
   id: string;
@@ -24,7 +25,7 @@ function makeNode(
 ): MockNode {
   return {
     id,
-    parentNode,
+    ...(parentNode !== undefined ? { parentNode } : {}),
     computedPosition: position ?? { x: 0, y: 0 },
     dimensions: dimensions ?? { width: 0, height: 0 },
   };
@@ -36,6 +37,14 @@ function setupMock(initialNodes: MockNode[]) {
     getNodes: mockNodes,
   });
   return mockNodes;
+}
+
+function expectNonNull<T>(value: T | null, label: string): T {
+  expect(value).not.toBeNull();
+  if (value === null) {
+    throw new Error(`expected ${label}`);
+  }
+  return value;
 }
 
 describe('useIntraFolderObstacleIndex', () => {
@@ -52,11 +61,10 @@ describe('useIntraFolderObstacleIndex', () => {
     ]);
 
     const index = useIntraFolderObstacleIndex();
-    const snapshot = index.getSnapshot('folder-a');
+    const snapshot = expectNonNull(index.getSnapshot('folder-a'), 'snapshot');
 
-    expect(snapshot).not.toBeNull();
-    expect(snapshot!.ready).toBe(false);
-    expect(snapshot!.obstacles).toHaveLength(3);
+    expect(snapshot.ready).toBe(false);
+    expect(snapshot.obstacles).toHaveLength(3);
   });
 
   it('same-folder version stability for unchanged geometry', () => {
@@ -67,16 +75,14 @@ describe('useIntraFolderObstacleIndex', () => {
 
     const index = useIntraFolderObstacleIndex();
 
-    const snapshot1 = index.getSnapshot('folder-a');
-    expect(snapshot1).not.toBeNull();
-    const version1 = snapshot1!.version;
+    const snapshot1 = expectNonNull(index.getSnapshot('folder-a'), 'snapshot1');
+    const version1 = snapshot1.version;
 
     // Trigger reactivity without changing values (reassign same array)
     mockNodes.value = [...mockNodes.value];
 
-    const snapshot2 = index.getSnapshot('folder-a');
-    expect(snapshot2).not.toBeNull();
-    expect(snapshot2!.version).toBe(version1);
+    const snapshot2 = expectNonNull(index.getSnapshot('folder-a'), 'snapshot2');
+    expect(snapshot2.version).toBe(version1);
   });
 
   it('unrelated-folder updates do not invalidate folder version', () => {
@@ -87,9 +93,8 @@ describe('useIntraFolderObstacleIndex', () => {
 
     const index = useIntraFolderObstacleIndex();
 
-    const snapshotA1 = index.getSnapshot('folder-a');
-    expect(snapshotA1).not.toBeNull();
-    const versionA1 = snapshotA1!.version;
+    const snapshotA1 = expectNonNull(index.getSnapshot('folder-a'), 'snapshotA1');
+    const versionA1 = snapshotA1.version;
 
     // Add a new node to folder-b — folder-a should not be affected
     mockNodes.value = [
@@ -97,9 +102,8 @@ describe('useIntraFolderObstacleIndex', () => {
       makeNode('node-b2', 'folder-b', { x: 200, y: 0 }, { width: 90, height: 45 }),
     ];
 
-    const snapshotA2 = index.getSnapshot('folder-a');
-    expect(snapshotA2).not.toBeNull();
-    expect(snapshotA2!.version).toBe(versionA1);
+    const snapshotA2 = expectNonNull(index.getSnapshot('folder-a'), 'snapshotA2');
+    expect(snapshotA2.version).toBe(versionA1);
   });
 
   it('readiness transitions (ready=false -> ready=true) after measurement', () => {
@@ -111,9 +115,8 @@ describe('useIntraFolderObstacleIndex', () => {
     const index = useIntraFolderObstacleIndex();
 
     // Before measurement — dimensions are zero
-    const snapshotBefore = index.getSnapshot('folder-a');
-    expect(snapshotBefore).not.toBeNull();
-    expect(snapshotBefore!.ready).toBe(false);
+    const snapshotBefore = expectNonNull(index.getSnapshot('folder-a'), 'snapshotBefore');
+    expect(snapshotBefore.ready).toBe(false);
 
     // Simulate measurement by updating dimensions
     mockNodes.value = [
@@ -121,15 +124,12 @@ describe('useIntraFolderObstacleIndex', () => {
       makeNode('node-2', 'folder-a', { x: 100, y: 0 }, { width: 150, height: 80 }),
     ];
 
-    const snapshotAfter = index.getSnapshot('folder-a');
-    expect(snapshotAfter).not.toBeNull();
-    expect(snapshotAfter!.ready).toBe(true);
+    const snapshotAfter = expectNonNull(index.getSnapshot('folder-a'), 'snapshotAfter');
+    expect(snapshotAfter.ready).toBe(true);
   });
 
   it('returns null for unknown folder', () => {
-    setupMock([
-      makeNode('node-1', 'folder-a', { x: 0, y: 0 }, { width: 100, height: 50 }),
-    ]);
+    setupMock([makeNode('node-1', 'folder-a', { x: 0, y: 0 }, { width: 100, height: 50 })]);
 
     const index = useIntraFolderObstacleIndex();
     const snapshot = index.getSnapshot('nonexistent-folder');
@@ -144,12 +144,11 @@ describe('useIntraFolderObstacleIndex', () => {
     ]);
 
     const index = useIntraFolderObstacleIndex();
-    const snapshot = index.getSnapshot('folder-a');
+    const snapshot = expectNonNull(index.getSnapshot('folder-a'), 'snapshot');
 
-    expect(snapshot).not.toBeNull();
-    expect(snapshot!.obstacles).toHaveLength(2);
+    expect(snapshot.obstacles).toHaveLength(2);
 
-    const obstacle1 = snapshot!.obstacles.find((o) => o.nodeId === 'node-1');
+    const obstacle1 = snapshot.obstacles.find((o) => o.nodeId === 'node-1');
     expect(obstacle1).toEqual({
       nodeId: 'node-1',
       x: 10,
@@ -158,7 +157,7 @@ describe('useIntraFolderObstacleIndex', () => {
       height: 50,
     });
 
-    const obstacle2 = snapshot!.obstacles.find((o) => o.nodeId === 'node-2');
+    const obstacle2 = snapshot.obstacles.find((o) => o.nodeId === 'node-2');
     expect(obstacle2).toEqual({
       nodeId: 'node-2',
       x: 300,
@@ -176,12 +175,11 @@ describe('useIntraFolderObstacleIndex', () => {
     ]);
 
     const index = useIntraFolderObstacleIndex();
-    const snapshot = index.getSnapshot('folder-x');
+    const snapshot = expectNonNull(index.getSnapshot('folder-x'), 'snapshot');
 
-    expect(snapshot).not.toBeNull();
-    expect(snapshot!.obstacles).toHaveLength(3);
+    expect(snapshot.obstacles).toHaveLength(3);
 
-    const nodeIds = snapshot!.obstacles.map((o) => o.nodeId);
+    const nodeIds = snapshot.obstacles.map((o) => o.nodeId);
     expect(nodeIds).toContain('alpha');
     expect(nodeIds).toContain('beta');
     expect(nodeIds).toContain('gamma');

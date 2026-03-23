@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { useVueFlow } from '@vue-flow/core';
-import { computed, nextTick, ref, toRef, watch } from 'vue';
+import { computed, ref, toRef } from 'vue';
 
+import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
-import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
+import TypeAnnotationDisplay from './TypeAnnotationDisplay.vue';
 import { buildBaseNodeProps, formatMethod, formatProperty } from './utils';
 
 import type { DependencyProps } from '../../types/DependencyProps';
 
 const props = defineProps<DependencyProps>();
-const { updateNodeInternals } = useVueFlow();
 
 const nodeData = toRef(props, 'data');
 const nodeType = toRef(props, 'type');
@@ -31,22 +30,6 @@ const isCollapsible = computed(() => {
 });
 const isCollapsed = ref(false);
 
-function refreshNodeBounds() {
-  const nodeIds = [props.id];
-  updateNodeInternals(nodeIds);
-  void nextTick(() => {
-    updateNodeInternals(nodeIds);
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => {
-        updateNodeInternals(nodeIds);
-      });
-    }
-    setTimeout(() => {
-      updateNodeInternals(nodeIds);
-    }, 340);
-  });
-}
-
 const toggleCollapsed = () => {
   if (isCollapsible.value) {
     isCollapsed.value = !isCollapsed.value;
@@ -55,13 +38,19 @@ const toggleCollapsed = () => {
 
 useExpandCollapseState(
   () => isCollapsed.value,
-  (saved) => { isCollapsed.value = saved; },
-  () => { isCollapsed.value = false; },
+  (saved) => {
+    isCollapsed.value = saved;
+  },
+  () => {
+    isCollapsed.value = false;
+  }
 );
 
-const baseNodeProps = computed(() => buildBaseNodeProps(props, {
-  zIndex: isMemberNode.value ? 4 : 3,
-}));
+const baseNodeProps = computed(() =>
+  buildBaseNodeProps(props, {
+    zIndex: isMemberNode.value ? 4 : 3,
+  })
+);
 
 const badgeClass = computed(() => {
   switch (nodeType.value) {
@@ -78,87 +67,77 @@ const badgeClass = computed(() => {
   }
 });
 
-const badgeText = computed(() => String(nodeType.value ?? 'symbol').toUpperCase());
+const badgeText = computed(() => nodeType.value.toUpperCase());
 
 const showProperties = ref(true);
 const showMethods = ref(true);
-
-const handleSectionToggle = () => {
-  refreshNodeBounds();
-};
-
-watch(isCollapsed, () => {
-  refreshNodeBounds();
-});
 
 const formattedProperties = computed(() => properties.value.map(formatProperty));
 const formattedMethods = computed(() => methods.value.map(formatMethod));
 </script>
 
 <template>
-  <BaseNode
-    v-bind="baseNodeProps"
-    :badge-text="badgeText"
-    :badge-class="badgeClass"
-    min-width="230px"
-  >
+  <BaseNode v-bind="baseNodeProps" :badge-text="badgeText" :badge-class="badgeClass" min-width="230px">
     <template #body>
       <!-- Collapse toggle for collapsible symbol nodes -->
-      <button
-        v-if="isCollapsible"
-        class="symbol-collapse-toggle nodrag"
-        type="button"
-        @click.stop="toggleCollapsed"
-      >
+      <button v-if="isCollapsible" class="symbol-collapse-toggle nodrag" type="button" @click.stop="toggleCollapsed">
         <span>{{ isCollapsed ? 'Show members' : 'Hide members' }} ({{ totalMemberCount }})</span>
         <span>{{ isCollapsed ? '+' : '\u2212' }}</span>
       </button>
 
       <div v-if="!isCollapsed" class="symbol-body-content">
-          <div v-if="isMemberNode" class="member-node-body">
-            <span class="member-type">{{ nodeType }}</span>
-          </div>
-
-          <div v-else-if="totalMemberCount > 0" class="symbol-members">
-            <CollapsibleSection
-              v-if="memberPropertyCount > 0"
-              title="Properties"
-              :count="memberPropertyCount"
-              :default-open="showProperties"
-              @toggle="handleSectionToggle"
-            >
-              <div
-                v-for="prop in formattedProperties"
-                :key="`prop-${prop.key}`"
-                class="member-item"
-              >
-                <span class="member-visibility">{{ prop.indicator }}</span>
-                <span class="member-name">{{ prop.name }}</span>
-                <span class="member-type-annotation">: {{ prop.typeAnnotation }}</span>
-              </div>
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              v-if="memberMethodCount > 0"
-              title="Methods"
-              :count="memberMethodCount"
-              :default-open="showMethods"
-              @toggle="handleSectionToggle"
-            >
-              <div
-                v-for="method in formattedMethods"
-                :key="`method-${method.key}`"
-                class="member-item"
-              >
-                <span class="member-visibility">{{ method.indicator }}</span>
-                <span class="member-name">{{ method.name }}()</span>
-                <span class="member-type-annotation">: {{ method.typeAnnotation }}</span>
-              </div>
-            </CollapsibleSection>
-          </div>
-
-          <div v-else class="symbol-empty-state">No members</div>
+        <div v-if="isMemberNode" class="member-node-body">
+          <span class="member-type">{{ nodeType }}</span>
         </div>
+
+        <div v-else-if="totalMemberCount > 0" class="symbol-members">
+          <CollapsibleSection
+            v-if="memberPropertyCount > 0"
+            title="Properties"
+            :count="memberPropertyCount"
+            :default-open="showProperties"
+          >
+            <div
+              v-for="prop in formattedProperties"
+              :key="`prop-${prop.key}`"
+              class="member-item"
+              :class="{ 'member-item--rich': prop.typeDisplay.kind !== 'plain' }"
+            >
+              <span class="member-visibility">{{ prop.indicator }}</span>
+              <span class="member-name">{{ prop.name }}</span>
+              <span class="member-type-colon" aria-hidden="true">:</span>
+              <span v-if="prop.typeDisplay.kind === 'plain'" class="member-type-annotation">{{
+                prop.typeAnnotation
+              }}</span>
+              <TypeAnnotationDisplay v-else :model="prop.typeDisplay" />
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            v-if="memberMethodCount > 0"
+            title="Methods"
+            :count="memberMethodCount"
+            :default-open="showMethods"
+          >
+            <div
+              v-for="method in formattedMethods"
+              :key="`method-${method.key}`"
+              class="member-item"
+              :class="{ 'member-item--rich': method.typeDisplay.kind !== 'plain' }"
+            >
+              <span class="member-visibility">{{ method.indicator }}</span>
+              <span class="member-name">{{ method.name }}()</span>
+              <span class="member-type-colon" aria-hidden="true">:</span>
+              <span v-if="method.typeDisplay.kind === 'plain'" class="member-type-annotation">{{
+                method.typeAnnotation
+              }}</span>
+              <TypeAnnotationDisplay v-else :model="method.typeDisplay" />
+            </div>
+          </CollapsibleSection>
+        </div>
+
+        <div v-else class="symbol-empty-state">No members</div>
+      </div>
     </template>
   </BaseNode>
 </template>
@@ -212,13 +191,36 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
 
 .member-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.2rem;
+  gap: 0.15rem 0.25rem;
   padding: 0.2rem 0.35rem;
   border-radius: 0.25rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.68rem;
   line-height: 1.3;
+}
+
+.member-type-colon {
+  color: var(--text-secondary);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+.member-type-annotation {
+  color: var(--text-secondary);
+  opacity: 0.85;
+  margin-left: auto;
+  text-align: right;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.member-item--rich > :deep(.type-annotation-root) {
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 .member-item:hover {
@@ -237,12 +239,7 @@ const formattedMethods = computed(() => methods.value.map(formatMethod));
   color: var(--text-primary);
   font-weight: 700;
   white-space: nowrap;
-}
-
-.member-type-annotation {
-  color: var(--text-secondary);
-  opacity: 0.8;
-  white-space: nowrap;
+  align-self: flex-start;
 }
 
 .member-overflow {

@@ -1,52 +1,40 @@
 <script setup lang="ts">
 import { computed, shallowRef, toRef } from 'vue';
 
-import { useGraphSettings } from '../../stores/graphSettings';
+import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
 import BaseNode from './BaseNode.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import EntityListSection from './EntityListSection.vue';
 import SymbolCardSection from './SymbolCardSection.vue';
-import { useExpandCollapseState } from '../../composables/useExpandCollapseState';
+import {
+  sortEmbeddedSymbols,
+  sortExternalDependencies,
+  sortModuleEntities,
+  sortNodeProperties,
+  sortSectionsByTitle,
+} from './moduleNodeSorting';
 import { ENTITY_TYPE_CONFIGS, buildBaseNodeProps, formatMethod, formatProperty, resolveSubnodesCount } from './utils';
 
+import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
+import type { EmbeddedSymbol } from '../../../shared/types/graph/EmbeddedSymbol';
+import type { ExternalDependencyRef } from '../../../shared/types/graph/ExternalDependencyRef';
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { DependencyProps } from '../../types/DependencyProps';
-import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
-import type { EmbeddedSymbol } from '../../types/EmbeddedSymbol';
-import type { ExternalDependencyRef } from '../../types/ExternalDependencyRef';
 
 const props = defineProps<DependencyProps>();
 
 const nodeData = toRef(props, 'data');
 
-const metadataItems = computed(() => nodeData.value.properties ?? []);
+const metadataItems = computed(() => sortNodeProperties(nodeData.value.properties ?? []));
 const externalDependencies = computed<ExternalDependencyRef[]>(() => {
   const metadata = nodeData.value.externalDependencies;
-  return Array.isArray(metadata) ? metadata : [];
+  return Array.isArray(metadata) ? sortExternalDependencies(metadata) : [];
 });
 
 const embeddedSymbols = computed<EmbeddedSymbol[]>(() => {
   const symbols = nodeData.value.symbols;
-  return Array.isArray(symbols) ? symbols : [];
+  return Array.isArray(symbols) ? sortEmbeddedSymbols(symbols) : [];
 });
-
-const graphSettings = useGraphSettings();
-
-const moduleEntities = computed<EmbeddedModuleEntity[]>(() => {
-  const entities = nodeData.value.moduleEntities;
-  return Array.isArray(entities) ? entities : [];
-});
-
-const entitySections = computed(() => {
-  const enabledTypes = new Set(graphSettings.enabledModuleMemberTypes);
-  return ENTITY_TYPE_CONFIGS.filter((config) => enabledTypes.has(config.type))
-    .map((config) => ({
-      ...config,
-      entities: moduleEntities.value.filter((e) => e.type === config.type),
-    }))
-    .filter((section) => section.entities.length > 0);
-});
-
-const hasModuleEntities = computed(() => entitySections.value.length > 0);
 
 // Symbol expand/collapse
 const expandedSymbols = shallowRef<Set<string>>(new Set());
@@ -72,6 +60,77 @@ const formattedSymbolsByType = computed(() => {
   return { classes, interfaces };
 });
 
+interface SymbolContentSection {
+  kind: 'symbol';
+  key: string;
+  title: string;
+  badgeText: string;
+  badgeClass: string;
+  symbols: ReturnType<typeof formatSymbol>[];
+}
+
+interface EntityContentSection {
+  kind: 'entity';
+  key: string;
+  title: string;
+  badgeText: string;
+  badgeClass: string;
+  entities: EmbeddedModuleEntity[];
+}
+
+type ModuleContentSection = SymbolContentSection | EntityContentSection;
+
+const contentSections = computed<ModuleContentSection[]>(() => {
+  const symbolSections: SymbolContentSection[] = [];
+  if (formattedSymbolsByType.value.classes.length > 0) {
+    symbolSections.push({
+      kind: 'symbol',
+      key: 'symbol-classes',
+      title: 'Classes',
+      badgeText: 'CLASS',
+      badgeClass: 'type-class',
+      symbols: formattedSymbolsByType.value.classes,
+    });
+  }
+  if (formattedSymbolsByType.value.interfaces.length > 0) {
+    symbolSections.push({
+      kind: 'symbol',
+      key: 'symbol-interfaces',
+      title: 'Interfaces',
+      badgeText: 'INTERFACE',
+      badgeClass: 'type-interface',
+      symbols: formattedSymbolsByType.value.interfaces,
+    });
+  }
+
+  const rawEntities = Array.isArray(nodeData.value.moduleEntities) ? nodeData.value.moduleEntities : [];
+  const sortedEntities = sortModuleEntities(rawEntities);
+
+  const entitiesByType = new Map<EmbeddedModuleEntity['type'], EmbeddedModuleEntity[]>();
+  for (const entity of sortedEntities) {
+    const group = entitiesByType.get(entity.type) ?? [];
+    group.push(entity);
+    entitiesByType.set(entity.type, group);
+  }
+
+  const entityContentSections: EntityContentSection[] = ENTITY_TYPE_CONFIGS.filter(
+    (config) => (entitiesByType.get(config.type)?.length ?? 0) > 0
+  ).map((config) => ({
+    kind: 'entity',
+    key: config.type,
+    title: config.title,
+    badgeText: config.badgeText,
+    badgeClass: config.badgeClass,
+    entities: entitiesByType.get(config.type) ?? [],
+  }));
+
+  const sections: ModuleContentSection[] = [...symbolSections, ...entityContentSections];
+
+  return sortSectionsByTitle(sections);
+});
+
+const hasContentSections = computed(() => contentSections.value.length > 0);
+
 function formatSymbol(symbol: EmbeddedSymbol) {
   return {
     ...symbol,
@@ -87,7 +146,7 @@ const diagnostics = computed(
       | {
           externalDependencyLevel?: 'normal' | 'high' | 'critical';
         }
-      | undefined,
+      | undefined
 );
 
 // Subnodes
@@ -99,10 +158,10 @@ const subnodeMeta = computed(
           totalCount?: number;
           visibleCount?: number;
           hiddenCount?: number;
-          byTypeTotal?: Partial<Record<'class' | 'interface', number>>;
-          byTypeVisible?: Partial<Record<'class' | 'interface', number>>;
+          byTypeTotal?: Partial<Record<ParentType, number>>;
+          byTypeVisible?: Partial<Record<ParentType, number>>;
         }
-      | undefined,
+      | undefined
 );
 
 const subnodesResolved = computed(() => resolveSubnodesCount(subnodeMeta.value));
@@ -139,7 +198,7 @@ const baseNodeProps = computed(() =>
     isContainer: hasVueFlowChildren.value,
     showSubnodes: hasVueFlowChildren.value || subnodesResolved.value.hiddenCount > 0,
     subnodesCount: subnodesResolved.value.count,
-  }),
+  })
 );
 
 // Pre-isolate state (CollapsibleSection handles its own open/close state)
@@ -152,7 +211,7 @@ useExpandCollapseState(
   },
   () => {
     expandedSymbols.value = new Set(embeddedSymbols.value.map((s) => s.id));
-  },
+  }
 );
 </script>
 
@@ -191,59 +250,39 @@ useExpandCollapseState(
         :count="externalDependencies.length"
         :default-open="true"
       >
-        <div
-          v-for="dependency in externalDependencies"
-          :key="dependency.packageName"
-          class="external-dependency"
-        >
+        <div v-for="dependency in externalDependencies" :key="dependency.packageName" class="external-dependency">
           <div class="external-dependency-name">{{ dependency.packageName }}</div>
-          <div class="external-dependency-symbols">
-            {{ dependency.symbols.join(', ') }}
-          </div>
+          <ul class="external-dependency-symbols" :aria-label="`Imported symbols from ${dependency.packageName}`">
+            <li v-for="(sym, symIdx) in dependency.symbols" :key="`${dependency.packageName}-${symIdx}-${sym}`">
+              <code class="external-dependency-symbol">{{ sym }}</code>
+            </li>
+          </ul>
         </div>
       </CollapsibleSection>
 
-      <!-- Embedded Symbols -->
-      <div v-if="embeddedSymbols.length > 0" class="module-symbols">
-        <SymbolCardSection
-          v-if="formattedSymbolsByType.classes.length > 0"
-          title="Classes"
-          :symbols="formattedSymbolsByType.classes"
-          badge-text="CLASS"
-          badge-class="type-class"
-          :expanded-symbols="expandedSymbols"
-          @toggle-symbol="toggleSymbol"
-        />
-        <SymbolCardSection
-          v-if="formattedSymbolsByType.interfaces.length > 0"
-          title="Interfaces"
-          :symbols="formattedSymbolsByType.interfaces"
-          badge-text="INTERFACE"
-          badge-class="type-interface"
-          :expanded-symbols="expandedSymbols"
-          @toggle-symbol="toggleSymbol"
-        />
-      </div>
-
-      <!-- Module-level entities -->
-      <div v-if="hasModuleEntities" class="module-entities">
-        <EntityListSection
-          v-for="section in entitySections"
-          :key="section.type"
-          :title="section.title"
-          :entities="section.entities"
-          :badge-text="section.badgeText"
-          :badge-class="section.badgeClass"
-        />
+      <div v-if="hasContentSections" class="module-sections">
+        <template v-for="section in contentSections" :key="section.key">
+          <SymbolCardSection
+            v-if="section.kind === 'symbol'"
+            :title="section.title"
+            :symbols="section.symbols"
+            :badge-text="section.badgeText"
+            :badge-class="section.badgeClass"
+            :expanded-symbols="expandedSymbols"
+            @toggle-symbol="toggleSymbol"
+          />
+          <EntityListSection
+            v-else
+            :title="section.title"
+            :entities="section.entities"
+            :badge-text="section.badgeText"
+            :badge-class="section.badgeClass"
+          />
+        </template>
       </div>
 
       <div
-        v-if="
-          metadataItems.length === 0 &&
-          externalDependencies.length === 0 &&
-          embeddedSymbols.length === 0 &&
-          !hasModuleEntities
-        "
+        v-if="metadataItems.length === 0 && externalDependencies.length === 0 && !hasContentSections"
         class="module-empty-state"
       >
         No module metadata
@@ -279,23 +318,57 @@ useExpandCollapseState(
 }
 
 .external-dependency {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.6rem;
   padding: 0.35rem 0.45rem;
   border-radius: 0.35rem;
   background: rgba(255, 255, 255, 0.03);
 }
 
 .external-dependency-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-primary);
   font-weight: 700;
   font-size: 0.72rem;
 }
 
 .external-dependency-symbols {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.12rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  text-align: right;
+}
+
+.external-dependency-symbols > li {
+  width: 100%;
+  text-align: right;
+}
+
+.external-dependency-symbol {
+  display: inline-block;
+  max-width: 100%;
   color: var(--text-secondary);
   font-size: 0.68rem;
-  line-height: 1.1;
-  margin-top: 0.15rem;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
 .module-empty-state,
@@ -305,14 +378,7 @@ useExpandCollapseState(
   opacity: 0.8;
 }
 
-.module-symbols {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-top: 0.5rem;
-}
-
-.module-entities {
+.module-sections {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;

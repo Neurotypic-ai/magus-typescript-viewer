@@ -28,11 +28,9 @@ export const collectNodesNeedingInternalsUpdate = (previous: DependencyNode[], n
     const nextStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
 
     const prevWidth = prevMeasured?.width ?? parseDimension(prevStyle['width']) ?? parseDimension(prev.width) ?? 0;
-    const prevHeight =
-      prevMeasured?.height ?? parseDimension(prevStyle['height']) ?? parseDimension(prev.height) ?? 0;
+    const prevHeight = prevMeasured?.height ?? parseDimension(prevStyle['height']) ?? parseDimension(prev.height) ?? 0;
     const nextWidth = nextMeasured?.width ?? parseDimension(nextStyle['width']) ?? parseDimension(node.width) ?? 0;
-    const nextHeight =
-      nextMeasured?.height ?? parseDimension(nextStyle['height']) ?? parseDimension(node.height) ?? 0;
+    const nextHeight = nextMeasured?.height ?? parseDimension(nextStyle['height']) ?? parseDimension(node.height) ?? 0;
 
     if (Math.abs(prevWidth - nextWidth) > 1 || Math.abs(prevHeight - nextHeight) > 1) {
       changedIds.push(node.id);

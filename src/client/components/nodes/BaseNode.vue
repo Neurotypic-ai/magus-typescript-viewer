@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { computed, inject, toRef } from 'vue';
+
 import { Handle, Position } from '@vue-flow/core';
 import { NodeToolbar } from '@vue-flow/node-toolbar';
-import { computed, inject, toRef } from 'vue';
 
 import { useInsightsStore } from '../../stores/insightsStore';
 import { useIssuesStore } from '../../stores/issuesStore';
@@ -33,7 +34,7 @@ const issuesStore = useIssuesStore();
 const insightsStore = useInsightsStore();
 
 const nodeData = toRef(props, 'data');
-const isSelected = computed(() => !!props.selected);
+const isSelected = computed(() => props.selected);
 
 const issueCount = computed(() => issuesStore.issueCountByNodeId.get(props.id) ?? 0);
 
@@ -54,19 +55,41 @@ function handleIssueBadgeClick(): void {
 function handleContextMenu(event: MouseEvent): void {
   event.preventDefault();
   event.stopPropagation();
-  nodeActions?.showContextMenu(props.id, nodeData.value?.label ?? props.id, event);
+  nodeActions?.showContextMenu(props.id, nodeData.value.label || props.id, event);
+}
+
+function handleContextMenuKeyboard(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  const currentTarget = event.currentTarget;
+  if (!(currentTarget instanceof HTMLElement)) {
+    return;
+  }
+  const rect = currentTarget.getBoundingClientRect();
+  const syntheticEvent = new MouseEvent('contextmenu', {
+    bubbles: true,
+    cancelable: true,
+    clientX: rect.left + rect.width / 2,
+    clientY: rect.top + rect.height / 2,
+  });
+  nodeActions?.showContextMenu(props.id, nodeData.value.label || props.id, syntheticEvent);
 }
 
 const isOrphanGlobal = computed(() => {
-  if (!highlightOrphanGlobal?.value) {
+  if (highlightOrphanGlobal?.value !== true) {
     return false;
   }
-  const diag = nodeData.value?.diagnostics as { orphanGlobal?: boolean } | undefined;
+  const diag = nodeData.value.diagnostics as { orphanGlobal?: boolean } | undefined;
   return diag?.orphanGlobal === true;
 });
 
 const insightCounts = computed(() => insightsStore.nodeSeverityCounts(props.id));
-const hasInsights = computed(() => insightCounts.value.critical > 0 || insightCounts.value.warning > 0 || insightCounts.value.info > 0);
+const hasInsights = computed(
+  () => insightCounts.value.critical > 0 || insightCounts.value.warning > 0 || insightCounts.value.info > 0
+);
 const insightGlowClass = computed(() => {
   if (insightCounts.value.critical > 0) return 'base-node-insight-critical';
   if (insightCounts.value.warning > 0) return 'base-node-insight-warning';
@@ -82,15 +105,55 @@ const targetPosition = computed(() => props.targetPosition ?? Position.Top);
 
 const handles = computed(() => [
   { id: 'relational-in', type: 'target' as const, position: targetPosition.value, class: 'base-node-handle' },
-  { id: 'relational-in-top', type: 'target' as const, position: Position.Top, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-in-right', type: 'target' as const, position: Position.Right, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-in-bottom', type: 'target' as const, position: Position.Bottom, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-in-left', type: 'target' as const, position: Position.Left, class: 'base-node-handle base-node-handle--aux' },
+  {
+    id: 'relational-in-top',
+    type: 'target' as const,
+    position: Position.Top,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-in-right',
+    type: 'target' as const,
+    position: Position.Right,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-in-bottom',
+    type: 'target' as const,
+    position: Position.Bottom,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-in-left',
+    type: 'target' as const,
+    position: Position.Left,
+    class: 'base-node-handle base-node-handle--aux',
+  },
   { id: 'relational-out', type: 'source' as const, position: sourcePosition.value, class: 'base-node-handle' },
-  { id: 'relational-out-top', type: 'source' as const, position: Position.Top, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-out-right', type: 'source' as const, position: Position.Right, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-out-bottom', type: 'source' as const, position: Position.Bottom, class: 'base-node-handle base-node-handle--aux' },
-  { id: 'relational-out-left', type: 'source' as const, position: Position.Left, class: 'base-node-handle base-node-handle--aux' },
+  {
+    id: 'relational-out-top',
+    type: 'source' as const,
+    position: Position.Top,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-out-right',
+    type: 'source' as const,
+    position: Position.Right,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-out-bottom',
+    type: 'source' as const,
+    position: Position.Bottom,
+    class: 'base-node-handle base-node-handle--aux',
+  },
+  {
+    id: 'relational-out-left',
+    type: 'source' as const,
+    position: Position.Left,
+    class: 'base-node-handle base-node-handle--aux',
+  },
 ]);
 
 const inferredContainer = computed(() => {
@@ -102,14 +165,16 @@ const inferredContainer = computed(() => {
     return true;
   }
 
-  return Boolean(nodeData.value?.isContainer);
+  return Boolean(nodeData.value.isContainer);
 });
 
 const subnodesResolved = computed(() => {
   if (typeof props.subnodesCount === 'number') {
     return { count: props.subnodesCount, totalCount: props.subnodesCount, hiddenCount: 0 };
   }
-  return resolveSubnodesCount(nodeData.value?.subnodes as { count?: number; totalCount?: number; hiddenCount?: number } | undefined);
+  return resolveSubnodesCount(
+    nodeData.value.subnodes as { count?: number; totalCount?: number; hiddenCount?: number } | undefined
+  );
 });
 
 const shouldShowSubnodes = computed(() => {
@@ -127,7 +192,7 @@ const containerClasses = computed(() => ({
   'base-node-container--container': inferredContainer.value,
   'base-node-orphan-global': isOrphanGlobal.value,
   'base-node-no-hover': props.type === 'package',
-  [insightGlowClass.value ?? '']: !!insightGlowClass.value,
+  [insightGlowClass.value ?? '']: insightGlowClass.value !== null,
   'base-node-insight-dimmed': isInsightDimmed.value,
 }));
 
@@ -150,7 +215,15 @@ const containerStyle = computed(() => {
 </script>
 
 <template>
-  <div :class="containerClasses" :style="containerStyle" @contextmenu="handleContextMenu">
+  <div
+    :class="containerClasses"
+    :style="containerStyle"
+    role="button"
+    tabindex="0"
+    aria-label="Graph node"
+    @contextmenu="handleContextMenu"
+    @keydown="handleContextMenuKeyboard"
+  >
     <NodeToolbar v-if="isSelected" :is-visible="true" :position="Position.Right" align="start" :offset="8">
       <div :class="['node-toolbar-actions', { 'node-toolbar-visible': isSelected }]">
         <button
@@ -176,8 +249,8 @@ const containerStyle = computed(() => {
 
     <Handle
       v-for="h in handles.slice(0, 5)"
-      :key="h.id"
       :id="h.id"
+      :key="h.id"
       :type="h.type"
       :position="h.position"
       :class="h.class"
@@ -232,8 +305,8 @@ const containerStyle = computed(() => {
 
     <Handle
       v-for="h in handles.slice(5)"
-      :key="h.id"
       :id="h.id"
+      :key="h.id"
       :type="h.type"
       :position="h.position"
       :class="h.class"
@@ -259,7 +332,6 @@ const containerStyle = computed(() => {
 }
 
 .base-node-container--container {
-  contain: layout style; /* no paint containment since overflow is visible */
   border-radius: 0.625rem;
   overflow: visible;
   transition:
@@ -296,9 +368,9 @@ const containerStyle = computed(() => {
 }
 
 .base-node-container.base-node-orphan-global {
-  outline: 2px solid #ef4444;
+  outline: 2px solid var(--graph-issue-error);
   outline-offset: 0;
-  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.24);
+  box-shadow: 0 1px 4px var(--graph-issue-error-shadow);
 }
 
 .base-node-handle {
@@ -350,32 +422,32 @@ const containerStyle = computed(() => {
 
 /* Badge color variants — defined here because the badge element lives in BaseNode's template */
 .base-node-badge.type-module {
-  background-color: rgba(20, 184, 166, 0.2);
-  color: rgb(94, 234, 212);
+  background-color: var(--graph-badge-module-bg);
+  color: var(--graph-badge-module-text);
 }
 
 .base-node-badge.type-class {
-  background-color: rgba(59, 130, 246, 0.2);
-  color: rgb(147, 197, 253);
+  background-color: var(--graph-badge-class-bg);
+  color: var(--graph-badge-class-text);
 }
 
 .base-node-badge.type-interface {
-  background-color: rgba(168, 85, 247, 0.2);
-  color: rgb(216, 180, 254);
+  background-color: var(--graph-badge-interface-bg);
+  color: var(--graph-badge-interface-text);
 }
 
 .base-node-badge.type-property {
-  background-color: rgba(20, 184, 166, 0.2);
-  color: rgb(94, 234, 212);
+  background-color: var(--graph-badge-property-bg);
+  color: var(--graph-badge-property-text);
 }
 
 .base-node-badge.type-method {
-  background-color: rgba(249, 115, 22, 0.2);
-  color: rgb(253, 186, 116);
+  background-color: var(--graph-badge-method-bg);
+  color: var(--graph-badge-method-text);
 }
 
 .base-node-badge.type-default {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--graph-badge-default-bg);
   color: var(--text-secondary);
 }
 
@@ -443,18 +515,18 @@ const containerStyle = computed(() => {
 }
 
 .issue-indicator--warning {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.5);
+  color: var(--graph-issue-warning);
+  border-color: var(--graph-issue-warning-border);
 }
 
 .issue-indicator--error {
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.5);
+  color: var(--graph-issue-error);
+  border-color: var(--graph-issue-error-border);
 }
 
 .issue-indicator--info {
-  color: #60a5fa;
-  border-color: rgba(96, 165, 250, 0.5);
+  color: var(--graph-issue-info);
+  border-color: var(--graph-issue-info-border);
 }
 
 .issue-indicator:hover {
@@ -467,11 +539,11 @@ const containerStyle = computed(() => {
 
 /* Insight glow */
 .base-node-insight-critical {
-  box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 8px 1px var(--graph-issue-error-glow);
 }
 
 .base-node-insight-warning {
-  box-shadow: 0 0 8px 1px rgba(251, 191, 36, 0.28);
+  box-shadow: 0 0 8px 1px var(--graph-issue-warning-glow);
 }
 
 /* Insight filter dimming */

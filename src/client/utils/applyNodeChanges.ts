@@ -36,10 +36,7 @@ interface NodeUpdates {
  * Applies changes to a copy of the nodes array. Handles remove, position, dimensions, select.
  * Single pass over nodes after aggregating changes by id — O(changes + nodes).
  */
-export function applyNodeChanges<T extends NodeWithId>(
-  changes: NodeChange[],
-  nodes: T[]
-): T[] {
+export function applyNodeChanges<T extends NodeWithId>(changes: NodeChange[], nodes: T[]): T[] {
   const removedIds = new Set<string>();
   const updatesById = new Map<string, NodeUpdates>();
 
@@ -59,7 +56,11 @@ export function applyNodeChanges<T extends NodeWithId>(
       continue;
     }
     if (change.type === 'dimensions' && 'id' in change) {
-      const c = change as { id: string; dimensions?: { width: number; height: number }; measured?: { width: number; height: number } };
+      const c = change as {
+        id: string;
+        dimensions?: { width: number; height: number };
+        measured?: { width: number; height: number };
+      };
       const u = updatesById.get(c.id) ?? {};
       u.dimensions = {
         ...(u.dimensions ?? {}),
@@ -86,16 +87,13 @@ export function applyNodeChanges<T extends NodeWithId>(
       continue;
     }
     const position =
-      u.position != null
-        ? { ...((node as NodeWithId).position ?? { x: 0, y: 0 }), ...u.position }
-        : undefined;
+      u.position != null ? { ...((node as NodeWithId).position ?? { x: 0, y: 0 }), ...u.position } : undefined;
     const dimensions = u.dimensions;
     const resolvedDimensions =
       dimensions?.width !== undefined && dimensions?.height !== undefined
         ? { width: dimensions.width, height: dimensions.height }
         : undefined;
-    const resolvedMeasured =
-      dimensions?.measured ?? resolvedDimensions;
+    const resolvedMeasured = dimensions?.measured ?? resolvedDimensions;
     const selected = u.selected;
     const updated = {
       ...node,

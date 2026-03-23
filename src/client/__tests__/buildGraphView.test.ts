@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyEdgeVisibility,
-  buildFolderDistributorGraph,
   buildOverviewGraph,
   buildSymbolDrilldownGraph,
   filterNodeChangesForFolderMode,
@@ -10,10 +9,9 @@ import {
 
 import type { NodeChange } from '@vue-flow/core';
 
+import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { GraphViewData } from '../graph/graphViewShared';
 
 describe('applyEdgeVisibility', () => {
   it('keeps uses edges visible while honoring enabled relationship filters for others', () => {
@@ -66,7 +64,7 @@ describe('applyEdgeVisibility', () => {
 
 describe('buildOverviewGraph', () => {
   it('filters out test modules when hideTestFiles is enabled and annotates orphan diagnostics', () => {
-    const data: DependencyPackageGraph = {
+    const data: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -74,20 +72,50 @@ describe('buildOverviewGraph', () => {
           version: '1.0.0',
           path: '/pkg',
           created_at: '2024-01-01T00:00:00.000Z',
+          dependencies: {},
+          devDependencies: {},
+          peerDependencies: {},
           modules: {
             m1: {
               id: 'module-main',
               name: 'main.ts',
               package_id: 'pkg-1',
-              source: { relativePath: 'src/main.ts' },
+              source: { directory: 'src', name: 'main.ts', filename: 'main.ts', relativePath: 'src/main.ts' },
               imports: {},
+              created_at: '2024-01-01T00:00:00.000Z',
+              classes: {},
+              interfaces: {},
+              exports: {},
+              typeAliases: {},
+              enums: {},
+              functions: {},
+              variables: {},
+              symbol_references: {},
+              packages: {},
+              referencePaths: [],
             },
             m2: {
               id: 'module-test',
               name: 'main.test.ts',
               package_id: 'pkg-1',
-              source: { relativePath: 'src/main.test.ts' },
+              source: {
+                directory: 'src',
+                name: 'main.test.ts',
+                filename: 'main.test.ts',
+                relativePath: 'src/main.test.ts',
+              },
               imports: {},
+              created_at: '2024-01-01T00:00:00.000Z',
+              classes: {},
+              interfaces: {},
+              exports: {},
+              typeAliases: {},
+              enums: {},
+              functions: {},
+              variables: {},
+              symbol_references: {},
+              packages: {},
+              referencePaths: [],
             },
           },
         },
@@ -96,14 +124,10 @@ describe('buildOverviewGraph', () => {
 
     const result = buildOverviewGraph({
       data,
-      enabledNodeTypes: ['module'],
       enabledRelationshipTypes: ['import'],
       direction: 'LR',
-      clusterByFolder: false,
-      collapseScc: false,
       collapsedFolderIds: new Set(),
       hideTestFiles: true,
-      memberNodeMode: 'compact',
       highlightOrphanGlobal: true,
     });
 
@@ -114,7 +138,7 @@ describe('buildOverviewGraph', () => {
   });
 
   it('returns a semantic snapshot and projects folder highways in folder mode', () => {
-    const data: DependencyPackageGraph = {
+    const data: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -122,26 +146,54 @@ describe('buildOverviewGraph', () => {
           version: '1.0.0',
           path: '/pkg',
           created_at: '2024-01-01T00:00:00.000Z',
+          dependencies: {},
+          devDependencies: {},
+          peerDependencies: {},
           modules: {
             a: {
               id: 'module-a',
               name: 'a.ts',
               package_id: 'pkg-1',
-              source: { relativePath: 'src/a/a.ts' },
+              source: { directory: 'src', name: 'a.ts', filename: 'a.ts', relativePath: 'src/a/a.ts' },
               imports: {
                 i1: {
                   uuid: 'i1',
                   name: 'b',
-                  path: '../b/b',
+                  fullPath: '../b/b',
+                  relativePath: 'src/b/b.ts',
+                  specifiers: new Map(),
+                  depth: 0,
                 },
               },
+              created_at: '2024-01-01T00:00:00.000Z',
+              classes: {},
+              interfaces: {},
+              exports: {},
+              typeAliases: {},
+              enums: {},
+              functions: {},
+              variables: {},
+              symbol_references: {},
+              packages: {},
+              referencePaths: [],
             },
             b: {
               id: 'module-b',
               name: 'b.ts',
               package_id: 'pkg-1',
-              source: { relativePath: 'src/b/b.ts' },
+              source: { directory: 'src', name: 'b.ts', filename: 'b.ts', relativePath: 'src/b/b.ts' },
               imports: {},
+              created_at: '2024-01-01T00:00:00.000Z',
+              classes: {},
+              interfaces: {},
+              exports: {},
+              typeAliases: {},
+              enums: {},
+              functions: {},
+              variables: {},
+              symbol_references: {},
+              packages: {},
+              referencePaths: [],
             },
           },
         },
@@ -150,14 +202,10 @@ describe('buildOverviewGraph', () => {
 
     const result = buildOverviewGraph({
       data,
-      enabledNodeTypes: ['module'],
       enabledRelationshipTypes: ['import'],
       direction: 'LR',
-      clusterByFolder: true,
-      collapseScc: false,
       collapsedFolderIds: new Set(),
       hideTestFiles: false,
-      memberNodeMode: 'compact',
       highlightOrphanGlobal: false,
     });
 
@@ -167,61 +215,9 @@ describe('buildOverviewGraph', () => {
   });
 });
 
-describe('buildFolderDistributorGraph export', () => {
-  it('returns empty rendered edges while preserving semantic edges', () => {
-    const data: DependencyPackageGraph = {
-      packages: [
-        {
-          id: 'pkg-1',
-          name: 'pkg',
-          version: '1.0.0',
-          path: '/pkg',
-          created_at: '2024-01-01T00:00:00.000Z',
-          modules: {
-            a: {
-              id: 'module-a',
-              name: 'a.ts',
-              package_id: 'pkg-1',
-              source: { relativePath: 'src/a.ts' },
-              imports: {
-                i1: {
-                  uuid: 'i1',
-                  name: 'b',
-                  path: './b',
-                },
-              },
-            },
-            b: {
-              id: 'module-b',
-              name: 'b.ts',
-              package_id: 'pkg-1',
-              source: { relativePath: 'src/b.ts' },
-              imports: {},
-            },
-          },
-        },
-      ],
-    };
-
-    const result: GraphViewData = buildFolderDistributorGraph({
-      data,
-      enabledNodeTypes: ['module'],
-      enabledRelationshipTypes: ['import'],
-      direction: 'LR',
-      collapsedFolderIds: new Set(),
-      hideTestFiles: false,
-      memberNodeMode: 'compact',
-      highlightOrphanGlobal: false,
-    });
-
-    expect(result.edges).toEqual([]);
-    expect(result.semanticSnapshot?.edges.length).toBeGreaterThan(0);
-  });
-});
-
 describe('buildSymbolDrilldownGraph', () => {
   it('creates uses edges with usageKind metadata from module symbol references', () => {
-    const graphData: DependencyPackageGraph = {
+    const graphData: PackageGraph = {
       packages: [
         {
           id: 'pkg-1',
@@ -229,21 +225,45 @@ describe('buildSymbolDrilldownGraph', () => {
           version: '1.0.0',
           path: '/pkg',
           created_at: '2024-01-01T00:00:00.000Z',
+          dependencies: {},
+          devDependencies: {},
+          peerDependencies: {},
           modules: {
             mod: {
               id: 'module-1',
               name: 'module.ts',
               package_id: 'pkg-1',
-              source: { relativePath: 'src/module.ts' },
+              source: { directory: 'src', name: 'module.ts', filename: 'module.ts', relativePath: 'src/module.ts' },
+              imports: {},
+              created_at: '2024-01-01T00:00:00.000Z',
+              interfaces: {},
+              exports: {},
+              typeAliases: {},
+              enums: {},
+              functions: {},
+              variables: {},
+              packages: {},
+              referencePaths: [],
               classes: {
                 Service: {
                   id: 'class-1',
+                  package_id: 'pkg-1',
+                  module_id: 'module-1',
                   name: 'Service',
+                  created_at: '2024-01-01T00:00:00.000Z',
+                  implemented_interfaces: {},
                   methods: [
                     {
                       id: 'method-1',
+                      package_id: 'pkg-1',
+                      module_id: 'module-1',
+                      parent_id: 'class-1',
                       name: 'load',
-                      returnType: 'void',
+                      created_at: '2024-01-01T00:00:00.000Z',
+                      parameters: {},
+                      return_type: 'void',
+                      is_static: false,
+                      is_async: false,
                       visibility: 'public',
                       signature: 'load(): void',
                     },
@@ -251,8 +271,14 @@ describe('buildSymbolDrilldownGraph', () => {
                   properties: [
                     {
                       id: 'property-1',
+                      package_id: 'pkg-1',
+                      module_id: 'module-1',
+                      parent_id: 'class-1',
                       name: 'state',
+                      created_at: '2024-01-01T00:00:00.000Z',
                       type: 'string',
+                      is_static: false,
+                      is_readonly: false,
                       visibility: 'private',
                     },
                   ],
@@ -263,6 +289,7 @@ describe('buildSymbolDrilldownGraph', () => {
                   id: 'ref-1',
                   package_id: 'pkg-1',
                   module_id: 'module-1',
+                  created_at: '2024-01-01T00:00:00.000Z',
                   source_symbol_id: 'method-1',
                   source_symbol_type: 'method',
                   source_symbol_name: 'load',

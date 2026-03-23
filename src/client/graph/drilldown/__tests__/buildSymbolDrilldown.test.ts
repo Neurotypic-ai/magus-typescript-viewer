@@ -1,41 +1,44 @@
 import { Position } from '@vue-flow/core';
+import { describe, expect, it } from 'vitest';
 
 import { buildSymbolDrilldownGraph } from '../buildSymbolDrilldown';
 
-import type { BuildSymbolDrilldownGraphOptions } from '../buildSymbolDrilldown';
+import type { Module } from '../../../../shared/types/Module';
+import type { Package, PackageGraph } from '../../../../shared/types/Package';
 import type { DependencyNode } from '../../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../../types/DependencyPackageGraph';
-import type { ModuleStructure } from '../../../types/ModuleStructure';
-import type { PackageStructure } from '../../../types/PackageStructure';
+import type { BuildSymbolDrilldownGraphOptions } from '../buildSymbolDrilldown';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers to build minimal test data                                 */
 /* ------------------------------------------------------------------ */
 
-function makeModule(overrides: Partial<ModuleStructure> & { id: string; name: string }): ModuleStructure {
+function makeModule(overrides: { id: string; name: string } & Record<string, unknown>): Module {
   return {
     package_id: 'pkg-1',
-    source: { relativePath: 'src/index.ts' },
+    source: { relativePath: 'src/index.ts', directory: '', name: 'index', filename: 'index.ts' },
     ...overrides,
-  };
+  } as unknown as Module;
 }
 
-function makePackage(modules: Record<string, ModuleStructure>): PackageStructure {
+function makePackage(modules: Record<string, Module>): Package {
   return {
     id: 'pkg-1',
     name: 'test-pkg',
     version: '1.0.0',
     path: '/test',
     created_at: '2024-01-01',
+    dependencies: {},
+    devDependencies: {},
+    peerDependencies: {},
     modules,
   };
 }
 
-function makeGraph(modules: Record<string, ModuleStructure>): DependencyPackageGraph {
+function makeGraph(modules: Record<string, Module>): PackageGraph {
   return { packages: [makePackage(modules)] };
 }
 
-function makeNode(id: string, type: string = 'module'): DependencyNode {
+function makeNode(id: string, type = 'module'): DependencyNode {
   return {
     id,
     type,
@@ -62,12 +65,10 @@ describe('buildSymbolDrilldownGraph', () => {
   describe('when symbol context is not found', () => {
     it('returns only the selected node with empty edges', () => {
       const selected = makeNode('nonexistent', 'module');
-      const result = buildSymbolDrilldownGraph(
-        defaultOptions({ selectedNode: selected })
-      );
+      const result = buildSymbolDrilldownGraph(defaultOptions({ selectedNode: selected }));
 
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]!.id).toBe('nonexistent');
+      expect(result.nodes[0]?.id).toBe('nonexistent');
       expect(result.edges).toHaveLength(0);
     });
 
@@ -82,7 +83,7 @@ describe('buildSymbolDrilldownGraph', () => {
       );
 
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]!.id).toBe('cls-missing');
+      expect(result.nodes[0]?.id).toBe('cls-missing');
       expect(result.edges).toHaveLength(0);
     });
   });
@@ -100,10 +101,10 @@ describe('buildSymbolDrilldownGraph', () => {
       expect(result.nodes.length).toBeGreaterThanOrEqual(1);
       const moduleNode = result.nodes.find((n) => n.id === 'mod-1');
       expect(moduleNode).toBeDefined();
-      expect(moduleNode!.type).toBe('module');
-      expect(moduleNode!.data.label).toBe('index.ts');
-      expect(moduleNode!.style).toEqual(
-        expect.objectContaining({ borderColor: '#00ffff', borderWidth: '3px' })
+      expect(moduleNode?.type).toBe('module');
+      expect(moduleNode?.data?.label).toBe('index.ts');
+      expect(moduleNode?.style).toEqual(
+        expect.objectContaining({ borderColor: 'var(--graph-selection-target-border)', borderWidth: '3px' })
       );
     });
 
@@ -126,7 +127,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const classNodes = result.nodes.filter((n) => n.type === 'class');
       expect(classNodes).toHaveLength(2);
-      const names = classNodes.map((n) => n.data.label).sort();
+      const names = classNodes.map((n) => n.data?.label).sort();
       expect(names).toEqual(['Alpha', 'Beta']);
     });
 
@@ -198,7 +199,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const classNodes = result.nodes.filter((n) => n.type === 'class');
       expect(classNodes).toHaveLength(1);
-      expect(classNodes[0]!.data.label).toBe('Focused');
+      expect(classNodes[0]?.data?.label).toBe('Focused');
     });
 
     it('expands class properties into member nodes', () => {
@@ -226,7 +227,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const propertyNodes = result.nodes.filter((n) => n.type === 'property');
       expect(propertyNodes).toHaveLength(2);
-      const labels = propertyNodes.map((n) => n.data.label).sort();
+      const labels = propertyNodes.map((n) => n.data?.label).sort();
       expect(labels).toEqual(['id: number', 'name: string']);
     });
 
@@ -255,7 +256,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const methodNodes = result.nodes.filter((n) => n.type === 'method');
       expect(methodNodes).toHaveLength(2);
-      const labels = methodNodes.map((n) => n.data.label).sort();
+      const labels = methodNodes.map((n) => n.data?.label).sort();
       expect(labels).toEqual(['init(): void', 'run(): Promise<void>']);
     });
 
@@ -314,7 +315,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const ifaceNodes = result.nodes.filter((n) => n.type === 'interface');
       expect(ifaceNodes).toHaveLength(1);
-      expect(ifaceNodes[0]!.data.label).toBe('IFocused');
+      expect(ifaceNodes[0]?.data?.label).toBe('IFocused');
     });
 
     it('expands interface properties and methods into member nodes', () => {
@@ -326,7 +327,9 @@ describe('buildSymbolDrilldownGraph', () => {
             id: 'iface-1',
             name: 'IConfig',
             properties: [{ name: 'port', type: 'number', visibility: 'public' }],
-            methods: [{ name: 'validate', returnType: 'boolean', visibility: 'public', signature: 'validate(): boolean' }],
+            methods: [
+              { name: 'validate', returnType: 'boolean', visibility: 'public', signature: 'validate(): boolean' },
+            ],
           },
         },
       });
@@ -340,11 +343,11 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const propertyNodes = result.nodes.filter((n) => n.type === 'property');
       expect(propertyNodes).toHaveLength(1);
-      expect(propertyNodes[0]!.data.label).toBe('port: number');
+      expect(propertyNodes[0]?.data?.label).toBe('port: number');
 
       const methodNodes = result.nodes.filter((n) => n.type === 'method');
       expect(methodNodes).toHaveLength(1);
-      expect(methodNodes[0]!.data.label).toBe('validate(): boolean');
+      expect(methodNodes[0]?.data?.label).toBe('validate(): boolean');
     });
   });
 
@@ -387,9 +390,9 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const usageEdges = result.edges.filter((e) => e.data?.type === 'uses');
       expect(usageEdges).toHaveLength(1);
-      expect(usageEdges[0]!.source).toBe('cls-1');
-      expect(usageEdges[0]!.target).toBe('meth-1');
-      expect(usageEdges[0]!.data?.usageKind).toBe('method');
+      expect(usageEdges[0]?.source).toBe('cls-1');
+      expect(usageEdges[0]?.target).toBe('meth-1');
+      expect(usageEdges[0]?.data?.usageKind).toBe('method');
     });
 
     it('skips references with targets not in the node set', () => {
@@ -434,9 +437,7 @@ describe('buildSymbolDrilldownGraph', () => {
           'cls-1': {
             id: 'cls-1',
             name: 'App',
-            properties: [
-              { id: 'prop-1', name: 'flag', type: 'boolean', visibility: 'public' },
-            ],
+            properties: [{ id: 'prop-1', name: 'flag', type: 'boolean', visibility: 'public' }],
           },
         },
         symbol_references: {
@@ -464,9 +465,9 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const usageEdges = result.edges.filter((e) => e.data?.type === 'uses');
       expect(usageEdges).toHaveLength(1);
-      expect(usageEdges[0]!.source).toBe('mod-1');
-      expect(usageEdges[0]!.target).toBe('prop-1');
-      expect(usageEdges[0]!.data?.usageKind).toBe('property');
+      expect(usageEdges[0]?.source).toBe('mod-1');
+      expect(usageEdges[0]?.target).toBe('prop-1');
+      expect(usageEdges[0]?.data?.usageKind).toBe('property');
     });
 
     it('skips references from sources not included in the focused view', () => {
@@ -593,8 +594,8 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const moduleNode = result.nodes.find((n) => n.id === 'mod-1');
       expect(moduleNode).toBeDefined();
-      expect(moduleNode!.sourcePosition).toBe(Position.Bottom);
-      expect(moduleNode!.targetPosition).toBe(Position.Top);
+      expect(moduleNode?.sourcePosition).toBe(Position.Bottom);
+      expect(moduleNode?.targetPosition).toBe(Position.Top);
     });
 
     it('applies RL direction positions', () => {
@@ -620,14 +621,14 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const classNode = result.nodes.find((n) => n.type === 'class');
       expect(classNode).toBeDefined();
-      expect(classNode!.sourcePosition).toBe(Position.Left);
-      expect(classNode!.targetPosition).toBe(Position.Right);
+      expect(classNode?.sourcePosition).toBe(Position.Left);
+      expect(classNode?.targetPosition).toBe(Position.Right);
 
       // Member nodes also get RL positions
       const propNode = result.nodes.find((n) => n.type === 'property');
       expect(propNode).toBeDefined();
-      expect(propNode!.sourcePosition).toBe(Position.Left);
-      expect(propNode!.targetPosition).toBe(Position.Right);
+      expect(propNode?.sourcePosition).toBe(Position.Left);
+      expect(propNode?.targetPosition).toBe(Position.Right);
     });
   });
 
@@ -640,12 +641,22 @@ describe('buildSymbolDrilldownGraph', () => {
           'cls-1': {
             id: 'cls-1',
             name: 'UserService',
-            properties: [
-              { id: 'prop-1', name: 'db', type: 'Database', visibility: 'private' },
-            ],
+            properties: [{ id: 'prop-1', name: 'db', type: 'Database', visibility: 'private' }],
             methods: [
-              { id: 'meth-1', name: 'getUser', returnType: 'User', visibility: 'public', signature: 'getUser(id: string): User' },
-              { id: 'meth-2', name: 'saveUser', returnType: 'void', visibility: 'public', signature: 'saveUser(user: User): void' },
+              {
+                id: 'meth-1',
+                name: 'getUser',
+                returnType: 'User',
+                visibility: 'public',
+                signature: 'getUser(id: string): User',
+              },
+              {
+                id: 'meth-2',
+                name: 'saveUser',
+                returnType: 'void',
+                visibility: 'public',
+                signature: 'saveUser(user: User): void',
+              },
             ],
           },
         },
@@ -654,7 +665,13 @@ describe('buildSymbolDrilldownGraph', () => {
             id: 'iface-1',
             name: 'IUserService',
             methods: [
-              { id: 'imeth-1', name: 'getUser', returnType: 'User', visibility: 'public', signature: 'getUser(id: string): User' },
+              {
+                id: 'imeth-1',
+                name: 'getUser',
+                returnType: 'User',
+                visibility: 'public',
+                signature: 'getUser(id: string): User',
+              },
             ],
           },
         },
@@ -715,9 +732,7 @@ describe('buildSymbolDrilldownGraph', () => {
           'cls-1': {
             id: 'cls-1',
             name: 'A',
-            properties: [
-              { id: 'custom-prop-id', name: 'x', type: 'number', visibility: 'public' },
-            ],
+            properties: [{ id: 'custom-prop-id', name: 'x', type: 'number', visibility: 'public' }],
           },
         },
       });
@@ -731,7 +746,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const propNode = result.nodes.find((n) => n.type === 'property');
       expect(propNode).toBeDefined();
-      expect(propNode!.id).toBe('custom-prop-id');
+      expect(propNode?.id).toBe('custom-prop-id');
     });
 
     it('generates fallback ID from symbol and member name when id is missing', () => {
@@ -742,12 +757,8 @@ describe('buildSymbolDrilldownGraph', () => {
           'cls-1': {
             id: 'cls-1',
             name: 'A',
-            properties: [
-              { name: 'y', type: 'string', visibility: 'public' },
-            ],
-            methods: [
-              { name: 'doStuff', returnType: 'void', visibility: 'public', signature: 'doStuff(): void' },
-            ],
+            properties: [{ name: 'y', type: 'string', visibility: 'public' }],
+            methods: [{ name: 'doStuff', returnType: 'void', visibility: 'public', signature: 'doStuff(): void' }],
           },
         },
       });
@@ -761,11 +772,11 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const propNode = result.nodes.find((n) => n.type === 'property');
       expect(propNode).toBeDefined();
-      expect(propNode!.id).toBe('cls-1:property:y');
+      expect(propNode?.id).toBe('cls-1:property:y');
 
       const methNode = result.nodes.find((n) => n.type === 'method');
       expect(methNode).toBeDefined();
-      expect(methNode!.id).toBe('cls-1:method:doStuff');
+      expect(methNode?.id).toBe('cls-1:method:doStuff');
     });
   });
 
@@ -787,7 +798,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       // Only the module node
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]!.id).toBe('mod-1');
+      expect(result.nodes[0]?.id).toBe('mod-1');
       expect(result.edges).toHaveLength(0);
     });
 
@@ -811,12 +822,12 @@ describe('buildSymbolDrilldownGraph', () => {
       expect(result.nodes).toHaveLength(2);
       const classNode = result.nodes.find((n) => n.type === 'class');
       expect(classNode).toBeDefined();
-      expect(classNode!.data.properties).toEqual([]);
-      expect(classNode!.data.methods).toEqual([]);
+      expect(classNode?.data?.properties).toEqual([]);
+      expect(classNode?.data?.methods).toEqual([]);
     });
 
     it('handles graph with empty packages array', () => {
-      const data: DependencyPackageGraph = { packages: [] };
+      const data: PackageGraph = { packages: [] };
       const result = buildSymbolDrilldownGraph(
         defaultOptions({
           data,

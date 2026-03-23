@@ -1,25 +1,24 @@
 import { access, readFile } from 'fs/promises';
 import { dirname, join, relative } from 'path';
 
+import { consola } from 'consola';
 import jscodeshift from 'jscodeshift';
 
 import { Export } from '../../shared/types/Export';
-import { createLogger } from '../../shared/utils/logger';
 import { generateExportUUID, generateModuleUUID } from '../utils/uuid';
-
-import type { FileLocation } from '../../shared/types/FileLocation';
-import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
-import type { ParseResult } from './ParseResult';
-import type { ModuleParserContext } from './module/types';
-
-import { isBarrelFile, parseImportsAndExports } from './module/parseImportsExports';
 import { parseClasses } from './module/parseClasses';
+import { isBarrelFile, parseImportsAndExports } from './module/parseImportsExports';
 import { parseInterfaces } from './module/parseInterfaces';
 import { parseEnums, parseFunctions, parseTypeAliases, parseVariables } from './module/parseModuleSymbols';
 
+import type { FileLocation } from '../../shared/types/FileLocation';
+import type { IModuleCreateDTO } from '../../shared/types/dto/ModuleDTO';
+import type { ParseResult } from './ParseResult';
+import type { ModuleParserContext } from './module/types';
+
 export class ModuleParser {
   private readonly j = jscodeshift.withParser('tsx');
-  private readonly logger = createLogger('ModuleParser');
+  private readonly logger = consola.withTag('ModuleParser');
 
   constructor(
     private readonly filePath: string,
@@ -90,7 +89,7 @@ export class ModuleParser {
 
       return result;
     } catch (error) {
-      console.warn(
+      this.logger.warn(
         `Warning: Failed to process ${relativePath}:`,
         error instanceof Error ? error.message : String(error)
       );

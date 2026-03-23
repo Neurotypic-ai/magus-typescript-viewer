@@ -1,50 +1,45 @@
+import { describe, expect, it } from 'vitest';
+
 import {
-  isExternalImportRef,
-  normalizePath,
-  getDirname,
-  joinPaths,
-  generatePathVariants,
-  buildModulePathLookup,
-  getPackagePrefixFromImporter,
-  expandCandidatePath,
-  resolveRelativeCandidates,
-  resolveNonRelativeCandidates,
-  resolveModuleId,
   EXTENSIONS,
   FILE_EXTENSION_PATTERN,
   INDEX_FILE_PATTERN,
+  buildModulePathLookup,
+  expandCandidatePath,
+  generatePathVariants,
+  getDirname,
+  getPackagePrefixFromImporter,
+  isExternalImport,
+  joinPaths,
+  normalizePath,
+  resolveModuleId,
+  resolveNonRelativeCandidates,
+  resolveRelativeCandidates,
 } from '../graphEdgeLookups';
 
+import { Module } from '../../../shared/types/Module';
+import { Package, type PackageGraph } from '../../../shared/types/Package';
 import type { ModulePathLookup } from '../graphEdgeLookups';
-import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+function makeModule(id: string, name: string, packageId: string, relativePath: string): Module {
+  return new Module(id, packageId, name, { directory: '', name, filename: name, relativePath });
+}
+
 function makeGraph(
   modules: Record<string, { id: string; name: string; relativePath: string }>,
   packageId = 'pkg-1'
-): DependencyPackageGraph {
-  const moduleRecords: Record<string, { id: string; name: string; package_id: string; source: { relativePath: string } }> = {};
+): PackageGraph {
+  const moduleRecords: Record<string, Module> = {};
   for (const [key, mod] of Object.entries(modules)) {
-    moduleRecords[key] = {
-      id: mod.id,
-      name: mod.name,
-      package_id: packageId,
-      source: { relativePath: mod.relativePath },
-    };
+    moduleRecords[key] = makeModule(mod.id, mod.name, packageId, mod.relativePath);
   }
   return {
     packages: [
-      {
-        id: packageId,
-        name: 'test-package',
-        version: '1.0.0',
-        path: '/test',
-        created_at: '2024-01-01',
-        modules: moduleRecords,
-      },
+      new Package(packageId, 'test-package', '1.0.0', '/test', '2024-01-01', new Map(), new Map(), new Map(), moduleRecords),
     ],
   };
 }
@@ -54,53 +49,53 @@ function emptyLookup(): ModulePathLookup {
 }
 
 // ---------------------------------------------------------------------------
-// isExternalImportRef
+// isExternalImport
 // ---------------------------------------------------------------------------
 
-describe('isExternalImportRef', () => {
+describe('isExternalImport', () => {
   it('returns true when isExternal is true', () => {
-    expect(isExternalImportRef({ isExternal: true })).toBe(true);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: 'lodash' })).toBe(true);
   });
 
   it('returns true when packageName is a non-empty string', () => {
-    expect(isExternalImportRef({ packageName: 'vue' })).toBe(true);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: 'vue' })).toBe(true);
   });
 
   it('returns false when packageName is empty string', () => {
-    expect(isExternalImportRef({ packageName: '', path: './local' })).toBe(false);
+    expect(isExternalImport({ relativePath: './local', fullPath: '', name: '' })).toBe(false);
   });
 
   it('returns false for relative paths starting with ./', () => {
-    expect(isExternalImportRef({ path: './utils' })).toBe(false);
+    expect(isExternalImport({ relativePath: './utils', fullPath: '', name: '' })).toBe(false);
   });
 
   it('returns false for relative paths starting with ../', () => {
-    expect(isExternalImportRef({ path: '../utils' })).toBe(false);
+    expect(isExternalImport({ relativePath: '../utils', fullPath: '', name: '' })).toBe(false);
   });
 
   it('returns false for absolute paths starting with /', () => {
-    expect(isExternalImportRef({ path: '/some/path' })).toBe(false);
+    expect(isExternalImport({ relativePath: '', fullPath: '/some/path', name: '' })).toBe(false);
   });
 
   it('returns false for alias paths starting with @/', () => {
-    expect(isExternalImportRef({ path: '@/components/Foo' })).toBe(false);
+    expect(isExternalImport({ relativePath: '', fullPath: '@/components/Foo', name: '' })).toBe(false);
   });
 
   it('returns false for paths starting with src/', () => {
-    expect(isExternalImportRef({ path: 'src/utils/helpers' })).toBe(false);
+    expect(isExternalImport({ relativePath: 'src/utils/helpers', fullPath: '', name: '' })).toBe(false);
   });
 
   it('returns true for bare module specifiers like "lodash"', () => {
-    expect(isExternalImportRef({ path: 'lodash' })).toBe(true);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: 'lodash' })).toBe(true);
   });
 
   it('returns true for scoped packages like "@vue/reactivity"', () => {
-    expect(isExternalImportRef({ path: '@vue/reactivity' })).toBe(true);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: '@vue/reactivity' })).toBe(true);
   });
 
   it('returns false when path is undefined and no other flags', () => {
-    expect(isExternalImportRef({})).toBe(false);
-    expect(isExternalImportRef({ path: undefined })).toBe(false);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: '' })).toBe(false);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: '' })).toBe(false);
   });
 });
 
@@ -409,16 +404,8 @@ describe('buildModulePathLookup', () => {
   });
 
   it('returns empty path map for a package with no modules', () => {
-    const graph: DependencyPackageGraph = {
-      packages: [
-        {
-          id: 'pkg-1',
-          name: 'test',
-          version: '1.0.0',
-          path: '/test',
-          created_at: '2024-01-01',
-        },
-      ],
+    const graph: PackageGraph = {
+      packages: [new Package('pkg-1', 'test', '1.0.0', '/test', '2024-01-01')],
     };
     const lookup = buildModulePathLookup(graph);
     expect(lookup.packagePathMap.has('pkg-1')).toBe(true);
@@ -461,38 +448,14 @@ describe('buildModulePathLookup', () => {
   });
 
   it('globalPathMap contains multiple IDs when different packages share a path', () => {
-    const graph: DependencyPackageGraph = {
+    const graph: PackageGraph = {
       packages: [
-        {
-          id: 'pkg-1',
-          name: 'pkg-a',
-          version: '1.0.0',
-          path: '/a',
-          created_at: '2024-01-01',
-          modules: {
-            m1: {
-              id: 'mod-a',
-              name: 'helpers.ts',
-              package_id: 'pkg-1',
-              source: { relativePath: 'src/utils/helpers.ts' },
-            },
-          },
-        },
-        {
-          id: 'pkg-2',
-          name: 'pkg-b',
-          version: '1.0.0',
-          path: '/b',
-          created_at: '2024-01-01',
-          modules: {
-            m2: {
-              id: 'mod-b',
-              name: 'helpers.ts',
-              package_id: 'pkg-2',
-              source: { relativePath: 'src/utils/helpers.ts' },
-            },
-          },
-        },
+        new Package('pkg-1', 'pkg-a', '1.0.0', '/a', '2024-01-01', new Map(), new Map(), new Map(), {
+          m1: makeModule('mod-a', 'helpers.ts', 'pkg-1', 'src/utils/helpers.ts'),
+        }),
+        new Package('pkg-2', 'pkg-b', '1.0.0', '/b', '2024-01-01', new Map(), new Map(), new Map(), {
+          m2: makeModule('mod-b', 'helpers.ts', 'pkg-2', 'src/utils/helpers.ts'),
+        }),
       ],
     };
     const lookup = buildModulePathLookup(graph);
@@ -615,44 +578,15 @@ describe('resolveModuleId', () => {
 
   describe('package-local vs global resolution', () => {
     it('prefers package-local match over global match', () => {
-      const graph: DependencyPackageGraph = {
+      const graph: PackageGraph = {
         packages: [
-          {
-            id: 'pkg-1',
-            name: 'pkg-a',
-            version: '1.0.0',
-            path: '/a',
-            created_at: '2024-01-01',
-            modules: {
-              m1: {
-                id: 'mod-a-app',
-                name: 'app.ts',
-                package_id: 'pkg-1',
-                source: { relativePath: 'src/app.ts' },
-              },
-              m2: {
-                id: 'mod-a-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-1',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
-          {
-            id: 'pkg-2',
-            name: 'pkg-b',
-            version: '1.0.0',
-            path: '/b',
-            created_at: '2024-01-01',
-            modules: {
-              m3: {
-                id: 'mod-b-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-2',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
+          new Package('pkg-1', 'pkg-a', '1.0.0', '/a', '2024-01-01', new Map(), new Map(), new Map(), {
+            m1: makeModule('mod-a-app', 'app.ts', 'pkg-1', 'src/app.ts'),
+            m2: makeModule('mod-a-utils', 'utils.ts', 'pkg-1', 'src/utils.ts'),
+          }),
+          new Package('pkg-2', 'pkg-b', '1.0.0', '/b', '2024-01-01', new Map(), new Map(), new Map(), {
+            m3: makeModule('mod-b-utils', 'utils.ts', 'pkg-2', 'src/utils.ts'),
+          }),
         ],
       };
       const lookup = buildModulePathLookup(graph);
@@ -661,38 +595,14 @@ describe('resolveModuleId', () => {
     });
 
     it('falls back to global match when only one module matches globally', () => {
-      const graph: DependencyPackageGraph = {
+      const graph: PackageGraph = {
         packages: [
-          {
-            id: 'pkg-1',
-            name: 'pkg-a',
-            version: '1.0.0',
-            path: '/a',
-            created_at: '2024-01-01',
-            modules: {
-              m1: {
-                id: 'mod-a-app',
-                name: 'app.ts',
-                package_id: 'pkg-1',
-                source: { relativePath: 'src/app.ts' },
-              },
-            },
-          },
-          {
-            id: 'pkg-2',
-            name: 'pkg-b',
-            version: '1.0.0',
-            path: '/b',
-            created_at: '2024-01-01',
-            modules: {
-              m2: {
-                id: 'mod-b-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-2',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
+          new Package('pkg-1', 'pkg-a', '1.0.0', '/a', '2024-01-01', new Map(), new Map(), new Map(), {
+            m1: makeModule('mod-a-app', 'app.ts', 'pkg-1', 'src/app.ts'),
+          }),
+          new Package('pkg-2', 'pkg-b', '1.0.0', '/b', '2024-01-01', new Map(), new Map(), new Map(), {
+            m2: makeModule('mod-b-utils', 'utils.ts', 'pkg-2', 'src/utils.ts'),
+          }),
         ],
       };
       const lookup = buildModulePathLookup(graph);
@@ -702,53 +612,17 @@ describe('resolveModuleId', () => {
     });
 
     it('returns undefined when multiple global matches exist (ambiguous)', () => {
-      const graph: DependencyPackageGraph = {
+      const graph: PackageGraph = {
         packages: [
-          {
-            id: 'pkg-1',
-            name: 'pkg-a',
-            version: '1.0.0',
-            path: '/a',
-            created_at: '2024-01-01',
-            modules: {
-              m1: {
-                id: 'mod-a-app',
-                name: 'app.ts',
-                package_id: 'pkg-1',
-                source: { relativePath: 'src/app.ts' },
-              },
-            },
-          },
-          {
-            id: 'pkg-2',
-            name: 'pkg-b',
-            version: '1.0.0',
-            path: '/b',
-            created_at: '2024-01-01',
-            modules: {
-              m2: {
-                id: 'mod-b-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-2',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
-          {
-            id: 'pkg-3',
-            name: 'pkg-c',
-            version: '1.0.0',
-            path: '/c',
-            created_at: '2024-01-01',
-            modules: {
-              m3: {
-                id: 'mod-c-utils',
-                name: 'utils.ts',
-                package_id: 'pkg-3',
-                source: { relativePath: 'src/utils.ts' },
-              },
-            },
-          },
+          new Package('pkg-1', 'pkg-a', '1.0.0', '/a', '2024-01-01', new Map(), new Map(), new Map(), {
+            m1: makeModule('mod-a-app', 'app.ts', 'pkg-1', 'src/app.ts'),
+          }),
+          new Package('pkg-2', 'pkg-b', '1.0.0', '/b', '2024-01-01', new Map(), new Map(), new Map(), {
+            m2: makeModule('mod-b-utils', 'utils.ts', 'pkg-2', 'src/utils.ts'),
+          }),
+          new Package('pkg-3', 'pkg-c', '1.0.0', '/c', '2024-01-01', new Map(), new Map(), new Map(), {
+            m3: makeModule('mod-c-utils', 'utils.ts', 'pkg-3', 'src/utils.ts'),
+          }),
         ],
       };
       const lookup = buildModulePathLookup(graph);

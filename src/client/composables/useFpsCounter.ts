@@ -1,8 +1,10 @@
-import { computed, onUnmounted, ref, type ComputedRef, type Ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
+
+import type { ComputedRef, Ref } from 'vue';
 
 const MAX_FPS_HISTORY_POINTS = 90;
 
-export interface FpsStatsSummary {
+interface FpsStatsSummary {
   min: number;
   max: number;
   avg: number;
@@ -10,7 +12,7 @@ export interface FpsStatsSummary {
   sampleCount: number;
 }
 
-export interface UseFpsCounterResult {
+interface UseFpsCounterResult {
   fps: Ref<number>;
   fpsHistory: Ref<number[]>;
   fpsStats: ComputedRef<FpsStatsSummary>;

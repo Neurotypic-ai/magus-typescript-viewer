@@ -1,21 +1,13 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn adapter methods */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DependencyRepository } from '../DependencyRepository';
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { RepositoryError } from '../../errors/RepositoryError';
+import { DependencyRepository } from '../DependencyRepository';
 
-import type { IDatabaseAdapter, QueryResult, DatabaseRow } from '../../adapter/IDatabaseAdapter';
-import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../../types/Dependency';
-
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    query: vi.fn<() => Promise<QueryResult>>().mockResolvedValue([]),
-    close: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    transaction: vi.fn<(cb: () => Promise<unknown>) => Promise<unknown>>().mockImplementation(async (cb) => cb()),
-    getDbPath: vi.fn<() => string>().mockReturnValue(':memory:'),
-  };
-}
+import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../../../../shared/types/dto/DependencyDTO';
+import type { DatabaseRow, IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 
 function makeDependencyRow(overrides: Partial<Record<string, unknown>> = {}): DatabaseRow {
   return {
@@ -33,7 +25,7 @@ describe('DependencyRepository', () => {
   let repo: DependencyRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new DependencyRepository(adapter);
   });
 
@@ -64,7 +56,7 @@ describe('DependencyRepository', () => {
       expect(result.source_id).toBe('pkg-a');
       expect(result.target_id).toBe('pkg-b');
       expect(result.type).toBe('dependency');
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.created_at).toBeTypeOf('string');
 
       expect(adapter.query).toHaveBeenCalledOnce();
       const callArgs = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
@@ -205,7 +197,7 @@ describe('DependencyRepository', () => {
     });
 
     it('throws NoFieldsToUpdateError when type is undefined', async () => {
-      const dto: IDependencyUpdateDTO = { type: undefined };
+      const dto = { type: undefined } as unknown as IDependencyUpdateDTO;
 
       await expect(repo.update('some-id', dto)).rejects.toThrow(RepositoryError);
       expect(adapter.query).not.toHaveBeenCalled();
@@ -252,8 +244,15 @@ describe('DependencyRepository', () => {
       const results = await repo.retrieve();
 
       expect(results).toHaveLength(2);
-      expect(results[0].id).toBe('source-1_target-1');
-      expect(results[1].id).toBe('source-2_target-2');
+      const first = results[0];
+      const second = results[1];
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+      if (first === undefined || second === undefined) {
+        throw new Error('unreachable');
+      }
+      expect(first.id).toBe('source-1_target-1');
+      expect(second.id).toBe('source-2_target-2');
 
       const queryCall = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(queryCall[0]).toBe('SELECT * FROM dependencies');
@@ -310,12 +309,17 @@ describe('DependencyRepository', () => {
 
       const results = await repo.retrieve();
 
-      expect(results[0].id).toBe('a_b');
-      expect(results[0].source_id).toBe('a');
-      expect(results[0].target_id).toBe('b');
-      expect(results[0].type).toBe('peerDependency');
-      expect(results[0].created_at).toBeInstanceOf(Date);
-      expect(results[0].created_at.toISOString()).toBe('2025-06-15T12:00:00.000Z');
+      const mapped = results[0];
+      expect(mapped).toBeDefined();
+      if (mapped === undefined) {
+        throw new Error('unreachable');
+      }
+      expect(mapped.id).toBe('a_b');
+      expect(mapped.source_id).toBe('a');
+      expect(mapped.target_id).toBe('b');
+      expect(mapped.type).toBe('peerDependency');
+      expect(mapped.created_at).toBeTypeOf('string');
+      expect(mapped.created_at).toBe('2025-06-15T12:00:00.000Z');
     });
 
     it('returns an empty array when no rows match', async () => {
@@ -363,8 +367,15 @@ describe('DependencyRepository', () => {
       const results = await repo.findBySourceId('src');
 
       expect(results).toHaveLength(2);
-      expect(results[0].source_id).toBe('src');
-      expect(results[1].source_id).toBe('src');
+      const r0 = results[0];
+      const r1 = results[1];
+      expect(r0).toBeDefined();
+      expect(r1).toBeDefined();
+      if (r0 === undefined || r1 === undefined) {
+        throw new Error('unreachable');
+      }
+      expect(r0.source_id).toBe('src');
+      expect(r1.source_id).toBe('src');
 
       const queryCall = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(queryCall[0]).toContain('WHERE source_id = ?');
@@ -398,9 +409,14 @@ describe('DependencyRepository', () => {
 
       const results = await repo.findBySourceId('src');
 
-      expect(results[0].id).toBe('src_tgt');
-      expect(results[0].type).toBe('devDependency');
-      expect(results[0].created_at).toBeInstanceOf(Date);
+      const bySource = results[0];
+      expect(bySource).toBeDefined();
+      if (bySource === undefined) {
+        throw new Error('unreachable');
+      }
+      expect(bySource.id).toBe('src_tgt');
+      expect(bySource.type).toBe('devDependency');
+      expect(bySource.created_at).toBeTypeOf('string');
     });
   });
 
@@ -416,8 +432,15 @@ describe('DependencyRepository', () => {
       const results = await repo.findByTargetId('tgt');
 
       expect(results).toHaveLength(2);
-      expect(results[0].target_id).toBe('tgt');
-      expect(results[1].target_id).toBe('tgt');
+      const t0 = results[0];
+      const t1 = results[1];
+      expect(t0).toBeDefined();
+      expect(t1).toBeDefined();
+      if (t0 === undefined || t1 === undefined) {
+        throw new Error('unreachable');
+      }
+      expect(t0.target_id).toBe('tgt');
+      expect(t1.target_id).toBe('tgt');
 
       const queryCall = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
       expect(queryCall[0]).toContain('WHERE target_id = ?');
@@ -451,9 +474,14 @@ describe('DependencyRepository', () => {
 
       const results = await repo.findByTargetId('y');
 
-      expect(results[0].id).toBe('x_y');
-      expect(results[0].type).toBe('peerDependency');
-      expect(results[0].created_at.toISOString()).toBe('2025-12-25T00:00:00.000Z');
+      const byTarget = results[0];
+      expect(byTarget).toBeDefined();
+      if (byTarget === undefined) {
+        throw new Error('unreachable');
+      }
+      expect(byTarget.id).toBe('x_y');
+      expect(byTarget.type).toBe('peerDependency');
+      expect(byTarget.created_at).toBe('2025-12-25T00:00:00.000Z');
     });
   });
 
@@ -488,10 +516,7 @@ describe('DependencyRepository', () => {
 
   describe('retrieveByModuleId', () => {
     it('returns dependencies for the given module_id', async () => {
-      const rows = [
-        makeDependencyRow({ id: 'dep-1' }),
-        makeDependencyRow({ id: 'dep-2' }),
-      ];
+      const rows = [makeDependencyRow({ id: 'dep-1' }), makeDependencyRow({ id: 'dep-2' })];
 
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 

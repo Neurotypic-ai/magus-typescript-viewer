@@ -12,16 +12,16 @@ const MAC_MOUSE_WHEEL_ZOOM_SENSITIVITY = 0.006;
 const DEFAULT_MAC_TRACKPAD_PAN_SPEED = 1.6;
 const MAX_ZOOM_DELTA_PER_EVENT = 140;
 
-export interface UseGraphViewportOptions {
+interface UseGraphViewportOptions {
   getViewport: () => { x: number; y: number; zoom: number };
   setViewport: (vp: { x: number; y: number; zoom: number }, opts?: { duration: number }) => Promise<boolean>;
   zoomTo: (zoom: number, opts?: { duration: number }) => Promise<boolean>;
   panBy: (delta: { x: number; y: number }) => void;
   trackpadPanSpeed?: number;
-  onViewportChange: () => void;
+  onViewportChange?: () => void;
 }
 
-export interface GraphViewport {
+interface GraphViewport {
   viewportState: Ref<{ x: number; y: number; zoom: number }>;
   isPanning: Ref<boolean>;
   isMac: Ref<boolean>;
@@ -48,14 +48,11 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
   } = options;
 
   const isMac = ref(isMacPlatform());
-  const isFirefox = ref(
-    typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent)
-  );
+  const isFirefox = ref(typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent));
   const viewportState = ref({ ...DEFAULT_VIEWPORT });
   const isPanning = ref(false);
-  const normalizedTrackpadPanSpeed = Number.isFinite(trackpadPanSpeed) && trackpadPanSpeed > 0
-    ? trackpadPanSpeed
-    : DEFAULT_MAC_TRACKPAD_PAN_SPEED;
+  const normalizedTrackpadPanSpeed =
+    Number.isFinite(trackpadPanSpeed) && trackpadPanSpeed > 0 ? trackpadPanSpeed : DEFAULT_MAC_TRACKPAD_PAN_SPEED;
 
   let cachedFlowContainer: HTMLElement | null = null;
   let cachedContainerRect: DOMRect | null = null;
@@ -116,7 +113,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
       syncViewportState();
     }
 
-    onViewportChange();
+    onViewportChange?.();
   };
 
   const applyPanDelta = (delta: { x: number; y: number }): void => {
@@ -138,7 +135,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
 
   const onMove = (): void => {
     syncViewportState();
-    onViewportChange();
+    onViewportChange?.();
   };
 
   const onMoveEnd = (): void => {
@@ -146,7 +143,7 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
     panEndTimer = setTimeout(() => {
       isPanning.value = false;
       syncViewportState();
-      onViewportChange();
+      onViewportChange?.();
     }, 120);
   };
 
@@ -160,10 +157,10 @@ export function useGraphViewport(options: UseGraphViewportOptions): GraphViewpor
     }
 
     const insideGraphNode = Boolean(target.closest('.vue-flow__node'));
-    const overControlSurface = Boolean(target.closest('[data-graph-overlay-scrollable], .vue-flow__panel')) || (
-      !insideGraphNode &&
-      Boolean(target.closest('input, textarea, select, button, [role="slider"], [contenteditable="true"]'))
-    );
+    const overControlSurface =
+      Boolean(target.closest('[data-graph-overlay-scrollable], .vue-flow__panel')) ||
+      (!insideGraphNode &&
+        Boolean(target.closest('input, textarea, select, button, [role="slider"], [contenteditable="true"]')));
 
     if (intent === 'pinch') {
       if (overControlSurface) {

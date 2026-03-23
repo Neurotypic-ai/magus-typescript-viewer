@@ -1,11 +1,7 @@
-import { getTypeFromAnnotation } from './astUtils';
 import { generateMethodUUID, generateParameterUUID, generatePropertyUUID } from '../../utils/uuid';
+import { getTypeFromAnnotation } from './astUtils';
 
-import type { ModuleParserContext } from './types';
-import type { ParseResult, SymbolUsageRef } from '../ParseResult';
-import type { IMethodCreateDTO } from '../../db/repositories/MethodRepository';
-import type { IPropertyCreateDTO } from '../../db/repositories/PropertyRepository';
-import type { IParameterCreateDTO } from '../../db/repositories/ParameterRepository';
+import type { ConsolaInstance } from 'consola';
 import type {
   ASTNode,
   ASTPath,
@@ -19,7 +15,13 @@ import type {
   TSPropertySignature,
   TSTypeAnnotation,
 } from 'jscodeshift';
-import type { Logger } from '../../../shared/utils/logger';
+
+import type { IMethodCreateDTO } from '../../../shared/types/dto/MethodDTO';
+import type { IParameterCreateDTO } from '../../../shared/types/dto/ParameterDTO';
+import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
+import type { ParentType } from '../../../shared/types/ParentType';
+import type { ParseResult, SymbolUsageRef } from '../ParseResult';
+import type { ModuleParserContext } from './types';
 
 // ---------------------------------------------------------------------------
 // Exported functions
@@ -33,7 +35,7 @@ import type { Logger } from '../../../shared/utils/logger';
 export function parseMethods(
   ctx: ModuleParserContext,
   collection: Collection,
-  parentType: 'class' | 'interface',
+  parentType: ParentType,
   parentId: string,
   result: ParseResult,
   parentName?: string
@@ -50,19 +52,17 @@ export function parseMethods(
       const classMethods = collection.find(ctx.j.MethodDefinition);
 
       // Add class property arrow functions
-      const propertyMethods = collection
-        .find(ctx.j.ClassProperty)
-        .filter((path: ASTPath<ClassProperty>): boolean => {
-          const value = path.value.value;
-          const hasArrowFunction = Boolean(
-            value && typeof value === 'object' && 'type' in value && value.type === 'ArrowFunctionExpression'
-          );
+      const propertyMethods = collection.find(ctx.j.ClassProperty).filter((path: ASTPath<ClassProperty>): boolean => {
+        const value = path.value.value;
+        const hasArrowFunction = Boolean(
+          value && typeof value === 'object' && 'type' in value && value.type === 'ArrowFunctionExpression'
+        );
 
-          // Also check for function type annotations
-          const hasFunctionType = isFunctionTypeProperty(path.value, ctx.logger);
+        // Also check for function type annotations
+        const hasFunctionType = isFunctionTypeProperty(path.value, ctx.logger);
 
-          return hasArrowFunction || hasFunctionType;
-        });
+        return hasArrowFunction || hasFunctionType;
+      });
 
       // Combine both collections
       methodNodes = ctx.j([...classMethods.paths(), ...propertyMethods.paths()]);
@@ -159,7 +159,7 @@ export function parseProperties(
   ctx: ModuleParserContext,
   moduleId: string,
   parentId: string,
-  parentType: 'class' | 'interface',
+  parentType: ParentType,
   node: ClassDeclaration | TSInterfaceDeclaration
 ): IPropertyCreateDTO[] {
   const properties: IPropertyCreateDTO[] = [];
@@ -332,7 +332,7 @@ function getReturnTypeNode(
  */
 function getMethodName(
   node: MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature,
-  logger: Logger
+  logger: ConsolaInstance
 ): string | undefined {
   try {
     return node.key.type === 'Identifier' ? node.key.name : undefined;
@@ -346,7 +346,7 @@ function getMethodName(
 /**
  * Get the name of a property node from its key.
  */
-function getPropertyName(node: ClassProperty | TSPropertySignature, logger: Logger): string | undefined {
+function getPropertyName(node: ClassProperty | TSPropertySignature, logger: ConsolaInstance): string | undefined {
   try {
     if (node.key.type === 'Identifier') {
       return node.key.name;
@@ -363,7 +363,7 @@ function getPropertyName(node: ClassProperty | TSPropertySignature, logger: Logg
  * Check if a property has a function type annotation (TSFunctionType,
  * TSConstructorType, or is an arrow function expression).
  */
-function isFunctionTypeProperty(node: ClassProperty | TSPropertySignature, logger: Logger): boolean {
+function isFunctionTypeProperty(node: ClassProperty | TSPropertySignature, logger: ConsolaInstance): boolean {
   try {
     if (node.typeAnnotation?.type !== 'TSTypeAnnotation') {
       return false;
@@ -400,7 +400,7 @@ function extractSymbolUsages(
     sourceSymbolType: 'method' | 'function';
     sourceSymbolName?: string | undefined;
     sourceParentName?: string | undefined;
-    sourceParentType?: 'class' | 'interface' | undefined;
+    sourceParentType?: ParentType | undefined;
   }
 ): SymbolUsageRef[] {
   const usages: SymbolUsageRef[] = [];

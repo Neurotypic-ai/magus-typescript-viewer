@@ -1,6 +1,8 @@
-import type { DependencyEdgeKind } from '../../types/DependencyEdgeKind';
+import { describe, expect, it } from 'vitest';
 
 import { EDGE_KIND_PRIORITY } from '../edgePriority';
+
+import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
 
 describe('EDGE_KIND_PRIORITY', () => {
   it('assigns a numeric priority to every DependencyEdgeKind', () => {
@@ -101,9 +103,7 @@ describe('EDGE_KIND_PRIORITY', () => {
       'peerDependency',
     ];
 
-    const sorted = [...kinds].sort(
-      (a, b) => EDGE_KIND_PRIORITY[b] - EDGE_KIND_PRIORITY[a],
-    );
+    const sorted = [...kinds].sort((a, b) => EDGE_KIND_PRIORITY[b] - EDGE_KIND_PRIORITY[a]);
 
     // Map to priorities for easier assertion
     const sortedPriorities = sorted.map((k) => EDGE_KIND_PRIORITY[k]);
@@ -137,9 +137,7 @@ describe('EDGE_KIND_PRIORITY', () => {
   it('can select the highest-priority edge from a mixed set', () => {
     const edgeKinds: DependencyEdgeKind[] = ['import', 'dependency', 'inheritance', 'export'];
 
-    const best = edgeKinds.reduce((a, b) =>
-      EDGE_KIND_PRIORITY[a] >= EDGE_KIND_PRIORITY[b] ? a : b,
-    );
+    const best = edgeKinds.reduce((a, b) => (EDGE_KIND_PRIORITY[a] >= EDGE_KIND_PRIORITY[b] ? a : b));
 
     expect(best).toBe('inheritance');
   });
@@ -147,9 +145,7 @@ describe('EDGE_KIND_PRIORITY', () => {
   it('can select the highest-priority edge when multiple share top rank', () => {
     const edgeKinds: DependencyEdgeKind[] = ['contains', 'uses', 'import'];
 
-    const best = edgeKinds.reduce((a, b) =>
-      EDGE_KIND_PRIORITY[a] >= EDGE_KIND_PRIORITY[b] ? a : b,
-    );
+    const best = edgeKinds.reduce((a, b) => (EDGE_KIND_PRIORITY[a] >= EDGE_KIND_PRIORITY[b] ? a : b));
 
     // Both contains and uses have priority 5; reduce with >= keeps the first one found
     expect(best).toBe('contains');
@@ -164,7 +160,3 @@ describe('EDGE_KIND_PRIORITY', () => {
     }
   });
 });
-function expect(arg0: number) {
-  throw new Error('Function not implemented.');
-}
-

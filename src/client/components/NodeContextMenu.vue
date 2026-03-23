@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted } from 'vue';
 
 import { useIssuesStore } from '../stores/issuesStore';
 
-import type { CodeIssueRef } from '../types/CodeIssueRef';
+import type { CodeIssueRef } from '../../shared/types/api/CodeIssueRef';
 
 interface NodeContextMenuProps {
   nodeId: string;
@@ -25,9 +25,7 @@ const issuesStore = useIssuesStore();
 const nodeIssues = computed(() => {
   return issuesStore.issues.filter(
     (issue) =>
-      issue.module_id === props.nodeId ||
-      issue.entity_id === props.nodeId ||
-      issue.parent_entity_id === props.nodeId
+      issue.module_id === props.nodeId || issue.entity_id === props.nodeId || issue.parent_entity_id === props.nodeId
   );
 });
 
@@ -103,7 +101,7 @@ onUnmounted(() => {
         class="context-menu-item context-menu-item--refactor"
         @click="handlePreview(issue)"
       >
-        <span class="context-menu-icon">&wrench;</span>
+        <span class="context-menu-icon">&#128190;</span>
         {{ issue.suggestion ?? 'Preview refactoring' }}
       </button>
     </template>
@@ -129,7 +127,7 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 0.75rem;
   color: var(--text-secondary);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(var(--text-secondary-rgb), 0.04);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -151,11 +149,11 @@ onUnmounted(() => {
 }
 
 .context-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(var(--text-secondary-rgb), 0.05);
 }
 
 .context-menu-item--refactor {
-  color: rgb(94, 234, 212);
+  color: var(--graph-badge-module-text);
   white-space: normal;
   font-size: 0.75rem;
 }
@@ -168,7 +166,7 @@ onUnmounted(() => {
 
 .context-menu-separator {
   height: 1px;
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: rgba(var(--text-secondary-rgb), 0.06);
   margin: 0.25rem 0;
 }
 </style>

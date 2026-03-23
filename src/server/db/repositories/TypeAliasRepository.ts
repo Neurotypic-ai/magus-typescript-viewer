@@ -2,33 +2,9 @@ import { TypeAlias } from '../../../shared/types/TypeAlias';
 import { RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
+import type { ITypeAliasCreateDTO, ITypeAliasUpdateDTO } from '../../../shared/types/dto/TypeAliasDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
-
-export interface ITypeAliasRow {
-  [key: string]: string | null;
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  type: string;
-  type_parameters_json: string | null;
-  created_at: string;
-}
-
-export interface ITypeAliasCreateDTO {
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  type: string;
-  type_parameters_json?: string | undefined;
-}
-
-interface ITypeAliasUpdateDTO {
-  name?: string;
-  type?: string;
-  type_parameters_json?: string;
-}
+import type { ITypeAliasRow } from '../types/DatabaseResults';
 
 export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCreateDTO, ITypeAliasUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
@@ -36,19 +12,14 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
   }
 
   async createBatch(items: ITypeAliasCreateDTO[]): Promise<void> {
-    await this.executeBatchInsert(
-      '(id, package_id, module_id, name, type, type_parameters_json)',
-      6,
-      items,
-      (dto) => [
-        dto.id,
-        dto.package_id,
-        dto.module_id,
-        dto.name,
-        dto.type,
-        dto.type_parameters_json ?? null,
-      ]
-    );
+    await this.executeBatchInsert('(id, package_id, module_id, name, type, type_parameters_json)', 6, items, (dto) => [
+      dto.id,
+      dto.package_id,
+      dto.module_id,
+      dto.name,
+      dto.type,
+      dto.type_parameters_json ?? null,
+    ]);
   }
 
   async create(dto: ITypeAliasCreateDTO): Promise<TypeAlias> {
@@ -67,9 +38,18 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
   async update(id: string, dto: ITypeAliasUpdateDTO): Promise<TypeAlias> {
     const sets: string[] = [];
     const params: unknown[] = [];
-    if (dto.name !== undefined) { sets.push('name = ?'); params.push(dto.name); }
-    if (dto.type !== undefined) { sets.push('type = ?'); params.push(dto.type); }
-    if (dto.type_parameters_json !== undefined) { sets.push('type_parameters_json = ?'); params.push(dto.type_parameters_json); }
+    if (dto.name !== undefined) {
+      sets.push('name = ?');
+      params.push(dto.name);
+    }
+    if (dto.type !== undefined) {
+      sets.push('type = ?');
+      params.push(dto.type);
+    }
+    if (dto.type_parameters_json !== undefined) {
+      sets.push('type_parameters_json = ?');
+      params.push(dto.type_parameters_json);
+    }
     if (sets.length === 0) {
       const existing = await this.retrieveById(id);
       if (!existing) throw new RepositoryError('Type alias not found', 'update', this.errorTag);
@@ -87,11 +67,9 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
   }
 
   async retrieveById(id: string): Promise<TypeAlias | undefined> {
-    const results = await this.executeQuery<ITypeAliasRow>(
-      'retrieveById',
-      'SELECT * FROM type_aliases WHERE id = ?',
-      [id]
-    );
+    const results = await this.executeQuery<ITypeAliasRow>('retrieveById', 'SELECT * FROM type_aliases WHERE id = ?', [
+      id,
+    ]);
     const row = results[0];
     return row ? this.mapToEntity(row) : undefined;
   }
@@ -117,10 +95,7 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
   }
 
   async retrieve(): Promise<TypeAlias[]> {
-    const results = await this.executeQuery<ITypeAliasRow>(
-      'retrieve all',
-      'SELECT * FROM type_aliases ORDER BY name'
-    );
+    const results = await this.executeQuery<ITypeAliasRow>('retrieve all', 'SELECT * FROM type_aliases ORDER BY name');
     return results.map((row) => this.mapToEntity(row));
   }
 
@@ -129,12 +104,12 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
   }
 
   protected mapToEntity(row: ITypeAliasRow): TypeAlias {
-    let typeParameters: string[] = [];
+    let type_parameters: string[] = [];
     if (row.type_parameters_json) {
       try {
         const parsed: unknown = JSON.parse(row.type_parameters_json);
         if (Array.isArray(parsed)) {
-          typeParameters = parsed.filter((p): p is string => typeof p === 'string');
+          type_parameters = parsed.filter((p): p is string => typeof p === 'string');
         }
       } catch {
         // Invalid JSON — default to empty array
@@ -146,8 +121,8 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
       row.module_id,
       row.name,
       row.type,
-      typeParameters,
-      new Date(row.created_at)
+      type_parameters,
+      String(row.created_at)
     );
   }
 }

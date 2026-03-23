@@ -1,22 +1,24 @@
-/**
- * useGraphSearch — shared-state composable for graph node search.
- * Single source of truth consumed by GraphControls (UI) and DependencyGraph (result handling).
- */
+import { ref, watch } from 'vue';
 
-import { type Ref, ref, watch } from 'vue';
+import type { Ref } from 'vue';
 
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { SearchResult } from '../types/SearchResult';
 
-export interface UseGraphSearchOptions {
+/**
+ * useGraphSearch — shared-state composable for graph node search.
+ * Single source of truth consumed by GraphControls (UI) and DependencyGraph (result handling).
+ */
+
+interface UseGraphSearchOptions {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   onSearchResult: (result: SearchResult) => void;
   debounceMs?: number;
 }
 
-export interface UseGraphSearchResult {
+interface UseGraphSearchResult {
   searchQuery: Ref<string>;
   runSearch: () => void;
   clearSearch: () => void;
@@ -37,9 +39,7 @@ export function useGraphSearch(options: UseGraphSearchOptions): UseGraphSearchRe
     }
 
     const q = query.toLowerCase();
-    const matchingNodes = nodes.value.filter((node) =>
-      (node.data?.label ?? '').toLowerCase().includes(q)
-    );
+    const matchingNodes = nodes.value.filter((node) => (node.data?.label ?? '').toLowerCase().includes(q));
     const matchingNodeIds = new Set(matchingNodes.map((n) => n.id));
     const relatedEdges = edges.value.filter(
       (edge) => matchingNodeIds.has(edge.source) || matchingNodeIds.has(edge.target)

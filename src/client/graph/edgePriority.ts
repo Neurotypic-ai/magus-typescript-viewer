@@ -1,4 +1,4 @@
-import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 
 /** Priority ordering for edge kinds. Higher = more important.
  * Used for highway primary-type selection and parallel-edge bundling. */

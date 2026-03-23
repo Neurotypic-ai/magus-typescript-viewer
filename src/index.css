@@ -84,6 +84,106 @@
 
   /* focus ring color aligned with primary */
   --focus-ring: #00ffff;
+
+  /* Graph runtime tokens: DOM and SVG should read from these variables.
+     TypeScript helpers may reference these by name, while non-DOM consumers
+     use the mirrored raw values in src/client/theme/graphTokens.ts. */
+  --graph-node-default-bg: #1a1a1a;
+  --graph-node-default-border: #404040;
+  --graph-node-package-bg: rgba(20, 184, 166, 0.08);
+  --graph-node-package-border: rgba(20, 184, 166, 0.3);
+  --graph-node-module-bg: rgba(59, 130, 246, 0.06);
+  --graph-node-module-border: rgba(59, 130, 246, 0.25);
+  --graph-node-class-bg: rgba(59, 130, 246, 0.1);
+  --graph-node-class-border: rgba(59, 130, 246, 0.35);
+  --graph-node-interface-bg: rgba(168, 85, 247, 0.1);
+  --graph-node-interface-border: rgba(168, 85, 247, 0.35);
+  --graph-node-group-bg: rgba(255, 255, 255, 0.02);
+  --graph-node-group-border: rgba(255, 255, 255, 0.15);
+  --graph-node-property-bg: rgba(100, 149, 237, 0.15);
+  --graph-node-property-border: rgba(100, 149, 237, 0.4);
+  --graph-node-method-bg: rgba(186, 85, 211, 0.15);
+  --graph-node-method-border: rgba(186, 85, 211, 0.4);
+
+  --graph-edge-default: #404040;
+  --graph-edge-dependency: #f44336;
+  --graph-edge-dev-dependency: #795548;
+  --graph-edge-peer-dependency: #009688;
+  --graph-edge-import: #61dafb;
+  --graph-edge-export: #ffd700;
+  --graph-edge-inheritance: #4caf50;
+  --graph-edge-implements: #ff9800;
+  --graph-edge-extends: #4caf50;
+  --graph-edge-contains: #9c27b0;
+  --graph-edge-uses: #404040;
+
+  --graph-edge-width: 1.5px;
+  --graph-edge-width-selected: 2.5px;
+  --graph-edge-width-inheritance: 1.5px;
+  --graph-edge-width-contains: 1.5px;
+  --graph-edge-width-extends: 1.5px;
+  --graph-edge-width-uses: 1.5px;
+  --graph-edge-width-highlighted: 3px;
+  --graph-edge-width-hover: 2.8px;
+  --graph-edge-width-isolated: 2px;
+  --graph-edge-label-font-size: 10px;
+  --graph-handle-size: 12px;
+  --graph-edge-marker-width: 12px;
+  --graph-edge-marker-height: 12px;
+
+  --graph-badge-module-bg: rgba(20, 184, 166, 0.2);
+  --graph-badge-module-text: rgb(94, 234, 212);
+  --graph-badge-class-bg: rgba(59, 130, 246, 0.2);
+  --graph-badge-class-text: rgb(147, 197, 253);
+  --graph-badge-interface-bg: rgba(168, 85, 247, 0.2);
+  --graph-badge-interface-text: rgb(216, 180, 254);
+  --graph-badge-property-bg: rgba(20, 184, 166, 0.2);
+  --graph-badge-property-text: rgb(94, 234, 212);
+  --graph-badge-method-bg: rgba(249, 115, 22, 0.2);
+  --graph-badge-method-text: rgb(253, 186, 116);
+  --graph-badge-default-bg: rgba(255, 255, 255, 0.1);
+
+  --graph-issue-error: #ef4444;
+  --graph-issue-error-border: rgba(239, 68, 68, 0.5);
+  --graph-issue-error-glow: rgba(239, 68, 68, 0.35);
+  --graph-issue-error-shadow: rgba(239, 68, 68, 0.24);
+  --graph-issue-warning: #fbbf24;
+  --graph-issue-warning-border: rgba(251, 191, 36, 0.5);
+  --graph-issue-warning-glow: rgba(251, 191, 36, 0.28);
+  --graph-issue-info: #60a5fa;
+  --graph-issue-info-border: rgba(96, 165, 250, 0.5);
+
+  --graph-insight-critical-bg: rgba(239, 68, 68, 0.18);
+  --graph-insight-critical-text: #f87171;
+  --graph-insight-warning-bg: rgba(251, 191, 36, 0.18);
+  --graph-insight-warning-text: #fbbf24;
+  --graph-insight-info-bg: rgba(96, 165, 250, 0.12);
+  --graph-insight-info-text: #93c5fd;
+
+  --graph-selection-target-border: #22d3ee;
+  --graph-selection-target-outline: rgba(34, 211, 238, 0.34);
+  --graph-selection-connected-border: rgba(34, 211, 238, 0.5);
+  --graph-selection-connected-outline: rgba(34, 211, 238, 0.26);
+  --graph-selection-hover-pulse: #facc15;
+  --graph-minimap-mask: rgba(7, 10, 18, 0.75);
+  --graph-minimap-mask-stroke: rgba(34, 211, 238, 0.6);
+  --graph-fps-line: #22d3ee;
+  --graph-fps-good: #4ade80;
+  --graph-fps-ok: #fbbf24;
+  --graph-fps-low: #f87171;
+
+  --graph-folder-border: rgba(148, 163, 184, 0.8);
+  --graph-folder-border-muted: rgba(148, 163, 184, 0.25);
+  --graph-folder-bg: rgba(30, 41, 59, 0.25);
+  --graph-folder-collapsed-bg: rgba(30, 41, 59, 0.65);
+  --graph-folder-active-border: rgba(96, 165, 250, 0.85);
+  --graph-folder-active-border-strong: rgba(96, 165, 250, 0.9);
+  --graph-folder-active-outline: rgba(96, 165, 250, 0.45);
+  --graph-folder-active-shadow: rgba(96, 165, 250, 0.25);
+  --graph-folder-badge-bg: rgba(96, 165, 250, 0.3);
+  --graph-folder-badge-text: rgba(96, 165, 250, 0.95);
+  --graph-folder-handle-bg: rgba(96, 165, 250, 0.85);
+  --graph-folder-handle-shadow: rgba(96, 165, 250, 0.65);
 }
 
 /* Firefox uses a significantly slower text shaping path with
@@ -130,8 +230,8 @@ body {
 
 /* VueFlow customization */
 .vue-flow__handle {
-  width: 12px !important;
-  height: 12px !important;
+  width: var(--graph-handle-size) !important;
+  height: var(--graph-handle-size) !important;
   background-color: transparent !important;
   border: none !important;
   opacity: 0 !important;
@@ -158,24 +258,24 @@ body {
    a stacking context — lets individual nodes (hover, selection) pop above edges. */
 
 .vue-flow__edge-path {
-  stroke-width: 1.5px !important;
+  stroke-width: var(--graph-edge-width) !important;
   cursor: pointer;
   transition: none !important;
 }
 
 .vue-flow__edge:hover .vue-flow__edge-path {
   stroke: var(--color-primary-main) !important;
-  stroke-width: 2.5px !important;
+  stroke-width: var(--graph-edge-width-selected) !important;
 }
 
 .vue-flow__edge-text {
-  font-size: 10px !important;
+  font-size: var(--graph-edge-label-font-size) !important;
   fill: var(--color-text-secondary) !important;
 }
 
 .vue-flow__edge.selected .vue-flow__edge-path {
   stroke: var(--color-primary-main) !important;
-  stroke-width: 2.5px !important;
+  stroke-width: var(--graph-edge-width-selected) !important;
 }
 
 /* Styles for the official @vue-flow/controls component (bottom-right zoom/fit panel) */

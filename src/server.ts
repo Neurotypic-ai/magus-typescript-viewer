@@ -1,8 +1,10 @@
 import http from 'node:http';
 
+import { consola } from 'consola';
+
 import { ApiServerResponder } from './server/ApiServerResponder';
 import { RepositoryError } from './server/db/errors/RepositoryError';
-import { createLogger } from './shared/utils/logger';
+import { RefactorEngine } from './server/refactors/RefactorEngine';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +21,9 @@ function mapReplacer(_key: string, value: unknown) {
       obj[String(k)] = v;
     }
     return obj;
+  }
+  if (value instanceof Set) {
+    return Array.from(value.values()) as unknown[];
   }
   return value;
 }
@@ -51,13 +56,14 @@ function readRequestBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => { resolve(Buffer.concat(chunks).toString('utf-8')); });
+    req.on('end', () => {
+      resolve(Buffer.concat(chunks).toString('utf-8'));
+    });
     req.on('error', reject);
   });
 }
 
-// Initialize logger
-const logger = createLogger('Server');
+const logger = consola.withTag('Server');
 
 // Initialize database and repositories in read-only mode
 const apiServerResponder = new ApiServerResponder({
@@ -228,7 +234,7 @@ const server = http.createServer((req, res) => {
             return;
           }
 
-          const issue = await apiServerResponder.getCodeIssueById(parsed.issueId);
+          const issue = await apiServerResponder.getCodeIssueEntityById(parsed.issueId);
           if (!issue) {
             sendError(res, 404, 'Issue not found');
             return;
@@ -239,7 +245,6 @@ const server = http.createServer((req, res) => {
             return;
           }
 
-          const { RefactorEngine } = await import('./server/refactors/RefactorEngine');
           const engine = new RefactorEngine();
           const request = {
             filePath: issue.file_path,
@@ -247,9 +252,7 @@ const server = http.createServer((req, res) => {
             context: issue.refactor_context,
           };
 
-          resource = parsed.preview
-            ? await engine.preview(request)
-            : await engine.execute(request);
+          resource = parsed.preview ? await engine.preview(request) : await engine.execute(request);
         } catch (routeErr) {
           logger.error('Error in /refactor route', routeErr);
           sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Refactoring failed');

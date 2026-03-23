@@ -1,41 +1,44 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted, provide, ref, watch } from 'vue';
+
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { Panel, VueFlow } from '@vue-flow/core';
 import { MiniMap } from '@vue-flow/minimap';
-import { onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
+import { DEFAULT_VIEWPORT, useDependencyGraphCore } from '../composables/useDependencyGraphCore';
+import { useGraphSearch } from '../composables/useGraphSearch';
 import { parseEnvBoolean, parseEnvFloat, parseEnvInt } from '../utils/env';
+import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
+import GraphControls from './GraphControls.vue';
+import InsightsDashboard from './InsightsDashboard.vue';
+import IssuesPanel from './IssuesPanel.vue';
+import NodeContextMenu from './NodeContextMenu.vue';
+import NodeDetails from './NodeDetails.vue';
+import IntraFolderEdge from './edges/IntraFolderEdge.vue';
+import NodePremeasureHost from './nodes/measure/NodePremeasureHost.vue';
+import GroupNode from './nodes/GroupNode.vue';
+import ModuleNode from './nodes/ModuleNode.vue';
+import PackageNode from './nodes/PackageNode.vue';
+import SymbolNode from './nodes/SymbolNode.vue';
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
   HIGHLIGHT_ORPHAN_GLOBAL_KEY,
   ISOLATE_EXPAND_ALL_KEY,
   NODE_ACTIONS_KEY,
 } from './nodes/utils';
-import IntraFolderEdge from './edges/IntraFolderEdge.vue';
-import GroupNode from './nodes/GroupNode.vue';
-import ModuleNode from './nodes/ModuleNode.vue';
-import PackageNode from './nodes/PackageNode.vue';
-import SymbolNode from './nodes/SymbolNode.vue';
-import { useDependencyGraphCore, DEFAULT_VIEWPORT } from '../composables/useDependencyGraphCore';
-import CanvasEdgeLayer from './CanvasEdgeLayer.vue';
-import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
-import { useGraphSearch } from '../composables/useGraphSearch';
-import GraphControls from './GraphControls.vue';
-import InsightsDashboard from './InsightsDashboard.vue';
-import IssuesPanel from './IssuesPanel.vue';
-import NodeContextMenu from './NodeContextMenu.vue';
-import NodeDetails from './NodeDetails.vue';
 
-import type { Component } from 'vue';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { Component, Ref } from 'vue';
+
+import type { PackageGraph } from '../../shared/types/Package';
+import type { DependencyNode } from '../types/DependencyNode';
 
 import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/minimap/dist/style.css';
 
 export interface DependencyGraphProps {
-  data: DependencyPackageGraph;
+  data: PackageGraph;
 }
 
 const props = defineProps<DependencyGraphProps>();
@@ -47,14 +50,9 @@ const env = {
   HEAVY_EDGE_STYLE_THRESHOLD: 2200,
   HIGH_EDGE_MARKER_THRESHOLD: 1800,
   LOW_DETAIL_EDGE_ZOOM_THRESHOLD: 0.35,
-  EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD: parseEnvInt('VITE_CANVAS_EDGE_THRESHOLD', 0),
   NODE_VISIBLE_RENDER_THRESHOLD: parseEnvInt('VITE_NODE_VISIBLE_RENDER_THRESHOLD', 320),
-  EDGE_RENDERER_MODE: (import.meta.env['VITE_EDGE_RENDER_MODE'] as string | undefined) ?? 'hybrid-canvas',
-  EDGE_VIRTUALIZATION_MODE:
-    (import.meta.env['VITE_EDGE_VIRTUALIZATION_MODE'] as string | undefined) === 'main' ? 'main' : 'worker',
   USE_CSS_SELECTION_HOVER: parseEnvBoolean('VITE_USE_CSS_SELECTION_HOVER', true),
   PERF_MARKS_ENABLED: parseEnvBoolean('VITE_PERF_MARKS', false),
-  EDGE_VIEWPORT_RECALC_THROTTLE_MS: parseEnvInt('VITE_EDGE_VIEWPORT_RECALC_THROTTLE_MS', 80),
   MAC_TRACKPAD_PAN_SPEED: parseEnvFloat('VITE_MAC_TRACKPAD_PAN_SPEED', 1.6),
 };
 
@@ -78,8 +76,6 @@ const {
   issuesStore,
   visualNodes,
   renderedEdges,
-  activeCollisionConfig,
-  lastCollisionResult,
   useOnlyRenderVisibleElements,
   defaultEdgeOptions,
   viewportState,
@@ -90,15 +86,11 @@ const {
   onMove,
   syncViewportState,
   initContainerCache,
-  edgeVirtualizationRuntimeMode,
-  edgeVirtualizationWorkerStats,
   isLayoutPending,
   isLayoutMeasuring,
   selectedNode,
   hoveredNodeId,
   contextMenu,
-  canvasRendererAvailable,
-  isHybridCanvasMode,
   isHeavyEdgeMode,
   minimapAutoHidden,
   showMiniMap,
@@ -116,7 +108,6 @@ const {
   handleNodesChange,
   handleFocusNode,
   handleMinimapNodeClick,
-  handleCanvasUnavailable,
   onMoveEnd,
   onNodeClick,
   onPaneClick,
@@ -124,34 +115,29 @@ const {
   onNodeMouseEnter,
   onNodeMouseLeave,
   handleRelationshipFilterChange,
-  handleNodeTypeFilterChange,
-  handleCollapseSccToggle,
-  handleClusterByFolderToggle,
   handleHideTestFilesToggle,
-  handleMemberNodeModeChange,
   handleOrphanGlobalToggle,
   handleShowFpsToggle,
   handleFpsAdvancedToggle,
-  handleRenderingStrategyChange,
-  handleRenderingStrategyOptionChange,
   nodeActions,
   highlightOrphanGlobal,
   folderCollapseActions,
   minimapNodeColor,
   minimapNodeStrokeColor,
   nodeDimensionTracker,
+  nodePremeasure,
   renderedNodeCount,
   renderedEdgeCount,
   renderedNodeTypeCounts,
   renderedEdgeTypeCounts,
   scopeMode,
-  highlightedEdgeIdList,
   startFps,
   stopFps,
   dispose,
 } = core;
 
 const USE_CSS_SELECTION_HOVER = env.USE_CSS_SELECTION_HOVER;
+const premeasureNodes = nodePremeasure.batchNodes as Ref<DependencyNode[]>;
 
 const nodeTypes: Record<string, Component> = Object.freeze({
   package: PackageNode,
@@ -166,7 +152,6 @@ const nodeTypes: Record<string, Component> = Object.freeze({
   method: SymbolNode,
 });
 
- 
 const edgeTypes: Record<string, Component> = Object.freeze({
   intraFolder: IntraFolderEdge,
 });
@@ -181,7 +166,7 @@ watch(
   () => {
     void core.graphLayout.requestGraphInitialization();
   },
-  { immediate: true }
+  { immediate: false }
 );
 
 watch(
@@ -203,6 +188,7 @@ onMounted(() => {
     nodeDimensionTracker.start(graphRootRef.value);
     initContainerCache(graphRootRef.value);
   }
+  void core.graphLayout.requestGraphInitialization();
   syncViewportState();
   void issuesStore.fetchIssues();
   void core.insightsStore.fetchInsights();
@@ -237,6 +223,7 @@ onUnmounted(() => {
     :data-selected-node-id="selectedNode?.id ?? ''"
     :data-hovered-node-id="hoveredNodeId ?? ''"
   >
+    <NodePremeasureHost :nodes="premeasureNodes" />
     <VueFlow
       :nodes="visualNodes"
       :edges="renderedEdges"
@@ -268,19 +255,12 @@ onUnmounted(() => {
       <Background />
       <GraphControls
         :relationship-availability="graphSettings.relationshipAvailability"
-        :canvas-renderer-available="canvasRendererAvailable"
         :graph-search-context="graphSearchContext"
         @relationship-filter-change="handleRelationshipFilterChange"
-        @node-type-filter-change="handleNodeTypeFilterChange"
-        @toggle-collapse-scc="handleCollapseSccToggle"
-        @toggle-cluster-folder="handleClusterByFolderToggle"
         @toggle-hide-test-files="handleHideTestFilesToggle"
-        @member-node-mode-change="handleMemberNodeModeChange"
         @toggle-orphan-global="handleOrphanGlobalToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
-        @rendering-strategy-change="handleRenderingStrategyChange"
-        @rendering-strategy-option-change="handleRenderingStrategyOptionChange"
       />
       <MiniMap
         v-if="showMiniMap && !isLayoutPending && !isLayoutMeasuring"
@@ -290,8 +270,8 @@ onUnmounted(() => {
         :node-color="minimapNodeColor"
         :node-stroke-color="minimapNodeStrokeColor"
         :node-stroke-width="2"
-        :mask-color="'rgba(7, 10, 18, 0.75)'"
-        :mask-stroke-color="'rgba(34, 211, 238, 0.6)'"
+        :mask-color="'var(--graph-minimap-mask)'"
+        :mask-stroke-color="'var(--graph-minimap-mask-stroke)'"
         :mask-stroke-width="1.5"
         aria-label="Graph minimap"
         @node-click="handleMinimapNodeClick"
@@ -344,30 +324,17 @@ onUnmounted(() => {
                 <polyline v-if="fpsChartPoints" :points="fpsChartPoints" class="fps-chart-line" />
               </svg>
               <div class="fps-chart-caption">Last {{ fpsStats.sampleCount }} samples</div>
-              <div class="fps-chart-caption">
-                Edge virtualization:
-                <template v-if="edgeVirtualizationRuntimeMode === 'worker'">
-                  worker (visible {{ edgeVirtualizationWorkerStats.lastVisibleCount }}, hidden
-                  {{ edgeVirtualizationWorkerStats.lastHiddenCount }}, stale
-                  {{ edgeVirtualizationWorkerStats.staleResponses }})
-                </template>
-                <template v-else>
-                  main-thread
-                </template>
-              </div>
             </div>
           </template>
         </div>
       </Panel>
-      <Panel v-if="isHybridCanvasMode" position="top-right" class="renderer-mode-panel">
-        <div class="renderer-mode-copy">Hybrid canvas edge renderer active</div>
-      </Panel>
-
       <Panel position="top-right" class="graph-stats-panel graph-stats-panel-slot">
         <details class="graph-stats-shell">
           <summary class="graph-stats-summary">
             <span>Graph Stats</span>
-            <span class="graph-stats-summary-metrics">{{ renderedNodeCount }} nodes · {{ renderedEdgeCount }} edges</span>
+            <span class="graph-stats-summary-metrics"
+              >{{ renderedNodeCount }} nodes · {{ renderedEdgeCount }} edges</span
+            >
           </summary>
           <div class="graph-stats-content">
             <dl class="graph-stats-overview">
@@ -382,31 +349,13 @@ onUnmounted(() => {
             </dl>
 
             <section class="graph-stats-section">
-              <h4>Collision</h4>
-              <ul class="graph-stats-list">
-                <li class="graph-stats-list-row">
-                  <span class="graph-stats-type">Cycles</span>
-                  <span class="graph-stats-count">{{ lastCollisionResult?.cyclesUsed ?? '--' }}</span>
-                </li>
-                <li class="graph-stats-list-row">
-                  <span class="graph-stats-type">Converged</span>
-                  <span class="graph-stats-count">{{ lastCollisionResult ? (lastCollisionResult.converged ? 'yes' : 'no') : '--' }}</span>
-                </li>
-                <li class="graph-stats-list-row">
-                  <span class="graph-stats-type">Moved</span>
-                  <span class="graph-stats-count">{{ lastCollisionResult?.updatedPositions.size ?? 0 }}</span>
-                </li>
-                <li class="graph-stats-list-row">
-                  <span class="graph-stats-type">Resized</span>
-                  <span class="graph-stats-count">{{ lastCollisionResult?.updatedSizes.size ?? 0 }}</span>
-                </li>
-              </ul>
-            </section>
-
-            <section class="graph-stats-section">
               <h4>Node Types</h4>
               <ul class="graph-stats-list">
-                <li v-for="entry in renderedNodeTypeCounts" :key="`node-type-${entry.type}`" class="graph-stats-list-row">
+                <li
+                  v-for="entry in renderedNodeTypeCounts"
+                  :key="`node-type-${entry.type}`"
+                  class="graph-stats-list-row"
+                >
                   <span class="graph-stats-type">{{ entry.type }}</span>
                   <span class="graph-stats-count">{{ entry.count }}</span>
                 </li>
@@ -416,7 +365,11 @@ onUnmounted(() => {
             <section class="graph-stats-section">
               <h4>Edge Types</h4>
               <ul v-if="renderedEdgeTypeCounts.length > 0" class="graph-stats-list">
-                <li v-for="entry in renderedEdgeTypeCounts" :key="`edge-type-${entry.type}`" class="graph-stats-list-row">
+                <li
+                  v-for="entry in renderedEdgeTypeCounts"
+                  :key="`edge-type-${entry.type}`"
+                  class="graph-stats-list-row"
+                >
                   <span class="graph-stats-type">{{ entry.type }}</span>
                   <span class="graph-stats-count">{{ entry.count }}</span>
                 </li>
@@ -441,25 +394,12 @@ onUnmounted(() => {
         <InsightsDashboard />
       </Panel>
     </VueFlow>
-    <CanvasEdgeLayer
-      v-if="isHybridCanvasMode"
-      :edges="edges"
-      :nodes="nodes"
-      :viewport="viewportState"
-      :highlighted-edge-ids="highlightedEdgeIdList"
-      :dim-non-highlighted="true"
-      class="absolute inset-0"
-      @canvas-unavailable="handleCanvasUnavailable"
-    />
     <DebugBoundsOverlay
-      v-if="(graphSettings.showDebugBounds || graphSettings.showDebugHandles || graphSettings.showDebugNodeIds) && !isLayoutPending && !isLayoutMeasuring"
+      v-if="graphSettings.showDebugNodeIds && !isLayoutPending && !isLayoutMeasuring"
       :nodes="nodes"
       :edges="renderedEdges"
       :viewport="viewportState"
-      :show-bounds="graphSettings.showDebugBounds"
-      :show-handles="graphSettings.showDebugHandles"
       :show-node-ids="graphSettings.showDebugNodeIds"
-      :collision-config="activeCollisionConfig"
       class="absolute inset-0"
     />
     <NodeDetails
@@ -557,8 +497,8 @@ onUnmounted(() => {
 }
 
 .dependency-graph-root :deep(.vue-flow__node.selection-target .base-node-container) {
-  border-color: #22d3ee !important;
-  outline: 2px solid rgba(34, 211, 238, 0.34);
+  border-color: var(--graph-selection-target-border) !important;
+  outline: 2px solid var(--graph-selection-target-outline);
   outline-offset: 0;
   box-shadow: 0 2px 6px rgba(2, 6, 23, 0.22) !important;
 }
@@ -569,8 +509,8 @@ onUnmounted(() => {
 }
 
 .dependency-graph-root :deep(.vue-flow__node.selection-connected .base-node-container) {
-  border-color: rgba(34, 211, 238, 0.5) !important;
-  outline: 1px solid rgba(34, 211, 238, 0.26);
+  border-color: var(--graph-selection-connected-border) !important;
+  outline: 1px solid var(--graph-selection-connected-outline);
   outline-offset: 0;
   box-shadow: 0 1px 4px rgba(2, 6, 23, 0.16) !important;
 }
@@ -584,7 +524,7 @@ onUnmounted(() => {
 /* Connected edges — highlighted with thicker stroke and increased opacity.
    Uses stroke-width for emphasis instead of expensive drop-shadow filter. */
 .dependency-graph-root :deep(.vue-flow__edge.edge-selection-highlighted .vue-flow__edge-path) {
-  stroke-width: 3px !important;
+  stroke-width: var(--graph-edge-width-highlighted) !important;
   stroke-opacity: 1 !important;
 }
 
@@ -596,10 +536,10 @@ onUnmounted(() => {
 @keyframes edge-hover-pulse {
   0%,
   100% {
-    stroke: var(--edge-hover-base-stroke, #404040);
+    stroke: var(--edge-hover-base-stroke, var(--graph-edge-default));
   }
   50% {
-    stroke: #facc15;
+    stroke: var(--graph-selection-hover-pulse);
   }
 }
 
@@ -609,8 +549,8 @@ onUnmounted(() => {
 }
 
 .dependency-graph-root :deep(.vue-flow__edge.edge-hover-highlighted .vue-flow__edge-path) {
-  stroke-width: 2.8px !important;
-  stroke: var(--edge-hover-base-stroke, #404040);
+  stroke-width: var(--graph-edge-width-hover) !important;
+  stroke: var(--edge-hover-base-stroke, var(--graph-edge-default));
   stroke-opacity: 1;
   animation: edge-hover-pulse 1.4s ease-in-out infinite;
 }
@@ -775,7 +715,7 @@ onUnmounted(() => {
 
 .fps-chart-line {
   fill: none;
-  stroke: #22d3ee;
+  stroke: var(--graph-fps-line);
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -796,15 +736,15 @@ onUnmounted(() => {
 }
 
 .fps-good {
-  color: #4ade80;
+  color: var(--graph-fps-good);
 }
 
 .fps-ok {
-  color: #fbbf24;
+  color: var(--graph-fps-ok);
 }
 
 .fps-low {
-  color: #f87171;
+  color: var(--graph-fps-low);
 }
 
 .graph-stats-panel-slot {
@@ -855,7 +795,7 @@ onUnmounted(() => {
 }
 
 .graph-stats-summary:focus-visible {
-  outline: 2px solid rgba(34, 211, 238, 0.65);
+  outline: 2px solid var(--graph-selection-connected-border);
   outline-offset: 2px;
 }
 

@@ -1,8 +1,8 @@
-import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
-import type { DependencyKind } from '../types/DependencyKind';
-import type { HandleCategory } from '../types/HandleCategory';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
+import type { HandleCategory } from '../../shared/types/graph/HandleCategory';
 
-export interface EdgeTypeDefinition {
+interface EdgeTypeDefinition {
   kind: DependencyEdgeKind;
   label: string;
   validSources: readonly DependencyKind[];
@@ -106,4 +106,3 @@ export function isValidEdgeConnection(
 export function getHandleCategory(kind: DependencyEdgeKind): HandleCategory {
   return EDGE_TYPE_REGISTRY[kind].handleCategory;
 }
-

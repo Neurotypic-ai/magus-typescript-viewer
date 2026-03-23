@@ -1,9 +1,8 @@
-import {
-  filterEdgesByNodeSet,
-  bundleParallelEdges,
-  applyEdgeVisibility,
-} from '../graphViewShared';
+import { describe, expect, it } from 'vitest';
 
+import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from '../graphViewShared';
+
+import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 
@@ -23,14 +22,14 @@ function makeEdge(
   id: string,
   source: string,
   target: string,
-  type?: GraphEdge['data']['type'],
-  extra?: Partial<GraphEdge['data']>,
+  type?: DependencyEdgeKind,
+  extra?: Partial<GraphEdge['data']>
 ): GraphEdge {
   return {
     id,
     source,
     target,
-    data: { type, ...extra },
+    data: { type: type ?? 'dependency', ...extra },
   };
 }
 
@@ -42,7 +41,7 @@ function makeEdge(
 function makeFiller(count: number, startIndex = 0): GraphEdge[] {
   return Array.from({ length: count }, (_, i) => {
     const idx = startIndex + i;
-    return makeEdge(`filler-${idx}`, `filler-src-${idx}`, `filler-tgt-${idx}`, 'import');
+    return makeEdge(`filler-${String(idx)}`, `filler-src-${String(idx)}`, `filler-tgt-${String(idx)}`, 'import');
   });
 }
 
@@ -61,7 +60,7 @@ describe('filterEdgesByNodeSet', () => {
 
     const result = filterEdgesByNodeSet(nodes, edges);
     expect(result).toHaveLength(1);
-    expect(result[0]!.id).toBe('e1');
+    expect(result[0]?.id).toBe('e1');
   });
 
   it('returns an empty array when no edges match', () => {
@@ -85,7 +84,7 @@ describe('filterEdgesByNodeSet', () => {
     const edges = [makeEdge('e1', 'a', 'a', 'uses')];
     const result = filterEdgesByNodeSet(nodes, edges);
     expect(result).toHaveLength(1);
-    expect(result[0]!.id).toBe('e1');
+    expect(result[0]?.id).toBe('e1');
   });
 
   it('does not filter by edge type or data — only node membership', () => {
@@ -104,10 +103,7 @@ describe('filterEdgesByNodeSet', () => {
 
 describe('bundleParallelEdges', () => {
   it('returns edges unchanged when count is below 50', () => {
-    const edges = [
-      makeEdge('e1', 'a', 'b', 'import'),
-      makeEdge('e2', 'a', 'b', 'extends'),
-    ];
+    const edges = [makeEdge('e1', 'a', 'b', 'import'), makeEdge('e2', 'a', 'b', 'extends')];
     const result = bundleParallelEdges(edges);
     expect(result).toBe(edges); // exact same reference — early return
   });
@@ -136,34 +132,28 @@ describe('bundleParallelEdges', () => {
     const edges = [...parallelEdges, ...makeFiller(47)];
 
     const result = bundleParallelEdges(edges);
-    const bundled = result.find(
-      (e) => e.source === 'a' && e.target === 'b',
-    );
+    const bundled = result.find((e) => e.source === 'a' && e.target === 'b');
 
     expect(bundled).toBeDefined();
-    expect(bundled!.data?.bundledCount).toBe(3);
-    expect(bundled!.data?.bundledTypes).toEqual(
-      expect.arrayContaining(['import', 'extends', 'implements']),
-    );
-    expect(bundled!.data?.bundledTypes).toHaveLength(3);
+    expect(bundled?.data?.bundledCount).toBe(3);
+    expect(bundled?.data?.bundledTypes).toEqual(expect.arrayContaining(['import', 'extends', 'implements']));
+    expect(bundled?.data?.bundledTypes).toHaveLength(3);
   });
 
   it('picks the highest-priority edge type as the representative', () => {
     // Priority: contains=5, inheritance=4, implements=3, import=1
     const parallelEdges = [
-      makeEdge('e1', 'a', 'b', 'import'),      // priority 1
-      makeEdge('e2', 'a', 'b', 'inheritance'),  // priority 4
-      makeEdge('e3', 'a', 'b', 'implements'),   // priority 3
+      makeEdge('e1', 'a', 'b', 'import'), // priority 1
+      makeEdge('e2', 'a', 'b', 'inheritance'), // priority 4
+      makeEdge('e3', 'a', 'b', 'implements'), // priority 3
     ];
     const edges = [...parallelEdges, ...makeFiller(47)];
 
     const result = bundleParallelEdges(edges);
-    const bundled = result.find(
-      (e) => e.source === 'a' && e.target === 'b',
-    );
+    const bundled = result.find((e) => e.source === 'a' && e.target === 'b');
 
     // Representative should be the highest-priority: 'inheritance'
-    expect(bundled!.data?.type).toBe('inheritance');
+    expect(bundled?.data?.type).toBe('inheritance');
   });
 
   it('does NOT bundle highway segment edges', () => {
@@ -175,22 +165,17 @@ describe('bundleParallelEdges', () => {
 
     const result = bundleParallelEdges(edges);
     // Both highway edges should be preserved as separate entries
-    const abEdges = result.filter(
-      (e) => e.source === 'a' && e.target === 'b',
-    );
+    const abEdges = result.filter((e) => e.source === 'a' && e.target === 'b');
     expect(abEdges).toHaveLength(2);
   });
 
   it('leaves single edges in a group untouched', () => {
-    const edges = [
-      makeEdge('e1', 'a', 'b', 'import'),
-      ...makeFiller(49),
-    ];
+    const edges = [makeEdge('e1', 'a', 'b', 'import'), ...makeFiller(49)];
 
     const result = bundleParallelEdges(edges);
     const solo = result.find((e) => e.id === 'e1');
     expect(solo).toBeDefined();
-    expect(solo!.data?.bundledCount).toBeUndefined();
+    expect(solo?.data?.bundledCount).toBeUndefined();
   });
 
   it('sets hidden=false when any edge in the group is visible', () => {
@@ -202,10 +187,8 @@ describe('bundleParallelEdges', () => {
     const edges = [...parallelEdges, ...makeFiller(47)];
 
     const result = bundleParallelEdges(edges);
-    const bundled = result.find(
-      (e) => e.source === 'a' && e.target === 'b',
-    );
-    expect(bundled!.hidden).toBe(false);
+    const bundled = result.find((e) => e.source === 'a' && e.target === 'b');
+    expect(bundled?.hidden).toBe(false);
   });
 
   it('sets hidden=true when all edges in the group are hidden', () => {
@@ -216,10 +199,8 @@ describe('bundleParallelEdges', () => {
     const edges = [...parallelEdges, ...makeFiller(48)];
 
     const result = bundleParallelEdges(edges);
-    const bundled = result.find(
-      (e) => e.source === 'a' && e.target === 'b',
-    );
-    expect(bundled!.hidden).toBe(true);
+    const bundled = result.find((e) => e.source === 'a' && e.target === 'b');
+    expect(bundled?.hidden).toBe(true);
   });
 
   it('handles empty edge array', () => {
@@ -236,14 +217,10 @@ describe('bundleParallelEdges', () => {
     const edges = [...parallelEdges, ...makeFiller(47)];
 
     const result = bundleParallelEdges(edges);
-    const bundled = result.find(
-      (e) => e.source === 'a' && e.target === 'b',
-    );
-    expect(bundled!.data?.bundledTypes).toEqual(
-      expect.arrayContaining(['import', 'extends']),
-    );
-    expect(bundled!.data?.bundledTypes).toHaveLength(2);
-    expect(bundled!.data?.bundledCount).toBe(3);
+    const bundled = result.find((e) => e.source === 'a' && e.target === 'b');
+    expect(bundled?.data?.bundledTypes).toEqual(expect.arrayContaining(['import', 'extends']));
+    expect(bundled?.data?.bundledTypes).toHaveLength(2);
+    expect(bundled?.data?.bundledCount).toBe(3);
   });
 
   it('handles edges with undefined type in bundledTypes filtering', () => {
@@ -254,12 +231,10 @@ describe('bundleParallelEdges', () => {
     const edges = [...parallelEdges, ...makeFiller(48)];
 
     const result = bundleParallelEdges(edges);
-    const bundled = result.find(
-      (e) => e.source === 'a' && e.target === 'b',
-    );
+    const bundled = result.find((e) => e.source === 'a' && e.target === 'b');
     // undefined types should be filtered out of bundledTypes
-    expect(bundled!.data?.bundledTypes).toEqual(['import']);
-    expect(bundled!.data?.bundledCount).toBe(2);
+    expect(bundled?.data?.bundledTypes).toEqual(['import']);
+    expect(bundled?.data?.bundledCount).toBe(2);
   });
 
   it('bundles multiple independent groups separately', () => {
@@ -275,16 +250,12 @@ describe('bundleParallelEdges', () => {
     const abBundle = result.find((e) => e.source === 'a' && e.target === 'b');
     const cdBundle = result.find((e) => e.source === 'c' && e.target === 'd');
 
-    expect(abBundle!.data?.bundledCount).toBe(2);
-    expect(cdBundle!.data?.bundledCount).toBe(2);
+    expect(abBundle?.data?.bundledCount).toBe(2);
+    expect(cdBundle?.data?.bundledCount).toBe(2);
   });
 
   it('does not bundle edges with same source but different target', () => {
-    const edges = [
-      makeEdge('e1', 'a', 'b', 'import'),
-      makeEdge('e2', 'a', 'c', 'import'),
-      ...makeFiller(48),
-    ];
+    const edges = [makeEdge('e1', 'a', 'b', 'import'), makeEdge('e2', 'a', 'c', 'import'), ...makeFiller(48)];
 
     const result = bundleParallelEdges(edges);
     const ab = result.find((e) => e.source === 'a' && e.target === 'b');
@@ -292,16 +263,12 @@ describe('bundleParallelEdges', () => {
 
     expect(ab).toBeDefined();
     expect(ac).toBeDefined();
-    expect(ab!.data?.bundledCount).toBeUndefined();
-    expect(ac!.data?.bundledCount).toBeUndefined();
+    expect(ab?.data?.bundledCount).toBeUndefined();
+    expect(ac?.data?.bundledCount).toBeUndefined();
   });
 
   it('treats edges a->b and b->a as different groups (direction matters)', () => {
-    const edges = [
-      makeEdge('e1', 'a', 'b', 'import'),
-      makeEdge('e2', 'b', 'a', 'import'),
-      ...makeFiller(48),
-    ];
+    const edges = [makeEdge('e1', 'a', 'b', 'import'), makeEdge('e2', 'b', 'a', 'import'), ...makeFiller(48)];
 
     const result = bundleParallelEdges(edges);
     const ab = result.find((e) => e.source === 'a' && e.target === 'b');
@@ -310,8 +277,8 @@ describe('bundleParallelEdges', () => {
     expect(ab).toBeDefined();
     expect(ba).toBeDefined();
     // Both are solo edges, so no bundling metadata
-    expect(ab!.data?.bundledCount).toBeUndefined();
-    expect(ba!.data?.bundledCount).toBeUndefined();
+    expect(ab?.data?.bundledCount).toBeUndefined();
+    expect(ba?.data?.bundledCount).toBeUndefined();
   });
 });
 
@@ -323,31 +290,31 @@ describe('applyEdgeVisibility', () => {
   it('shows edges whose type is in the enabled set', () => {
     const edges = [makeEdge('e1', 'a', 'b', 'import')];
     const result = applyEdgeVisibility(edges, ['import']);
-    expect(result[0]!.hidden).toBe(false);
+    expect(result[0]?.hidden).toBe(false);
   });
 
   it('hides edges whose type is not in the enabled set', () => {
     const edges = [makeEdge('e1', 'a', 'b', 'import')];
     const result = applyEdgeVisibility(edges, ['extends']);
-    expect(result[0]!.hidden).toBe(true);
+    expect(result[0]?.hidden).toBe(true);
   });
 
   it('always shows "uses" edges regardless of enabled types', () => {
     const edges = [makeEdge('e1', 'a', 'b', 'uses')];
     const result = applyEdgeVisibility(edges, []);
-    expect(result[0]!.hidden).toBe(false);
+    expect(result[0]?.hidden).toBe(false);
   });
 
   it('always shows "contains" edges regardless of enabled types', () => {
     const edges = [makeEdge('e1', 'a', 'b', 'contains')];
     const result = applyEdgeVisibility(edges, []);
-    expect(result[0]!.hidden).toBe(false);
+    expect(result[0]?.hidden).toBe(false);
   });
 
   it('shows edges with no type (undefined)', () => {
     const edges = [makeEdge('e1', 'a', 'b', undefined)];
     const result = applyEdgeVisibility(edges, []);
-    expect(result[0]!.hidden).toBe(false);
+    expect(result[0]?.hidden).toBe(false);
   });
 
   it('handles an empty enabled list — only uses/contains/untyped remain visible', () => {
@@ -360,11 +327,11 @@ describe('applyEdgeVisibility', () => {
     ];
     const result = applyEdgeVisibility(edges, []);
 
-    expect(result[0]!.hidden).toBe(true);   // import
-    expect(result[1]!.hidden).toBe(true);   // extends
-    expect(result[2]!.hidden).toBe(false);  // uses
-    expect(result[3]!.hidden).toBe(false);  // contains
-    expect(result[4]!.hidden).toBe(false);  // undefined type
+    expect(result[0]?.hidden).toBe(true); // import
+    expect(result[1]?.hidden).toBe(true); // extends
+    expect(result[2]?.hidden).toBe(false); // uses
+    expect(result[3]?.hidden).toBe(false); // contains
+    expect(result[4]?.hidden).toBe(false); // undefined type
   });
 
   it('handles empty edges array', () => {
@@ -386,10 +353,10 @@ describe('applyEdgeVisibility', () => {
     ];
     const result = applyEdgeVisibility(edges, ['import', 'extends']);
 
-    expect(result[0]!.hidden).toBe(false);  // import — enabled
-    expect(result[1]!.hidden).toBe(false);  // extends — enabled
-    expect(result[2]!.hidden).toBe(true);   // implements — not enabled
-    expect(result[3]!.hidden).toBe(true);   // dependency — not enabled
+    expect(result[0]?.hidden).toBe(false); // import — enabled
+    expect(result[1]?.hidden).toBe(false); // extends — enabled
+    expect(result[2]?.hidden).toBe(true); // implements — not enabled
+    expect(result[3]?.hidden).toBe(true); // dependency — not enabled
   });
 
   it('preserves all other edge properties', () => {
@@ -397,10 +364,10 @@ describe('applyEdgeVisibility', () => {
     edge.pathOptions = { offset: 10, borderRadius: 5 };
     const result = applyEdgeVisibility([edge], ['import']);
 
-    expect(result[0]!.id).toBe('e1');
-    expect(result[0]!.source).toBe('a');
-    expect(result[0]!.target).toBe('b');
-    expect(result[0]!.data?.type).toBe('import');
-    expect(result[0]!.pathOptions).toEqual({ offset: 10, borderRadius: 5 });
+    expect(result[0]?.id).toBe('e1');
+    expect(result[0]?.source).toBe('a');
+    expect(result[0]?.target).toBe('b');
+    expect(result[0]?.data?.type).toBe('import');
+    expect(result[0]?.pathOptions).toEqual({ offset: 10, borderRadius: 5 });
   });
 });

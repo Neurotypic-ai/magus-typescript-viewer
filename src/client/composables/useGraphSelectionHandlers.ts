@@ -1,16 +1,17 @@
 import type { Ref } from 'vue';
-import type { CameraMode } from './useGraphInteractionController';
-import type { FitView } from './useGraphLayout';
+
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { CameraMode } from './useGraphInteractionController';
+import type { FitView } from './useGraphLayout';
 
-export interface SelectionHandlerState {
+interface SelectionHandlerState {
   selectedNode: Ref<DependencyNode | null>;
   hoveredNodeId: Ref<string | null>;
   contextMenu: Ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>;
 }
 
-export interface SelectionHandlerActions {
+interface SelectionHandlerActions {
   setSelectedNode: (node: DependencyNode | null) => void;
   clearHoverState: () => void;
   applyHoverEdgeHighlight: (nodeId: string | null) => void;
@@ -18,16 +19,16 @@ export interface SelectionHandlerActions {
   elevateNodeAndChildren: (nodeId: string) => void;
 }
 
-export interface SelectionHandlerGraphSettings {
+interface SelectionHandlerGraphSettings {
   showFps: boolean;
   setShowFps: (value: boolean) => void;
 }
 
-export interface SelectionHandlerInteraction {
+interface SelectionHandlerInteraction {
   setCameraMode: (mode: CameraMode) => void;
 }
 
-export interface UseGraphSelectionHandlersOptions {
+interface UseGraphSelectionHandlersOptions {
   state: SelectionHandlerState;
   actions: SelectionHandlerActions;
   graphSettings: SelectionHandlerGraphSettings;
@@ -36,10 +37,9 @@ export interface UseGraphSelectionHandlersOptions {
   edges: Ref<GraphEdge[]>;
   fitView: FitView;
   syncViewportState: () => void;
-  requestViewportRecalc: (force?: boolean) => void;
 }
 
-export interface GraphSelectionHandlers {
+interface GraphSelectionHandlers {
   onNodeClick: (params: { node: unknown }) => void;
   onPaneClick: () => void;
   handleKeyDown: (event: KeyboardEvent) => void;
@@ -48,8 +48,7 @@ export interface GraphSelectionHandlers {
 }
 
 export function useGraphSelectionHandlers(options: UseGraphSelectionHandlersOptions): GraphSelectionHandlers {
-  const { state, actions, graphSettings, interaction, nodes, edges, fitView, syncViewportState, requestViewportRecalc } =
-    options;
+  const { state, actions, graphSettings, interaction, nodes, edges, fitView, syncViewportState } = options;
 
   const onNodeClick = ({ node }: { node: unknown }): void => {
     const clickedNode = node as DependencyNode;
@@ -74,7 +73,8 @@ export function useGraphSelectionHandlers(options: UseGraphSelectionHandlersOpti
     ) {
       event.preventDefault();
       const connectedEdges = edges.value.filter(
-        (edge: GraphEdge) => edge.source === state.selectedNode.value?.id || edge.target === state.selectedNode.value?.id
+        (edge: GraphEdge) =>
+          edge.source === state.selectedNode.value?.id || edge.target === state.selectedNode.value?.id
       );
       if (connectedEdges.length > 0) {
         let nextNodeId: string | undefined;
@@ -97,7 +97,6 @@ export function useGraphSelectionHandlers(options: UseGraphSelectionHandlersOpti
             actions.setSelectedNode(nextNode);
             void fitView({ nodes: [nextNode.id], duration: 150, padding: 0.5 }).then(() => {
               syncViewportState();
-              requestViewportRecalc(true);
             });
           }
         }

@@ -1,5 +1,6 @@
-import { createPinia } from 'pinia';
 import { createApp } from 'vue';
+
+import { createPinia } from 'pinia';
 
 import App from './client/App.vue';
 import { initializePerformanceMonitoring } from './client/utils/performanceMonitoring';

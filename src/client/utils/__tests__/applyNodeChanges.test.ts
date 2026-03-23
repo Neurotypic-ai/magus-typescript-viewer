@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { NodeChange } from '@vue-flow/core';
 
 import { applyNodeChanges } from '../applyNodeChanges';
+
+import type { NodeChange } from '@vue-flow/core';
 
 interface TestNode {
   id: string;

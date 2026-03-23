@@ -5,68 +5,9 @@ import { BaseRepository } from './BaseRepository';
 import type { DuckDBValue } from '@duckdb/node-api';
 
 import type { FileLocation } from '../../../shared/types/FileLocation';
+import type { IModuleCreateDTO, IModuleUpdateDTO } from '../../../shared/types/dto/ModuleDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IModuleRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new module.
- */
-export interface IModuleCreateDTO {
-  /**
-   * The unique identifier for the module.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The name of the module.
-   */
-  name: string;
-
-  /**
-   * The source location information for this module.
-   */
-  source: FileLocation;
-
-  /**
-   * Number of lines of code in the source file.
-   */
-  line_count?: number;
-}
-
-interface IModuleUpdateDTO {
-  name?: string;
-  source?: FileLocation;
-}
-
-/**
- * Repository interface for managing modules.
- */
-export interface IModuleRepository {
-  /**
-   * Creates a new module.
-   */
-  create(dto: IModuleCreateDTO): Promise<Module>;
-
-  /**
-   * Finds a module by its ID.
-   */
-  findById(id: string): Promise<IModuleCreateDTO | null>;
-
-  /**
-   * Finds all modules in a package.
-   */
-  findByPackageId(packageId: string): Promise<IModuleCreateDTO[]>;
-
-  /**
-   * Deletes a module by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
 
 export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, IModuleUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
@@ -89,7 +30,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
         dto.source.directory,
         dto.source.filename,
         dto.source.relativePath,
-        Boolean(dto.source.isBarrel ?? false) ? 1 : 0,
+        (dto.source.isBarrel ?? false) ? 1 : 0,
         dto.line_count ?? 0,
       ]
     );
@@ -110,7 +51,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
           dto.source.directory,
           dto.source.filename,
           dto.source.relativePath,
-          Boolean(dto.source.isBarrel ?? false) ? 1 : 0,
+          (dto.source.isBarrel ?? false) ? 1 : 0,
           dto.line_count ?? 0,
         ]
       );
@@ -170,7 +111,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
         this.logger.warn(`Failed to parse source JSON for module ${mod.id}, creating fallback`, error);
         source = {
           directory: String(mod['directory'] ?? ''),
-          name: String(mod.name),
+          name: mod.name,
           filename: String(mod['filename'] ?? ''),
           relativePath: String(mod['relative_path'] ?? ''),
         };
@@ -179,18 +120,18 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
       // Create fallback FileLocation from denormalized fields
       source = {
         directory: String(mod['directory'] ?? ''),
-        name: String(mod.name),
+        name: mod.name,
         filename: String(mod['filename'] ?? ''),
         relativePath: String(mod['relative_path'] ?? ''),
       };
     }
 
     return new Module(
-      String(mod.id),
-      String(mod.package_id),
-      String(mod.name),
+      mod.id,
+      mod.package_id,
+      mod.name,
       source,
-      new Date(String(mod.created_at)),
+      mod.created_at,
       new Map(), // classes
       new Map(), // interfaces
       new Map(), // imports

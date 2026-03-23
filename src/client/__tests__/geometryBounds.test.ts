@@ -1,10 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import {
-  parseDimension,
-  resolveNodeDimensions,
-  buildAbsoluteNodeBoundsMap,
-} from '../layout/geometryBounds';
+import { buildAbsoluteNodeBoundsMap, parseDimension, resolveNodeDimensions } from '../layout/geometryBounds';
 
 import type { BoundsDefaults, BoundsNode } from '../layout/geometryBounds';
 
@@ -120,4 +116,3 @@ describe('buildAbsoluteNodeBoundsMap', () => {
     expect(map.has('n2')).toBe(true);
   });
 });
-

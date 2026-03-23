@@ -1,26 +1,19 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn adapter methods */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { TypeAlias } from '../../../../shared/types/TypeAlias';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { TypeAliasRepository } from '../TypeAliasRepository';
 
-import type { ITypeAliasCreateDTO, ITypeAliasRow } from '../TypeAliasRepository';
-import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
+import type { ITypeAliasCreateDTO } from '../../../../shared/types/dto/TypeAliasDTO';
+import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
+import type { ITypeAliasRow } from '../../types/DatabaseResults';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    query: vi.fn<() => Promise<QueryResult>>().mockResolvedValue([]),
-    close: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    transaction: vi.fn<() => Promise<unknown>>(),
-    getDbPath: vi.fn<() => string>().mockReturnValue(':memory:'),
-  };
-}
 
 function makeRow(overrides: Partial<ITypeAliasRow> = {}): ITypeAliasRow {
   return {
@@ -55,7 +48,7 @@ describe('TypeAliasRepository', () => {
   let repo: TypeAliasRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new TypeAliasRepository(adapter);
   });
 
@@ -75,8 +68,8 @@ describe('TypeAliasRepository', () => {
       expect(result.module_id).toBe('mod-uuid-1');
       expect(result.name).toBe('MyType');
       expect(result.type).toBe('string | number');
-      expect(result.typeParameters).toEqual([]);
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.type_parameters).toEqual([]);
+      expect(result.created_at).toBeTypeOf('string');
     });
 
     it('passes the correct SQL and parameters to the adapter', async () => {
@@ -85,10 +78,14 @@ describe('TypeAliasRepository', () => {
 
       await repo.create(makeCreateDTO());
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO type_aliases'),
-        ['ta-uuid-1', 'pkg-uuid-1', 'mod-uuid-1', 'MyType', 'string | number', null]
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO type_aliases'), [
+        'ta-uuid-1',
+        'pkg-uuid-1',
+        'mod-uuid-1',
+        'MyType',
+        'string | number',
+        null,
+      ]);
     });
 
     it('passes type_parameters_json when provided', async () => {
@@ -98,11 +95,15 @@ describe('TypeAliasRepository', () => {
       const dto = makeCreateDTO({ type_parameters_json: '["T","U"]' });
       const result = await repo.create(dto);
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO type_aliases'),
-        ['ta-uuid-1', 'pkg-uuid-1', 'mod-uuid-1', 'MyType', 'string | number', '["T","U"]']
-      );
-      expect(result.typeParameters).toEqual(['T', 'U']);
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO type_aliases'), [
+        'ta-uuid-1',
+        'pkg-uuid-1',
+        'mod-uuid-1',
+        'MyType',
+        'string | number',
+        '["T","U"]',
+      ]);
+      expect(result.type_parameters).toEqual(['T', 'U']);
     });
 
     it('throws RepositoryError when the insert returns no row', async () => {
@@ -149,8 +150,8 @@ describe('TypeAliasRepository', () => {
       // First bulk call fails with duplicate
       vi.mocked(adapter.query)
         .mockRejectedValueOnce(new Error('UNIQUE constraint failed'))
-        .mockResolvedValueOnce([])   // individual insert #1
-        .mockResolvedValueOnce([]);  // individual insert #2
+        .mockResolvedValueOnce([]) // individual insert #1
+        .mockResolvedValueOnce([]); // individual insert #2
 
       const items: ITypeAliasCreateDTO[] = [
         makeCreateDTO({ id: 'ta-1', name: 'TypeA' }),
@@ -167,8 +168,8 @@ describe('TypeAliasRepository', () => {
       // Bulk fails with duplicate
       vi.mocked(adapter.query)
         .mockRejectedValueOnce(new Error('Duplicate entry'))
-        .mockRejectedValueOnce(new Error('Duplicate entry'))  // individual #1 also duplicate
-        .mockResolvedValueOnce([]);  // individual #2 succeeds
+        .mockRejectedValueOnce(new Error('Duplicate entry')) // individual #1 also duplicate
+        .mockResolvedValueOnce([]); // individual #2 succeeds
 
       const items: ITypeAliasCreateDTO[] = [
         makeCreateDTO({ id: 'ta-1', name: 'TypeA' }),
@@ -197,9 +198,7 @@ describe('TypeAliasRepository', () => {
     it('rethrows non-duplicate errors from bulk insert', async () => {
       vi.mocked(adapter.query).mockRejectedValueOnce(new Error('Connection lost'));
 
-      const items: ITypeAliasCreateDTO[] = [
-        makeCreateDTO({ id: 'ta-1', name: 'TypeA' }),
-      ];
+      const items: ITypeAliasCreateDTO[] = [makeCreateDTO({ id: 'ta-1', name: 'TypeA' })];
 
       await expect(repo.createBatch(items)).rejects.toThrow('Connection lost');
     });
@@ -218,10 +217,10 @@ describe('TypeAliasRepository', () => {
       expect(result).toBeInstanceOf(TypeAlias);
       expect(result.name).toBe('RenamedType');
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE type_aliases SET name = ?'),
-        ['RenamedType', 'ta-uuid-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE type_aliases SET name = ?'), [
+        'RenamedType',
+        'ta-uuid-1',
+      ]);
     });
 
     it('updates type and returns the updated entity', async () => {
@@ -231,10 +230,10 @@ describe('TypeAliasRepository', () => {
       const result = await repo.update('ta-uuid-1', { type: 'boolean' });
 
       expect(result.type).toBe('boolean');
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE type_aliases SET type = ?'),
-        ['boolean', 'ta-uuid-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE type_aliases SET type = ?'), [
+        'boolean',
+        'ta-uuid-1',
+      ]);
     });
 
     it('updates type_parameters_json', async () => {
@@ -243,7 +242,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.update('ta-uuid-1', { type_parameters_json: '["K","V"]' });
 
-      expect(result.typeParameters).toEqual(['K', 'V']);
+      expect(result.type_parameters).toEqual(['K', 'V']);
     });
 
     it('builds SET clause for multiple fields', async () => {
@@ -272,10 +271,9 @@ describe('TypeAliasRepository', () => {
       expect(result).toBeInstanceOf(TypeAlias);
       expect(result.id).toBe('ta-uuid-1');
       // Should have called SELECT (retrieveById), not UPDATE
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT * FROM type_aliases WHERE id = ?'),
-        ['ta-uuid-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('SELECT * FROM type_aliases WHERE id = ?'), [
+        'ta-uuid-1',
+      ]);
     });
 
     it('throws RepositoryError when empty DTO and entity not found', async () => {
@@ -303,10 +301,9 @@ describe('TypeAliasRepository', () => {
 
       expect(result).toBeInstanceOf(TypeAlias);
       expect(result?.id).toBe('ta-uuid-1');
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT * FROM type_aliases WHERE id = ?'),
-        ['ta-uuid-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('SELECT * FROM type_aliases WHERE id = ?'), [
+        'ta-uuid-1',
+      ]);
     });
 
     it('returns undefined when not found', async () => {
@@ -323,10 +320,7 @@ describe('TypeAliasRepository', () => {
   // -----------------------------------------------------------------------
   describe('retrieveByModuleId', () => {
     it('returns an array of TypeAlias entities', async () => {
-      const rows = [
-        makeRow({ id: 'ta-1', name: 'Alpha' }),
-        makeRow({ id: 'ta-2', name: 'Beta' }),
-      ];
+      const rows = [makeRow({ id: 'ta-1', name: 'Alpha' }), makeRow({ id: 'ta-2', name: 'Beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieveByModuleId('mod-uuid-1');
@@ -342,10 +336,7 @@ describe('TypeAliasRepository', () => {
 
       await repo.retrieveByModuleId('mod-uuid-1');
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE module_id = ?'),
-        ['mod-uuid-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('WHERE module_id = ?'), ['mod-uuid-1']);
     });
 
     it('returns an empty array when no rows match', async () => {
@@ -362,19 +353,16 @@ describe('TypeAliasRepository', () => {
   // -----------------------------------------------------------------------
   describe('retrieveByModuleIds', () => {
     it('returns type aliases for multiple module IDs', async () => {
-      const rows = [
-        makeRow({ id: 'ta-1', module_id: 'mod-1' }),
-        makeRow({ id: 'ta-2', module_id: 'mod-2' }),
-      ];
+      const rows = [makeRow({ id: 'ta-1', module_id: 'mod-1' }), makeRow({ id: 'ta-2', module_id: 'mod-2' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieveByModuleIds(['mod-1', 'mod-2']);
 
       expect(results).toHaveLength(2);
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE module_id IN (?, ?)'),
-        ['mod-1', 'mod-2']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('WHERE module_id IN (?, ?)'), [
+        'mod-1',
+        'mod-2',
+      ]);
     });
 
     it('returns an empty array immediately for empty input', async () => {
@@ -389,10 +377,7 @@ describe('TypeAliasRepository', () => {
 
       await repo.retrieveByModuleIds(['mod-1']);
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE module_id IN (?)'),
-        ['mod-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('WHERE module_id IN (?)'), ['mod-1']);
     });
   });
 
@@ -401,10 +386,7 @@ describe('TypeAliasRepository', () => {
   // -----------------------------------------------------------------------
   describe('retrieve', () => {
     it('returns all type aliases ordered by name', async () => {
-      const rows = [
-        makeRow({ id: 'ta-1', name: 'Alpha' }),
-        makeRow({ id: 'ta-2', name: 'Beta' }),
-      ];
+      const rows = [makeRow({ id: 'ta-1', name: 'Alpha' }), makeRow({ id: 'ta-2', name: 'Beta' })];
       vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const results = await repo.retrieve();
@@ -435,10 +417,9 @@ describe('TypeAliasRepository', () => {
 
       await repo.delete('ta-uuid-1');
 
-      expect(adapter.query).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM type_aliases WHERE id = ?'),
-        ['ta-uuid-1']
-      );
+      expect(adapter.query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM type_aliases WHERE id = ?'), [
+        'ta-uuid-1',
+      ]);
     });
   });
 
@@ -452,7 +433,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual(['T', 'U', 'V']);
+      expect(result?.type_parameters).toEqual(['T', 'U', 'V']);
     });
 
     it('returns empty array when type_parameters_json is null', async () => {
@@ -461,7 +442,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual([]);
+      expect(result?.type_parameters).toEqual([]);
     });
 
     it('returns empty array for invalid JSON in type_parameters_json', async () => {
@@ -470,7 +451,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual([]);
+      expect(result?.type_parameters).toEqual([]);
     });
 
     it('filters out non-string values from type_parameters_json', async () => {
@@ -479,7 +460,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual(['T', 'U']);
+      expect(result?.type_parameters).toEqual(['T', 'U']);
     });
 
     it('returns empty array when type_parameters_json is a non-array JSON value', async () => {
@@ -488,7 +469,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual([]);
+      expect(result?.type_parameters).toEqual([]);
     });
 
     it('converts created_at string to a Date object', async () => {
@@ -497,8 +478,8 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.created_at).toBeInstanceOf(Date);
-      expect(result?.created_at.toISOString()).toBe('2025-06-15T12:30:00.000Z');
+      expect(result?.created_at).toBeTypeOf('string');
+      expect(result?.created_at).toBe('2025-06-15T12:30:00.000Z');
     });
   });
 });

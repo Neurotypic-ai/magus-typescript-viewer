@@ -5,84 +5,9 @@ import { DependencyRepository } from './DependencyRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { IPackageCreateDTO, IPackageUpdateDTO } from '../../../shared/types/dto/PackageDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IPackageRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new package.
- */
-export interface IPackageCreateDTO {
-  /**
-   * The unique identifier for the package.
-   */
-  id: string;
-
-  /**
-   * The name of the package.
-   */
-  name: string;
-
-  /**
-   * The version of the package.
-   */
-  version: string;
-
-  /**
-   * The path to the package.
-   */
-  path: string;
-
-  /**
-   * The dependencies of the package.
-   */
-  dependencies?: Map<string, string>;
-
-  /**
-   * The dev dependencies of the package.
-   */
-  devDependencies?: Map<string, string>;
-
-  /**
-   * The peer dependencies of the package.
-   */
-  peerDependencies?: Map<string, string>;
-}
-
-interface IPackageUpdateDTO {
-  name?: string;
-  version?: string;
-  path?: string;
-}
-
-/**
- * Repository interface for managing packages.
- */
-export interface IPackageRepository {
-  /**
-   * Creates a new package.
-   */
-  create(dto: IPackageCreateDTO): Promise<Package>;
-
-  /**
-   * Updates a package.
-   */
-  update(id: string, dto: IPackageUpdateDTO): Promise<Package>;
-
-  /**
-   * Finds a package by its ID.
-   */
-  findById(id: string): Promise<Package | null>;
-
-  /**
-   * Finds all packages.
-   */
-  findAll(): Promise<IPackageCreateDTO[]>;
-
-  /**
-   * Deletes a package by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
 
 export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO, IPackageUpdateDTO> {
   private dependencyRepository: DependencyRepository;
@@ -163,7 +88,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         pkg.name,
         pkg.version,
         pkg.path,
-        new Date(pkg.created_at),
+        pkg.created_at,
         new Map(),
         new Map(),
         new Map(),
@@ -226,7 +151,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
 
       // Best-effort: do not recursively hydrate dependent packages to avoid cycles and heavy queries
       for (const row of dependencyRows) {
-        const placeholder = new Package(String(row.target_id), '', '', '', new Date());
+        const placeholder = new Package(row.target_id, '', '', '', new Date().toISOString());
         switch (row.type) {
           case 'dependency':
             dependencies.set(placeholder.id, placeholder);
@@ -241,11 +166,11 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
       }
 
       return new Package(
-        String(pkg.id),
-        String(pkg.name),
-        String(pkg.version),
-        String(pkg.path),
-        new Date(String(pkg.created_at)),
+        pkg.id,
+        pkg.name,
+        pkg.version,
+        pkg.path,
+        pkg.created_at,
         dependencies,
         devDependencies,
         peerDependencies,
@@ -254,11 +179,11 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
     } catch (error) {
       this.logger.error('Dependency hydration failed, returning package without dependencies', error as Error);
       return new Package(
-        String(pkg.id),
-        String(pkg.name),
-        String(pkg.version),
-        String(pkg.path),
-        new Date(String(pkg.created_at)),
+        pkg.id,
+        pkg.name,
+        pkg.version,
+        pkg.path,
+        pkg.created_at,
         new Map(),
         new Map(),
         new Map(),

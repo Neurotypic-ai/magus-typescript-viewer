@@ -1,17 +1,16 @@
-import type { DefaultEdgeOptions, NodeChange } from '@vue-flow/core';
+import type { NodeChange } from '@vue-flow/core';
 import type { ComputedRef, Ref } from 'vue';
 
+import type { PackageGraph } from '../../shared/types/Package';
 import type { FolderCollapseActions, NodeActions } from '../components/nodes/utils';
-import type { CollisionConfig, CollisionResult } from '../layout/collisionResolver';
-import type { RenderingStrategyId } from '../rendering/RenderingStrategy';
 import type { useGraphSettings } from '../stores/graphSettings';
 import type { useInsightsStore } from '../stores/insightsStore';
 import type { useIssuesStore } from '../stores/issuesStore';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { SearchResult } from '../types/SearchResult';
 import type { LayoutProcessOptions } from './useGraphLayout';
+import type { NodePremeasure } from './nodePremeasureTypes';
 
 /** Type for graph/edge stat count entries (avoids exporting local interface). */
 export interface GraphStatCountEntry {
@@ -25,19 +24,15 @@ export interface DependencyGraphCoreEnv {
   HEAVY_EDGE_STYLE_THRESHOLD: number;
   HIGH_EDGE_MARKER_THRESHOLD: number;
   LOW_DETAIL_EDGE_ZOOM_THRESHOLD: number;
-  EDGE_RENDERER_FALLBACK_EDGE_THRESHOLD: number;
   NODE_VISIBLE_RENDER_THRESHOLD: number;
-  EDGE_RENDERER_MODE: string;
-  EDGE_VIRTUALIZATION_MODE: 'main' | 'worker';
   USE_CSS_SELECTION_HOVER: boolean;
   PERF_MARKS_ENABLED: boolean;
-  EDGE_VIEWPORT_RECALC_THROTTLE_MS: number;
   MAC_TRACKPAD_PAN_SPEED: number;
 }
 
 export interface UseDependencyGraphCoreOptions {
-  /** Props from the component (data: DependencyPackageGraph). */
-  propsData: { data: DependencyPackageGraph };
+  /** Props from the component (data: PackageGraph). */
+  propsData: { data: PackageGraph };
   graphRootRef: Ref<HTMLElement | null>;
   env: DependencyGraphCoreEnv;
 }
@@ -60,10 +55,6 @@ export interface DependencyGraphCoreReturn {
   syncViewportState: () => void;
   initContainerCache: (el: HTMLElement) => void;
   viewport: unknown;
-  edgeVirtualization: unknown;
-  edgeVirtualizationEnabled: Ref<boolean>;
-  edgeVirtualizationRuntimeMode: Ref<string>;
-  edgeVirtualizationWorkerStats: Ref<{ lastVisibleCount: number; lastHiddenCount: number; staleResponses: number }>;
   graphLayout: { requestGraphInitialization: (options?: LayoutProcessOptions) => void | Promise<void> };
   isLayoutPending: Ref<boolean>;
   isLayoutMeasuring: Ref<boolean>;
@@ -73,18 +64,13 @@ export interface DependencyGraphCoreReturn {
   highlightedEdgeIds: Ref<Set<string>>;
   highlightedEdgeIdList: Ref<string[]>;
   renderedEdges: ComputedRef<GraphEdge[]>;
-  activeCollisionConfig: ComputedRef<CollisionConfig>;
-  lastCollisionResult: Ref<CollisionResult | null>;
   useOnlyRenderVisibleElements: ComputedRef<boolean>;
-  defaultEdgeOptions: ComputedRef<DefaultEdgeOptions>;
+  defaultEdgeOptions: ComputedRef<Record<string, unknown>>;
   selectedNode: Ref<DependencyNode | null>;
   hoveredNodeId: Ref<string | null>;
   setSelectedNode: (node: DependencyNode | null) => void;
   clearHoverState: () => void;
   contextMenu: Ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>;
-  canvasRendererAvailable: Ref<boolean>;
-  isCanvasModeRequested: ComputedRef<boolean>;
-  isHybridCanvasMode: ComputedRef<boolean>;
   isHeavyEdgeMode: ComputedRef<boolean>;
   minimapAutoHidden: ComputedRef<boolean>;
   showMiniMap: ComputedRef<boolean>;
@@ -107,7 +93,6 @@ export interface DependencyGraphCoreReturn {
   handleSearchResult: (result: SearchResult) => void;
   handleFocusNode: (nodeId: string) => Promise<void>;
   handleMinimapNodeClick: (params: { node: { id: string } }) => void;
-  handleCanvasUnavailable: () => void;
   onMoveEnd: () => void;
   onNodeClick: (params: { node: unknown }) => void;
   onPaneClick: () => void;
@@ -115,20 +100,10 @@ export interface DependencyGraphCoreReturn {
   onNodeMouseEnter: (params: { node: unknown }) => void;
   onNodeMouseLeave: (params: { node: unknown }) => void;
   handleRelationshipFilterChange: (types: string[]) => Promise<void>;
-  handleNodeTypeFilterChange: (types: string[]) => Promise<void>;
-  handleCollapseSccToggle: (value: boolean) => Promise<void>;
-  handleClusterByFolderToggle: (value: boolean) => Promise<void>;
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;
-  handleMemberNodeModeChange: (value: 'compact' | 'graph') => Promise<void>;
   handleOrphanGlobalToggle: (value: boolean) => Promise<void>;
   handleShowFpsToggle: (value: boolean) => void;
   handleFpsAdvancedToggle: (value: boolean) => void;
-  handleRenderingStrategyChange: (id: RenderingStrategyId) => Promise<void>;
-  handleRenderingStrategyOptionChange: (payload: {
-    strategyId: RenderingStrategyId;
-    optionId: string;
-    value: unknown;
-  }) => Promise<void>;
   nodeActions: NodeActions;
   highlightOrphanGlobal: ComputedRef<boolean>;
   folderCollapseActions: FolderCollapseActions;
@@ -139,6 +114,7 @@ export interface DependencyGraphCoreReturn {
   minimapNodeColor: (node: { type?: string }) => string;
   minimapNodeStrokeColor: (node: { id?: string }) => string;
   nodeDimensionTracker: { start: (root: HTMLElement) => void; stop: () => void };
+  nodePremeasure: NodePremeasure;
   renderedNodeCount: ComputedRef<number>;
   renderedEdgeCount: ComputedRef<number>;
   renderedNodeTypeCounts: Ref<GraphStatCountEntry[]>;

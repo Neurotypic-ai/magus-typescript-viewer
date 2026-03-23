@@ -1,20 +1,18 @@
 <script setup lang="ts">
-import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
+import { markRaw, onMounted, onUnmounted, ref, shallowRef } from 'vue';
 
-import { createLogger } from '../shared/utils/logger';
-import { GraphDataAssembler } from './assemblers/GraphDataAssembler';
+import { consola } from 'consola';
+
+import { GraphHydrator } from './assemblers/GraphHydrator';
+import DependencyGraph from './components/DependencyGraphLazy.vue';
 import ErrorBoundary from './components/ErrorBoundary.vue';
 
-import type { DependencyPackageGraph } from './types/DependencyPackageGraph';
+import type { PackageGraph } from '../shared/types/Package';
 
-// Lazy load the DependencyGraph component for code splitting and better performance
-const DependencyGraph = defineAsyncComponent(() => import('./components/DependencyGraphLazy.vue'));
+const appLogger = consola.withTag('App');
+const graphHydrator = new GraphHydrator();
 
-// Create an app-specific logger
-const appLogger = createLogger('App');
-const graphDataAssembler = new GraphDataAssembler();
-
-const graphData = ref<DependencyPackageGraph>({ packages: [] });
+const graphData = shallowRef<PackageGraph>({ packages: [] });
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 
@@ -34,12 +32,12 @@ const fetchData = async () => {
 
     // Add signal to fetch operations inside assembleGraphData
     // This way we can abort the fetch if the component unmounts
-    const data = await graphDataAssembler.assembleGraphData(signal);
+    const data = await graphHydrator.assembleGraphData(signal);
 
     if (!mounted) return;
 
     appLogger.debug('Setting graph data...');
-    graphData.value = data;
+    graphData.value = markRaw(data);
     isLoading.value = false;
   } catch (err) {
     if (!mounted) return;
@@ -94,8 +92,8 @@ onUnmounted(() => {
     <h1 class="text-2xl font-bold mb-4 text-text-primary">Error Loading Graph</h1>
     <p class="mb-6 text-text-secondary">{{ error }}</p>
     <button
-      @click="retryLoad"
       class="px-6 py-3 bg-white/10 text-text-primary rounded-lg hover:bg-white/20 transition-fast cursor-pointer border border-border-default font-semibold"
+      @click="retryLoad"
     >
       Retry
     </button>
