@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Parameter } from '../../../../../shared/types/Parameter';
+import { Parameter } from '../../../../shared/types/Parameter';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { ParameterRepository } from '../ParameterRepository';
 

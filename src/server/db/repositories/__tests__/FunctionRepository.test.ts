@@ -1,4 +1,4 @@
-import { ModuleFunction } from '../../../../../shared/types/Function';
+import { ModuleFunction } from '../../../../shared/types/Function';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { FunctionRepository } from '../FunctionRepository';
 
@@ -532,8 +532,8 @@ describe('FunctionRepository', () => {
 
       const result = await repo.findById('func-uuid-1');
 
-      expect(result?.created_at).toBeInstanceOf(Date);
-      expect(result?.created_at.toISOString()).toBe('2025-06-15T12:30:00.000Z');
+      expect(result?.created_at).toBeTypeOf('string');
+      expect(result?.created_at).toBe('2025-06-15T12:30:00.000Z');
     });
 
     it('should initialize parameters as an empty Map', async () => {

@@ -2,7 +2,7 @@
 import { ImportRepository } from '../ImportRepository';
 import { RepositoryError, EntityNotFoundError, NoFieldsToUpdateError } from '../../errors/RepositoryError';
 
-import type { IImportCreateDTO } from '../../../../../shared/types/dto/ImportDTO';
+import type { IImportCreateDTO } from '../../../../shared/types/dto/ImportDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 

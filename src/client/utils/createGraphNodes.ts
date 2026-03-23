@@ -18,7 +18,7 @@ import type { Interface } from '../../shared/types/Interface';
 import type { Module } from '../../shared/types/Module';
 import type { NodeDiagnostics } from '../../shared/types/graph/NodeDiagnostics';
 import type { Method } from '../../shared/types/Method';
-import type { Property } from '../../shared/types/Property';
+import { Property } from '../../shared/types/Property';
 import type { Package } from '../../shared/types/Package';
 import type { TypeAlias } from '../../shared/types/TypeAlias';
 import type { Variable } from '../../shared/types/Variable';
@@ -33,6 +33,12 @@ interface CreateGraphNodeOptions {
   memberNodeMode?: 'compact' | 'graph';
   direction?: 'LR' | 'RL' | 'TB' | 'BT';
 }
+
+type ImportSpecifierLike = {
+  imported: string;
+  local?: string | undefined;
+  kind: string;
+};
 
 function getExternalDependencyLevel(
   externalDependencyPackageCount: number,
@@ -92,7 +98,7 @@ function toImportSpecifierLike(
         local?: string;
         kind?: string;
       }
-): { imported: string; local?: string; kind: string } | undefined {
+): ImportSpecifierLike | undefined {
   if ('name' in specifier) {
     return {
       imported: specifier.name,
@@ -114,16 +120,17 @@ function getImportSpecifierLikes(
   importValue: Import & {
     specifiers?: Array<{ imported?: string; local?: string; kind?: string }> | Map<string, IImportSpecifier>;
   }
-): Array<{ imported: string; local?: string; kind: string }> {
+): ImportSpecifierLike[] {
   if (importValue.specifiers instanceof Map) {
     return Array.from(importValue.specifiers.values())
       .map((specifier) => toImportSpecifierLike(specifier))
-      .filter((specifier): specifier is { imported: string; local?: string; kind: string } => Boolean(specifier));
+      .filter((specifier): specifier is ImportSpecifierLike => Boolean(specifier));
   }
-  if (Array.isArray(importValue.specifiers)) {
-    return importValue.specifiers
+  const rawSpecifiers = importValue.specifiers as unknown;
+  if (Array.isArray(rawSpecifiers)) {
+    return (rawSpecifiers as Array<{ imported?: string; local?: string; kind?: string }>)
       .map((specifier) => toImportSpecifierLike(specifier))
-      .filter((specifier): specifier is { imported: string; local?: string; kind: string } => Boolean(specifier));
+      .filter((specifier): specifier is ImportSpecifierLike => Boolean(specifier));
   }
   return [];
 }
@@ -401,7 +408,20 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
             byTypeVisible: { module: visibleModuleCount },
             isContainer: true,
           },
-          properties: [{ name: 'version', type: pkg.version, visibility: 'public' }],
+          properties: [
+            new Property(
+              `${pkg.id}:property:version`,
+              pkg.id,
+              '',
+              pkg.id,
+              'version',
+              '',
+              pkg.version,
+              false,
+              false,
+              'public'
+            ),
+          ],
         },
         style: {
           ...getNodeStyle('package'),
@@ -485,8 +505,30 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
               isContainer: hasVueFlowChildren,
             },
             properties: [
-              { name: 'package', type: pkg.name, visibility: 'public' },
-              { name: 'path', type: modulePath, visibility: 'public' },
+              new Property(
+                `${module.id}:property:package`,
+                pkg.id,
+                module.id,
+                module.id,
+                'package',
+                '',
+                pkg.name,
+                false,
+                false,
+                'public'
+              ),
+              new Property(
+                `${module.id}:property:path`,
+                pkg.id,
+                module.id,
+                module.id,
+                'path',
+                '',
+                modulePath,
+                false,
+                false,
+                'public'
+              ),
             ],
           },
           style: {

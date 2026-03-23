@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TypeAlias } from '../../../../../shared/types/TypeAlias';
+import { TypeAlias } from '../../../../shared/types/TypeAlias';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { TypeAliasRepository } from '../TypeAliasRepository';
 
@@ -77,7 +77,7 @@ describe('TypeAliasRepository', () => {
       expect(result.name).toBe('MyType');
       expect(result.type).toBe('string | number');
       expect(result.type_parameters).toEqual([]);
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.created_at).toBeTypeOf('string');
     });
 
     it('passes the correct SQL and parameters to the adapter', async () => {
@@ -498,8 +498,8 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.created_at).toBeInstanceOf(Date);
-      expect(result?.created_at.toISOString()).toBe('2025-06-15T12:30:00.000Z');
+      expect(result?.created_at).toBeTypeOf('string');
+      expect(result?.created_at).toBe('2025-06-15T12:30:00.000Z');
     });
   });
 });

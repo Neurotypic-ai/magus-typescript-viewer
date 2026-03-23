@@ -142,7 +142,7 @@ describe('buildModuleDrilldownGraph', () => {
         expect.objectContaining({ name: 'name', type: 'string' }),
       ]);
       expect(classNode!.data.methods).toEqual([
-        expect.objectContaining({ name: 'save', returnType: 'void' }),
+        expect.objectContaining({ name: 'save', return_type: 'void' }),
       ]);
     });
 

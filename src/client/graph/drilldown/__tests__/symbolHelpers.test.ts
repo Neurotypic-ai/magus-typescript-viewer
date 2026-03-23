@@ -61,13 +61,13 @@ describe('normalizeProperty', () => {
       string,
       unknown
     >);
-    expect(result.id).toBe('');
+    expect(result.id).toBeUndefined();
   });
 
   it('handles a completely empty object', () => {
     const result = normalizeProperty({} as Record<string, unknown>);
     expect(result).toMatchObject({
-      id: '',
+      id: undefined,
       name: 'unknown',
       type: 'unknown',
       visibility: 'public',
@@ -129,7 +129,7 @@ describe('normalizeMethod', () => {
       string,
       unknown
     >);
-    expect(result.id).toBe('');
+    expect(result.id).toBeUndefined();
   });
 
   it('generates a default signature when signature is missing', () => {
@@ -171,7 +171,7 @@ describe('normalizeMethod', () => {
   it('handles a completely empty object', () => {
     const result = normalizeMethod({} as Record<string, unknown>);
     expect(result).toMatchObject({
-      id: '',
+      id: undefined,
       name: 'unknown',
       return_type: 'void',
       visibility: 'public',

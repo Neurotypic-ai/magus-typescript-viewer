@@ -64,7 +64,7 @@ describe('DependencyRepository', () => {
       expect(result.source_id).toBe('pkg-a');
       expect(result.target_id).toBe('pkg-b');
       expect(result.type).toBe('dependency');
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.created_at).toBeTypeOf('string');
 
       expect(adapter.query).toHaveBeenCalledOnce();
       const callArgs = vi.mocked(adapter.query).mock.calls[0] as [string, unknown[]];
@@ -314,8 +314,8 @@ describe('DependencyRepository', () => {
       expect(results[0].source_id).toBe('a');
       expect(results[0].target_id).toBe('b');
       expect(results[0].type).toBe('peerDependency');
-      expect(results[0].created_at).toBeInstanceOf(Date);
-      expect(results[0].created_at.toISOString()).toBe('2025-06-15T12:00:00.000Z');
+      expect(results[0].created_at).toBeTypeOf('string');
+      expect(results[0].created_at).toBe('2025-06-15T12:00:00.000Z');
     });
 
     it('returns an empty array when no rows match', async () => {
@@ -400,7 +400,7 @@ describe('DependencyRepository', () => {
 
       expect(results[0].id).toBe('src_tgt');
       expect(results[0].type).toBe('devDependency');
-      expect(results[0].created_at).toBeInstanceOf(Date);
+      expect(results[0].created_at).toBeTypeOf('string');
     });
   });
 
@@ -453,7 +453,7 @@ describe('DependencyRepository', () => {
 
       expect(results[0].id).toBe('x_y');
       expect(results[0].type).toBe('peerDependency');
-      expect(results[0].created_at.toISOString()).toBe('2025-12-25T00:00:00.000Z');
+      expect(results[0].created_at).toBe('2025-12-25T00:00:00.000Z');
     });
   });
 

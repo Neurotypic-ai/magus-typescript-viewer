@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PackageRepository } from '../PackageRepository';
-import { Package } from '../../../../../shared/types/Package';
+import { Package } from '../../../../shared/types/Package';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 
 import type { IDatabaseAdapter, QueryParams } from '../../adapter/IDatabaseAdapter';
@@ -83,7 +83,7 @@ describe('PackageRepository', () => {
       expect(result.name).toBe('@scope/my-package');
       expect(result.version).toBe('1.0.0');
       expect(result.path).toBe('/packages/my-package');
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.created_at).toBeTypeOf('string');
     });
 
     it('passes the correct SQL and parameters to the adapter', async () => {
@@ -622,8 +622,8 @@ describe('PackageRepository', () => {
 
       const results = await repo.retrieve('pkg-1');
 
-      expect(results[0]!.created_at).toBeInstanceOf(Date);
-      expect(results[0]!.created_at.toISOString()).toBe('2024-06-15T09:30:00.000Z');
+      expect(results[0]!.created_at).toBeTypeOf('string');
+      expect(results[0]!.created_at).toBe('2024-06-15T09:30:00.000Z');
     });
 
     it('converts IPackageRow field values to strings in createPackageWithDependencies', async () => {

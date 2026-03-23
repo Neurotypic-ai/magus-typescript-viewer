@@ -1,5 +1,5 @@
-import { Method } from '../../../../../shared/types/Method';
-import { Parameter } from '../../../../../shared/types/Parameter';
+import { Method } from '../../../../shared/types/Method';
+import { Parameter } from '../../../../shared/types/Parameter';
 import { RepositoryError, EntityNotFoundError } from '../../errors/RepositoryError';
 import { MethodRepository } from '../MethodRepository';
 

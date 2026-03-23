@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Interface } from '../../../../../shared/types/Interface';
+import { Interface } from '../../../../shared/types/Interface';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { InterfaceRepository } from '../InterfaceRepository';
 
@@ -67,7 +67,7 @@ describe('InterfaceRepository', () => {
       expect(result.package_id).toBe(SAMPLE_DTO.package_id);
       expect(result.module_id).toBe(SAMPLE_DTO.module_id);
       expect(result.name).toBe(SAMPLE_DTO.name);
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.created_at).toBeTypeOf('string');
     });
 
     it('should pass the correct INSERT SQL and parameters to the adapter', async () => {

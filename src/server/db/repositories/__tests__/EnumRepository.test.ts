@@ -491,8 +491,8 @@ describe('EnumRepository', () => {
         name: row.name,
       });
 
-      expect(result.created_at).toBeInstanceOf(Date);
-      expect(result.created_at.toISOString()).toBe('2025-06-01T08:30:00.000Z');
+      expect(result.created_at).toBeTypeOf('string');
+      expect(result.created_at).toBe('2025-06-01T08:30:00.000Z');
     });
   });
 

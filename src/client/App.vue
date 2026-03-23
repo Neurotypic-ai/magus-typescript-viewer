@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent, markRaw, onMounted, onUnmounted, shallowRef } from 'vue';
+import { defineAsyncComponent, markRaw, onMounted, onUnmounted, ref, shallowRef } from 'vue';
 
 import { createLogger } from '../shared/utils/logger';
 import { GraphHydrator } from './assemblers/GraphHydrator';

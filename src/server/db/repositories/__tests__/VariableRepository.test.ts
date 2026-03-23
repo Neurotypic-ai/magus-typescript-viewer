@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { Variable } from '../../../../../shared/types/Variable';
+import { Variable } from '../../../../shared/types/Variable';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { VariableRepository } from '../VariableRepository';
 
@@ -385,8 +385,8 @@ describe('VariableRepository', () => {
 
       const result = await repo.retrieveById('var-uuid-1');
 
-      expect(result?.created_at).toBeInstanceOf(Date);
-      expect(result?.created_at.toISOString()).toBe(TIMESTAMP);
+      expect(result?.created_at).toBeTypeOf('string');
+      expect(result?.created_at).toBe(TIMESTAMP);
     });
 
     it('preserves the kind field as-is', async () => {

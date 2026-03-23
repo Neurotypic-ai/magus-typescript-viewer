@@ -6,6 +6,8 @@ import TypeAnnotationDisplay from './nodes/TypeAnnotationDisplay.vue';
 import { buildTypeDisplayModel } from './nodes/typeDisplay';
 import { mapTypeCollection } from '../utils/collections';
 
+import type { IImportSpecifier, Import } from '../../shared/types/Import';
+
 import type { DependencyNode } from '../types/DependencyNode';
 import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
@@ -29,7 +31,7 @@ interface DisplayMember {
 interface DisplayMethod {
   id?: string | undefined;
   name: string;
-  returnType: string;
+  return_type: string;
   visibility?: string | undefined;
   usedBy: string[];
 }
@@ -293,17 +295,17 @@ const moduleClasses = computed<SymbolSummary[]>(() => {
   return mapTypeCollection(module.classes, (cls) => ({
     id: cls.id,
     name: cls.name ?? 'Unnamed class',
-    properties: (cls.properties ?? []).map((prop) => ({
+    properties: mapTypeCollection(cls.properties, (prop) => ({
       id: prop.id,
       name: prop.name ?? 'unnamed',
       type: prop.type ?? 'unknown',
       visibility: prop.visibility,
       usedBy: getUsedBy(prop.id),
     })),
-    methods: (cls.methods ?? []).map((method) => ({
+    methods: mapTypeCollection(cls.methods, (method) => ({
       id: method.id,
       name: method.name ?? 'unnamed',
-      returnType: method.return_type ?? 'void',
+      return_type: method.return_type ?? 'void',
       visibility: method.visibility,
       usedBy: getUsedBy(method.id),
     })),
@@ -317,17 +319,17 @@ const moduleInterfaces = computed<SymbolSummary[]>(() => {
   return mapTypeCollection(module.interfaces, (iface) => ({
     id: iface.id,
     name: iface.name ?? 'Unnamed interface',
-    properties: (iface.properties ?? []).map((prop) => ({
+    properties: mapTypeCollection(iface.properties, (prop) => ({
       id: prop.id,
       name: prop.name ?? 'unnamed',
       type: prop.type ?? 'unknown',
       visibility: prop.visibility,
       usedBy: getUsedBy(prop.id),
     })),
-    methods: (iface.methods ?? []).map((method) => ({
+    methods: mapTypeCollection(iface.methods, (method) => ({
       id: method.id,
       name: method.name ?? 'unnamed',
-      returnType: method.return_type ?? 'void',
+      return_type: method.return_type ?? 'void',
       visibility: method.visibility,
       usedBy: getUsedBy(method.id),
     })),
@@ -380,7 +382,7 @@ const nodeMethods = computed<DisplayMethod[]>(() => {
   return methods.map((method) => ({
     id: method.id,
     name: method.name ?? 'unnamed',
-    returnType: method.return_type ?? 'void',
+    return_type: method.return_type ?? 'void',
     visibility: method.visibility,
     usedBy: getUsedBy(method.id),
   }));
@@ -429,6 +431,10 @@ function labelsForOutgoingType(type: string): string[] {
 
 function labelsForIncomingType(type: string): string[] {
   return labelsFromNodeIds(nodeRelationships.value.incomingByType.get(type) ?? []);
+}
+
+function firstImportAlias(specifier: IImportSpecifier): string | undefined {
+  return Array.from(specifier.aliases)[0];
 }
 
 const imports = computed(() => labelsForOutgoingType('import'));
@@ -480,20 +486,21 @@ const externalImports = computed<ExternalImportGroup[]>(() => {
 
   const grouped = new Map<string, Set<string>>();
 
-  mapTypeCollection(module.imports, (imp) => imp).forEach((imp) => {
-    const packageName = imp.packageName ?? (typeof imp.path === 'string' && isExternalImportPath(imp.path) ? imp.path : undefined);
-    const isExternal = imp.isExternal ?? Boolean(packageName);
-    if (!isExternal || !packageName) {
+  mapTypeCollection(module.imports, (imp) => imp).forEach((imp: Import) => {
+    const importPath = imp.relativePath || imp.fullPath || imp.name;
+    const packageName = typeof importPath === 'string' && isExternalImportPath(importPath) ? importPath : undefined;
+    if (!packageName) {
       return;
     }
 
     const existing = grouped.get(packageName) ?? new Set<string>();
 
-    if (Array.isArray(imp.specifiers)) {
-      imp.specifiers.forEach((specifier) => {
-        const label = specifier.local && specifier.local !== specifier.imported
-          ? `${specifier.imported} as ${specifier.local}`
-          : specifier.imported;
+    if (imp.specifiers instanceof Map) {
+      Array.from(imp.specifiers.values()).forEach((specifier) => {
+        const local = firstImportAlias(specifier);
+        const label = local && local !== specifier.name
+          ? `${specifier.name} as ${local}`
+          : specifier.name;
         if (label.length > 0) {
           existing.add(label);
         }

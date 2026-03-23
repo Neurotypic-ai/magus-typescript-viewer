@@ -29,7 +29,7 @@
   },
   "description": "TypeScript codebase visualization tool",
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.39.2",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@neurotypic-ai/eslint-config": "workspace:*",
     "@neurotypic-ai/typescript-config": "workspace:*",

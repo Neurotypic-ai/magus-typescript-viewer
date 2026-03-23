@@ -17,9 +17,9 @@ import type { Method } from '../../../shared/types/Method';
 import type { Property } from '../../../shared/types/Property';
 
 export function normalizeProperty(property: Property): Property {
-  const source = property as unknown as Record<string, unknown>;
+  const source = property as any;
   return {
-    id: typeof source.id === 'string' ? source.id : '',
+    id: typeof source.id === 'string' ? source.id : (undefined as unknown as string),
     package_id: typeof source.package_id === 'string' ? source.package_id : '',
     module_id: typeof source.module_id === 'string' ? source.module_id : '',
     parent_id: typeof source.parent_id === 'string' ? source.parent_id : '',
@@ -34,7 +34,7 @@ export function normalizeProperty(property: Property): Property {
 }
 
 export function normalizeMethod(method: Method): Method {
-  const source = method as unknown as Record<string, unknown>;
+  const source = method as any;
   const name = typeof source.name === 'string' ? source.name : 'unknown';
   const returnType =
     typeof source.return_type === 'string'
@@ -47,7 +47,7 @@ export function normalizeMethod(method: Method): Method {
       ? source.signature
       : `${name}(): ${returnType}`;
   return {
-    id: typeof source.id === 'string' ? source.id : '',
+    id: typeof source.id === 'string' ? source.id : (undefined as unknown as string),
     package_id: typeof source.package_id === 'string' ? source.package_id : '',
     module_id: typeof source.module_id === 'string' ? source.module_id : '',
     parent_id: typeof source.parent_id === 'string' ? source.parent_id : '',

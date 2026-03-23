@@ -1,5 +1,5 @@
 /**
- * Singleton cache for memoizing graph data. Injected into GraphDataAssembler.
+ * Singleton cache for memoizing hydrated graph data. Injected into GraphHydrator.
  */
 
 import type { PackageGraph } from '../../shared/types/Package';

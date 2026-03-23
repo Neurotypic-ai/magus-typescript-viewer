@@ -11,16 +11,11 @@ import { Property } from '../../shared/types/Property';
 import { SymbolReference } from '../../shared/types/SymbolReference';
 import { TypeAlias } from '../../shared/types/TypeAlias';
 import { Variable } from '../../shared/types/Variable';
-import { createLogger } from '../../shared/utils/logger';
-import { typeCollectionToArray } from '../utils/collections';
-
 import type { PackageGraph } from '../../shared/types/Package';
 
 import { getApiBaseUrl } from './api';
 import { GraphDataCache } from './graphDataCache';
 import { EntityRegistry } from './EntityRegistry';
-
-const hydratorLogger = createLogger('GraphHydrator');
 
 type GraphApiPackagePayload = {
   id: string;
@@ -37,6 +32,7 @@ type GraphApiPackagePayload = {
 function collectionValues<T>(collection: unknown): T[] {
   if (!collection) return [];
   if (collection instanceof Map) return Array.from(collection.values()) as T[];
+  if (collection instanceof Set) return Array.from(collection.values()) as T[];
   if (Array.isArray(collection)) return collection as T[];
   if (typeof collection === 'object') return Object.values(collection as Record<string, unknown>) as T[];
   return [];
@@ -161,7 +157,7 @@ export class GraphHydrator {
 
   private hydratePackageRefs(raw: unknown, existing: Map<string, Package>): Map<string, Package> {
     const refs = new Map<string, Package>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const id = toString(item.id);
       if (!id) continue;
       const found = existing.get(id);
@@ -179,7 +175,7 @@ export class GraphHydrator {
 
   private hydrateModules(raw: unknown, registry: EntityRegistry): Map<string, Module> {
     const modules = new Map<string, Module>();
-    const values = collectionValues<Record<string, unknown>>(raw);
+    const values = collectionValues<any>(raw);
     for (const item of values) {
       const module = this.hydrateModule(item, registry);
       modules.set(module.id, module);
@@ -188,7 +184,7 @@ export class GraphHydrator {
   }
 
   private hydrateModule(raw: unknown, registry: EntityRegistry): Module {
-    const row = asRecord(raw);
+    const row = asRecord(raw) as any;
     const imports = this.hydrateImports(row.imports);
     const classes = this.hydrateClasses(row.classes, registry);
     const interfaces = this.hydrateInterfaces(row.interfaces, registry);
@@ -206,7 +202,7 @@ export class GraphHydrator {
         directory: '',
         name: toString(row.name),
         filename: '',
-        relativePath: toString((row.source as Record<string, unknown> | undefined)?.relativePath),
+        relativePath: toString(((row.source as Record<string, unknown> | undefined) ?? {})['relativePath']),
       },
       toString(row.created_at, new Date().toISOString()),
       classes,
@@ -225,7 +221,7 @@ export class GraphHydrator {
 
   private hydrateClasses(raw: unknown, registry: EntityRegistry): Map<string, Class> {
     const classes = new Map<string, Class>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const methods = this.hydrateMethods(item.methods);
       const properties = this.hydrateProperties(item.properties);
       const implemented = this.hydrateInterfaces(item.implemented_interfaces, registry);
@@ -247,7 +243,7 @@ export class GraphHydrator {
 
   private hydrateInterfaces(raw: unknown, registry: EntityRegistry): Map<string, Interface> {
     const interfaces = new Map<string, Interface>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const methods = this.hydrateMethods(item.methods);
       const properties = this.hydrateProperties(item.properties);
       const extended = this.hydrateInterfaces(item.extended_interfaces, registry);
@@ -268,7 +264,7 @@ export class GraphHydrator {
 
   private hydrateMethods(raw: unknown): Map<string, Method> {
     const methods = new Map<string, Method>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const parameters = this.hydrateParameters(item.parameters);
       const method = new Method(
         toString(item.id),
@@ -290,7 +286,7 @@ export class GraphHydrator {
 
   private hydrateProperties(raw: unknown): Map<string, Property> {
     const properties = new Map<string, Property>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const property = new Property(
         toString(item.id),
         toString(item.package_id),
@@ -311,7 +307,7 @@ export class GraphHydrator {
 
   private hydrateParameters(raw: unknown): Map<string, Parameter> {
     const parameters = new Map<string, Parameter>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const parameter = new Parameter(
         toString(item.id),
         toString(item.package_id),
@@ -331,7 +327,7 @@ export class GraphHydrator {
 
   private hydrateFunctions(raw: unknown): Map<string, ModuleFunction> {
     const functions = new Map<string, ModuleFunction>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const fn = new ModuleFunction(
         toString(item.id),
         toString(item.package_id),
@@ -350,7 +346,7 @@ export class GraphHydrator {
 
   private hydrateTypeAliases(raw: unknown): Map<string, TypeAlias> {
     const aliases = new Map<string, TypeAlias>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const typeParameters = collectionValues<string>(item.type_parameters).filter((value): value is string => typeof value === 'string');
       const alias = new TypeAlias(
         toString(item.id),
@@ -368,7 +364,7 @@ export class GraphHydrator {
 
   private hydrateEnums(raw: unknown): Map<string, Enum> {
     const enums = new Map<string, Enum>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const enumMembers = collectionValues<string>(item.members).filter((value): value is string => typeof value === 'string');
       const en = new Enum(
         toString(item.id),
@@ -385,7 +381,7 @@ export class GraphHydrator {
 
   private hydrateVariables(raw: unknown): Map<string, Variable> {
     const variables = new Map<string, Variable>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const variable = new Variable(
         toString(item.id),
         toString(item.package_id),
@@ -403,10 +399,10 @@ export class GraphHydrator {
 
   private hydrateImports(raw: unknown): Map<string, Import> {
     const imports = new Map<string, Import>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const importId = toString(item.uuid, toString(item.id));
       const specifiers = new Map<string, ImportSpecifier>();
-      const rawSpecifiers = collectionValues<Record<string, unknown>>(item.specifiers);
+      const rawSpecifiers = collectionValues<any>(item.specifiers);
       rawSpecifiers.forEach((specifierRaw, index) => {
         const imported = toString(specifierRaw.imported, toString(specifierRaw.name));
         if (!imported) return;
@@ -417,8 +413,8 @@ export class GraphHydrator {
           imported,
           (toString(specifierRaw.kind, 'value') as 'value' | 'type' | 'typeof' | 'default' | 'namespace' | 'sideEffect'),
           undefined,
-          new Set(typeCollectionToArray(specifierRaw.modules as string[] | Set<string> | Record<string, string>)),
-          new Set(typeCollectionToArray(specifierRaw.aliases as string[] | Set<string> | Record<string, string>))
+          new Set(collectionValues<string>(specifierRaw.modules)),
+          new Set(collectionValues<string>(specifierRaw.aliases))
         );
         if (local) {
           specifier.aliases.add(local);
@@ -441,7 +437,7 @@ export class GraphHydrator {
 
   private hydrateSymbolReferences(raw: unknown): Map<string, SymbolReference> {
     const refs = new Map<string, SymbolReference>();
-    for (const item of collectionValues<Record<string, unknown>>(raw)) {
+    for (const item of collectionValues<any>(raw)) {
       const ref = new SymbolReference(
         toString(item.id),
         toString(item.package_id),

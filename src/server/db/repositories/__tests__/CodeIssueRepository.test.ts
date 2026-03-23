@@ -2,7 +2,7 @@
 import { CodeIssueRepository } from '../CodeIssueRepository';
 import { RepositoryError } from '../../errors/RepositoryError';
 
-import type { ICodeIssueCreateDTO } from '../../../../../shared/types/dto/CodeIssueDTO';
+import type { ICodeIssueCreateDTO } from '../../../../shared/types/dto/CodeIssueDTO';
 import type { ICodeIssueRow } from '../../types/DatabaseResults';
 import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
 import { vi, describe, beforeEach, it, expect } from 'vitest';

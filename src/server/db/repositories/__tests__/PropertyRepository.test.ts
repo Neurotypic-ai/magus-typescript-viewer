@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { Property } from '../../../../../shared/types/Property';
+import { Property } from '../../../../shared/types/Property';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { PropertyRepository } from '../PropertyRepository';
 
@@ -120,7 +120,7 @@ describe('PropertyRepository', () => {
 
       const result = await repo.create(dto);
 
-      expect(result.created_at).toBeInstanceOf(Date);
+      expect(result.created_at).toBeTypeOf('string');
     });
 
     it('should throw a RepositoryError when the query fails', async () => {
@@ -312,7 +312,7 @@ describe('PropertyRepository', () => {
       expect(prop.is_static).toBe(true);
       expect(prop.is_readonly).toBe(true);
       expect(prop.visibility).toBe('private');
-      expect(prop.created_at).toBeInstanceOf(Date);
+      expect(prop.created_at).toBeTypeOf('string');
     });
 
     it('should throw a RepositoryError when the query fails', async () => {

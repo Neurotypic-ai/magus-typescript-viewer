@@ -1,9 +1,9 @@
 // @vitest-environment node
-import { Class } from '../../../../../shared/types/Class';
+import { Class } from '../../../../shared/types/Class';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { ClassRepository } from '../ClassRepository';
 
-import type { IClassCreateDTO } from '../../../../../shared/types/dto/ClassDTO';
+import type { IClassCreateDTO } from '../../../../shared/types/dto/ClassDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 
