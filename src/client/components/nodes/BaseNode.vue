@@ -340,9 +340,9 @@ const containerStyle = computed(() => {
 }
 
 .base-node-container.base-node-orphan-global {
-  outline: 2px solid #ef4444;
+  outline: 2px solid var(--graph-issue-error);
   outline-offset: 0;
-  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.24);
+  box-shadow: 0 1px 4px var(--graph-issue-error-shadow);
 }
 
 .base-node-handle {
@@ -394,32 +394,32 @@ const containerStyle = computed(() => {
 
 /* Badge color variants — defined here because the badge element lives in BaseNode's template */
 .base-node-badge.type-module {
-  background-color: rgba(20, 184, 166, 0.2);
-  color: rgb(94, 234, 212);
+  background-color: var(--graph-badge-module-bg);
+  color: var(--graph-badge-module-text);
 }
 
 .base-node-badge.type-class {
-  background-color: rgba(59, 130, 246, 0.2);
-  color: rgb(147, 197, 253);
+  background-color: var(--graph-badge-class-bg);
+  color: var(--graph-badge-class-text);
 }
 
 .base-node-badge.type-interface {
-  background-color: rgba(168, 85, 247, 0.2);
-  color: rgb(216, 180, 254);
+  background-color: var(--graph-badge-interface-bg);
+  color: var(--graph-badge-interface-text);
 }
 
 .base-node-badge.type-property {
-  background-color: rgba(20, 184, 166, 0.2);
-  color: rgb(94, 234, 212);
+  background-color: var(--graph-badge-property-bg);
+  color: var(--graph-badge-property-text);
 }
 
 .base-node-badge.type-method {
-  background-color: rgba(249, 115, 22, 0.2);
-  color: rgb(253, 186, 116);
+  background-color: var(--graph-badge-method-bg);
+  color: var(--graph-badge-method-text);
 }
 
 .base-node-badge.type-default {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--graph-badge-default-bg);
   color: var(--text-secondary);
 }
 
@@ -487,18 +487,18 @@ const containerStyle = computed(() => {
 }
 
 .issue-indicator--warning {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.5);
+  color: var(--graph-issue-warning);
+  border-color: var(--graph-issue-warning-border);
 }
 
 .issue-indicator--error {
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.5);
+  color: var(--graph-issue-error);
+  border-color: var(--graph-issue-error-border);
 }
 
 .issue-indicator--info {
-  color: #60a5fa;
-  border-color: rgba(96, 165, 250, 0.5);
+  color: var(--graph-issue-info);
+  border-color: var(--graph-issue-info-border);
 }
 
 .issue-indicator:hover {
@@ -511,11 +511,11 @@ const containerStyle = computed(() => {
 
 /* Insight glow */
 .base-node-insight-critical {
-  box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 8px 1px var(--graph-issue-error-glow);
 }
 
 .base-node-insight-warning {
-  box-shadow: 0 0 8px 1px rgba(251, 191, 36, 0.28);
+  box-shadow: 0 0 8px 1px var(--graph-issue-warning-glow);
 }
 
 /* Insight filter dimming */

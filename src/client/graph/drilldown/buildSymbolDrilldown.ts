@@ -2,7 +2,8 @@
  * Symbol drilldown graph: expand a selected class/interface/module into members and usages.
  */
 
-import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
+import { getEdgeStyle, getNodeStyle, graphTheme } from '../../theme/graphTheme';
+import { cssVar, graphCssVariableNames } from '../../theme/graphTokens';
 import { mapTypeCollection, typeCollectionToArray } from '../../utils/collections';
 import { createEdgeMarker } from '../../utils/edgeMarkers';
 import { applyEdgeVisibility, filterEdgesByNodeSet } from '../graphViewShared';
@@ -83,9 +84,9 @@ function createUsageEdge(source: string, target: string, usageKind: 'method' | '
     hidden: false,
     data: { type: 'uses', usageKind },
     style: {
-      ...getEdgeStyle('import'),
-      stroke: '#67e8f9',
-      strokeWidth: 2,
+      ...getEdgeStyle('uses'),
+      stroke: cssVar(graphCssVariableNames.edgeKinds.import.color),
+      strokeWidth: graphTheme.edges.sizes.width.isolated,
       strokeDasharray: '4 2',
     },
     markerEnd: createEdgeMarker(),
@@ -109,7 +110,11 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
       sourcePosition,
       targetPosition,
       data: { label: moduleName, properties: [] },
-      style: { ...getNodeStyle('module'), borderColor: '#00ffff', borderWidth: '3px' },
+      style: {
+        ...getNodeStyle('module'),
+        borderColor: cssVar(graphCssVariableNames.selection.targetBorder),
+        borderWidth: `${String(graphTheme.edges.sizes.width.highlighted)}px`,
+      },
     } as DependencyNode,
   ];
   const graphEdges: GraphEdge[] = [];

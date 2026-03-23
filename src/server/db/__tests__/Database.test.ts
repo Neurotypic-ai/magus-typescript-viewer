@@ -5,6 +5,11 @@ import { Database } from '../Database';
 
 import type { IDatabaseAdapter, QueryResult } from '../adapter/IDatabaseAdapter';
 
+function getQueriesBeforeSchemaCreation(queryCalls: string[]): string[] {
+  const schemaCreationIndex = queryCalls.findIndex((sql) => sql.includes('CREATE TABLE packages'));
+  return schemaCreationIndex === -1 ? queryCalls : queryCalls.slice(0, schemaCreationIndex);
+}
+
 /**
  * Creates a mock IDatabaseAdapter with all methods stubbed via vi.fn().
  * Individual tests can override behavior using mockResolvedValue / mockImplementation.
@@ -120,15 +125,21 @@ describe('Database', () => {
     it('executes schema when file does not exist', async () => {
       fsMock.stat.mockRejectedValue(new Error('ENOENT'));
       await fileDb.initializeDatabase();
+      const queryCalls = vi.mocked(mockAdapter.query).mock.calls.map(([sql]) => sql);
+      const queriesBeforeSchemaCreation = getQueriesBeforeSchemaCreation(queryCalls);
       expect(mockAdapter.init).toHaveBeenCalled();
+      expect(queriesBeforeSchemaCreation.some((sql) => sql.startsWith('SELECT 1 FROM '))).toBe(false);
       expect(mockAdapter.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE packages'));
     });
 
     it('deletes file and re-creates schema when reset is true and file exists', async () => {
       fsMock.stat.mockResolvedValue({ size: 1024, isFile: () => true, birthtime: new Date(), mtime: new Date() });
       await fileDb.initializeDatabase(true);
+      const queryCalls = vi.mocked(mockAdapter.query).mock.calls.map(([sql]) => sql);
+      const queriesBeforeSchemaCreation = getQueriesBeforeSchemaCreation(queryCalls);
       expect(fsMock.unlink).toHaveBeenCalled();
       expect(mockAdapter.init).toHaveBeenCalled();
+      expect(queriesBeforeSchemaCreation.some((sql) => sql.startsWith('SELECT 1 FROM '))).toBe(false);
       expect(mockAdapter.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE packages'));
     });
 

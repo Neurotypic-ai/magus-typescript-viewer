@@ -54,17 +54,17 @@ const props = defineProps<InsightBadgeStripProps>();
 }
 
 .insight-badge--critical {
-  background-color: rgba(239, 68, 68, 0.18);
-  color: #f87171;
+  background-color: var(--graph-insight-critical-bg);
+  color: var(--graph-insight-critical-text);
 }
 
 .insight-badge--warning {
-  background-color: rgba(251, 191, 36, 0.18);
-  color: #fbbf24;
+  background-color: var(--graph-insight-warning-bg);
+  color: var(--graph-insight-warning-text);
 }
 
 .insight-badge--info {
-  background-color: rgba(96, 165, 250, 0.12);
-  color: #93c5fd;
+  background-color: var(--graph-insight-info-bg);
+  color: var(--graph-insight-info-text);
 }
 </style>

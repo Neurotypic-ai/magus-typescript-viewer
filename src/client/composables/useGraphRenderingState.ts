@@ -2,13 +2,12 @@ import { computed } from 'vue';
 
 import { MarkerType } from '@vue-flow/core';
 
+import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
+
 import type { ComputedRef, Ref } from 'vue';
 
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
-
-const EDGE_MARKER_WIDTH_PX = 12;
-const EDGE_MARKER_HEIGHT_PX = 12;
 
 interface GraphRenderingThresholds {
   EDGE_VISIBLE_RENDER_THRESHOLD: number;

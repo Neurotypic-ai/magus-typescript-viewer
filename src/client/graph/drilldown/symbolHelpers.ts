@@ -3,7 +3,7 @@
  * module lookup, symbol edges and detailed symbol nodes.
  */
 
-import { getEdgeStyle, getNodeStyle } from '../../theme/graphTheme';
+import { getEdgeStyle, getNodeStyle, graphTheme } from '../../theme/graphTheme';
 import { mapTypeCollection } from '../../utils/collections';
 import { createEdgeMarker } from '../../utils/edgeMarkers';
 import { getHandlePositions } from '../handleRouting';
@@ -77,7 +77,7 @@ export function createSymbolEdge(source: string, target: string, type: Dependenc
     target,
     hidden: false,
     data: { type },
-    style: { ...getEdgeStyle(type), strokeWidth: 3 },
+    style: { ...getEdgeStyle(type), strokeWidth: graphTheme.edges.sizes.width.highlighted },
     markerEnd: createEdgeMarker(),
   } as GraphEdge;
 }

@@ -206,7 +206,8 @@ export class Database {
     // Initialize the adapter (this will create a new database if needed)
     await this.adapter.init();
 
-    const schemaIsValid = await this.verifySchema();
+    const shouldVerifyExistingSchema = exists && !reset;
+    const schemaIsValid = shouldVerifyExistingSchema ? await this.verifySchema() : false;
     const requiresSchemaInitialization = !exists || reset || !schemaIsValid;
 
     // If schema changes are not allowed (read-only mode), fail early with a clear error.

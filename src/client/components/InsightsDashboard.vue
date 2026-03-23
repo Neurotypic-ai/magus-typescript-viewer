@@ -160,8 +160,8 @@ function severityIcon(severity: string): string {
 
 <style scoped>
 .insights-dashboard {
-  background: var(--background-node, #1e293b);
-  border: 1px solid var(--border-default, #334155);
+  background: var(--background-node);
+  border: 1px solid var(--border-default);
   border-radius: 0.5rem;
   font-size: 0.72rem;
   min-width: 200px;
@@ -177,7 +177,7 @@ function severityIcon(severity: string): string {
   padding: 0.4rem 0.55rem;
   border: none;
   background: transparent;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 0.72rem;
   font-weight: 600;
@@ -206,33 +206,33 @@ function severityIcon(severity: string): string {
 }
 
 .insights-count--critical {
-  background: rgba(239, 68, 68, 0.18);
-  color: #f87171;
+  background: var(--graph-insight-critical-bg);
+  color: var(--graph-insight-critical-text);
 }
 
 .insights-count--warning {
-  background: rgba(251, 191, 36, 0.18);
-  color: #fbbf24;
+  background: var(--graph-insight-warning-bg);
+  color: var(--graph-insight-warning-text);
 }
 
 .insights-count--info {
-  background: rgba(96, 165, 250, 0.12);
-  color: #93c5fd;
+  background: var(--graph-insight-info-bg);
+  color: var(--graph-insight-info-text);
 }
 
 .insights-health {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
   font-size: 0.65rem;
 }
 
 .insights-chevron {
   font-size: 0.55rem;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
 }
 
 .insights-panel {
-  border-top: 1px solid var(--border-default, #334155);
+  border-top: 1px solid var(--border-default);
   padding: 0.45rem;
   max-height: 400px;
   overflow-y: auto;
@@ -247,7 +247,7 @@ function severityIcon(severity: string): string {
 
 .insights-panel-title {
   font-weight: 700;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--text-primary);
 }
 
 .insights-panel-actions {
@@ -257,10 +257,10 @@ function severityIcon(severity: string): string {
 
 .insights-export-btn {
   padding: 0.15rem 0.35rem;
-  border: 1px solid var(--border-default, #334155);
+  border: 1px solid var(--border-default);
   border-radius: 0.2rem;
   background: rgba(255, 255, 255, 0.04);
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
   font-size: 0.6rem;
   font-weight: 700;
   cursor: pointer;
@@ -280,7 +280,7 @@ function severityIcon(severity: string): string {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
 }
 
 .insights-item-btn {
@@ -292,7 +292,7 @@ function severityIcon(severity: string): string {
   border: none;
   border-radius: 0.25rem;
   background: transparent;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--text-primary);
   font-size: 0.68rem;
   cursor: pointer;
   text-align: left;
@@ -303,8 +303,8 @@ function severityIcon(severity: string): string {
 }
 
 .insights-item-btn--active {
-  background: rgba(96, 165, 250, 0.15);
-  outline: 1px solid rgba(96, 165, 250, 0.35);
+  background: var(--graph-insight-info-bg);
+  outline: 1px solid var(--graph-selection-connected-outline);
 }
 
 .insights-severity {
@@ -320,18 +320,18 @@ function severityIcon(severity: string): string {
 }
 
 .insights-severity--critical {
-  background: rgba(239, 68, 68, 0.18);
-  color: #f87171;
+  background: var(--graph-insight-critical-bg);
+  color: var(--graph-insight-critical-text);
 }
 
 .insights-severity--warning {
-  background: rgba(251, 191, 36, 0.18);
-  color: #fbbf24;
+  background: var(--graph-insight-warning-bg);
+  color: var(--graph-insight-warning-text);
 }
 
 .insights-severity--info {
-  background: rgba(96, 165, 250, 0.12);
-  color: #93c5fd;
+  background: var(--graph-insight-info-bg);
+  color: var(--graph-insight-info-text);
 }
 
 .insights-item-title {
@@ -344,7 +344,7 @@ function severityIcon(severity: string): string {
 .insights-item-count {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.62rem;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -352,10 +352,10 @@ function severityIcon(severity: string): string {
   width: 100%;
   padding: 0.3rem;
   margin-top: 0.3rem;
-  border: 1px solid var(--border-default, #334155);
+  border: 1px solid var(--border-default);
   border-radius: 0.25rem;
   background: rgba(255, 255, 255, 0.04);
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
   font-size: 0.65rem;
   cursor: pointer;
 }

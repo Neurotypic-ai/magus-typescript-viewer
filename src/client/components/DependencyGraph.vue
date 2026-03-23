@@ -264,8 +264,8 @@ onUnmounted(() => {
         :node-color="minimapNodeColor"
         :node-stroke-color="minimapNodeStrokeColor"
         :node-stroke-width="2"
-        :mask-color="'rgba(7, 10, 18, 0.75)'"
-        :mask-stroke-color="'rgba(34, 211, 238, 0.6)'"
+        :mask-color="'var(--graph-minimap-mask)'"
+        :mask-stroke-color="'var(--graph-minimap-mask-stroke)'"
         :mask-stroke-width="1.5"
         aria-label="Graph minimap"
         @node-click="handleMinimapNodeClick"
@@ -491,8 +491,8 @@ onUnmounted(() => {
 }
 
 .dependency-graph-root :deep(.vue-flow__node.selection-target .base-node-container) {
-  border-color: #22d3ee !important;
-  outline: 2px solid rgba(34, 211, 238, 0.34);
+  border-color: var(--graph-selection-target-border) !important;
+  outline: 2px solid var(--graph-selection-target-outline);
   outline-offset: 0;
   box-shadow: 0 2px 6px rgba(2, 6, 23, 0.22) !important;
 }
@@ -503,8 +503,8 @@ onUnmounted(() => {
 }
 
 .dependency-graph-root :deep(.vue-flow__node.selection-connected .base-node-container) {
-  border-color: rgba(34, 211, 238, 0.5) !important;
-  outline: 1px solid rgba(34, 211, 238, 0.26);
+  border-color: var(--graph-selection-connected-border) !important;
+  outline: 1px solid var(--graph-selection-connected-outline);
   outline-offset: 0;
   box-shadow: 0 1px 4px rgba(2, 6, 23, 0.16) !important;
 }
@@ -518,7 +518,7 @@ onUnmounted(() => {
 /* Connected edges — highlighted with thicker stroke and increased opacity.
    Uses stroke-width for emphasis instead of expensive drop-shadow filter. */
 .dependency-graph-root :deep(.vue-flow__edge.edge-selection-highlighted .vue-flow__edge-path) {
-  stroke-width: 3px !important;
+  stroke-width: var(--graph-edge-width-highlighted) !important;
   stroke-opacity: 1 !important;
 }
 
@@ -530,10 +530,10 @@ onUnmounted(() => {
 @keyframes edge-hover-pulse {
   0%,
   100% {
-    stroke: var(--edge-hover-base-stroke, #404040);
+    stroke: var(--edge-hover-base-stroke, var(--graph-edge-default));
   }
   50% {
-    stroke: #facc15;
+    stroke: var(--graph-selection-hover-pulse);
   }
 }
 
@@ -543,8 +543,8 @@ onUnmounted(() => {
 }
 
 .dependency-graph-root :deep(.vue-flow__edge.edge-hover-highlighted .vue-flow__edge-path) {
-  stroke-width: 2.8px !important;
-  stroke: var(--edge-hover-base-stroke, #404040);
+  stroke-width: var(--graph-edge-width-hover) !important;
+  stroke: var(--edge-hover-base-stroke, var(--graph-edge-default));
   stroke-opacity: 1;
   animation: edge-hover-pulse 1.4s ease-in-out infinite;
 }
@@ -709,7 +709,7 @@ onUnmounted(() => {
 
 .fps-chart-line {
   fill: none;
-  stroke: #22d3ee;
+  stroke: var(--graph-fps-line);
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -730,15 +730,15 @@ onUnmounted(() => {
 }
 
 .fps-good {
-  color: #4ade80;
+  color: var(--graph-fps-good);
 }
 
 .fps-ok {
-  color: #fbbf24;
+  color: var(--graph-fps-ok);
 }
 
 .fps-low {
-  color: #f87171;
+  color: var(--graph-fps-low);
 }
 
 .graph-stats-panel-slot {
@@ -789,7 +789,7 @@ onUnmounted(() => {
 }
 
 .graph-stats-summary:focus-visible {
-  outline: 2px solid rgba(34, 211, 238, 0.65);
+  outline: 2px solid var(--graph-selection-connected-border);
   outline-offset: 2px;
 }
 

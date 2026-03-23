@@ -100,7 +100,9 @@ describe('buildSymbolDrilldownGraph', () => {
       expect(moduleNode).toBeDefined();
       expect(moduleNode!.type).toBe('module');
       expect(moduleNode!.data.label).toBe('index.ts');
-      expect(moduleNode!.style).toEqual(expect.objectContaining({ borderColor: '#00ffff', borderWidth: '3px' }));
+      expect(moduleNode!.style).toEqual(
+        expect.objectContaining({ borderColor: 'var(--graph-selection-target-border)', borderWidth: '3px' })
+      );
     });
 
     it('includes all classes when focus is module', () => {

@@ -141,8 +141,8 @@ function closePanel(): void {
 }
 
 .issues-panel-count {
-  background-color: rgba(251, 191, 36, 0.2);
-  color: rgb(251, 191, 36);
+  background-color: var(--graph-insight-warning-bg);
+  color: var(--graph-insight-warning-text);
   padding: 0.1rem 0.4rem;
   border-radius: 0.25rem;
   font-size: 0.7rem;
@@ -204,15 +204,15 @@ function closePanel(): void {
 }
 
 .issue-severity-error {
-  color: #ef4444;
+  color: var(--graph-issue-error);
 }
 
 .issue-severity-warning {
-  color: #fbbf24;
+  color: var(--graph-issue-warning);
 }
 
 .issue-severity-info {
-  color: #60a5fa;
+  color: var(--graph-issue-info);
 }
 
 .issue-location {
@@ -229,7 +229,7 @@ function closePanel(): void {
 }
 
 .issue-suggestion {
-  color: rgb(94, 234, 212);
+  color: var(--graph-badge-module-text);
   font-size: 0.7rem;
   font-style: italic;
   margin-bottom: 0.35rem;
@@ -257,12 +257,12 @@ function closePanel(): void {
 }
 
 .issue-btn--apply {
-  border-color: rgba(94, 234, 212, 0.3);
-  color: rgb(94, 234, 212);
+  border-color: var(--graph-node-package-border);
+  color: var(--graph-badge-module-text);
 }
 
 .issue-btn--apply:hover {
-  background-color: rgba(94, 234, 212, 0.1);
+  background-color: var(--graph-node-package-bg);
 }
 
 .issues-preview {
@@ -316,6 +316,6 @@ function closePanel(): void {
 }
 
 .issues-preview-code--after {
-  border-color: rgba(94, 234, 212, 0.2);
+  border-color: var(--graph-node-package-border);
 }
 </style>

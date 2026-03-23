@@ -1,6 +1,6 @@
 import { toDependencyEdgeKind } from '../graph/edgeKindUtils';
 import { EDGE_HOVER_BASE_STROKE_VAR, EDGE_HOVER_FALLBACK_STROKE } from './graphClasses';
-import { getEdgeStyle } from './graphTheme';
+import { getEdgeColor } from './graphTheme';
 
 import type { GraphEdge } from '../types/GraphEdge';
 
@@ -20,7 +20,7 @@ export const getEdgeBaseStroke = (edge: GraphEdge): string => {
     return styleStroke;
   }
 
-  const themedStroke = getEdgeStyle(toDependencyEdgeKind(edge.data?.type))['stroke'];
+  const themedStroke = getEdgeColor(toDependencyEdgeKind(edge.data?.type));
   if (typeof themedStroke === 'string' && themedStroke.length > 0) {
     return themedStroke;
   }

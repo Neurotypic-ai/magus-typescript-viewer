@@ -108,8 +108,11 @@ export function useSearchHighlighting(options: UseSearchHighlightingOptions): Se
       const isMatch = matchingNodeIds.has(node.id);
       const isOnPath = hasPath && pathNodeIds.has(node.id);
       const opacity = !hasResults ? 1 : hasPath ? (isOnPath ? 1 : 0.2) : isMatch ? 1 : 0.2;
-      const borderWidth =
-        hasPath && isOnPath ? theme.edges.sizes.width.selected : hasPath ? theme.edges.sizes.width.default : undefined;
+      const borderWidth = hasPath
+        ? isOnPath
+          ? theme.nodes.highlight.borderWidth.selected
+          : theme.nodes.highlight.borderWidth.default
+        : undefined;
       const currentStyle = typeof node.style === 'object' ? (node.style as Record<string, unknown>) : {};
       const currentOpacity = parseDimension(currentStyle['opacity']) ?? 1;
       const currentBorderWidth = currentStyle['borderWidth'];

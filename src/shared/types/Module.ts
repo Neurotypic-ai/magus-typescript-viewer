@@ -96,11 +96,6 @@ export interface IModule {
 }
 
 export class Module implements IModule {
-  /**
-   * The UUID namespace for generating unique identifiers for Module instances.
-   */
-  static readonly UUID_NAMESPACE = 'e32ec4a1-3efb-4393-a5a6-00a82d336089';
-
   constructor(
     public readonly id: string,
     public readonly package_id: string,

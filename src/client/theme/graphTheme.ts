@@ -1,292 +1,300 @@
 import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 
+import {
+  ALL_DEPENDENCY_EDGE_KINDS,
+  ALL_DEPENDENCY_KINDS,
+  cssVar,
+  graphCssVariableNames,
+  graphTokenValues,
+} from './graphTokens';
+
 type CSSProperties = Record<string, string | number | undefined>;
 
-// Node-related type definitions
-export interface NodePadding {
+interface NodePadding {
   content: number;
   header: number;
 }
 
-export interface NodeBackgroundColors {
-  default: string;
-  package: string;
-}
-
-export interface NodeColors {
-  background: NodeBackgroundColors;
-  border: string;
-}
-
-export interface ThemeNodeDimensions {
+interface ThemeNodeDimensions {
   width: number;
   height: number;
 }
 
-export interface NodeTheme {
-  padding: NodePadding;
-  colors: NodeColors;
+interface NodeKindTheme {
+  backgroundColor: string;
+  borderColor: string;
+  minWidth: string | number;
+  padding: string;
   borderRadius: number;
-  minDimensions: ThemeNodeDimensions;
+  borderStyle?: string;
+  minimapColor: string;
 }
 
-// Edge-related type definitions
-export interface EdgeWidthSizes {
+interface NodeHighlightTheme {
+  borderWidth: {
+    default: number;
+    selected: number;
+  };
+}
+
+interface NodeMinimapTheme {
+  defaultColor: string;
+  defaultStrokeColor: string;
+  selectedStrokeColor: string;
+}
+
+interface NodeTheme {
+  padding: NodePadding;
+  borderColor: string;
+  backgroundColor: string;
+  borderRadius: number;
+  minDimensions: ThemeNodeDimensions;
+  kinds: Record<DependencyKind, NodeKindTheme>;
+  highlight: NodeHighlightTheme;
+  minimap: NodeMinimapTheme;
+}
+
+interface EdgeWidthSizes {
   default: number;
   selected: number;
   inheritance: number;
+  contains: number;
+  extends: number;
+  uses: number;
+  highlighted: number;
+  hover: number;
+  isolated: number;
 }
 
-export interface EdgeLabelSizes {
+interface EdgeLabelSizes {
   fontSize: string;
 }
 
-export interface EdgeSizes {
+interface EdgeSizes {
   width: EdgeWidthSizes;
   label: EdgeLabelSizes;
 }
 
-export interface EdgeColors {
-  import: string;
-  export: string;
-  inheritance: string;
-  implements: string;
-  dependency: string;
-  devDependency: string;
-  peerDependency: string;
-  contains: string;
-  default: string;
-}
+type EdgeColors = Record<DependencyEdgeKind, string>;
 
-export interface EdgeTheme {
+interface EdgeTheme {
   sizes: EdgeSizes;
   colors: EdgeColors;
 }
 
-// Layout-related type definitions
-export interface LayoutSpacing {
+interface IssueSeverityTheme {
+  color: string;
+  borderColor: string;
+  glowColor?: string;
+}
+
+interface InsightSeverityTheme {
+  backgroundColor: string;
+  color: string;
+}
+
+interface SeverityTheme {
+  issue: {
+    error: IssueSeverityTheme;
+    warning: IssueSeverityTheme;
+    info: IssueSeverityTheme;
+  };
+  insight: {
+    critical: InsightSeverityTheme;
+    warning: InsightSeverityTheme;
+    info: InsightSeverityTheme;
+  };
+}
+
+interface GeometryTheme {
+  handleSize: number;
+  edgeMarkerWidth: number;
+  edgeMarkerHeight: number;
+}
+
+interface LayoutSpacing {
   horizontal: number;
   vertical: number;
   edge: number;
   margin: number;
 }
 
-export interface LayoutTheme {
+interface LayoutTheme {
   spacing: LayoutSpacing;
 }
 
-// Main theme interface
-export interface GraphTheme {
+interface GraphTheme {
   nodes: NodeTheme;
   edges: EdgeTheme;
+  severity: SeverityTheme;
+  geometry: GeometryTheme;
   layout: LayoutTheme;
 }
 
-// Theme configuration
+function createNodeKindTheme(type: DependencyKind): NodeKindTheme {
+  const token = graphTokenValues.nodes.kinds[type] as {
+    background: string;
+    border: string;
+    minWidth: string | number;
+    padding: string;
+    borderRadius: number;
+    minimapColor: string;
+    borderStyle?: string;
+  };
+  const cssVariables = graphCssVariableNames.nodeKinds[type];
+  return {
+    backgroundColor: cssVar(cssVariables.background),
+    borderColor: cssVar(cssVariables.border),
+    minWidth: token.minWidth,
+    padding: token.padding,
+    borderRadius: token.borderRadius,
+    ...(token.borderStyle ? { borderStyle: token.borderStyle } : {}),
+    minimapColor: token.minimapColor,
+  };
+}
+
+const nodeKinds = Object.fromEntries(ALL_DEPENDENCY_KINDS.map((type) => [type, createNodeKindTheme(type)])) as Record<
+  DependencyKind,
+  NodeKindTheme
+>;
+
+const edgeColors = Object.fromEntries(
+  ALL_DEPENDENCY_EDGE_KINDS.map((type) => [type, cssVar(graphCssVariableNames.edgeKinds[type].color)])
+) as EdgeColors;
+
+const rawEdgeWidths: {
+  default: number;
+  selected: number;
+  inheritance: number;
+  contains: number;
+  extends: number;
+  uses: number;
+  highlighted: number;
+  hover: number;
+  isolated: number;
+} = graphTokenValues.edges.widths;
+
+const edgeWidths: EdgeWidthSizes = {
+  default: rawEdgeWidths.default,
+  selected: rawEdgeWidths.selected,
+  inheritance: rawEdgeWidths.inheritance,
+  contains: rawEdgeWidths.contains,
+  extends: rawEdgeWidths.extends,
+  uses: rawEdgeWidths.uses,
+  highlighted: rawEdgeWidths.highlighted,
+  hover: rawEdgeWidths.hover,
+  isolated: rawEdgeWidths.isolated,
+};
+
 export const graphTheme: GraphTheme = {
   nodes: {
-    padding: {
-      content: 16,
-      header: 8,
-    },
-    colors: {
-      background: {
-        default: '#1a1a1a',
-        package: '#2d2d2d',
+    padding: graphTokenValues.nodes.padding,
+    borderColor: cssVar(graphCssVariableNames.nodeBase.border),
+    backgroundColor: cssVar(graphCssVariableNames.nodeBase.background),
+    borderRadius: graphTokenValues.nodes.borderRadius,
+    minDimensions: graphTokenValues.nodes.minDimensions,
+    kinds: nodeKinds,
+    highlight: {
+      borderWidth: {
+        default: graphTokenValues.nodes.highlight.defaultBorderWidth,
+        selected: graphTokenValues.nodes.highlight.selectedBorderWidth,
       },
-      border: '#404040',
     },
-    borderRadius: 4,
-    minDimensions: {
-      width: 100,
-      height: 30,
-    },
+    minimap: graphTokenValues.nodes.minimap,
   },
   edges: {
     sizes: {
-      width: {
-        default: 1,
-        selected: 2,
-        inheritance: 2,
-      },
+      width: edgeWidths,
       label: {
-        fontSize: '12px',
+        fontSize: graphTokenValues.edges.labelFontSize,
       },
     },
-    colors: {
-      import: '#61dafb',
-      export: '#ffd700',
-      inheritance: '#4caf50',
-      implements: '#ff9800',
-      dependency: '#f44336',
-      devDependency: '#795548',
-      peerDependency: '#009688',
-      contains: '#9c27b0',
-      default: '#404040',
-    },
+    colors: edgeColors,
   },
+  severity: {
+    issue: graphTokenValues.severity.issue,
+    insight: graphTokenValues.severity.insight,
+  },
+  geometry: graphTokenValues.geometry,
   layout: {
+    // These values intentionally mirror the current layout engine constants.
+    // The layout engine is not wired to this object yet.
     spacing: {
-      horizontal: 50, // Base spacing between nodes
-      vertical: 80, // Base spacing between ranks
-      edge: 20, // Base spacing between edges
-      margin: 30, // Base margin around the graph
+      horizontal: 40,
+      vertical: 60,
+      edge: 20,
+      margin: 30,
     },
   },
 };
 
-// Create a type-safe theme instance for use in helper functions
-const defaultTheme = graphTheme as Required<GraphTheme>;
-
-// Node Styles
 export function getNodeStyle(type: DependencyKind): CSSProperties {
+  const kindTheme = graphTheme.nodes.kinds[type];
   const baseStyle: CSSProperties = {
-    padding: `${String(defaultTheme.nodes.padding.header)}px ${String(defaultTheme.nodes.padding.content)}px`,
-    borderRadius: defaultTheme.nodes.borderRadius,
-    border: `1px solid ${defaultTheme.nodes.colors.border}`,
-    backgroundColor: defaultTheme.nodes.colors.background.default,
-    minWidth: defaultTheme.nodes.minDimensions.width,
-    minHeight: defaultTheme.nodes.minDimensions.height,
+    padding: `${String(graphTheme.nodes.padding.header)}px ${String(graphTheme.nodes.padding.content)}px`,
+    borderRadius: graphTheme.nodes.borderRadius,
+    border: `1px solid ${graphTheme.nodes.borderColor}`,
+    backgroundColor: graphTheme.nodes.backgroundColor,
+    minWidth: graphTheme.nodes.minDimensions.width,
+    minHeight: graphTheme.nodes.minDimensions.height,
   };
 
-  switch (type) {
-    case 'package':
-      return {
-        ...baseStyle,
-        backgroundColor: 'rgba(20, 184, 166, 0.08)',
-        borderColor: 'rgba(20, 184, 166, 0.3)',
-        borderRadius: defaultTheme.nodes.borderRadius * 2,
-        minWidth: '200px',
-        padding: '20px',
-      };
-    case 'module':
-      return {
-        ...baseStyle,
-        backgroundColor: 'rgba(59, 130, 246, 0.06)',
-        borderColor: 'rgba(59, 130, 246, 0.25)',
-        minWidth: '180px',
-        padding: '16px',
-      };
-    case 'class':
-      return {
-        ...baseStyle,
-        backgroundColor: 'rgba(59, 130, 246, 0.10)',
-        borderColor: 'rgba(59, 130, 246, 0.35)',
-        minWidth: '200px',
-        padding: '12px',
-      };
-    case 'interface':
-      return {
-        ...baseStyle,
-        backgroundColor: 'rgba(168, 85, 247, 0.10)',
-        borderColor: 'rgba(168, 85, 247, 0.35)',
-        minWidth: '200px',
-        padding: '12px',
-      };
-    case 'group':
-      return {
-        ...baseStyle,
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
-        borderStyle: 'dashed',
-        borderColor: 'rgba(255, 255, 255, 0.15)',
-        minWidth: '180px',
-        padding: '8px',
-      };
-    case 'property':
-      return {
-        ...baseStyle,
-        backgroundColor: 'rgba(100, 149, 237, 0.15)',
-        borderColor: 'rgba(100, 149, 237, 0.4)',
-        minWidth: '180px',
-        padding: '6px 10px',
-      };
-    case 'method':
-      return {
-        ...baseStyle,
-        backgroundColor: 'rgba(186, 85, 211, 0.15)',
-        borderColor: 'rgba(186, 85, 211, 0.4)',
-        minWidth: '180px',
-        padding: '6px 10px',
-      };
-    default:
-      return baseStyle;
-  }
+  return {
+    ...baseStyle,
+    backgroundColor: kindTheme.backgroundColor,
+    borderColor: kindTheme.borderColor,
+    borderRadius: kindTheme.borderRadius,
+    minWidth: kindTheme.minWidth,
+    padding: kindTheme.padding,
+    ...(kindTheme.borderStyle ? { borderStyle: kindTheme.borderStyle } : {}),
+  };
 }
 
-// Edge Styles
 export function getEdgeStyle(type: DependencyEdgeKind): CSSProperties {
   const baseStyle: CSSProperties = {
-    stroke: defaultTheme.edges.colors.default,
-    strokeWidth: defaultTheme.edges.sizes.width.default,
+    stroke: edgeColors[type],
+    strokeWidth: graphTheme.edges.sizes.width.default,
   };
 
   switch (type) {
     case 'inheritance':
-      return {
-        ...baseStyle,
-        stroke: defaultTheme.edges.colors.inheritance,
-        strokeWidth: defaultTheme.edges.sizes.width.inheritance,
-      };
     case 'implements':
       return {
         ...baseStyle,
-        stroke: defaultTheme.edges.colors.implements,
+        stroke: edgeColors[type],
+        strokeWidth: graphTheme.edges.sizes.width.inheritance,
       };
-    case 'import':
+    case 'extends':
       return {
         ...baseStyle,
-        stroke: defaultTheme.edges.colors.import,
-      };
-    case 'export':
-      return {
-        ...baseStyle,
-        stroke: defaultTheme.edges.colors.export,
-      };
-    case 'dependency':
-      return {
-        ...baseStyle,
-        stroke: defaultTheme.edges.colors.dependency,
-      };
-    case 'devDependency':
-      return {
-        ...baseStyle,
-        stroke: defaultTheme.edges.colors.devDependency,
-      };
-    case 'peerDependency':
-      return {
-        ...baseStyle,
-        stroke: defaultTheme.edges.colors.peerDependency,
+        stroke: edgeColors[type],
+        strokeWidth: graphTheme.edges.sizes.width.extends,
       };
     case 'contains':
       return {
         ...baseStyle,
-        stroke: defaultTheme.edges.colors.contains,
-        strokeWidth: 1.5,
+        stroke: edgeColors[type],
+        strokeWidth: graphTheme.edges.sizes.width.contains,
       };
-    default:
-      return baseStyle;
+    case 'uses':
+      return {
+        ...baseStyle,
+        stroke: edgeColors[type],
+        strokeWidth: graphTheme.edges.sizes.width.uses,
+      };
+    case 'dependency':
+    case 'devDependency':
+    case 'peerDependency':
+    case 'import':
+    case 'export':
+      return {
+        ...baseStyle,
+        stroke: edgeColors[type],
+      };
   }
 }
 
-// Edge Color Helper
 export function getEdgeColor(type: DependencyEdgeKind): string {
-  switch (type) {
-    case 'inheritance':
-      return defaultTheme.edges.colors.inheritance;
-    case 'implements':
-      return defaultTheme.edges.colors.implements;
-    case 'import':
-      return defaultTheme.edges.colors.import;
-    case 'export':
-      return defaultTheme.edges.colors.export;
-    case 'dependency':
-      return defaultTheme.edges.colors.dependency;
-    case 'devDependency':
-      return defaultTheme.edges.colors.devDependency;
-    case 'peerDependency':
-      return defaultTheme.edges.colors.peerDependency;
-    default:
-      return defaultTheme.edges.colors.default;
-  }
+  return edgeColors[type];
 }

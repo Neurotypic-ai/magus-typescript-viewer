@@ -6,7 +6,8 @@ import { clusterByFolder } from '../graph/cluster/folders';
 import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
 import { traverseGraph } from '../graph/traversal';
 import { mergeNodeInteractionStyle, stripNodeClass } from '../theme/graphClasses';
-import { getEdgeStyle } from '../theme/graphTheme';
+import { getEdgeStyle, graphTheme } from '../theme/graphTheme';
+import { cssVar, graphCssVariableNames } from '../theme/graphTokens';
 import { waitForNextPaint } from '../utils/dom';
 
 import type { Ref } from 'vue';
@@ -341,8 +342,8 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
         selected: node.id === nodeId,
         style: mergeNodeInteractionStyle(baseNode, {
           opacity: node.id === nodeId ? 1 : 0.9,
-          borderColor: node.id === nodeId ? '#22d3ee' : undefined,
-          borderWidth: node.id === nodeId ? '2px' : undefined,
+          borderColor: node.id === nodeId ? cssVar(graphCssVariableNames.selection.targetBorder) : undefined,
+          borderWidth: node.id === nodeId ? graphTheme.nodes.highlight.borderWidth.selected : undefined,
         }),
       };
     };
@@ -357,7 +358,10 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
           style: {
             ...getEdgeStyle(toDependencyEdgeKind(edge.data?.type)),
             opacity: 0.9,
-            strokeWidth: edge.source === nodeId || edge.target === nodeId ? 3 : 2,
+            strokeWidth:
+              edge.source === nodeId || edge.target === nodeId
+                ? graphTheme.edges.sizes.width.highlighted
+                : graphTheme.edges.sizes.width.isolated,
           },
           zIndex: edge.source === nodeId || edge.target === nodeId ? 5 : 1,
         })),

@@ -127,7 +127,7 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 0.75rem;
   color: var(--text-secondary);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(var(--text-secondary-rgb), 0.04);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -149,11 +149,11 @@ onUnmounted(() => {
 }
 
 .context-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(var(--text-secondary-rgb), 0.05);
 }
 
 .context-menu-item--refactor {
-  color: rgb(94, 234, 212);
+  color: var(--graph-badge-module-text);
   white-space: normal;
   font-size: 0.75rem;
 }
@@ -166,7 +166,7 @@ onUnmounted(() => {
 
 .context-menu-separator {
   height: 1px;
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: rgba(var(--text-secondary-rgb), 0.06);
   margin: 0.25rem 0;
 }
 </style>

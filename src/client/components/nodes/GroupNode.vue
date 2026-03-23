@@ -102,15 +102,15 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 
 <style scoped>
 .group-node-container {
-  --folder-inner-handle-inset: 12px;
+  --folder-inner-handle-inset: var(--graph-handle-size);
   width: 100%;
   height: 100%;
   min-width: 220px;
   min-height: 80px;
-  border: 2px dashed rgba(148, 163, 184, 0.8);
+  border: 2px dashed var(--graph-folder-border);
   border-radius: 10px;
-  background: rgba(30, 41, 59, 0.25);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+  background: var(--graph-folder-bg);
+  box-shadow: inset 0 0 0 1px var(--graph-folder-border-muted);
   overflow: visible;
   padding: 8px 8px 8px 8px;
   transition:
@@ -122,11 +122,11 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 .group-node-collapsed {
   min-width: 180px;
   min-height: 48px;
-  border: 3px solid rgba(96, 165, 250, 0.85);
-  background: rgba(30, 41, 59, 0.65);
+  border: 3px solid var(--graph-folder-active-border);
+  background: var(--graph-folder-collapsed-bg);
   box-shadow:
-    inset 0 0 0 1px rgba(96, 165, 250, 0.3),
-    0 0 12px rgba(96, 165, 250, 0.25),
+    inset 0 0 0 1px var(--graph-folder-badge-bg),
+    0 0 12px var(--graph-folder-active-shadow),
     0 2px 8px rgba(0, 0, 0, 0.3);
   padding: 8px 10px;
 }
@@ -139,10 +139,10 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 }
 
 .group-node-selected {
-  border-color: rgba(96, 165, 250, 0.9);
+  border-color: var(--graph-folder-active-border-strong);
   box-shadow:
-    inset 0 0 0 1px rgba(96, 165, 250, 0.45),
-    0 0 0 2px rgba(96, 165, 250, 0.2);
+    inset 0 0 0 1px var(--graph-selection-connected-outline),
+    0 0 0 2px var(--graph-selection-connected-outline);
 }
 
 .group-node-header {
@@ -171,7 +171,7 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   flex-shrink: 0;
   border: none;
   border-radius: 3px;
-  background: rgba(148, 163, 184, 0.15);
+  background: rgba(var(--text-secondary-rgb), 0.15);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 9px;
@@ -181,7 +181,7 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 }
 
 .collapse-toggle:hover {
-  background: rgba(148, 163, 184, 0.3);
+  background: rgba(var(--text-secondary-rgb), 0.3);
 }
 
 .collapse-icon {
@@ -205,8 +205,8 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   height: 18px;
   padding: 0 4px;
   border-radius: 9px;
-  background: rgba(96, 165, 250, 0.3);
-  color: rgba(96, 165, 250, 0.95);
+  background: var(--graph-folder-badge-bg);
+  color: var(--graph-folder-badge-text);
   font-size: 10px;
   font-weight: 700;
   flex-shrink: 0;
@@ -217,7 +217,7 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   height: 4px !important;
   opacity: 0.15;
   border: none;
-  background: rgba(96, 165, 250, 0.85);
+  background: var(--graph-folder-handle-bg);
   box-shadow: none;
   transition:
     opacity 120ms ease,
@@ -226,7 +226,7 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 
 .group-node-container:hover .folder-handle {
   opacity: 0.42;
-  box-shadow: 0 0 4px rgba(96, 165, 250, 0.65);
+  box-shadow: 0 0 4px var(--graph-folder-handle-shadow);
 }
 
 .folder-handle-inner {
