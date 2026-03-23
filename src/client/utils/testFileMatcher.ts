@@ -14,5 +14,3 @@ export function isTestFilePath(path: string | undefined): boolean {
   const normalizedPath = path.replace(/\\/g, '/');
   return TEST_FILE_PATTERNS.some((pattern) => pattern.test(normalizedPath));
 }
-
-export { TEST_FILE_PATTERNS };

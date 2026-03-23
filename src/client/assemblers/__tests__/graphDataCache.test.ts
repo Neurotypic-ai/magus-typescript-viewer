@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { GraphDataCache } from '../graphDataCache';
 
 import type { PackageGraph } from '../../../shared/types/Package';

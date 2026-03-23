@@ -1,4 +1,5 @@
 import { Position } from '@vue-flow/core';
+import { describe, expect, it } from 'vitest';
 
 import {
   createDetailedSymbolNode,

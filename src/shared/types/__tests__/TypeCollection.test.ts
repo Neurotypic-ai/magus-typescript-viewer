@@ -7,6 +7,8 @@
  * The utility functions that operate on TypeCollection live in
  * src/client/utils/collections.ts: typeCollectionToArray() and mapTypeCollection().
  */
+import { describe, expect, it } from 'vitest';
+
 import { mapTypeCollection, typeCollectionToArray } from '../../../client/utils/collections';
 
 import type { TypeCollection } from '../TypeCollection';

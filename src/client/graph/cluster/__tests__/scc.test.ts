@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import { collapseSccs, computeSccs } from '../scc';
 
 import type { DependencyNode } from '../../../types/DependencyNode';
@@ -25,7 +27,7 @@ function classNode(id: string): DependencyNode {
   } as DependencyNode;
 }
 
-function depEdge(source: string, target: string, type: string = 'dependency'): GraphEdge {
+function depEdge(source: string, target: string, type = 'dependency'): GraphEdge {
   return {
     id: `${source}->${target}`,
     source,

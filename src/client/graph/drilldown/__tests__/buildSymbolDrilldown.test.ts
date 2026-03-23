@@ -1,4 +1,5 @@
 import { Position } from '@vue-flow/core';
+import { describe, expect, it } from 'vitest';
 
 import { buildSymbolDrilldownGraph } from '../buildSymbolDrilldown';
 
@@ -34,7 +35,7 @@ function makeGraph(modules: Record<string, Module>): PackageGraph {
   return { packages: [makePackage(modules)] };
 }
 
-function makeNode(id: string, type: string = 'module'): DependencyNode {
+function makeNode(id: string, type = 'module'): DependencyNode {
   return {
     id,
     type,

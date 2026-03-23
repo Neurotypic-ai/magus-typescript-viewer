@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents } from '../graph-algorithms';
 
 // ---------------------------------------------------------------------------

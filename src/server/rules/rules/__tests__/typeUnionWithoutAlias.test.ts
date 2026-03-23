@@ -1,4 +1,5 @@
 import jscodeshift from 'jscodeshift';
+import { describe, expect, it } from 'vitest';
 
 import { typeUnionWithoutAlias } from '../typeUnionWithoutAlias';
 
@@ -285,7 +286,7 @@ interface Config {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    const refCtx = issues[0].refactor_context as Record<string, unknown>;
+    const refCtx = issues[0].refactor_context!;
     expect(refCtx.suggestedName).toBe('ConfigState');
     expect(refCtx.parentName).toBe('Config');
     expect(refCtx.parentType).toBe('interface');
@@ -367,8 +368,8 @@ interface Located {
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
     // jscodeshift provides 1-based line numbers
-    expect(issues[0].line).toBeGreaterThanOrEqual(1);
-    expect(issues[0].column).toBeDefined();
+    expect(issues[0]?.line).toBeGreaterThanOrEqual(1);
+    expect(issues[0]?.column).toBeDefined();
   });
 });
 
@@ -388,9 +389,9 @@ class Logger {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_name).toBe('level');
-    expect(issues[0].parent_entity_type).toBe('class');
-    expect(issues[0].parent_entity_name).toBe('Logger');
+    expect(issues[0]?.entity_name).toBe('level');
+    expect(issues[0]?.parent_entity_type).toBe('class');
+    expect(issues[0]?.parent_entity_name).toBe('Logger');
   });
 
   it('includes suggestion with PascalCase name for class property', () => {
@@ -404,7 +405,7 @@ class Theme {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].suggestion).toBe("Extract to type alias 'ThemeBgColor'");
+    expect(issues[0]?.suggestion).toBe("Extract to type alias 'ThemeBgColor'");
   });
 
   it('detects multiple class properties with unions', () => {
@@ -433,7 +434,7 @@ class Device {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_id).toBe('prop-status-456');
+    expect(issues[0]?.entity_id).toBe('prop-status-456');
   });
 
   it('skips class methods (not ClassProperty)', () => {
@@ -448,7 +449,7 @@ class Worker {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_name).toBe('status');
+    expect(issues[0]?.entity_name).toBe('status');
   });
 
   it('skips class with computed property keys', () => {
@@ -464,7 +465,7 @@ class Dynamic {
     const issues = typeUnionWithoutAlias.check(context);
     // Only the "normal" property should be detected (Identifier key)
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_name).toBe('normal');
+    expect(issues[0]?.entity_name).toBe('normal');
   });
 });
 
@@ -575,7 +576,7 @@ interface Partial {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_name).toBe('threeMembers');
+    expect(issues[0]? .entity_name).toBe('threeMembers');
   });
 });
 
@@ -596,25 +597,25 @@ interface Full {
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
 
-    const issue: CodeIssue = issues[0];
-    expect(issue.id).toBeTruthy();
-    expect(issue.rule_code).toBe('type-union-without-alias');
-    expect(issue.severity).toBe('warning');
-    expect(issue.message).toContain('Property');
-    expect(issue.message).toContain('value');
-    expect(issue.message).toContain("interface 'Full'");
-    expect(issue.message).toContain('3 members');
-    expect(issue.suggestion).toBe("Extract to type alias 'FullValue'");
-    expect(issue.package_id).toBe(PACKAGE_ID);
-    expect(issue.module_id).toBe(MODULE_ID);
-    expect(issue.file_path).toBe(FILE_PATH);
-    expect(issue.entity_type).toBe('property');
-    expect(issue.entity_name).toBe('value');
-    expect(issue.parent_entity_id).toBe(ifaceDTO.id);
-    expect(issue.parent_entity_type).toBe('interface');
-    expect(issue.parent_entity_name).toBe('Full');
-    expect(issue.property_name).toBe('value');
-    expect(issue.refactor_action).toBe('extract-type-union');
+    const issue: CodeIssue | undefined = issues[0];
+    expect(issue?.id).toBeTruthy();
+    expect(issue?.rule_code).toBe('type-union-without-alias');
+    expect(issue?.severity).toBe('warning');
+    expect(issue?.message).toContain('Property');
+    expect(issue?.message).toContain('value');
+    expect(issue?.message).toContain("interface 'Full'");
+    expect(issue?.message).toContain('3 members');
+    expect(issue?.suggestion).toBe("Extract to type alias 'FullValue'");
+    expect(issue?.package_id).toBe(PACKAGE_ID);
+    expect(issue?.module_id).toBe(MODULE_ID);
+    expect(issue?.file_path).toBe(FILE_PATH);
+    expect(issue?.entity_type).toBe('property');
+    expect(issue?.entity_name).toBe('value');
+    expect(issue?.parent_entity_id).toBe(ifaceDTO.id);
+    expect(issue?.parent_entity_type).toBe('interface');
+    expect(issue?.parent_entity_name).toBe('Full');
+    expect(issue?.property_name).toBe('value');
+    expect(issue?.refactor_action).toBe('extract-type-union');
   });
 
   it('generates deterministic issue IDs for the same input', () => {
@@ -631,7 +632,7 @@ interface Stable {
     });
     const issues1 = typeUnionWithoutAlias.check(ctx1);
     const issues2 = typeUnionWithoutAlias.check(ctx2);
-    expect(issues1[0].id).toBe(issues2[0].id);
+    expect(issues1[0]?.id).toBe(issues2[0]?.id);
   });
 
   it('generates different issue IDs for different properties', () => {
@@ -646,7 +647,7 @@ interface TwoProps {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(2);
-    expect(issues[0].id).not.toBe(issues[1].id);
+    expect(issues[0]?.id).not.toBe(issues[1]?.id);
   });
 });
 
@@ -668,7 +669,7 @@ interface Computed {
     const issues = typeUnionWithoutAlias.check(context);
     // Only "normal" should be detected; computed key is a StringLiteral
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_name).toBe('normal');
+    expect(issues[0]?.entity_name).toBe('normal');
   });
 
   it('handles interface with no body members', () => {
@@ -729,8 +730,8 @@ interface Complex {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_name).toBe('handler');
-    const refCtx = issues[0].refactor_context as Record<string, unknown>;
+    expect(issues[0]?.entity_name).toBe('handler');
+    const refCtx = issues[0]?.refactor_context!;
     expect(refCtx.unionMembers).toHaveLength(3);
   });
 
@@ -783,7 +784,7 @@ interface Snake {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].suggestion).toBe("Extract to type alias 'SnakeMyPropName'");
+    expect(issues[0]?.suggestion).toBe("Extract to type alias 'SnakeMyPropName'");
   });
 
   it('converts kebab-like property name to PascalCase', () => {
@@ -812,7 +813,7 @@ interface Already {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].suggestion).toBe("Extract to type alias 'AlreadyMyValue'");
+    expect(issues[0]?.suggestion).toBe("Extract to type alias 'AlreadyMyValue'");
   });
 
   it('handles camelCase property name', () => {
@@ -826,6 +827,6 @@ interface Camel {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].suggestion).toBe("Extract to type alias 'CamelMyValue'");
+    expect(issues[0]?.suggestion).toBe("Extract to type alias 'CamelMyValue'");
   });
 });

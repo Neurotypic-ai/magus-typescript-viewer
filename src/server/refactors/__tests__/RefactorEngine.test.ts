@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'fs/promises';
 
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RefactorEngine } from '../RefactorEngine';
 import { allTransforms } from '../transforms/index';

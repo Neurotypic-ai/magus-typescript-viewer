@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InsightEngine } from '../InsightEngine';
 
@@ -12,7 +12,7 @@ vi.mock('../import-graph', () => ({
 }));
 
 // We need to import the mocked function so we can control its return value
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
 const { buildImportGraph } = (await import('../import-graph')) as { buildImportGraph: ReturnType<typeof vi.fn> };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1087,9 +1087,9 @@ describe('InsightEngine', () => {
       const unused = report.insights.filter((i) => i.type === 'unused-exports');
 
       expect(unused).toHaveLength(1);
-      expect(unused[0]!.severity).toBe('warning');
-      expect(unused[0]!.entities).toHaveLength(1);
-      expect(unused[0]!.entities[0]!.name).toBe('unusedSymbol');
+      expect(unused[0]?.severity).toBe('warning');
+      expect(unused[0]?.entities).toHaveLength(1);
+      expect(unused[0]?.entities[0]?.name).toBe('unusedSymbol');
     });
 
     it('handles malformed specifiers_json gracefully', async () => {

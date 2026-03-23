@@ -5,31 +5,6 @@ import type { IImportCreateDTO, IImportUpdateDTO } from '../../../shared/types/d
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IDatabaseRow } from '../types/DatabaseResults';
 
-/**
- * Repository interface for managing imports.
- */
-export interface IImportRepository {
-  /**
-   * Creates a new import.
-   */
-  create(dto: IImportCreateDTO): Promise<IImportCreateDTO>;
-
-  /**
-   * Finds an import by its ID.
-   */
-  findById(id: string): Promise<IImportCreateDTO | null>;
-
-  /**
-   * Finds all imports in a module.
-   */
-  findByModuleId(moduleId: string): Promise<IImportCreateDTO[]>;
-
-  /**
-   * Deletes an import by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
 interface IImportRow extends IDatabaseRow {
   id: string;
   package_id: string;

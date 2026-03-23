@@ -1,8 +1,9 @@
 // @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Database } from '../Database';
 
-import type { DatabaseRow, IDatabaseAdapter, QueryResult } from '../adapter/IDatabaseAdapter';
+import type { IDatabaseAdapter, QueryResult } from '../adapter/IDatabaseAdapter';
 
 /**
  * Creates a mock IDatabaseAdapter with all methods stubbed via vi.fn().
@@ -382,21 +383,19 @@ describe('Database', () => {
     });
 
     it('returns false when a required table is missing', async () => {
-      const queryMock = vi
-        .fn<(sql: string) => Promise<QueryResult<DatabaseRow>>>()
-        .mockImplementation(async (sql: string) => {
-          // verifySchema iterates over required tables; fail on 'modules'
-          if (sql === 'SELECT 1 FROM modules LIMIT 1') {
-            throw new Error('table not found');
-          }
-          if (sql.startsWith('PRAGMA table_info')) {
-            return [] as QueryResult;
-          }
-          if (sql.startsWith('SELECT 1 FROM code_issues')) {
-            throw new Error('table not found');
-          }
-          return [{ id: '1' }] as QueryResult;
-        });
+      const queryMock = vi.fn<(sql: string) => Promise<QueryResult>>().mockImplementation(async (sql: string) => {
+        // verifySchema iterates over required tables; fail on 'modules'
+        if (sql === 'SELECT 1 FROM modules LIMIT 1') {
+          throw new Error('table not found');
+        }
+        if (sql.startsWith('PRAGMA table_info')) {
+          return [] as QueryResult;
+        }
+        if (sql.startsWith('SELECT 1 FROM code_issues')) {
+          throw new Error('table not found');
+        }
+        return [{ id: '1' }] as QueryResult;
+      });
 
       const adapter = createMockAdapter({ query: queryMock });
       fileDb = new Database(adapter, 'test.duckdb');
@@ -408,36 +407,34 @@ describe('Database', () => {
     });
 
     it('returns false when methods table lacks parent_type column', async () => {
-      const queryMock = vi
-        .fn<(sql: string) => Promise<QueryResult<DatabaseRow>>>()
-        .mockImplementation(async (sql: string) => {
-          if (sql === "PRAGMA table_info('methods')") {
-            // Missing parent_type column
-            return [{ id: '0', name: 'id' }] as QueryResult;
-          }
-          if (sql === "PRAGMA table_info('properties')") {
-            return [
-              { id: '0', name: 'id' },
-              { id: '1', name: 'parent_type' },
-            ] as QueryResult;
-          }
-          if (sql.startsWith('PRAGMA table_info')) {
-            return [
-              { id: '0', name: 'id' },
-              { id: '1', name: 'parent_type' },
-              { id: '2', name: 'is_abstract' },
-              { id: '3', name: 'created_at' },
-              { id: '4', name: 'specifiers_json' },
-            ] as QueryResult;
-          }
-          if (sql.startsWith('SELECT 1 FROM code_issues')) {
-            return [{ id: '1' }] as QueryResult;
-          }
-          if (sql.startsWith('SELECT 1 FROM')) {
-            return [{ id: '1' }] as QueryResult;
-          }
-          return [] as QueryResult;
-        });
+      const queryMock = vi.fn<(sql: string) => Promise<QueryResult>>().mockImplementation(async (sql: string) => {
+        if (sql === "PRAGMA table_info('methods')") {
+          // Missing parent_type column
+          return [{ id: '0', name: 'id' }] as QueryResult;
+        }
+        if (sql === "PRAGMA table_info('properties')") {
+          return [
+            { id: '0', name: 'id' },
+            { id: '1', name: 'parent_type' },
+          ] as QueryResult;
+        }
+        if (sql.startsWith('PRAGMA table_info')) {
+          return [
+            { id: '0', name: 'id' },
+            { id: '1', name: 'parent_type' },
+            { id: '2', name: 'is_abstract' },
+            { id: '3', name: 'created_at' },
+            { id: '4', name: 'specifiers_json' },
+          ] as QueryResult;
+        }
+        if (sql.startsWith('SELECT 1 FROM code_issues')) {
+          return [{ id: '1' }] as QueryResult;
+        }
+        if (sql.startsWith('SELECT 1 FROM')) {
+          return [{ id: '1' }] as QueryResult;
+        }
+        return [] as QueryResult;
+      });
 
       const adapter = createMockAdapter({ query: queryMock });
       fileDb = new Database(adapter, 'test.duckdb');

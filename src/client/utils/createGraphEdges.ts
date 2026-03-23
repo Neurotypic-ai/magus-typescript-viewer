@@ -23,7 +23,7 @@ const EDGE_REGISTRY_DEBUG =
 const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
 const graphEdgesLogger = consola.withTag('GraphEdges');
 
-export interface CreateGraphEdgesOptions {
+interface CreateGraphEdgesOptions {
   includePackageEdges?: boolean;
   includeClassEdges?: boolean;
   // Backward-compatible alias for includeClassEdges
@@ -49,10 +49,6 @@ function buildNodeIdSet(data: PackageGraph, options: ResolvedOptions): Set<strin
       nodeIds.add(pkg.id);
     }
 
-    if (!pkg.modules) {
-      return;
-    }
-
     mapTypeCollection(pkg.modules, (module: Module) => {
       nodeIds.add(module.id);
 
@@ -60,41 +56,37 @@ function buildNodeIdSet(data: PackageGraph, options: ResolvedOptions): Set<strin
         return;
       }
 
-      if (module.classes) {
-        mapTypeCollection(module.classes, (cls: Class) => {
-          nodeIds.add(cls.id);
-          if (options.includeMemberContainmentEdges) {
-            typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach(
-              (property: Property) => {
-                const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
-                nodeIds.add(propertyId);
-              }
-            );
-            typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
-              const methodId = method.id ?? `${cls.id}:method:${method.name}`;
-              nodeIds.add(methodId);
-            });
-          }
-        });
-      }
+      mapTypeCollection(module.classes, (cls: Class) => {
+        nodeIds.add(cls.id);
+        if (options.includeMemberContainmentEdges) {
+          typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach(
+            (property: Property) => {
+              const propertyId = property.id;
+              nodeIds.add(propertyId);
+            }
+          );
+          typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
+            const methodId = method.id;
+            nodeIds.add(methodId);
+          });
+        }
+      });
 
-      if (module.interfaces) {
-        mapTypeCollection(module.interfaces, (iface: Interface) => {
-          nodeIds.add(iface.id);
-          if (options.includeMemberContainmentEdges) {
-            typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
-              (property: Property) => {
-                const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
-                nodeIds.add(propertyId);
-              }
-            );
-            typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
-              const methodId = method.id ?? `${iface.id}:method:${method.name}`;
-              nodeIds.add(methodId);
-            });
-          }
-        });
-      }
+      mapTypeCollection(module.interfaces, (iface: Interface) => {
+        nodeIds.add(iface.id);
+        if (options.includeMemberContainmentEdges) {
+          typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
+            (property: Property) => {
+              const propertyId = property.id;
+              nodeIds.add(propertyId);
+            }
+          );
+          typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
+            const methodId = method.id;
+            nodeIds.add(methodId);
+          });
+        }
+      });
     });
   });
 
@@ -109,10 +101,6 @@ function buildNodeKindLookup(data: PackageGraph, options: ResolvedOptions): Map<
       nodeKinds.set(pkg.id, 'package');
     }
 
-    if (!pkg.modules) {
-      return;
-    }
-
     mapTypeCollection(pkg.modules, (module: Module) => {
       nodeKinds.set(module.id, 'module');
 
@@ -120,49 +108,43 @@ function buildNodeKindLookup(data: PackageGraph, options: ResolvedOptions): Map<
         return;
       }
 
-      if (module.classes) {
-        mapTypeCollection(module.classes, (cls: Class) => {
-          nodeKinds.set(cls.id, 'class');
+      mapTypeCollection(module.classes, (cls: Class) => {
+        nodeKinds.set(cls.id, 'class');
 
-          if (!options.includeMemberContainmentEdges) {
-            return;
-          }
+        if (!options.includeMemberContainmentEdges) {
+          return;
+        }
 
-          typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach(
-            (property: Property) => {
-              const propertyId = property.id ?? `${cls.id}:property:${property.name}`;
-              nodeKinds.set(propertyId, 'property');
-            }
-          );
-
-          typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
-            const methodId = method.id ?? `${cls.id}:method:${method.name}`;
-            nodeKinds.set(methodId, 'method');
-          });
+        typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach((property: Property) => {
+          const propertyId = property.id;
+          nodeKinds.set(propertyId, 'property');
         });
-      }
 
-      if (module.interfaces) {
-        mapTypeCollection(module.interfaces, (iface: Interface) => {
-          nodeKinds.set(iface.id, 'interface');
-
-          if (!options.includeMemberContainmentEdges) {
-            return;
-          }
-
-          typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
-            (property: Property) => {
-              const propertyId = property.id ?? `${iface.id}:property:${property.name}`;
-              nodeKinds.set(propertyId, 'property');
-            }
-          );
-
-          typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
-            const methodId = method.id ?? `${iface.id}:method:${method.name}`;
-            nodeKinds.set(methodId, 'method');
-          });
+        typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
+          const methodId = method.id;
+          nodeKinds.set(methodId, 'method');
         });
-      }
+      });
+
+      mapTypeCollection(module.interfaces, (iface: Interface) => {
+        nodeKinds.set(iface.id, 'interface');
+
+        if (!options.includeMemberContainmentEdges) {
+          return;
+        }
+
+        typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
+          (property: Property) => {
+            const propertyId = property.id;
+            nodeKinds.set(propertyId, 'property');
+          }
+        );
+
+        typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
+          const methodId = method.id;
+          nodeKinds.set(methodId, 'method');
+        });
+      });
     });
   });
 
@@ -173,23 +155,15 @@ function buildSymbolToModuleMap(data: PackageGraph): Map<string, string> {
   const symbolToModuleMap = new Map<string, string>();
 
   data.packages.forEach((pkg: Package) => {
-    if (!pkg.modules) {
-      return;
-    }
-
     mapTypeCollection(pkg.modules, (module: Module) => {
       const moduleId = module.id;
-      if (module.classes) {
-        mapTypeCollection(module.classes, (cls: Class) => {
-          symbolToModuleMap.set(cls.id, moduleId);
-        });
-      }
+      mapTypeCollection(module.classes, (cls: Class) => {
+        symbolToModuleMap.set(cls.id, moduleId);
+      });
 
-      if (module.interfaces) {
-        mapTypeCollection(module.interfaces, (iface: Interface) => {
-          symbolToModuleMap.set(iface.id, moduleId);
-        });
-      }
+      mapTypeCollection(module.interfaces, (iface: Interface) => {
+        symbolToModuleMap.set(iface.id, moduleId);
+      });
     });
   });
 
@@ -321,10 +295,6 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
       }
     }
 
-    if (!pkg.modules) {
-      return;
-    }
-
     mapTypeCollection(pkg.modules, (module: Module) => {
       const moduleId = module.id;
       const packageId = module.package_id;
@@ -357,13 +327,13 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
           if (resolvedOptions.includeMemberContainmentEdges) {
             typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach(
               (property: Property) => {
-                const propertyId = property.id ?? `${clsId}:property:${property.name}`;
+                const propertyId = property.id;
                 addEdge(createEdge(clsId, propertyId, 'contains'), `${clsId}|${propertyId}|contains|member`);
               }
             );
 
             typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
-              const methodId = method.id ?? `${clsId}:method:${method.name}`;
+              const methodId = method.id;
               addEdge(createEdge(clsId, methodId, 'contains'), `${clsId}|${methodId}|contains|member`);
             });
           }
@@ -395,13 +365,13 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
           if (resolvedOptions.includeMemberContainmentEdges) {
             typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
               (property: Property) => {
-                const propertyId = property.id ?? `${ifaceId}:property:${property.name}`;
+                const propertyId = property.id;
                 addEdge(createEdge(ifaceId, propertyId, 'contains'), `${ifaceId}|${propertyId}|contains|member`);
               }
             );
 
             typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach((method: Method) => {
-              const methodId = method.id ?? `${ifaceId}:method:${method.name}`;
+              const methodId = method.id;
               addEdge(createEdge(ifaceId, methodId, 'contains'), `${ifaceId}|${methodId}|contains|member`);
             });
           }

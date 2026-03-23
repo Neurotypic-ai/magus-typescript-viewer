@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import {
   EXTENSIONS,
   FILE_EXTENSION_PATTERN,

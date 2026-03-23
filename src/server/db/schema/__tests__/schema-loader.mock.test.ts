@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockReadFileSync = vi.fn();
 

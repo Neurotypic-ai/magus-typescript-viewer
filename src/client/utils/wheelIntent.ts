@@ -1,4 +1,4 @@
-export type WheelIntent = 'pinch' | 'mouseWheel' | 'trackpadScroll';
+type WheelIntent = 'pinch' | 'mouseWheel' | 'trackpadScroll';
 
 /**
  * Classifies a WheelEvent into one of three intent categories.
@@ -33,5 +33,5 @@ export function classifyWheelIntent(event: WheelEvent, isMac = false): WheelInte
 }
 
 export function isMacPlatform(): boolean {
-  return typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
+  return typeof navigator !== 'undefined' && /mac/i.test(navigator.userAgent);
 }

@@ -4,7 +4,7 @@ import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdge
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
-export interface TraversalOptions {
+interface TraversalOptions {
   maxDepth: number;
   edgeFilter?: Set<DependencyEdgeKind>;
   semanticEdges: GraphEdge[];
@@ -12,7 +12,7 @@ export interface TraversalOptions {
   parentMap: Map<string, string>;
 }
 
-export interface TraversalResult {
+interface TraversalResult {
   nodeIds: Set<string>;
   edges: GraphEdge[];
   inbound: Set<string>;
