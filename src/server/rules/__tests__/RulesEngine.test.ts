@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn rule.check / fs.readFile mocks in expects */
+
+import * as fsPromises from 'fs/promises';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultRulesConfig } from '../RulesConfig';
@@ -72,6 +76,17 @@ function createMockRule(code: string, issues: CodeIssue[] = []): Rule {
   };
 }
 
+/** First argument passed to a mocked rule `check` (the RuleContext). */
+function firstRuleContext(rule: Rule): RuleContext {
+  const calls = vi.mocked(rule.check).mock.calls;
+  const first = calls[0];
+  const ctx = first?.[0];
+  if (ctx === undefined) {
+    throw new Error('expected rule.check to have been called with a context');
+  }
+  return ctx;
+}
+
 /** Creates a minimal CodeIssue for testing. */
 function createIssue(ruleCode: string, message: string): CodeIssue {
   return {
@@ -91,10 +106,9 @@ function createIssue(ruleCode: string, message: string): CodeIssue {
 describe('RulesEngine', () => {
   let readFileMock: ReturnType<typeof vi.fn>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    const fsMod = await import('fs/promises');
-    readFileMock = fsMod.readFile as unknown as ReturnType<typeof vi.fn>;
+    readFileMock = vi.mocked(fsPromises.readFile);
   });
 
   // -------------------------------------------------------------------------
@@ -151,7 +165,7 @@ describe('RulesEngine', () => {
       const rule = createMockRule('rule-1');
       const engine = new RulesEngine([rule]);
       await engine.analyze(emptyParseResult());
-      expect(rule.check).not.toHaveBeenCalled();
+      expect(vi.mocked(rule.check)).not.toHaveBeenCalled();
     });
   });
 
@@ -181,8 +195,8 @@ describe('RulesEngine', () => {
 
       await engine.analyze(parseResult);
 
-      expect(rule1.check).toHaveBeenCalledTimes(1);
-      expect(rule2.check).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(rule1.check)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(rule2.check)).toHaveBeenCalledTimes(1);
     });
 
     it('passes correct context to rule check', async () => {
@@ -192,8 +206,8 @@ describe('RulesEngine', () => {
 
       await engine.analyze(parseResult);
 
-      expect(rule.check).toHaveBeenCalledTimes(1);
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
+      expect(vi.mocked(rule.check)).toHaveBeenCalledTimes(1);
+      const context = firstRuleContext(rule);
 
       expect(context.filePath).toBe('/fake/test.ts');
       expect(context.moduleId).toBe('mod-1');
@@ -246,7 +260,7 @@ describe('RulesEngine', () => {
 
     it('processes multiple modules and runs rules on each', async () => {
       const rule = createMockRule('multi-mod-rule');
-      (rule.check as ReturnType<typeof vi.fn>).mockReturnValue([]);
+      vi.mocked(rule.check).mockReturnValue([]);
 
       const parseResult = emptyParseResult({
         package: { id: 'pkg-1', name: 'test', version: '1.0.0', path: '/fake' },
@@ -270,7 +284,7 @@ describe('RulesEngine', () => {
       await engine.analyze(parseResult);
 
       expect(readFileMock).toHaveBeenCalledTimes(2);
-      expect(rule.check).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(rule.check)).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -286,7 +300,7 @@ describe('RulesEngine', () => {
       const issues = await engine.analyze(parseResult);
 
       expect(readFileMock).not.toHaveBeenCalled();
-      expect(rule.check).not.toHaveBeenCalled();
+      expect(vi.mocked(rule.check)).not.toHaveBeenCalled();
       expect(issues).toEqual([]);
     });
 
@@ -317,7 +331,7 @@ describe('RulesEngine', () => {
       // Only the .ts module should be processed
       expect(readFileMock).toHaveBeenCalledTimes(1);
       expect(readFileMock).toHaveBeenCalledWith('/fake/util.ts', 'utf-8');
-      expect(rule.check).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(rule.check)).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -350,7 +364,7 @@ describe('RulesEngine', () => {
       await engine.analyze(parseResult);
 
       // Should still process the second module
-      expect(rule.check).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(rule.check)).toHaveBeenCalledTimes(1);
     });
 
     it('continues to next module when jscodeshift parsing fails', async () => {
@@ -396,7 +410,7 @@ describe('RulesEngine', () => {
 
       const issue = createIssue('good-rule', 'Found something');
       const badRule = createMockRule('bad-rule');
-      (badRule.check as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      vi.mocked(badRule.check).mockImplementation(() => {
         throw new Error('Rule exploded');
       });
       const goodRule = createMockRule('good-rule', [issue]);
@@ -407,14 +421,14 @@ describe('RulesEngine', () => {
       const issues = await engine.analyze(parseResult);
 
       // The bad rule threw, but the good rule still ran
-      expect(goodRule.check).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(goodRule.check)).toHaveBeenCalledTimes(1);
       expect(issues).toContainEqual(issue);
     });
 
     it('does not propagate rule exceptions to the caller', async () => {
       readFileMock.mockResolvedValue('const b = 2;');
       const badRule = createMockRule('exploding-rule');
-      (badRule.check as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      vi.mocked(badRule.check).mockImplementation(() => {
         throw new Error('Unexpected error in rule');
       });
 
@@ -435,7 +449,7 @@ describe('RulesEngine', () => {
       // Should not throw
       const issues = await engine.analyze(parseResult);
       expect(issues).toEqual([]);
-      expect(rule.check).not.toHaveBeenCalled();
+      expect(vi.mocked(rule.check)).not.toHaveBeenCalled();
     });
   });
 
@@ -451,7 +465,7 @@ describe('RulesEngine', () => {
 
       await engine.analyze(parseResult);
 
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
+      const context = firstRuleContext(rule);
       expect(context.config).toEqual(defaultRulesConfig);
     });
 
@@ -465,7 +479,7 @@ describe('RulesEngine', () => {
 
       await engine.analyze(parseResult);
 
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
+      const context = firstRuleContext(rule);
       expect(context.config.typeUnionWithoutAlias.memberThreshold).toBe(99);
     });
   });
@@ -482,7 +496,7 @@ describe('RulesEngine', () => {
 
       await engine.analyze(parseResult);
 
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
+      const context = firstRuleContext(rule);
       expect(context.packageId).toBe('my-pkg');
     });
 
@@ -503,7 +517,7 @@ describe('RulesEngine', () => {
       const engine = new RulesEngine([rule]);
       await engine.analyze(parseResult);
 
-      const context: RuleContext = (rule.check as ReturnType<typeof vi.fn>).mock.calls[0]![0]! as RuleContext;
+      const context = firstRuleContext(rule);
       expect(context.packageId).toBe('');
     });
   });

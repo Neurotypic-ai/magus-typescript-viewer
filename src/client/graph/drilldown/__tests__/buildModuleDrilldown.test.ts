@@ -15,6 +15,14 @@ import type { BuildModuleDrilldownGraphOptions } from '../buildModuleDrilldown';
 /*  Helpers to build minimal test data                                 */
 /* ------------------------------------------------------------------ */
 
+function expectDefined<T>(value: T | undefined, label: string): T {
+  expect(value).toBeDefined();
+  if (value === undefined) {
+    throw new Error(`expected ${label}`);
+  }
+  return value;
+}
+
 const testClassDefaults = {
   package_id: 'pkg-1',
   module_id: 'mod-1',
@@ -106,7 +114,7 @@ describe('buildModuleDrilldownGraph', () => {
       const result = buildModuleDrilldownGraph(defaultOptions({ selectedNode: selected }));
 
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]!.id).toBe('missing-module');
+      expect(expectDefined(result.nodes[0], 'node').id).toBe('missing-module');
       expect(result.edges).toHaveLength(0);
     });
   });
@@ -125,7 +133,7 @@ describe('buildModuleDrilldownGraph', () => {
       expect(result.nodes).toHaveLength(1);
       expect(result.edges).toHaveLength(0);
 
-      const focusNode = result.nodes[0]!;
+      const focusNode = expectDefined(result.nodes[0], 'focus node');
       expect(focusNode.id).toBe('mod-1');
       expect(focusNode.sourcePosition).toBe(Position.Right);
       expect(focusNode.targetPosition).toBe(Position.Left);
@@ -159,12 +167,11 @@ describe('buildModuleDrilldownGraph', () => {
 
       // selected module + class node
       expect(result.nodes).toHaveLength(2);
-      const classNode = result.nodes.find((n) => n.id === 'cls-1');
-      expect(classNode).toBeDefined();
-      expect(classNode!.type).toBe('class');
-      expect(classNode?.data?.label).toBe('UserModel');
-      expect(classNode?.data?.properties).toEqual([expect.objectContaining({ name: 'name', type: 'string' })]);
-      expect(classNode?.data?.methods).toEqual([expect.objectContaining({ name: 'save', return_type: 'void' })]);
+      const classNode = expectDefined(result.nodes.find((n) => n.id === 'cls-1'), 'class node');
+      expect(classNode.type).toBe('class');
+      expect(classNode.data?.label).toBe('UserModel');
+      expect(classNode.data?.properties).toEqual([expect.objectContaining({ name: 'name', type: 'string' })]);
+      expect(classNode.data?.methods).toEqual([expect.objectContaining({ name: 'save', return_type: 'void' })]);
     });
 
     it('adds inheritance edge when class has extends_id', () => {
@@ -248,10 +255,9 @@ describe('buildModuleDrilldownGraph', () => {
       );
 
       expect(result.nodes).toHaveLength(2);
-      const ifaceNode = result.nodes.find((n) => n.id === 'iface-1');
-      expect(ifaceNode).toBeDefined();
-      expect(ifaceNode!.type).toBe('interface');
-      expect(ifaceNode?.data?.label).toBe('IUser');
+      const ifaceNode = expectDefined(result.nodes.find((n) => n.id === 'iface-1'), 'interface node');
+      expect(ifaceNode.type).toBe('interface');
+      expect(ifaceNode.data?.label).toBe('IUser');
     });
 
     it('adds inheritance edges for extended interfaces', () => {
@@ -280,8 +286,9 @@ describe('buildModuleDrilldownGraph', () => {
 
       const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'inheritance');
       expect(inheritanceEdges).toHaveLength(1);
-      expect(inheritanceEdges[0]!.source).toBe('iface-1');
-      expect(inheritanceEdges[0]!.target).toBe('iface-base');
+      const ifaceInhEdge = expectDefined(inheritanceEdges[0], 'inheritance edge');
+      expect(ifaceInhEdge.source).toBe('iface-1');
+      expect(ifaceInhEdge.target).toBe('iface-base');
     });
   });
 
@@ -303,15 +310,19 @@ describe('buildModuleDrilldownGraph', () => {
         })
       );
 
-      const connectedNode = result.nodes.find((n) => n.id === 'mod-2');
-      expect(connectedNode).toBeDefined();
-      expect(connectedNode!.style).toEqual(expect.objectContaining({ borderWidth: '2px', borderColor: '#61dafb' }));
+      const connectedNode = expectDefined(
+        result.nodes.find((n) => n.id === 'mod-2'),
+        'connected node'
+      );
+      expect(connectedNode.style).toEqual(expect.objectContaining({ borderWidth: '2px', borderColor: '#61dafb' }));
 
       // The outgoing edge gets blue stroke and animated
-      const outEdge = result.edges.find((e) => e.source === 'mod-1' && e.target === 'mod-2');
-      expect(outEdge).toBeDefined();
-      expect(outEdge!.style).toEqual(expect.objectContaining({ stroke: '#61dafb', strokeWidth: 3 }));
-      expect(outEdge!.animated).toBe(true);
+      const outEdge = expectDefined(
+        result.edges.find((e) => e.source === 'mod-1' && e.target === 'mod-2'),
+        'out edge'
+      );
+      expect(outEdge.style).toEqual(expect.objectContaining({ stroke: '#61dafb', strokeWidth: 3 }));
+      expect(outEdge.animated).toBe(true);
     });
 
     it('includes incoming connected modules with gold highlight', () => {
@@ -335,10 +346,12 @@ describe('buildModuleDrilldownGraph', () => {
       expect(connectedNode).toBeDefined();
 
       // The incoming edge gets gold stroke and animated
-      const inEdge = result.edges.find((e) => e.source === 'mod-3' && e.target === 'mod-1');
-      expect(inEdge).toBeDefined();
-      expect(inEdge!.style).toEqual(expect.objectContaining({ stroke: '#ffd700', strokeWidth: 3 }));
-      expect(inEdge!.animated).toBe(true);
+      const inEdge = expectDefined(
+        result.edges.find((e) => e.source === 'mod-3' && e.target === 'mod-1'),
+        'in edge'
+      );
+      expect(inEdge.style).toEqual(expect.objectContaining({ stroke: '#ffd700', strokeWidth: 3 }));
+      expect(inEdge.animated).toBe(true);
     });
 
     it('skips connected modules not in currentNodes', () => {
@@ -423,7 +436,7 @@ describe('buildModuleDrilldownGraph', () => {
         })
       );
 
-      const focusNode = result.nodes[0]!;
+      const focusNode = expectDefined(result.nodes[0], 'focus node');
       expect(focusNode.sourcePosition).toBe(Position.Bottom);
       expect(focusNode.targetPosition).toBe(Position.Top);
     });
@@ -525,10 +538,12 @@ describe('buildModuleDrilldownGraph', () => {
         })
       );
 
-      const outEdge = result.edges.find((e) => e.source === 'mod-1' && e.target === 'mod-2');
-      expect(outEdge).toBeDefined();
+      const outEdge = expectDefined(
+        result.edges.find((e) => e.source === 'mod-1' && e.target === 'mod-2'),
+        'out edge'
+      );
       // Should have spread the resolved style plus the outgoing override
-      expect(outEdge!.style).toEqual(expect.objectContaining({ stroke: '#61dafb', strokeWidth: 3 }));
+      expect(outEdge.style).toEqual(expect.objectContaining({ stroke: '#61dafb', strokeWidth: 3 }));
     });
   });
 });
