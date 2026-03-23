@@ -10,9 +10,9 @@ import type { Ref } from 'vue';
 
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { ManualOffset } from '../types/ManualOffset';
+import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 
 export interface LayoutProcessOptions {
   fitViewToResult?: boolean;
@@ -30,7 +30,7 @@ interface MeasureNodesResult {
 // ── Types ──
 
 /** Snapshot of graph nodes and edges (overview or semantic). */
-interface GraphSnapshot {
+export interface GraphSnapshot {
   nodes: DependencyNode[];
   edges: GraphEdge[];
 }

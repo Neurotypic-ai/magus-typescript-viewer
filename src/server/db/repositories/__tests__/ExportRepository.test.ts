@@ -1,7 +1,8 @@
 import type { IDatabaseAdapter, DatabaseRow } from '../../adapter/IDatabaseAdapter';
-import type { IExportCreateDTO } from '../ExportRepository';
+import type { IExportCreateDTO } from '../../../../shared/types/dto/ExportDTO';
 import { ExportRepository } from '../ExportRepository';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
+import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Mock adapter factory

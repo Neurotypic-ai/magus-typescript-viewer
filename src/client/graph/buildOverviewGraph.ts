@@ -15,9 +15,9 @@ import {
   type GraphViewData,
 } from './graphViewShared';
 
-import type { DependencyKind } from '../types/DependencyKind';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 
 const EDGE_REGISTRY_DEBUG =

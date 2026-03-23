@@ -2,7 +2,7 @@
  * Singleton cache for memoizing graph data. Injected into GraphDataAssembler.
  */
 
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 
 export class GraphDataCache {
   private static instance: GraphDataCache | null = null;

@@ -4,44 +4,10 @@ import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { IFunctionCreateDTO, IFunctionUpdateDTO } from '../../../shared/types/dto/FunctionDTO';
 import type { Parameter } from '../../../shared/types/Parameter';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
-
-/**
- * Row type for functions table
- */
-export interface IFunctionRow {
-  [key: string]: string | null;
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  return_type: string | null;
-  is_async: string;
-  is_exported: string;
-  created_at: string;
-}
-
-/**
- * Data transfer object for creating a new function.
- */
-export interface IFunctionCreateDTO {
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  return_type?: string;
-  is_async?: boolean;
-  is_exported?: boolean;
-  has_explicit_return_type?: boolean;
-}
-
-interface IFunctionUpdateDTO {
-  name?: string;
-  return_type?: string;
-  is_async?: boolean;
-  is_exported?: boolean;
-}
+import type { IFunctionRow } from '../types/DatabaseResults';
 
 export class FunctionRepository extends BaseRepository<ModuleFunction, IFunctionCreateDTO, IFunctionUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {

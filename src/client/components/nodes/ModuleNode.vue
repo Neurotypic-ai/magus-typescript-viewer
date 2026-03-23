@@ -16,9 +16,9 @@ import { useExpandCollapseState } from '../../composables/useExpandCollapseState
 import { ENTITY_TYPE_CONFIGS, buildBaseNodeProps, formatMethod, formatProperty, resolveSubnodesCount } from './utils';
 
 import type { DependencyProps } from '../../types/DependencyProps';
-import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
-import type { EmbeddedSymbol } from '../../types/EmbeddedSymbol';
-import type { ExternalDependencyRef } from '../../types/ExternalDependencyRef';
+import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
+import type { EmbeddedSymbol } from '../../../shared/types/graph/EmbeddedSymbol';
+import type { ExternalDependencyRef } from '../../../shared/types/graph/ExternalDependencyRef';
 
 const props = defineProps<DependencyProps>();
 

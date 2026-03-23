@@ -1,10 +1,10 @@
 import type { ASTNode, ASTPath, Identifier, JSCodeshift, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
 import type { ModuleParserContext } from './types';
 import type { ParseResult, SymbolUsageRef } from '../ParseResult';
-import type { IFunctionCreateDTO } from '../../db/repositories/FunctionRepository';
-import type { ITypeAliasCreateDTO } from '../../db/repositories/TypeAliasRepository';
-import type { IEnumCreateDTO } from '../../db/repositories/EnumRepository';
-import type { IVariableCreateDTO } from '../../db/repositories/VariableRepository';
+import type { IEnumCreateDTO } from '../../../shared/types/dto/EnumDTO';
+import type { IFunctionCreateDTO } from '../../../shared/types/dto/FunctionDTO';
+import type { ITypeAliasCreateDTO } from '../../../shared/types/dto/TypeAliasDTO';
+import type { IVariableCreateDTO } from '../../../shared/types/dto/VariableDTO';
 import { getIdentifierName, getTypeFromAnnotation, getReturnTypeFromNode } from './astUtils';
 import { generateFunctionUUID, generateTypeAliasUUID, generateEnumUUID, generateVariableUUID } from '../../utils/uuid';
 

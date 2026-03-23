@@ -8,51 +8,7 @@ import type { DuckDBValue } from '@duckdb/node-api';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IPackageRow } from '../types/DatabaseResults';
 
-/**
- * Data transfer object for creating a new package.
- */
-export interface IPackageCreateDTO {
-  /**
-   * The unique identifier for the package.
-   */
-  id: string;
-
-  /**
-   * The name of the package.
-   */
-  name: string;
-
-  /**
-   * The version of the package.
-   */
-  version: string;
-
-  /**
-   * The path to the package.
-   */
-  path: string;
-
-  /**
-   * The dependencies of the package.
-   */
-  dependencies?: Map<string, string>;
-
-  /**
-   * The dev dependencies of the package.
-   */
-  devDependencies?: Map<string, string>;
-
-  /**
-   * The peer dependencies of the package.
-   */
-  peerDependencies?: Map<string, string>;
-}
-
-interface IPackageUpdateDTO {
-  name?: string;
-  version?: string;
-  path?: string;
-}
+import type { IPackageCreateDTO, IPackageUpdateDTO } from '../../../shared/types/dto/PackageDTO';
 
 /**
  * Repository interface for managing packages.

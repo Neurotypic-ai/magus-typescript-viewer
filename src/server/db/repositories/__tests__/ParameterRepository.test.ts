@@ -1,13 +1,13 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Parameter } from '../../../../shared/types/Parameter';
+import { Parameter } from '../../../../../shared/types/Parameter';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { ParameterRepository } from '../ParameterRepository';
 
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IParameterRow } from '../../types/DatabaseResults';
-import type { IParameterCreateDTO } from '../ParameterRepository';
+import type { IParameterCreateDTO } from '../../../../shared/types/dto/ParameterDTO';
 
 // ---------------------------------------------------------------------------
 // Helpers

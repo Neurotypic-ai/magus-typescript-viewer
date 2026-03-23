@@ -57,7 +57,7 @@ export interface IParameter {
   /**
    * The default value of the parameter, if any.
    */
-  default_value: string | undefined;
+  default_value?: string | undefined;
 }
 
 export class Parameter implements IParameter {
@@ -71,6 +71,6 @@ export class Parameter implements IParameter {
     public readonly type = 'any',
     public readonly is_optional = false,
     public readonly is_rest = false,
-    public readonly default_value: string | undefined = undefined
+    public readonly default_value?: string | undefined
   ) {}
 }

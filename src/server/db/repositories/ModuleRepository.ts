@@ -4,44 +4,11 @@ import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
-import type { FileLocation } from '../../../shared/types/FileLocation';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IModuleRow } from '../types/DatabaseResults';
 
-/**
- * Data transfer object for creating a new module.
- */
-export interface IModuleCreateDTO {
-  /**
-   * The unique identifier for the module.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The name of the module.
-   */
-  name: string;
-
-  /**
-   * The source location information for this module.
-   */
-  source: FileLocation;
-
-  /**
-   * Number of lines of code in the source file.
-   */
-  line_count?: number;
-}
-
-interface IModuleUpdateDTO {
-  name?: string;
-  source?: FileLocation;
-}
+import type { FileLocation } from '../../../shared/types/FileLocation';
+import type { IModuleCreateDTO, IModuleUpdateDTO } from '../../../shared/types/dto/ModuleDTO';
 
 /**
  * Repository interface for managing modules.

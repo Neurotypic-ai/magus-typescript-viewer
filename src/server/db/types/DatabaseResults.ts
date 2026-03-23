@@ -65,3 +65,77 @@ export interface IParameterRow extends IModuleOwnedRow {
   is_rest: number;
   default_value: string | null;
 }
+
+/** Raw row from `code_issues` (DuckDB). */
+export interface ICodeIssueRow {
+  [key: string]: string | number | null;
+  id: string;
+  rule_code: string;
+  severity: string;
+  message: string;
+  suggestion: string | null;
+  package_id: string;
+  module_id: string;
+  file_path: string;
+  entity_id: string | null;
+  entity_type: string | null;
+  entity_name: string | null;
+  parent_entity_id: string | null;
+  parent_entity_type: string | null;
+  parent_entity_name: string | null;
+  property_name: string | null;
+  line: number | null;
+  column: number | null;
+  refactor_action: string | null;
+  refactor_context_json: string | null;
+  created_at: string;
+}
+
+/** Raw row from `functions`. */
+export interface IFunctionRow {
+  [key: string]: string | null;
+  id: string;
+  package_id: string;
+  module_id: string;
+  name: string;
+  return_type: string | null;
+  is_async: string;
+  is_exported: string;
+  created_at: string;
+}
+
+/** Raw row from `type_aliases`. */
+export interface ITypeAliasRow {
+  [key: string]: string | null;
+  id: string;
+  package_id: string;
+  module_id: string;
+  name: string;
+  type: string;
+  type_parameters_json: string | null;
+  created_at: string;
+}
+
+/** Raw row from `variables`. */
+export interface IVariableRow {
+  [key: string]: string | null;
+  id: string;
+  package_id: string;
+  module_id: string;
+  name: string;
+  kind: string;
+  type: string | null;
+  initializer: string | null;
+  created_at: string;
+}
+
+/** Raw row from `enums`. */
+export interface IEnumRow {
+  [key: string]: string | null;
+  id: string;
+  package_id: string;
+  module_id: string;
+  name: string;
+  members_json: string | null;
+  created_at: string;
+}

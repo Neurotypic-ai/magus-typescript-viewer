@@ -14,15 +14,15 @@ import {
   createSymbolEdge,
 } from './symbolHelpers';
 
-import type { ClassStructure } from '../../types/ClassStructure';
+import type { ClassStructure } from '../../../shared/types/graph/ClassStructure';
 import type { DependencyNode } from '../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../../types/GraphEdge';
-import type { InterfaceStructure } from '../../types/InterfaceStructure';
-import type { ModuleStructure } from '../../types/ModuleStructure';
-import type { NodeMethod } from '../../types/NodeMethod';
-import type { NodeProperty } from '../../types/NodeProperty';
-import type { SymbolReferenceRef } from '../../types/SymbolReferenceRef';
+import type { InterfaceStructure } from '../../../shared/types/graph/InterfaceStructure';
+import type { ModuleStructure } from '../../../shared/types/graph/ModuleStructure';
+import type { NodeMethod } from '../../../shared/types/graph/NodeMethod';
+import type { NodeProperty } from '../../../shared/types/graph/NodeProperty';
+import type { SymbolReferenceRef } from '../../../shared/types/graph/SymbolReferenceRef';
 import type { GraphViewData } from '../graphViewShared';
 
 export interface BuildSymbolDrilldownGraphOptions {

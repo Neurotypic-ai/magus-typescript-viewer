@@ -1,76 +1,9 @@
 import { BaseRepository } from './BaseRepository';
 
+import type { ICodeIssueCreateDTO, ICodeIssueUpdateDTO } from '../../../shared/types/dto/CodeIssueDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
-
-export interface ICodeIssueRow {
-  [key: string]: string | number | null;
-  id: string;
-  rule_code: string;
-  severity: string;
-  message: string;
-  suggestion: string | null;
-  package_id: string;
-  module_id: string;
-  file_path: string;
-  entity_id: string | null;
-  entity_type: string | null;
-  entity_name: string | null;
-  parent_entity_id: string | null;
-  parent_entity_type: string | null;
-  parent_entity_name: string | null;
-  property_name: string | null;
-  line: number | null;
-  column: number | null;
-  refactor_action: string | null;
-  refactor_context_json: string | null;
-  created_at: string;
-}
-
-export interface ICodeIssueCreateDTO {
-  id: string;
-  rule_code: string;
-  severity: string;
-  message: string;
-  suggestion?: string | undefined;
-  package_id: string;
-  module_id: string;
-  file_path: string;
-  entity_id?: string | undefined;
-  entity_type?: string | undefined;
-  entity_name?: string | undefined;
-  parent_entity_id?: string | undefined;
-  parent_entity_type?: string | undefined;
-  parent_entity_name?: string | undefined;
-  property_name?: string | undefined;
-  line?: number | undefined;
-  column?: number | undefined;
-  refactor_action?: string | undefined;
-  refactor_context_json?: string | undefined;
-}
-
-export interface CodeIssueEntity {
-  id: string;
-  rule_code: string;
-  severity: string;
-  message: string;
-  suggestion?: string;
-  package_id: string;
-  module_id: string;
-  file_path: string;
-  entity_id?: string;
-  entity_type?: string;
-  entity_name?: string;
-  parent_entity_id?: string;
-  parent_entity_type?: string;
-  parent_entity_name?: string;
-  property_name?: string;
-  line?: number;
-  column?: number;
-  refactor_action?: string;
-  refactor_context?: Record<string, unknown>;
-}
-
-type ICodeIssueUpdateDTO = Record<string, never>;
+import type { CodeIssueEntity } from '../types/CodeIssueEntity';
+import type { ICodeIssueRow } from '../types/DatabaseResults';
 
 export class CodeIssueRepository extends BaseRepository<CodeIssueEntity, ICodeIssueCreateDTO, ICodeIssueUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {

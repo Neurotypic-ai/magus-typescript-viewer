@@ -4,9 +4,9 @@ import { buildSymbolDrilldownGraph } from '../buildSymbolDrilldown';
 
 import type { BuildSymbolDrilldownGraphOptions } from '../buildSymbolDrilldown';
 import type { DependencyNode } from '../../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../../types/DependencyPackageGraph';
-import type { ModuleStructure } from '../../../types/ModuleStructure';
-import type { PackageStructure } from '../../../types/PackageStructure';
+import type { DependencyPackageGraph } from '../../../../shared/types/graph/DependencyPackageGraph';
+import type { ModuleStructure } from '../../../../shared/types/graph/ModuleStructure';
+import type { PackageStructure } from '../../../../shared/types/graph/PackageStructure';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers to build minimal test data                                 */

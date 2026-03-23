@@ -16,7 +16,7 @@ import {
 } from '../graphEdgeLookups';
 
 import type { ModulePathLookup } from '../graphEdgeLookups';
-import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
 
 // ---------------------------------------------------------------------------
 // Helpers

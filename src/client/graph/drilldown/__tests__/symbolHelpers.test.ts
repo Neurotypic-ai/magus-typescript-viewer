@@ -8,11 +8,11 @@ import {
   createDetailedSymbolNode,
 } from '../symbolHelpers';
 
-import type { DependencyPackageGraph } from '../../../types/DependencyPackageGraph';
-import type { ModuleStructure } from '../../../types/ModuleStructure';
-import type { NodeMethod } from '../../../types/NodeMethod';
-import type { NodeProperty } from '../../../types/NodeProperty';
-import type { PackageStructure } from '../../../types/PackageStructure';
+import type { DependencyPackageGraph } from '../../../../shared/types/graph/DependencyPackageGraph';
+import type { ModuleStructure } from '../../../../shared/types/graph/ModuleStructure';
+import type { NodeMethod } from '../../../../shared/types/graph/NodeMethod';
+import type { NodeProperty } from '../../../../shared/types/graph/NodeProperty';
+import type { PackageStructure } from '../../../../shared/types/graph/PackageStructure';
 
 // ---------------------------------------------------------------------------
 // toNodeProperty

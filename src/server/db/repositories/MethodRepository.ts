@@ -7,76 +7,8 @@ import type { DuckDBValue } from '@duckdb/node-api';
 
 import type { VisibilityType } from '../../../shared/types/VisibilityType';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
+import type { IMethodCreateDTO, IMethodUpdateDTO } from '../../../shared/types/dto/MethodDTO';
 import type { IMethodRow, IParameterRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new method.
- */
-export interface IMethodCreateDTO {
-  /**
-   * The unique identifier for the method.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The UUID of the parent class or interface.
-   */
-  parent_id: string;
-
-  /**
-   * The type of the parent (class or interface).
-   */
-  parent_type: 'class' | 'interface';
-
-  /**
-   * The name of the method.
-   */
-  name: string;
-
-  /**
-   * The return type of the method.
-   */
-  return_type: string;
-
-  /**
-   * Whether the method is static.
-   */
-  is_static: boolean;
-
-  /**
-   * Whether the method is async.
-   */
-  is_async: boolean;
-
-  /**
-   * The visibility of the method (public, private, protected).
-   */
-  visibility: string;
-
-  /**
-   * Whether the method has an explicit return type annotation.
-   */
-  has_explicit_return_type?: boolean;
-}
-
-export interface IMethodUpdateDTO {
-  name?: string;
-  return_type?: string;
-  parent_type?: 'class' | 'interface';
-  is_static?: boolean;
-  is_async?: boolean;
-  visibility?: string;
-}
 
 export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, IMethodUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {

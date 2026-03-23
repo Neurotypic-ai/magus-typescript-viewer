@@ -1,5 +1,5 @@
 /**
- * Code issue reference for the frontend (no file_path or refactor_context for security)
+ * Public code issue shape for API and client (no file_path or refactor_context).
  */
 export interface CodeIssueRef {
   id: string;

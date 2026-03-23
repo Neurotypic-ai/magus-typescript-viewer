@@ -1,43 +1,9 @@
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
+import type { IImportCreateDTO, IImportUpdateDTO } from '../../../shared/types/dto/ImportDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IDatabaseRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new import.
- */
-export interface IImportCreateDTO {
-  /**
-   * The unique identifier for the import.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The source path of the import.
-   */
-  source: string;
-
-  /**
-   * JSON-serialized import specifiers metadata.
-   */
-  specifiers_json?: string | undefined;
-
-  /**
-   * Whether this is a type-only import (import type { ... }).
-   */
-  is_type_only?: boolean;
-}
 
 /**
  * Repository interface for managing imports.
@@ -62,11 +28,6 @@ export interface IImportRepository {
    * Deletes an import by its ID.
    */
   delete(id: string): Promise<void>;
-}
-
-interface IImportUpdateDTO {
-  source?: string;
-  specifiers_json?: string | null;
 }
 
 interface IImportRow extends IDatabaseRow {

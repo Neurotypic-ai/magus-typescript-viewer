@@ -6,7 +6,7 @@ import TypeAnnotationDisplay from './TypeAnnotationDisplay.vue';
 
 import { buildDetailDisplayModel, type TypeDisplayModel } from './typeDisplay';
 
-import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
+import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
 
 interface EntityListSectionProps {
   title: string;

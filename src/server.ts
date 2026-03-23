@@ -228,7 +228,7 @@ const server = http.createServer((req, res) => {
             return;
           }
 
-          const issue = await apiServerResponder.getCodeIssueById(parsed.issueId);
+          const issue = await apiServerResponder.getCodeIssueEntityById(parsed.issueId);
           if (!issue) {
             sendError(res, 404, 'Issue not found');
             return;

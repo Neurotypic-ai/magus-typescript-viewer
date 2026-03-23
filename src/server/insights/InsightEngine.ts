@@ -4,7 +4,7 @@ import { detectCommunities, findArticulationPoints, findStronglyConnectedCompone
 
 import type { DatabaseRow, IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
 import type { ImportGraph } from './import-graph';
-import type { InsightCategory, InsightEntity, InsightKind, InsightReport, InsightResult, InsightSeverity } from './types';
+import type { InsightCategory, InsightEntity, InsightKind, InsightReport, InsightResult, InsightSeverity } from '../../shared/types/api/Insight';
 
 // ── Thresholds ──────────────────────────────────────────────────────────────
 

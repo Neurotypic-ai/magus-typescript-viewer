@@ -6,62 +6,8 @@ import type { DuckDBValue } from '@duckdb/node-api';
 
 import type { VisibilityType } from '../../../shared/types/VisibilityType';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
+import type { IPropertyCreateDTO, IPropertyUpdateDTO } from '../../../shared/types/dto/PropertyDTO';
 import type { IPropertyRow } from '../types/DatabaseResults';
-
-/**
- * Data transfer object for creating a new property.
- */
-export interface IPropertyCreateDTO {
-  /**
-   * The unique identifier for the property.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The UUID of the parent class or interface.
-   */
-  parent_id: string;
-
-  /**
-   * The type of the parent (class or interface).
-   */
-  parent_type: 'class' | 'interface';
-
-  /**
-   * The name of the property.
-   */
-  name: string;
-
-  /**
-   * The type of the property.
-   */
-  type: string;
-
-  /**
-   * Whether the property is static.
-   */
-  is_static: boolean;
-
-  /**
-   * Whether the property is readonly.
-   */
-  is_readonly: boolean;
-
-  /**
-   * The visibility of the property (public, private, protected).
-   */
-  visibility: string;
-}
 
 /**
  * Repository interface for managing properties.
@@ -86,14 +32,6 @@ export interface IPropertyRepository {
    * Deletes a property by its ID.
    */
   delete(id: string): Promise<void>;
-}
-
-interface IPropertyUpdateDTO {
-  name?: string;
-  type?: string;
-  is_static?: boolean;
-  is_readonly?: boolean;
-  visibility?: VisibilityType;
 }
 
 export class PropertyRepository extends BaseRepository<Property, IPropertyCreateDTO, IPropertyUpdateDTO> {

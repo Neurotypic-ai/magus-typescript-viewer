@@ -10,7 +10,7 @@ import {
 import type { NodeChange } from '@vue-flow/core';
 
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 
 describe('applyEdgeVisibility', () => {

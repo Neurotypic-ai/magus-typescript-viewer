@@ -5,9 +5,9 @@
 
 import { mapTypeCollection } from './collections';
 
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
-import type { ModuleStructure } from '../types/ModuleStructure';
-import type { PackageStructure } from '../types/PackageStructure';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { ModuleStructure } from '../../shared/types/graph/ModuleStructure';
+import type { PackageStructure } from '../../shared/types/graph/PackageStructure';
 
 export interface ModulePathLookup {
   packagePathMap: Map<string, Map<string, string>>;

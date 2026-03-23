@@ -1,6 +1,6 @@
 import { getNodeStyle } from './graphTheme';
 
-import type { DependencyKind } from '../types/DependencyKind';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 

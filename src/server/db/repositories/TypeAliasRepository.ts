@@ -2,33 +2,9 @@ import { TypeAlias } from '../../../shared/types/TypeAlias';
 import { RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
+import type { ITypeAliasCreateDTO, ITypeAliasUpdateDTO } from '../../../shared/types/dto/TypeAliasDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
-
-export interface ITypeAliasRow {
-  [key: string]: string | null;
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  type: string;
-  type_parameters_json: string | null;
-  created_at: string;
-}
-
-export interface ITypeAliasCreateDTO {
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  type: string;
-  type_parameters_json?: string | undefined;
-}
-
-interface ITypeAliasUpdateDTO {
-  name?: string;
-  type?: string;
-  type_parameters_json?: string;
-}
+import type { ITypeAliasRow } from '../types/DatabaseResults';
 
 export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCreateDTO, ITypeAliasUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {

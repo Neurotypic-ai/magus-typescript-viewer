@@ -27,7 +27,7 @@ import NodeContextMenu from './NodeContextMenu.vue';
 import NodeDetails from './NodeDetails.vue';
 
 import type { Component } from 'vue';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 
 import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/core/dist/style.css';

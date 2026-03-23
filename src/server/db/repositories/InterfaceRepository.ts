@@ -11,35 +11,7 @@ import type { Property } from '../../../shared/types/Property';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../types/DatabaseResults';
 
-
-/**
- * Data transfer object for creating a new interface.
- */
-export interface IInterfaceCreateDTO {
-  /**
-   * The unique identifier for the interface.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The name of the interface.
-   */
-  name: string;
-}
-
-interface IInterfaceUpdateDTO {
-  name?: string;
-}
+import type { IInterfaceCreateDTO, IInterfaceUpdateDTO } from '../../../shared/types/dto/InterfaceDTO';
 
 /**
  * Repository interface for managing interfaces.

@@ -2,30 +2,9 @@ import { Enum } from '../../../shared/types/Enum';
 import { RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
+import type { IEnumCreateDTO, IEnumUpdateDTO } from '../../../shared/types/dto/EnumDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
-
-export interface IEnumRow {
-  [key: string]: string | null;
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  members_json: string | null;
-  created_at: string;
-}
-
-export interface IEnumCreateDTO {
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  members_json?: string | undefined;
-}
-
-interface IEnumUpdateDTO {
-  name?: string;
-  members_json?: string;
-}
+import type { IEnumRow } from '../types/DatabaseResults';
 
 export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {

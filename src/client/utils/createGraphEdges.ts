@@ -4,19 +4,19 @@ import { mapTypeCollection, typeCollectionToArray } from './collections';
 import { getEdgeStyle } from '../theme/graphTheme';
 import { buildModulePathLookup, isExternalImportRef, resolveModuleId } from './graphEdgeLookups';
 
-import type { ClassStructure } from '../types/ClassStructure';
-import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
-import type { DependencyKind } from '../types/DependencyKind';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
-import type { DependencyRef } from '../types/DependencyRef';
+import type { ClassStructure } from '../../shared/types/graph/ClassStructure';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
+import type { DependencyRef } from '../../shared/types/graph/DependencyRef';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { ImportRef } from '../types/ImportRef';
-import type { InterfaceRef } from '../types/InterfaceRef';
-import type { InterfaceStructure } from '../types/InterfaceStructure';
-import type { ModuleStructure } from '../types/ModuleStructure';
-import type { NodeMethod } from '../types/NodeMethod';
-import type { NodeProperty } from '../types/NodeProperty';
-import type { PackageStructure } from '../types/PackageStructure';
+import type { ImportRef } from '../../shared/types/graph/ImportRef';
+import type { InterfaceRef } from '../../shared/types/graph/InterfaceRef';
+import type { InterfaceStructure } from '../../shared/types/graph/InterfaceStructure';
+import type { ModuleStructure } from '../../shared/types/graph/ModuleStructure';
+import type { NodeMethod } from '../../shared/types/graph/NodeMethod';
+import type { NodeProperty } from '../../shared/types/graph/NodeProperty';
+import type { PackageStructure } from '../../shared/types/graph/PackageStructure';
 
 type ImportDirection = 'importer-to-imported' | 'imported-to-importer';
 const EDGE_REGISTRY_DEBUG =

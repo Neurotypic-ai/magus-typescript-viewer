@@ -1,12 +1,12 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PackageRepository } from '../PackageRepository';
-import { Package } from '../../../../shared/types/Package';
+import { Package } from '../../../../../shared/types/Package';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 
 import type { IDatabaseAdapter, QueryParams } from '../../adapter/IDatabaseAdapter';
-import type { IPackageCreateDTO } from '../PackageRepository';
+import type { IPackageCreateDTO } from '../../../../shared/types/dto/PackageDTO';
 import type { IPackageRow } from '../../types/DatabaseResults';
 
 // ---------------------------------------------------------------------------

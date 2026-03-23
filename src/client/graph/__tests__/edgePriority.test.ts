@@ -1,4 +1,4 @@
-import type { DependencyEdgeKind } from '../../types/DependencyEdgeKind';
+import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
 
 import { EDGE_KIND_PRIORITY } from '../edgePriority';
 

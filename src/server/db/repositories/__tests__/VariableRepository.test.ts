@@ -1,10 +1,12 @@
 // @vitest-environment node
-import { Variable } from '../../../../shared/types/Variable';
+import { Variable } from '../../../../../shared/types/Variable';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { VariableRepository } from '../VariableRepository';
 
-import type { IVariableCreateDTO, IVariableRow } from '../VariableRepository';
+import type { IVariableCreateDTO } from '../../../../shared/types/dto/VariableDTO';
+import type { IVariableRow } from '../../types/DatabaseResults';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
+import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 function createMockAdapter(): IDatabaseAdapter {
   return {

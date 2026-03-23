@@ -2,36 +2,9 @@ import { Variable } from '../../../shared/types/Variable';
 import { RepositoryError } from '../errors/RepositoryError';
 import { BaseRepository } from './BaseRepository';
 
+import type { IVariableCreateDTO, IVariableUpdateDTO } from '../../../shared/types/dto/VariableDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
-
-export interface IVariableRow {
-  [key: string]: string | null;
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  kind: string;
-  type: string | null;
-  initializer: string | null;
-  created_at: string;
-}
-
-export interface IVariableCreateDTO {
-  id: string;
-  package_id: string;
-  module_id: string;
-  name: string;
-  kind: 'const' | 'let' | 'var';
-  type?: string | undefined;
-  initializer?: string | undefined;
-}
-
-interface IVariableUpdateDTO {
-  name?: string;
-  kind?: 'const' | 'let' | 'var';
-  type?: string;
-  initializer?: string;
-}
+import type { IVariableRow } from '../types/DatabaseResults';
 
 export class VariableRepository extends BaseRepository<Variable, IVariableCreateDTO, IVariableUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {

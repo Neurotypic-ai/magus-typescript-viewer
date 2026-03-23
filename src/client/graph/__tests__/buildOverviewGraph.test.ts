@@ -1,9 +1,9 @@
 import { buildOverviewGraph } from '../buildOverviewGraph';
 
 import type { BuildOverviewGraphOptions } from '../buildOverviewGraph';
-import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
-import type { ModuleStructure } from '../../types/ModuleStructure';
-import type { PackageStructure } from '../../types/PackageStructure';
+import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
+import type { ModuleStructure } from '../../../shared/types/graph/ModuleStructure';
+import type { PackageStructure } from '../../../shared/types/graph/PackageStructure';
 import { describe, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------

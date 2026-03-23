@@ -1,10 +1,11 @@
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Enum } from '../../../../shared/types/Enum';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { EnumRepository } from '../EnumRepository';
 
-import type { IEnumCreateDTO, IEnumRow } from '../EnumRepository';
+import type { IEnumCreateDTO } from '../../../../shared/types/dto/EnumDTO';
+import type { IEnumRow } from '../../types/DatabaseResults';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 
 // ---------------------------------------------------------------------------

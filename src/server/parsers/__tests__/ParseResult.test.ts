@@ -3,18 +3,18 @@
 import { Export } from '../../../shared/types/Export';
 import { Import, ImportSpecifier } from '../../../shared/types/Import';
 
-import type { IClassCreateDTO } from '../../db/repositories/ClassRepository';
-import type { IEnumCreateDTO } from '../../db/repositories/EnumRepository';
-import type { IFunctionCreateDTO } from '../../db/repositories/FunctionRepository';
-import type { IInterfaceCreateDTO } from '../../db/repositories/InterfaceRepository';
-import type { IMethodCreateDTO } from '../../db/repositories/MethodRepository';
-import type { IModuleCreateDTO } from '../../db/repositories/ModuleRepository';
-import type { IPackageCreateDTO } from '../../db/repositories/PackageRepository';
-import type { IParameterCreateDTO } from '../../db/repositories/ParameterRepository';
-import type { IPropertyCreateDTO } from '../../db/repositories/PropertyRepository';
-import type { ISymbolReferenceCreateDTO } from '../../db/repositories/SymbolReferenceRepository';
-import type { ITypeAliasCreateDTO } from '../../db/repositories/TypeAliasRepository';
-import type { IVariableCreateDTO } from '../../db/repositories/VariableRepository';
+import type { IClassCreateDTO } from '../../../shared/types/dto/ClassDTO';
+import type { IEnumCreateDTO } from '../../../shared/types/dto/EnumDTO';
+import type { IFunctionCreateDTO } from '../../../shared/types/dto/FunctionDTO';
+import type { IInterfaceCreateDTO } from '../../../shared/types/dto/InterfaceDTO';
+import type { IMethodCreateDTO } from '../../../shared/types/dto/MethodDTO';
+import type { IModuleCreateDTO } from '../../../shared/types/dto/ModuleDTO';
+import type { IPackageCreateDTO } from '../../../shared/types/dto/PackageDTO';
+import type { IParameterCreateDTO } from '../../../shared/types/dto/ParameterDTO';
+import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
+import type { ISymbolReferenceCreateDTO } from '../../../shared/types/dto/SymbolReferenceDTO';
+import type { ITypeAliasCreateDTO } from '../../../shared/types/dto/TypeAliasDTO';
+import type { IVariableCreateDTO } from '../../../shared/types/dto/VariableDTO';
 import type {
   ClassExtendsRef,
   ClassImplementsRef,

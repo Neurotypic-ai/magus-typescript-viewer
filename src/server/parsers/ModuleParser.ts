@@ -8,7 +8,7 @@ import { createLogger } from '../../shared/utils/logger';
 import { generateExportUUID, generateModuleUUID } from '../utils/uuid';
 
 import type { FileLocation } from '../../shared/types/FileLocation';
-import type { IModuleCreateDTO } from '../db/repositories/ModuleRepository';
+import type { IModuleCreateDTO } from '../../shared/types/dto/ModuleDTO';
 import type { ParseResult } from './ParseResult';
 import type { ModuleParserContext } from './module/types';
 

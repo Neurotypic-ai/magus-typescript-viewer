@@ -5,7 +5,7 @@ import { createLogger } from '../shared/utils/logger';
 import { GraphDataAssembler } from './assemblers/GraphDataAssembler';
 import ErrorBoundary from './components/ErrorBoundary.vue';
 
-import type { DependencyPackageGraph } from './types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../shared/types/graph/DependencyPackageGraph';
 
 // Lazy load the DependencyGraph component for code splitting and better performance
 const DependencyGraph = defineAsyncComponent(() => import('./components/DependencyGraphLazy.vue'));

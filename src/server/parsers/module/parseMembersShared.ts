@@ -3,9 +3,9 @@ import { generateMethodUUID, generateParameterUUID, generatePropertyUUID } from 
 
 import type { ModuleParserContext } from './types';
 import type { ParseResult, SymbolUsageRef } from '../ParseResult';
-import type { IMethodCreateDTO } from '../../db/repositories/MethodRepository';
-import type { IPropertyCreateDTO } from '../../db/repositories/PropertyRepository';
-import type { IParameterCreateDTO } from '../../db/repositories/ParameterRepository';
+import type { IMethodCreateDTO } from '../../../shared/types/dto/MethodDTO';
+import type { IParameterCreateDTO } from '../../../shared/types/dto/ParameterDTO';
+import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
 import type {
   ASTNode,
   ASTPath,

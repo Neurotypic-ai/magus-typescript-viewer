@@ -3,7 +3,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue';
 
 import { getApiBaseUrl } from '../assemblers/api';
 
-import type { InsightKind, InsightReport, InsightResult } from '../../server/insights/types';
+import type { InsightKind, InsightReport, InsightResult } from '../../shared/types/api/Insight';
 
 interface InsightsStore {
   report: Ref<InsightReport | null>;

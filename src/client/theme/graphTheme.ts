@@ -1,5 +1,5 @@
-import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
-import type { DependencyKind } from '../types/DependencyKind';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
+import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 
 type CSSProperties = Record<string, string | number | undefined>;
 

@@ -8,10 +8,10 @@ import {
   sortSectionsByTitle,
 } from '../moduleNodeSorting';
 
-import type { EmbeddedModuleEntity } from '../../../types/EmbeddedModuleEntity';
-import type { EmbeddedSymbol } from '../../../types/EmbeddedSymbol';
-import type { ExternalDependencyRef } from '../../../types/ExternalDependencyRef';
-import type { NodeProperty } from '../../../types/NodeProperty';
+import type { EmbeddedModuleEntity } from '../../../../shared/types/graph/EmbeddedModuleEntity';
+import type { EmbeddedSymbol } from '../../../../shared/types/graph/EmbeddedSymbol';
+import type { ExternalDependencyRef } from '../../../../shared/types/graph/ExternalDependencyRef';
+import type { NodeProperty } from '../../../../shared/types/graph/NodeProperty';
 
 describe('moduleNodeSorting', () => {
   it('sorts metadata properties alphabetically by name', () => {

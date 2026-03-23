@@ -1,6 +1,6 @@
 import { getHandleCategory } from './edgeTypeRegistry';
 
-import type { DependencyEdgeKind } from '../types/DependencyEdgeKind';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 

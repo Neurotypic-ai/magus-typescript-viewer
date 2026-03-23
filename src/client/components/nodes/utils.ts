@@ -1,11 +1,11 @@
 import type { Position } from '@vue-flow/core';
 import type { InjectionKey, Ref } from 'vue';
 
-import type { DependencyData } from '../../types/DependencyData';
-import type { DependencyKind } from '../../types/DependencyKind';
-import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
-import type { NodeMethod } from '../../types/NodeMethod';
-import type { NodeProperty } from '../../types/NodeProperty';
+import type { DependencyData } from '../../../shared/types/graph/DependencyData';
+import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
+import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
+import type { NodeMethod } from '../../../shared/types/graph/NodeMethod';
+import type { NodeProperty } from '../../../shared/types/graph/NodeProperty';
 
 import { buildTypeDisplayModel, type TypeDisplayModel } from './typeDisplay';
 

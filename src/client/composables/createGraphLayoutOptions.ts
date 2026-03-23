@@ -11,9 +11,9 @@ import type {
   UpdateNodeInternals,
   UseGraphLayoutOptions,
 } from './useGraphLayout';
-import type { ManualOffset } from '../types/ManualOffset';
+import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { GraphViewMode } from '../stores/graphStore';
 

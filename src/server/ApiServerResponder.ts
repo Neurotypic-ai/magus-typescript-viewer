@@ -6,8 +6,9 @@ import { RepositoryError } from './db/errors/RepositoryError';
 import { CodeIssueRepository } from './db/repositories/CodeIssueRepository';
 import { InsightEngine } from './insights/InsightEngine';
 
-import type { CodeIssueEntity } from './db/repositories/CodeIssueRepository';
-import type { InsightReport } from './insights/types';
+import type { CodeIssueEntity } from './db/types/CodeIssueEntity';
+import type { CodeIssueRef } from '../shared/types/api/CodeIssueRef';
+import type { InsightReport } from '../shared/types/api/Insight';
 import { ClassRepository } from './db/repositories/ClassRepository';
 import { EnumRepository } from './db/repositories/EnumRepository';
 import { FunctionRepository } from './db/repositories/FunctionRepository';
@@ -127,6 +128,34 @@ const typeCollectionToArray = <T>(collection: TypeCollection<T> | undefined): T[
   }
   return Object.values(collection);
 };
+
+function codeIssueSeverityToPublic(severity: string): 'info' | 'warning' | 'error' {
+  if (severity === 'info' || severity === 'warning' || severity === 'error') {
+    return severity;
+  }
+  return 'info';
+}
+
+function codeIssueEntityToRef(entity: CodeIssueEntity): CodeIssueRef {
+  return {
+    id: entity.id,
+    rule_code: entity.rule_code,
+    severity: codeIssueSeverityToPublic(entity.severity),
+    message: entity.message,
+    ...(entity.suggestion !== undefined ? { suggestion: entity.suggestion } : {}),
+    module_id: entity.module_id,
+    ...(entity.entity_id !== undefined ? { entity_id: entity.entity_id } : {}),
+    ...(entity.entity_type !== undefined ? { entity_type: entity.entity_type } : {}),
+    ...(entity.entity_name !== undefined ? { entity_name: entity.entity_name } : {}),
+    ...(entity.parent_entity_id !== undefined ? { parent_entity_id: entity.parent_entity_id } : {}),
+    ...(entity.parent_entity_type !== undefined ? { parent_entity_type: entity.parent_entity_type } : {}),
+    ...(entity.parent_entity_name !== undefined ? { parent_entity_name: entity.parent_entity_name } : {}),
+    ...(entity.property_name !== undefined ? { property_name: entity.property_name } : {}),
+    ...(entity.line !== undefined ? { line: entity.line } : {}),
+    ...(entity.column !== undefined ? { column: entity.column } : {}),
+    ...(entity.refactor_action !== undefined ? { refactor_action: entity.refactor_action } : {}),
+  };
+}
 
 export class ApiServerResponder {
   private readonly database: Database;
@@ -705,16 +734,29 @@ export class ApiServerResponder {
     }
   }
 
-  async getCodeIssues(): Promise<CodeIssueEntity[]> {
+  async getCodeIssues(): Promise<CodeIssueRef[]> {
     try {
-      return await this.codeIssueRepository.retrieve();
+      const rows = await this.codeIssueRepository.retrieve();
+      return rows.map(codeIssueEntityToRef);
     } catch {
       // Table may not exist if analysis hasn't been run
       return [];
     }
   }
 
-  async getCodeIssueById(id: string): Promise<CodeIssueEntity | undefined> {
+  async getCodeIssueById(id: string): Promise<CodeIssueRef | undefined> {
+    try {
+      const entity = await this.codeIssueRepository.retrieveById(id);
+      return entity ? codeIssueEntityToRef(entity) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Full stored issue for server-only routes (e.g. /refactor) that need file_path and refactor_context.
+   */
+  async getCodeIssueEntityById(id: string): Promise<CodeIssueEntity | undefined> {
     try {
       return await this.codeIssueRepository.retrieveById(id);
     } catch {

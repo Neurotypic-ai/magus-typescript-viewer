@@ -4,7 +4,7 @@ import { computed, ref } from 'vue';
 import { exportInsightsJson, exportInsightsMarkdown } from '../utils/insightsExport';
 import { useInsightsStore } from '../stores/insightsStore';
 
-import type { InsightCategory, InsightKind, InsightResult } from '../../server/insights/types';
+import type { InsightCategory, InsightKind, InsightResult } from '../../shared/types/api/Insight';
 
 const insightsStore = useInsightsStore();
 

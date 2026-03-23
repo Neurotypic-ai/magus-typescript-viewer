@@ -1,11 +1,12 @@
 // @vitest-environment node
-import { Property } from '../../../../shared/types/Property';
+import { Property } from '../../../../../shared/types/Property';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { PropertyRepository } from '../PropertyRepository';
 
 import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
-import type { IPropertyCreateDTO } from '../PropertyRepository';
+import type { IPropertyCreateDTO } from '../../../../shared/types/dto/PropertyDTO';
 import type { IPropertyRow } from '../../types/DatabaseResults';
+import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 /**
  * Creates a mock IDatabaseAdapter with vi.fn() stubs for all methods.

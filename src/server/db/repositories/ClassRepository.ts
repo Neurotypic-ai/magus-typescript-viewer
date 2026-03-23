@@ -12,41 +12,7 @@ import type { Property } from '../../../shared/types/Property';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../types/DatabaseResults';
 
-
-/**
- * Data transfer object for creating a new class.
- */
-export interface IClassCreateDTO {
-  /**
-   * The unique identifier for the class.
-   */
-  id: string;
-
-  /**
-   * The UUID of the parent package.
-   */
-  package_id: string;
-
-  /**
-   * The UUID of the parent module.
-   */
-  module_id: string;
-
-  /**
-   * The name of the class.
-   */
-  name: string;
-
-  /**
-   * The ID of the parent class (if this class extends another).
-   */
-  extends_id?: string | undefined;
-}
-
-interface IClassUpdateDTO {
-  name?: string;
-  extends_id?: string;
-}
+import type { IClassCreateDTO, IClassUpdateDTO } from '../../../shared/types/dto/ClassDTO';
 
 /**
  * Repository interface for managing classes.

@@ -4,10 +4,10 @@ import { buildModuleDrilldownGraph } from '../buildModuleDrilldown';
 
 import type { BuildModuleDrilldownGraphOptions } from '../buildModuleDrilldown';
 import type { DependencyNode } from '../../../types/DependencyNode';
-import type { DependencyPackageGraph } from '../../../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../../../types/GraphEdge';
-import type { PackageStructure } from '../../../types/PackageStructure';
-import type { ModuleStructure } from '../../../types/ModuleStructure';
+import type { PackageStructure } from '../../../../shared/types/graph/PackageStructure';
+import type { ModuleStructure } from '../../../../shared/types/graph/ModuleStructure';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers to build minimal test data                                 */

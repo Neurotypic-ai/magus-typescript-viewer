@@ -23,7 +23,7 @@ import type {
 import type { ScopeMode } from './useGraphInteractionController';
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
-import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 
 // ── Isolate graph store (subset of full graph store) ──

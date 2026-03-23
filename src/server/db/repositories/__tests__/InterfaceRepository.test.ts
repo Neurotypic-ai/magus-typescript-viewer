@@ -1,11 +1,11 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Interface } from '../../../../shared/types/Interface';
+import { Interface } from '../../../../../shared/types/Interface';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { InterfaceRepository } from '../InterfaceRepository';
 
-import type { IInterfaceCreateDTO } from '../InterfaceRepository';
+import type { IInterfaceCreateDTO } from '../../../../shared/types/dto/InterfaceDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../../types/DatabaseResults';
 

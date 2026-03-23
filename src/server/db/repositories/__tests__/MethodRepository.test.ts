@@ -1,11 +1,12 @@
-import { Method } from '../../../../shared/types/Method';
-import { Parameter } from '../../../../shared/types/Parameter';
+import { Method } from '../../../../../shared/types/Method';
+import { Parameter } from '../../../../../shared/types/Parameter';
 import { RepositoryError, EntityNotFoundError } from '../../errors/RepositoryError';
 import { MethodRepository } from '../MethodRepository';
 
-import type { IMethodCreateDTO, IMethodUpdateDTO } from '../MethodRepository';
+import type { IMethodCreateDTO, IMethodUpdateDTO } from '../../../../shared/types/dto/MethodDTO';
 import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
 import type { IMethodRow, IParameterRow } from '../../types/DatabaseResults';
+import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Helpers

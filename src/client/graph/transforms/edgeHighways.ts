@@ -9,8 +9,8 @@ import { isValidEdgeConnection } from '../edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, selectFolderHandle } from '../handleRouting';
 
 import type { Rect } from '../../layout/geometryBounds';
-import type { DependencyEdgeKind } from '../../types/DependencyEdgeKind';
-import type { DependencyKind } from '../../types/DependencyKind';
+import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
+import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 

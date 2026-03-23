@@ -2,9 +2,9 @@ import jscodeshift from 'jscodeshift';
 
 import { typeUnionWithoutAlias } from '../typeUnionWithoutAlias';
 
-import type { IClassCreateDTO } from '../../../db/repositories/ClassRepository';
-import type { IInterfaceCreateDTO } from '../../../db/repositories/InterfaceRepository';
-import type { IPropertyCreateDTO } from '../../../db/repositories/PropertyRepository';
+import type { IClassCreateDTO } from '../../../../shared/types/dto/ClassDTO';
+import type { IInterfaceCreateDTO } from '../../../../shared/types/dto/InterfaceDTO';
+import type { IPropertyCreateDTO } from '../../../../shared/types/dto/PropertyDTO';
 import type { ParseResult } from '../../../parsers/ParseResult';
 import type { CodeIssue, RuleContext } from '../../Rule';
 import type { RulesConfig } from '../../RulesConfig';

@@ -1,11 +1,12 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TypeAlias } from '../../../../shared/types/TypeAlias';
+import { TypeAlias } from '../../../../../shared/types/TypeAlias';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { TypeAliasRepository } from '../TypeAliasRepository';
 
-import type { ITypeAliasCreateDTO, ITypeAliasRow } from '../TypeAliasRepository';
+import type { ITypeAliasCreateDTO } from '../../../../shared/types/dto/TypeAliasDTO';
+import type { ITypeAliasRow } from '../../types/DatabaseResults';
 import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
 
 // ---------------------------------------------------------------------------

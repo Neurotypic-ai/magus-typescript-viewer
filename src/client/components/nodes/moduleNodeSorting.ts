@@ -1,8 +1,8 @@
-import type { EmbeddedModuleEntity } from '../../types/EmbeddedModuleEntity';
-import type { EmbeddedSymbol } from '../../types/EmbeddedSymbol';
-import type { ExternalDependencyRef } from '../../types/ExternalDependencyRef';
-import type { NodeMethod } from '../../types/NodeMethod';
-import type { NodeProperty } from '../../types/NodeProperty';
+import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
+import type { EmbeddedSymbol } from '../../../shared/types/graph/EmbeddedSymbol';
+import type { ExternalDependencyRef } from '../../../shared/types/graph/ExternalDependencyRef';
+import type { NodeMethod } from '../../../shared/types/graph/NodeMethod';
+import type { NodeProperty } from '../../../shared/types/graph/NodeProperty';
 
 const alphabeticCollator = new Intl.Collator(undefined, {
   numeric: true,

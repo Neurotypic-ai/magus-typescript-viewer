@@ -3,7 +3,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue';
 
 import { getApiBaseUrl } from '../assemblers/api';
 
-import type { CodeIssueRef } from '../types/CodeIssueRef';
+import type { CodeIssueRef } from '../../shared/types/api/CodeIssueRef';
 
 interface IssuesStore {
   issues: Ref<CodeIssueRef[]>;

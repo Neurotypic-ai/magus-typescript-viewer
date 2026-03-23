@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SymbolReferenceRepository } from '../SymbolReferenceRepository';
 import { RepositoryError, EntityNotFoundError } from '../../errors/RepositoryError';
 
 import type { IDatabaseAdapter, DatabaseRow } from '../../adapter/IDatabaseAdapter';
-import type { ISymbolReferenceCreateDTO } from '../SymbolReferenceRepository';
+import type { ISymbolReferenceCreateDTO } from '../../../../shared/types/dto/SymbolReferenceDTO';
 
 // ---------------------------------------------------------------------------
 // Helpers

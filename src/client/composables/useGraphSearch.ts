@@ -9,14 +9,14 @@ import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { SearchResult } from '../types/SearchResult';
 
-export interface UseGraphSearchOptions {
+interface UseGraphSearchOptions {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   onSearchResult: (result: SearchResult) => void;
   debounceMs?: number;
 }
 
-export interface UseGraphSearchResult {
+interface UseGraphSearchResult {
   searchQuery: Ref<string>;
   runSearch: () => void;
   clearSearch: () => void;

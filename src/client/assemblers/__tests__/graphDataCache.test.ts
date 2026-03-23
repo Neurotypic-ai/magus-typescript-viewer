@@ -1,4 +1,4 @@
-import type { DependencyPackageGraph } from '../../types/DependencyPackageGraph';
+import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
 
 import { GraphDataCache } from '../graphDataCache';
 

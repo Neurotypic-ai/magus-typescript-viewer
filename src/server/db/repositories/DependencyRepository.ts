@@ -5,16 +5,9 @@ import type { DuckDBValue } from '@duckdb/node-api';
 
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IDependencyRow } from '../types/DatabaseResults';
-import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../types/Dependency';
-import type { DependencyType } from '../types/DependencyType';
-
-interface IDependencyEntity {
-  id: string;
-  source_id: string;
-  target_id: string;
-  type: DependencyType;
-  created_at: Date;
-}
+import type { IDependency } from '../../../shared/types/Dependency';
+import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../../../shared/types/dto/DependencyDTO';
+import type { DependencyType } from '../../../shared/types/DependencyType';
 
 function isValidDependencyDTO(dto: unknown): dto is IDependencyCreateDTO {
   if (!dto || typeof dto !== 'object') {
@@ -30,16 +23,12 @@ function isValidDependencyDTO(dto: unknown): dto is IDependencyCreateDTO {
   );
 }
 
-export class DependencyRepository extends BaseRepository<
-  IDependencyEntity,
-  IDependencyCreateDTO,
-  IDependencyUpdateDTO
-> {
+export class DependencyRepository extends BaseRepository<IDependency, IDependencyCreateDTO, IDependencyUpdateDTO> {
   constructor(adapter: IDatabaseAdapter) {
     super(adapter, '[DependencyRepository]', 'dependencies');
   }
 
-  async create(dto: IDependencyCreateDTO): Promise<IDependencyEntity> {
+  async create(dto: IDependencyCreateDTO): Promise<IDependency> {
     try {
       if (!isValidDependencyDTO(dto)) {
         throw new RepositoryError('Invalid dependency data', 'create', this.errorTag);
@@ -72,7 +61,7 @@ export class DependencyRepository extends BaseRepository<
     }
   }
 
-  async update(id: string, dto: IDependencyUpdateDTO): Promise<IDependencyEntity> {
+  async update(id: string, dto: IDependencyUpdateDTO): Promise<IDependency> {
     try {
       const updates = [{ field: 'type', value: (dto.type as DuckDBValue) ?? undefined }] satisfies {
         field: string;
@@ -102,7 +91,7 @@ export class DependencyRepository extends BaseRepository<
     }
   }
 
-  async retrieve(id?: string, module_id?: string): Promise<IDependencyEntity[]> {
+  async retrieve(id?: string, module_id?: string): Promise<IDependency[]> {
     try {
       let query = 'SELECT * FROM dependencies';
       const params: DuckDBValue[] = [];
@@ -123,7 +112,7 @@ export class DependencyRepository extends BaseRepository<
       }
 
       const results = await this.executeQuery<IDependencyRow>('retrieve', query, params);
-      const dependencies: IDependencyEntity[] = [];
+      const dependencies: IDependency[] = [];
 
       for (const dep of results) {
         dependencies.push({
@@ -151,7 +140,7 @@ export class DependencyRepository extends BaseRepository<
     }
   }
 
-  async findBySourceId(sourceId: string): Promise<IDependencyEntity[]> {
+  async findBySourceId(sourceId: string): Promise<IDependency[]> {
     try {
       const results = await this.executeQuery<IDependencyRow>(
         'findBySourceId',
@@ -173,7 +162,7 @@ export class DependencyRepository extends BaseRepository<
     }
   }
 
-  async findByTargetId(targetId: string): Promise<IDependencyEntity[]> {
+  async findByTargetId(targetId: string): Promise<IDependency[]> {
     try {
       const results = await this.executeQuery<IDependencyRow>(
         'findByTargetId',
@@ -194,12 +183,12 @@ export class DependencyRepository extends BaseRepository<
     }
   }
 
-  async retrieveById(id: string): Promise<IDependencyEntity | undefined> {
+  async retrieveById(id: string): Promise<IDependency | undefined> {
     const results = await this.retrieve(id);
     return results[0];
   }
 
-  async retrieveByModuleId(module_id: string): Promise<IDependencyEntity[]> {
+  async retrieveByModuleId(module_id: string): Promise<IDependency[]> {
     return this.retrieve(undefined, module_id);
   }
 }

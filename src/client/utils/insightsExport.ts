@@ -1,4 +1,4 @@
-import type { InsightCategory, InsightReport, InsightResult } from '../../server/insights/types';
+import type { InsightCategory, InsightReport, InsightResult } from '../../shared/types/api/Insight';
 
 function downloadBlob(content: string, filename: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });

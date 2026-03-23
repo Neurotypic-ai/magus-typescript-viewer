@@ -1,9 +1,11 @@
-import { ModuleFunction } from '../../../../shared/types/Function';
+import { ModuleFunction } from '../../../../../shared/types/Function';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { FunctionRepository } from '../FunctionRepository';
 
-import type { IFunctionCreateDTO, IFunctionRow } from '../FunctionRepository';
+import type { IFunctionCreateDTO } from '../../../../shared/types/dto/FunctionDTO';
+import type { IFunctionRow } from '../../types/DatabaseResults';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
+import { vi, describe, beforeEach, afterEach, it, expect } from 'vitest';
 
 /**
  * Creates a mock IDatabaseAdapter with vi.fn() stubs for every method.

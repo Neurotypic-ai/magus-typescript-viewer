@@ -1,11 +1,11 @@
 // @vitest-environment node
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DependencyRepository } from '../DependencyRepository';
 import { RepositoryError } from '../../errors/RepositoryError';
 
 import type { IDatabaseAdapter, QueryResult, DatabaseRow } from '../../adapter/IDatabaseAdapter';
-import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../../types/Dependency';
+import type { IDependencyCreateDTO, IDependencyUpdateDTO } from '../../../../shared/types/dto/DependencyDTO';
 
 function createMockAdapter(): IDatabaseAdapter {
   return {
