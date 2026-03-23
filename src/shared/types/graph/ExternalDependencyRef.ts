@@ -1,7 +1,7 @@
-import type { ImportSpecifierRef } from './ImportSpecifierRef';
+import type { IImportSpecifier } from '../Import';
 
 export interface ExternalDependencyRef {
   packageName: string;
   symbols: string[];
-  specifiers?: ImportSpecifierRef[];
+  specifiers?: IImportSpecifier[];
 }

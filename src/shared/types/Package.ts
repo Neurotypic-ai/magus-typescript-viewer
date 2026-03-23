@@ -8,47 +8,51 @@ export interface IPackage {
   /**
    * The unique identifier for the package.
    */
-  id: string;
+  readonly id: string;
 
   /**
    * The name of the package.
    */
-  name: string;
+  readonly name: string;
 
   /**
    * The version of the package.
    */
-  version: string;
+  readonly version: string;
 
   /**
    * The path to the package.
    */
-  path: string;
+  readonly path: string;
 
   /**
    * The creation date of the package.
    */
-  created_at: Date;
+  readonly created_at: string;
 
   /**
    * The dependencies of the package.
    */
-  dependencies: TypeCollection<Package>;
+  readonly dependencies: TypeCollection<Package>;
 
   /**
    * The dev dependencies of the package.
    */
-  devDependencies: TypeCollection<Package>;
+  readonly devDependencies: TypeCollection<Package>;
 
   /**
    * The peer dependencies of the package.
    */
-  peerDependencies: TypeCollection<Package>;
+  readonly peerDependencies: TypeCollection<Package>;
 
   /**
    * The modules in the package.
    */
-  modules: TypeCollection<Module>;
+  readonly modules: TypeCollection<Module>;
+}
+
+export interface PackageGraph {
+  readonly packages: Package[];
 }
 
 export class Package implements IPackage {
@@ -57,7 +61,7 @@ export class Package implements IPackage {
     public readonly name: string,
     public readonly version: string,
     public readonly path: string,
-    public readonly created_at: Date = new Date(),
+    public readonly created_at: string = new Date().toISOString(),
     public readonly dependencies: TypeCollection<Package> = new Map(),
     public readonly devDependencies: TypeCollection<Package> = new Map(),
     public readonly peerDependencies: TypeCollection<Package> = new Map(),

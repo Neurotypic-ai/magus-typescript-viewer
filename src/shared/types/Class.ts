@@ -17,47 +17,47 @@ export interface IClass {
   /**
    * The unique identifier for the class.
    */
-  id: string;
+  readonly id: string;
 
   /**
    * The UUID of the parent package.
    */
-  package_id: string;
+  readonly package_id: string;
 
   /**
    * The UUID of the parent module.
    */
-  module_id: string;
+  readonly module_id: string;
 
   /**
    * The name of the class.
    */
-  name: string;
+  readonly name: string;
 
   /**
    * The creation date of the class.
    */
-  created_at: Date;
+  readonly created_at: string;
 
   /**
    * The methods defined in the class.
    */
-  methods: TypeCollection<Method>;
+  readonly methods: TypeCollection<Method>;
 
   /**
    * The properties defined in the class.
    */
-  properties: TypeCollection<Property>;
+  readonly properties: TypeCollection<Property>;
 
   /**
    * The interfaces implemented by the class.
    */
-  implemented_interfaces: TypeCollection<Interface>;
+  readonly implemented_interfaces: TypeCollection<Interface>;
 
   /**
    * The ID of the parent class (if this class extends another).
    */
-  extends_id?: string | undefined;
+  readonly extends_id?: string | undefined;
 }
 
 export class Class implements IClass {
@@ -66,7 +66,7 @@ export class Class implements IClass {
     public readonly package_id: string,
     public readonly module_id: string,
     public readonly name: string,
-    public readonly created_at: Date = new Date(),
+    public readonly created_at: string = new Date().toISOString(),
     public readonly methods: TypeCollection<Method> = new Map(),
     public readonly properties: TypeCollection<Property> = new Map(),
     public readonly implemented_interfaces: TypeCollection<Interface> = new Map(),

@@ -115,7 +115,7 @@ export class VariableRepository extends BaseRepository<Variable, IVariableCreate
       row.kind as 'const' | 'let' | 'var',
       row.type ?? 'unknown',
       row.initializer ?? undefined,
-      new Date(row.created_at)
+      String(row.created_at)
     );
   }
 }

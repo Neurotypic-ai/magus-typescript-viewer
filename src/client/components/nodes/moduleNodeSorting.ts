@@ -1,8 +1,8 @@
 import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from '../../../shared/types/graph/EmbeddedSymbol';
 import type { ExternalDependencyRef } from '../../../shared/types/graph/ExternalDependencyRef';
-import type { NodeMethod } from '../../../shared/types/graph/NodeMethod';
-import type { NodeProperty } from '../../../shared/types/graph/NodeProperty';
+import type { Method } from '../../../shared/types/Method';
+import type { Property } from '../../../shared/types/Property';
 
 const alphabeticCollator = new Intl.Collator(undefined, {
   numeric: true,
@@ -19,14 +19,14 @@ function compareMaybeString(left: string | undefined, right: string | undefined)
   return safeLeft.localeCompare(safeRight);
 }
 
-function sortNodeMethods(methods: NodeMethod[]): NodeMethod[] {
+function sortNodeMethods(methods: Method[]): Method[] {
   return [...methods].sort(
     (left, right) =>
       compareMaybeString(left.name, right.name) || compareMaybeString(left.signature, right.signature),
   );
 }
 
-export function sortNodeProperties(properties: NodeProperty[]): NodeProperty[] {
+export function sortNodeProperties(properties: Property[]): Property[] {
   return [...properties].sort(
     (left, right) => compareMaybeString(left.name, right.name) || compareMaybeString(left.type, right.type),
   );

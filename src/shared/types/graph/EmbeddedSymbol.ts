@@ -1,5 +1,5 @@
-import type { NodeMethod } from './NodeMethod';
-import type { NodeProperty } from './NodeProperty';
+import type { IMethod } from '../Method';
+import type { IProperty } from '../Property';
 
 /**
  * Symbol data embedded in module nodes during compact mode.
@@ -9,6 +9,6 @@ export interface EmbeddedSymbol {
   id: string;
   type: 'class' | 'interface';
   name: string;
-  properties: NodeProperty[];
-  methods: NodeMethod[];
+  properties: IProperty[];
+  methods: IMethod[];
 }

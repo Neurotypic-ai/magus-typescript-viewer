@@ -12,44 +12,60 @@ import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyE
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../../types/GraphEdge';
-import type { ModuleStructure } from '../../../shared/types/graph/ModuleStructure';
-import type { NodeMethod } from '../../../shared/types/graph/NodeMethod';
-import type { NodeProperty } from '../../../shared/types/graph/NodeProperty';
+import type { Module } from '../../../shared/types/Module';
+import type { Method } from '../../../shared/types/Method';
+import type { Property } from '../../../shared/types/Property';
 
-export function toNodeProperty(property: NodeProperty | Record<string, unknown>): NodeProperty {
-  const name = property.name;
-  const type = property.type;
-  const visibility = property.visibility;
+export function normalizeProperty(property: Property): Property {
+  const source = property as unknown as Record<string, unknown>;
   return {
-    id: typeof property.id === 'string' ? property.id : undefined,
-    name: typeof name === 'string' ? name : 'unknown',
-    type: typeof type === 'string' ? type : 'unknown',
-    visibility: typeof visibility === 'string' ? visibility : 'public',
+    id: typeof source.id === 'string' ? source.id : '',
+    package_id: typeof source.package_id === 'string' ? source.package_id : '',
+    module_id: typeof source.module_id === 'string' ? source.module_id : '',
+    parent_id: typeof source.parent_id === 'string' ? source.parent_id : '',
+    name: typeof source.name === 'string' ? source.name : 'unknown',
+    created_at: typeof source.created_at === 'string' ? source.created_at : '',
+    type: typeof source.type === 'string' ? source.type : 'unknown',
+    is_static: Boolean(source.is_static),
+    is_readonly: Boolean(source.is_readonly),
+    visibility: typeof source.visibility === 'string' ? source.visibility : 'public',
+    default_value: typeof source.default_value === 'string' ? source.default_value : undefined,
   };
 }
 
-export function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod {
-  const name = method.name;
-  const returnTypeVal = method.returnType;
-  const visibility = method.visibility;
-  const methodName = typeof name === 'string' ? name : 'unknown';
-  const returnType = typeof returnTypeVal === 'string' ? returnTypeVal : 'void';
+export function normalizeMethod(method: Method): Method {
+  const source = method as unknown as Record<string, unknown>;
+  const name = typeof source.name === 'string' ? source.name : 'unknown';
+  const returnType =
+    typeof source.return_type === 'string'
+      ? source.return_type
+      : typeof source.returnType === 'string'
+        ? source.returnType
+        : 'void';
+  const signature =
+    typeof source.signature === 'string' && source.signature.length > 0
+      ? source.signature
+      : `${name}(): ${returnType}`;
   return {
-    id: typeof method.id === 'string' ? method.id : undefined,
-    name: methodName,
-    returnType,
-    visibility: typeof visibility === 'string' ? visibility : 'public',
-    signature:
-      typeof method.signature === 'string' && method.signature.length > 0
-        ? method.signature
-        : `${methodName}(): ${returnType}`,
+    id: typeof source.id === 'string' ? source.id : '',
+    package_id: typeof source.package_id === 'string' ? source.package_id : '',
+    module_id: typeof source.module_id === 'string' ? source.module_id : '',
+    parent_id: typeof source.parent_id === 'string' ? source.parent_id : '',
+    name,
+    created_at: typeof source.created_at === 'string' ? source.created_at : '',
+    parameters: source.parameters && typeof source.parameters === 'object' ? (source.parameters as Method['parameters']) : [],
+    return_type: returnType,
+    is_static: Boolean(source.is_static),
+    is_async: Boolean(source.is_async),
+    visibility: typeof source.visibility === 'string' ? source.visibility : 'public',
+    signature,
   };
 }
 
 export function findModuleById(
   data: DependencyPackageGraph,
   moduleId: string
-): ModuleStructure | undefined {
+): Module | undefined {
   for (const pkg of data.packages) {
     if (!pkg.modules) continue;
     const module = mapTypeCollection(pkg.modules, (entry) => entry).find((entry) => entry.id === moduleId);
@@ -74,8 +90,8 @@ export function createDetailedSymbolNode(
   id: string,
   type: 'class' | 'interface',
   label: string,
-  properties: NodeProperty[],
-  methods: NodeMethod[],
+  properties: Property[],
+  methods: Method[],
   direction: 'LR' | 'RL' | 'TB' | 'BT'
 ): DependencyNode {
   const { sourcePosition, targetPosition } = getHandlePositions(direction);

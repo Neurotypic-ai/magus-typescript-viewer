@@ -2,18 +2,18 @@ export type SymbolSourceType = 'module' | 'class' | 'interface' | 'function' | '
 export type SymbolTargetType = 'method' | 'property';
 
 export interface ISymbolReference {
-  id: string;
-  package_id: string;
-  module_id: string;
-  source_symbol_id?: string | undefined;
-  source_symbol_type: SymbolSourceType;
-  source_symbol_name?: string | undefined;
-  target_symbol_id: string;
-  target_symbol_type: SymbolTargetType;
-  target_symbol_name: string;
-  access_kind: SymbolTargetType;
-  qualifier_name?: string | undefined;
-  created_at: Date;
+  readonly id: string;
+  readonly package_id: string;
+  readonly module_id: string;
+  readonly source_symbol_id?: string | undefined;
+  readonly source_symbol_type: SymbolSourceType;
+  readonly source_symbol_name?: string | undefined;
+  readonly target_symbol_id: string;
+  readonly target_symbol_type: SymbolTargetType;
+  readonly target_symbol_name: string;
+  readonly access_kind: SymbolTargetType;
+  readonly qualifier_name?: string | undefined;
+  readonly created_at: string;
 }
 
 export class SymbolReference implements ISymbolReference {
@@ -26,7 +26,7 @@ export class SymbolReference implements ISymbolReference {
     public readonly target_symbol_type: SymbolTargetType,
     public readonly target_symbol_name: string,
     public readonly access_kind: SymbolTargetType,
-    public readonly created_at: Date = new Date(),
+    public readonly created_at: string = new Date().toISOString(),
     public readonly source_symbol_id?: string,
     public readonly source_symbol_name?: string,
     public readonly qualifier_name?: string

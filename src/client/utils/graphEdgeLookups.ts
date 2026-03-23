@@ -5,23 +5,26 @@
 
 import { mapTypeCollection } from './collections';
 
+import type { IImport } from '../../shared/types/Import';
 import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
-import type { ModuleStructure } from '../../shared/types/graph/ModuleStructure';
-import type { PackageStructure } from '../../shared/types/graph/PackageStructure';
+import type { Module } from '../../shared/types/Module';
+import type { Package } from '../../shared/types/Package';
 
 export interface ModulePathLookup {
   packagePathMap: Map<string, Map<string, string>>;
   globalPathMap: Map<string, Set<string>>;
 }
 
-export function isExternalImportRef(imp: {
-  isExternal?: boolean;
-  packageName?: string;
-  path?: string | undefined;
-}): boolean {
+export function isExternalImport(
+  imp: Pick<IImport, 'relativePath' | 'fullPath' | 'name'> & {
+    path?: string;
+    isExternal?: boolean;
+    packageName?: string;
+  }
+): boolean {
   if (imp.isExternal === true) return true;
   if (typeof imp.packageName === 'string' && imp.packageName.length > 0) return true;
-  const path = imp.path;
+  const path = imp.relativePath || imp.fullPath || imp.path || imp.name;
   if (!path) return false;
   if (!path.startsWith('.') && !path.startsWith('/') && !path.startsWith('@/') && !path.startsWith('src/')) {
     return true;
@@ -74,11 +77,11 @@ export function buildModulePathLookup(data: DependencyPackageGraph): ModulePathL
   const packagePathMap = new Map<string, Map<string, string>>();
   const globalPathMap = new Map<string, Set<string>>();
 
-  data.packages.forEach((pkg: PackageStructure) => {
+  data.packages.forEach((pkg: Package) => {
     const pathMap = new Map<string, string>();
     packagePathMap.set(pkg.id, pathMap);
     if (!pkg.modules) return;
-    mapTypeCollection(pkg.modules, (module: ModuleStructure) => {
+    mapTypeCollection(pkg.modules, (module: Module) => {
       const relativePath: string = module.source.relativePath;
       const moduleId: string = module.id;
       addModulePathEntry(pathMap, relativePath, moduleId);

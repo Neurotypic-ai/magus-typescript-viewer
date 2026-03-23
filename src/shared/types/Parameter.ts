@@ -12,52 +12,52 @@ export interface IParameter {
   /**
    * The unique identifier for the parameter.
    */
-  id: string;
+  readonly id: string;
 
   /**
    * The UUID of the parent package.
    */
-  package_id: string;
+  readonly package_id: string;
 
   /**
    * The UUID of the parent module.
    */
-  module_id: string;
+  readonly module_id: string;
 
   /**
    * The UUID of the parent method.
    */
-  method_id: string;
+  readonly method_id: string;
 
   /**
    * The name of the parameter.
    */
-  name: string;
+  readonly name: string;
 
   /**
    * The creation date of the parameter.
    */
-  created_at: Date;
+  readonly created_at: string;
 
   /**
    * The type of the parameter.
    */
-  type: string;
+  readonly type: string;
 
   /**
    * Whether the parameter is optional.
    */
-  is_optional: boolean;
+  readonly is_optional: boolean;
 
   /**
    * Whether the parameter is a rest parameter.
    */
-  is_rest: boolean;
+  readonly is_rest: boolean;
 
   /**
    * The default value of the parameter, if any.
    */
-  default_value?: string | undefined;
+  readonly default_value?: string | undefined;
 }
 
 export class Parameter implements IParameter {
@@ -67,7 +67,7 @@ export class Parameter implements IParameter {
     public readonly module_id: string,
     public readonly method_id: string,
     public readonly name: string,
-    public readonly created_at: Date = new Date(),
+    public readonly created_at: string = new Date().toISOString(),
     public readonly type = 'any',
     public readonly is_optional = false,
     public readonly is_rest = false,

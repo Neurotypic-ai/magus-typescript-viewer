@@ -2,8 +2,8 @@ import { buildOverviewGraph } from '../buildOverviewGraph';
 
 import type { BuildOverviewGraphOptions } from '../buildOverviewGraph';
 import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
-import type { ModuleStructure } from '../../../shared/types/graph/ModuleStructure';
-import type { PackageStructure } from '../../../shared/types/graph/PackageStructure';
+import type { Module } from '../../../shared/types/Module';
+import type { Package } from '../../../shared/types/Package';
 import { describe, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ function defaultOptions(overrides: Partial<BuildOverviewGraphOptions> = {}): Bui
   };
 }
 
-function makeModule(id: string, name: string, packageId: string, relativePath: string, extra: Partial<ModuleStructure> = {}): ModuleStructure {
+function makeModule(id: string, name: string, packageId: string, relativePath: string, extra: Partial<Module> = {}): Module {
   return {
     id,
     name,
@@ -32,7 +32,7 @@ function makeModule(id: string, name: string, packageId: string, relativePath: s
   };
 }
 
-function makePackage(id: string, name: string, modules: Record<string, ModuleStructure> = {}): PackageStructure {
+function makePackage(id: string, name: string, modules: Record<string, Module> = {}): Package {
   return {
     id,
     name,
@@ -43,7 +43,7 @@ function makePackage(id: string, name: string, modules: Record<string, ModuleStr
   };
 }
 
-function makeGraph(packages: PackageStructure[]): DependencyPackageGraph {
+function makeGraph(packages: Package[]): DependencyPackageGraph {
   return { packages };
 }
 

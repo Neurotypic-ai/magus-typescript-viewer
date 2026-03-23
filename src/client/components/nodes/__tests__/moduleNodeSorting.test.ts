@@ -11,11 +11,11 @@ import {
 import type { EmbeddedModuleEntity } from '../../../../shared/types/graph/EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from '../../../../shared/types/graph/EmbeddedSymbol';
 import type { ExternalDependencyRef } from '../../../../shared/types/graph/ExternalDependencyRef';
-import type { NodeProperty } from '../../../../shared/types/graph/NodeProperty';
+import type { Property } from '../../../../shared/types/Property';
 
 describe('moduleNodeSorting', () => {
   it('sorts metadata properties alphabetically by name', () => {
-    const properties: NodeProperty[] = [
+    const properties: Property[] = [
       { name: 'zeta', type: 'string', visibility: 'public' },
       { name: 'Alpha', type: 'string', visibility: 'public' },
       { name: 'beta', type: 'string', visibility: 'public' },

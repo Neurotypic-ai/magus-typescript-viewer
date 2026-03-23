@@ -1,5 +1,5 @@
 import {
-  isExternalImportRef,
+  isExternalImport,
   normalizePath,
   getDirname,
   joinPaths,
@@ -54,53 +54,53 @@ function emptyLookup(): ModulePathLookup {
 }
 
 // ---------------------------------------------------------------------------
-// isExternalImportRef
+// isExternalImport
 // ---------------------------------------------------------------------------
 
-describe('isExternalImportRef', () => {
+describe('isExternalImport', () => {
   it('returns true when isExternal is true', () => {
-    expect(isExternalImportRef({ isExternal: true })).toBe(true);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: 'lodash' })).toBe(true);
   });
 
   it('returns true when packageName is a non-empty string', () => {
-    expect(isExternalImportRef({ packageName: 'vue' })).toBe(true);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: 'vue' })).toBe(true);
   });
 
   it('returns false when packageName is empty string', () => {
-    expect(isExternalImportRef({ packageName: '', path: './local' })).toBe(false);
+    expect(isExternalImport({ relativePath: './local', fullPath: '', name: '' })).toBe(false);
   });
 
   it('returns false for relative paths starting with ./', () => {
-    expect(isExternalImportRef({ path: './utils' })).toBe(false);
+    expect(isExternalImport({ relativePath: './utils', fullPath: '', name: '' })).toBe(false);
   });
 
   it('returns false for relative paths starting with ../', () => {
-    expect(isExternalImportRef({ path: '../utils' })).toBe(false);
+    expect(isExternalImport({ relativePath: '../utils', fullPath: '', name: '' })).toBe(false);
   });
 
   it('returns false for absolute paths starting with /', () => {
-    expect(isExternalImportRef({ path: '/some/path' })).toBe(false);
+    expect(isExternalImport({ relativePath: '', fullPath: '/some/path', name: '' })).toBe(false);
   });
 
   it('returns false for alias paths starting with @/', () => {
-    expect(isExternalImportRef({ path: '@/components/Foo' })).toBe(false);
+    expect(isExternalImport({ relativePath: '', fullPath: '@/components/Foo', name: '' })).toBe(false);
   });
 
   it('returns false for paths starting with src/', () => {
-    expect(isExternalImportRef({ path: 'src/utils/helpers' })).toBe(false);
+    expect(isExternalImport({ relativePath: 'src/utils/helpers', fullPath: '', name: '' })).toBe(false);
   });
 
   it('returns true for bare module specifiers like "lodash"', () => {
-    expect(isExternalImportRef({ path: 'lodash' })).toBe(true);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: 'lodash' })).toBe(true);
   });
 
   it('returns true for scoped packages like "@vue/reactivity"', () => {
-    expect(isExternalImportRef({ path: '@vue/reactivity' })).toBe(true);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: '@vue/reactivity' })).toBe(true);
   });
 
   it('returns false when path is undefined and no other flags', () => {
-    expect(isExternalImportRef({})).toBe(false);
-    expect(isExternalImportRef({ path: undefined })).toBe(false);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: '' })).toBe(false);
+    expect(isExternalImport({ relativePath: '', fullPath: '', name: '' })).toBe(false);
   });
 });
 

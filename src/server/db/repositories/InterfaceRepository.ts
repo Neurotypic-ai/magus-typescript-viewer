@@ -84,7 +84,7 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
         String(iface.package_id),
         String(iface.module_id),
         String(iface.name),
-        new Date(String(iface.created_at)),
+        String(iface.created_at),
         new Map<string, Method>(),
         new Map<string, Property>(),
         new Map<string, Interface>()
@@ -190,7 +190,7 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
                 package_id: String(extended.package_id),
                 module_id: String(extended.module_id),
                 name: String(extended.name),
-                created_at: new Date(String(extended.created_at)),
+                created_at: String(extended.created_at),
                 methods: new Map(),
                 properties: new Map(),
                 extended_interfaces: new Map(),
@@ -202,7 +202,7 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
               String(iface.package_id),
               String(iface.module_id),
               String(iface.name),
-              new Date(String(iface.created_at)),
+              String(iface.created_at),
               methodsMap,
               propertiesMap,
               extendedMap
@@ -284,7 +284,7 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
             iface.package_id,
             iface.module_id,
             iface.name,
-            new Date(iface.created_at),
+            String(iface.created_at),
             new Map<string, Method>(),
             new Map<string, Property>(),
             new Map<string, Interface>()

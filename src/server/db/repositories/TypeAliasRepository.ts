@@ -105,12 +105,12 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
   }
 
   protected mapToEntity(row: ITypeAliasRow): TypeAlias {
-    let typeParameters: string[] = [];
+    let type_parameters: string[] = [];
     if (row.type_parameters_json) {
       try {
         const parsed: unknown = JSON.parse(row.type_parameters_json);
         if (Array.isArray(parsed)) {
-          typeParameters = parsed.filter((p): p is string => typeof p === 'string');
+          type_parameters = parsed.filter((p): p is string => typeof p === 'string');
         }
       } catch {
         // Invalid JSON — default to empty array
@@ -122,8 +122,8 @@ export class TypeAliasRepository extends BaseRepository<TypeAlias, ITypeAliasCre
       row.module_id,
       row.name,
       row.type,
-      typeParameters,
-      new Date(row.created_at)
+      type_parameters,
+      String(row.created_at)
     );
   }
 }

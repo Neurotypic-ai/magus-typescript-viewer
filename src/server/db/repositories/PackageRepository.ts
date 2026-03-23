@@ -119,7 +119,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         pkg.name,
         pkg.version,
         pkg.path,
-        new Date(pkg.created_at),
+        String(pkg.created_at),
         new Map(),
         new Map(),
         new Map(),
@@ -182,7 +182,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
 
       // Best-effort: do not recursively hydrate dependent packages to avoid cycles and heavy queries
       for (const row of dependencyRows) {
-        const placeholder = new Package(String(row.target_id), '', '', '', new Date());
+        const placeholder = new Package(String(row.target_id), '', '', '', new Date().toISOString());
         switch (row.type) {
           case 'dependency':
             dependencies.set(placeholder.id, placeholder);
@@ -201,7 +201,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         String(pkg.name),
         String(pkg.version),
         String(pkg.path),
-        new Date(String(pkg.created_at)),
+        String(pkg.created_at),
         dependencies,
         devDependencies,
         peerDependencies,
@@ -214,7 +214,7 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         String(pkg.name),
         String(pkg.version),
         String(pkg.path),
-        new Date(String(pkg.created_at)),
+        String(pkg.created_at),
         new Map(),
         new Map(),
         new Map(),

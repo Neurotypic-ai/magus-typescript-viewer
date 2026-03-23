@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
-import { GraphDataAssembler } from '../assemblers/GraphDataAssembler';
+import { GraphHydrator } from '../assemblers/GraphHydrator';
 import TypeAnnotationDisplay from './nodes/TypeAnnotationDisplay.vue';
 import { buildTypeDisplayModel } from './nodes/typeDisplay';
 import { mapTypeCollection } from '../utils/collections';
@@ -9,7 +9,7 @@ import { mapTypeCollection } from '../utils/collections';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
-import type { ModuleStructure } from '../../shared/types/graph/ModuleStructure';
+import type { Module } from '../../shared/types/Module';
 
 interface NodeDetailsProps {
   node: DependencyNode;
@@ -42,16 +42,16 @@ interface SymbolSummary {
 }
 
 interface GraphDetailsIndex {
-  moduleById: Map<string, ModuleStructure>;
+  moduleById: Map<string, Module>;
   symbolToModuleId: Map<string, string>;
   usageByTargetSymbolId: Map<string, string[]>;
 }
 
 const graphDetailsIndexCache = new WeakMap<DependencyPackageGraph, GraphDetailsIndex>();
-const moduleDetailsAssembler = new GraphDataAssembler();
+const moduleDetailsAssembler = new GraphHydrator();
 
 function buildGraphDetailsIndex(data: DependencyPackageGraph): GraphDetailsIndex {
-  const moduleById = new Map<string, ModuleStructure>();
+  const moduleById = new Map<string, Module>();
   const symbolToModuleId = new Map<string, string>();
   const symbolLabelById = new Map<string, string>();
   const usageByTargetSymbolIdSets = new Map<string, Set<string>>();
@@ -178,7 +178,7 @@ const graphDetailsIndex = computed<GraphDetailsIndex>(() => {
   return index;
 });
 
-const hydratedModule = ref<ModuleStructure | null>(null);
+const hydratedModule = ref<Module | null>(null);
 const hydratedModuleId = ref<string | null>(null);
 const isHydratingDetails = ref(false);
 const detailsLoadError = ref<string | null>(null);
@@ -273,7 +273,7 @@ function getUsedBy(symbolId: string | undefined): string[] {
   return graphDetailsIndex.value.usageByTargetSymbolId.get(symbolId) ?? [];
 }
 
-const selectedModule = computed<ModuleStructure | undefined>(() => {
+const selectedModule = computed<Module | undefined>(() => {
   const moduleId = activeModuleId.value;
   if (!moduleId) {
     return undefined;
@@ -303,7 +303,7 @@ const moduleClasses = computed<SymbolSummary[]>(() => {
     methods: (cls.methods ?? []).map((method) => ({
       id: method.id,
       name: method.name ?? 'unnamed',
-      returnType: method.returnType ?? 'void',
+      returnType: method.return_type ?? 'void',
       visibility: method.visibility,
       usedBy: getUsedBy(method.id),
     })),
@@ -327,7 +327,7 @@ const moduleInterfaces = computed<SymbolSummary[]>(() => {
     methods: (iface.methods ?? []).map((method) => ({
       id: method.id,
       name: method.name ?? 'unnamed',
-      returnType: method.returnType ?? 'void',
+      returnType: method.return_type ?? 'void',
       visibility: method.visibility,
       usedBy: getUsedBy(method.id),
     })),
@@ -380,7 +380,7 @@ const nodeMethods = computed<DisplayMethod[]>(() => {
   return methods.map((method) => ({
     id: method.id,
     name: method.name ?? 'unnamed',
-    returnType: method.returnType ?? 'void',
+    returnType: method.return_type ?? 'void',
     visibility: method.visibility,
     usedBy: getUsedBy(method.id),
   }));
@@ -612,16 +612,16 @@ function isRichType(typeText: string): boolean {
                 class="space-y-1"
               >
                 <div
-                  v-if="isRichType(method.returnType)"
+                  v-if="isRichType(method.return_type)"
                   class="flex flex-col gap-1"
                 >
                   <span class="text-text-primary font-semibold">{{ method.name }}()</span>
-                  <TypeAnnotationDisplay text-align="left" :model="typeModel(method.returnType)" />
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
                 </div>
                 <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
                   <span class="text-text-primary font-semibold">{{ method.name }}()</span>
                   <span class="text-text-muted">:</span>
-                  <code class="wrap-break-word text-text-secondary">{{ method.returnType }}</code>
+                  <code class="wrap-break-word text-text-secondary">{{ method.return_type }}</code>
                 </div>
                 <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ method.usedBy.join(', ') }}
@@ -672,16 +672,16 @@ function isRichType(typeText: string): boolean {
                 class="space-y-1"
               >
                 <div
-                  v-if="isRichType(method.returnType)"
+                  v-if="isRichType(method.return_type)"
                   class="flex flex-col gap-1"
                 >
                   <span class="text-text-primary font-semibold">{{ method.name }}()</span>
-                  <TypeAnnotationDisplay text-align="left" :model="typeModel(method.returnType)" />
+                  <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
                 </div>
                 <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
                   <span class="text-text-primary font-semibold">{{ method.name }}()</span>
                   <span class="text-text-muted">:</span>
-                  <code class="wrap-break-word text-text-secondary">{{ method.returnType }}</code>
+                  <code class="wrap-break-word text-text-secondary">{{ method.return_type }}</code>
                 </div>
                 <div v-if="method.usedBy.length > 0" class="ml-2 text-[11px] text-text-muted">
                   used by: {{ method.usedBy.join(', ') }}
@@ -732,21 +732,21 @@ function isRichType(typeText: string): boolean {
           class="text-sm text-text-secondary ml-3 font-mono space-y-1"
         >
           <div
-            v-if="isRichType(method.returnType)"
+            v-if="isRichType(method.return_type)"
             class="flex flex-col gap-1"
           >
             <span
               ><span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
               ><span class="text-text-muted">:</span></span
             >
-            <TypeAnnotationDisplay text-align="left" :model="typeModel(method.returnType)" />
+            <TypeAnnotationDisplay text-align="left" :model="typeModel(method.return_type)" />
           </div>
           <div v-else class="flex flex-row flex-wrap items-baseline gap-x-1 gap-y-0.5">
             <span
               ><span class="text-primary-main">{{ method.name }}</span><span class="text-text-muted">()</span
               ><span class="text-text-muted">:</span></span
             >
-            <code class="wrap-break-word">{{ method.returnType }}</code>
+            <code class="wrap-break-word">{{ method.return_type }}</code>
           </div>
           <div v-if="method.usedBy.length > 0" class="text-xs text-text-muted ml-1">
             used by: {{ method.usedBy.join(', ') }}

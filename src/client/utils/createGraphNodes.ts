@@ -4,25 +4,24 @@ import { mapTypeCollection } from './collections';
 import { getNodeStyle } from '../theme/graphTheme';
 import { isTestFilePath } from './testFileMatcher';
 
-import type { ClassStructure } from '../../shared/types/graph/ClassStructure';
+import type { Class } from '../../shared/types/Class';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { DependencyPackageGraph } from '../../shared/types/graph/DependencyPackageGraph';
 import type { EmbeddedModuleEntity } from '../../shared/types/graph/EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from '../../shared/types/graph/EmbeddedSymbol';
-import type { EnumStructure } from '../../shared/types/graph/EnumStructure';
+import type { Enum } from '../../shared/types/Enum';
 import type { ExternalDependencyRef } from '../../shared/types/graph/ExternalDependencyRef';
-import type { FunctionStructure } from '../../shared/types/graph/FunctionStructure';
-import type { ImportRef } from '../../shared/types/graph/ImportRef';
-import type { ImportSpecifierRef } from '../../shared/types/graph/ImportSpecifierRef';
-import type { InterfaceStructure } from '../../shared/types/graph/InterfaceStructure';
-import type { ModuleStructure } from '../../shared/types/graph/ModuleStructure';
+import type { ModuleFunction } from '../../shared/types/Function';
+import type { IImportSpecifier, Import } from '../../shared/types/Import';
+import type { Interface } from '../../shared/types/Interface';
+import type { Module } from '../../shared/types/Module';
 import type { NodeDiagnostics } from '../../shared/types/graph/NodeDiagnostics';
-import type { NodeMethod } from '../../shared/types/graph/NodeMethod';
-import type { NodeProperty } from '../../shared/types/graph/NodeProperty';
-import type { PackageStructure } from '../../shared/types/graph/PackageStructure';
-import type { TypeAliasStructure } from '../../shared/types/graph/TypeAliasStructure';
-import type { VariableStructure } from '../../shared/types/graph/VariableStructure';
+import type { Method } from '../../shared/types/Method';
+import type { Property } from '../../shared/types/Property';
+import type { Package } from '../../shared/types/Package';
+import type { TypeAlias } from '../../shared/types/TypeAlias';
+import type { Variable } from '../../shared/types/Variable';
 
 interface CreateGraphNodeOptions {
   includePackages?: boolean;
@@ -77,29 +76,64 @@ function stripLeadingColonType(value: string): string {
   return value.replace(/^:\s*/, '').trim();
 }
 
-function toNodeProperty(property: NodeProperty | Record<string, unknown>): NodeProperty {
+function firstImportAlias(specifier: IImportSpecifier): string | undefined {
+  return Array.from(specifier.aliases)[0];
+}
+
+function getImportPath(importValue: Import & { path?: string }): string | undefined {
+  return importValue.relativePath || importValue.fullPath || importValue.path || importValue.name;
+}
+
+function toImportSpecifierLike(
+  specifier:
+    | IImportSpecifier
+    | {
+        imported?: string;
+        local?: string;
+        kind?: string;
+      }
+): { imported: string; local?: string; kind: string } | undefined {
+  if ('name' in specifier) {
+    return {
+      imported: specifier.name,
+      ...(firstImportAlias(specifier) ? { local: firstImportAlias(specifier) } : {}),
+      kind: specifier.kind,
+    };
+  }
+  if (typeof specifier.imported !== 'string' || specifier.imported.length === 0) {
+    return undefined;
+  }
   return {
-    id: typeof property.id === 'string' ? property.id : undefined,
-    name: toStringField(property.name, 'unknown'),
-    type: toStringField(property.type, 'unknown'),
-    visibility: toStringField(property.visibility, 'public'),
+    imported: specifier.imported,
+    ...(typeof specifier.local === 'string' && specifier.local.length > 0 ? { local: specifier.local } : {}),
+    kind: typeof specifier.kind === 'string' ? specifier.kind : 'value',
   };
 }
 
-function toNodeMethod(method: NodeMethod | Record<string, unknown>): NodeMethod {
-  const methodName = toStringField(method.name, 'unknown');
-  const returnType = toStringField(method.returnType, 'void');
+function getImportSpecifierLikes(
+  importValue: Import & {
+    specifiers?: Array<{ imported?: string; local?: string; kind?: string }> | Map<string, IImportSpecifier>;
+  }
+): Array<{ imported: string; local?: string; kind: string }> {
+  if (importValue.specifiers instanceof Map) {
+    return Array.from(importValue.specifiers.values())
+      .map((specifier) => toImportSpecifierLike(specifier))
+      .filter((specifier): specifier is { imported: string; local?: string; kind: string } => Boolean(specifier));
+  }
+  if (Array.isArray(importValue.specifiers)) {
+    return importValue.specifiers
+      .map((specifier) => toImportSpecifierLike(specifier))
+      .filter((specifier): specifier is { imported: string; local?: string; kind: string } => Boolean(specifier));
+  }
+  return [];
+}
 
-  return {
-    id: typeof method.id === 'string' ? method.id : undefined,
-    name: methodName,
-    returnType,
-    visibility: toStringField(method.visibility, 'public'),
-    signature:
-      typeof method.signature === 'string' && method.signature.length > 0
-        ? method.signature
-        : `${methodName}(): ${returnType}`,
-  };
+function normalizeProperty(property: Property | Record<string, unknown>): Property {
+  return property as Property;
+}
+
+function normalizeMethod(method: Method | Record<string, unknown>): Method {
+  return method as Method;
 }
 
 /**
@@ -148,12 +182,12 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
 
   const graphNodes: DependencyNode[] = [];
 
-  const getModuleImports = (module: ModuleStructure): string[] => {
+  const getModuleImports = (module: Module): string[] => {
     if (!module.imports || Object.keys(module.imports).length === 0) return [];
-    return mapTypeCollection(module.imports, (imp: ImportRef) => imp.path ?? imp.name ?? '').filter(Boolean);
+    return mapTypeCollection(module.imports, (imp: Import & { path?: string }) => getImportPath(imp) ?? '').filter(Boolean);
   };
 
-  const getModuleExternalDependencies = (module: ModuleStructure): ExternalDependencyRef[] => {
+  const getModuleExternalDependencies = (module: Module): ExternalDependencyRef[] => {
     const explicitExternalDeps = (module as { externalDependencies?: unknown }).externalDependencies;
     if (Array.isArray(explicitExternalDeps)) {
       return explicitExternalDeps as ExternalDependencyRef[];
@@ -165,8 +199,9 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
 
     const grouped = new Map<string, Set<string>>();
 
-    mapTypeCollection(module.imports, (imp: ImportRef) => imp).forEach((imp: ImportRef) => {
-      const importPath: string | undefined = imp.path ?? imp.name;
+    mapTypeCollection(module.imports, (imp: Import & { path?: string; isExternal?: boolean; packageName?: string }) => imp).forEach(
+      (imp: Import & { path?: string; isExternal?: boolean; packageName?: string }) => {
+      const importPath: string | undefined = getImportPath(imp);
       if (!importPath) return;
 
       const pathSegments: string[] = importPath.split('/');
@@ -180,16 +215,18 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
       }
 
       const symbols = grouped.get(packageName) ?? new Set<string>();
-      if (Array.isArray(imp.specifiers) && imp.specifiers.length > 0) {
-        imp.specifiers.forEach((specifier: ImportSpecifierRef) => {
+      const specifiers = getImportSpecifierLikes(imp);
+      if (specifiers.length > 0) {
+        specifiers.forEach((specifier) => {
           if (specifier.kind === 'sideEffect') {
             symbols.add('(side-effect)');
             return;
           }
 
+          const local = specifier.local;
           const symbol: string =
-            specifier.local && specifier.local !== specifier.imported
-              ? `${specifier.imported} as ${specifier.local}`
+            local && local !== specifier.imported
+              ? `${specifier.imported} as ${local}`
               : specifier.imported;
           if (symbol.length > 0) {
             symbols.add(symbol);
@@ -210,7 +247,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
       }));
   };
 
-  const getModuleExports = (module: ModuleStructure): string[] => {
+  const getModuleExports = (module: Module): string[] => {
     const exportsValue = (module as { exports?: unknown }).exports;
     if (!exportsValue) return [];
 
@@ -257,21 +294,21 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
   };
 
   // Collect embedded symbols for a module in compact mode.
-  const collectEmbeddedSymbols = (module: ModuleStructure): EmbeddedSymbol[] => {
+  const collectEmbeddedSymbols = (module: Module): EmbeddedSymbol[] => {
     const symbols: EmbeddedSymbol[] = [];
 
     if (includeClassNodes && module.classes) {
-      mapTypeCollection(module.classes, (cls: ClassStructure) => {
-        const properties = cls.properties ? mapTypeCollection(cls.properties, (prop: NodeProperty) => toNodeProperty(prop)) : [];
-        const methods = cls.methods ? mapTypeCollection(cls.methods, (method: NodeMethod) => toNodeMethod(method)) : [];
+      mapTypeCollection(module.classes, (cls: Class) => {
+        const properties = cls.properties ? mapTypeCollection(cls.properties, (prop: Property) => normalizeProperty(prop)) : [];
+        const methods = cls.methods ? mapTypeCollection(cls.methods, (method: Method) => normalizeMethod(method)) : [];
         symbols.push({ id: cls.id, type: 'class', name: cls.name, properties, methods });
       });
     }
 
     if (includeInterfaceNodes && module.interfaces) {
-      mapTypeCollection(module.interfaces, (iface: InterfaceStructure) => {
-        const properties = iface.properties ? mapTypeCollection(iface.properties, (prop: NodeProperty) => toNodeProperty(prop)) : [];
-        const methods = iface.methods ? mapTypeCollection(iface.methods, (method: NodeMethod) => toNodeMethod(method)) : [];
+      mapTypeCollection(module.interfaces, (iface: Interface) => {
+        const properties = iface.properties ? mapTypeCollection(iface.properties, (prop: Property) => normalizeProperty(prop)) : [];
+        const methods = iface.methods ? mapTypeCollection(iface.methods, (method: Method) => normalizeMethod(method)) : [];
         symbols.push({ id: iface.id, type: 'interface', name: iface.name, properties, methods });
       });
     }
@@ -280,24 +317,24 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
   };
 
   // Collect module-level entities (functions, types, enums, consts, vars) for display.
-  const collectModuleEntities = (module: ModuleStructure): EmbeddedModuleEntity[] => {
+  const collectModuleEntities = (module: Module): EmbeddedModuleEntity[] => {
     const entities: EmbeddedModuleEntity[] = [];
 
     if (module.functions) {
-      mapTypeCollection(module.functions, (fn: FunctionStructure) => {
+      mapTypeCollection(module.functions, (fn: ModuleFunction) => {
         entities.push({
           id: fn.id,
           type: 'function',
           name: fn.name,
-          detail: `(): ${stripLeadingColonType(toStringField(fn.returnType, 'void'))}`,
-          tags: fn.isAsync ? ['async'] : undefined,
+          detail: `(): ${stripLeadingColonType(toStringField(fn.return_type, 'void'))}`,
+          tags: fn.is_async ? ['async'] : undefined,
         });
       });
     }
 
     if (module.typeAliases) {
-      mapTypeCollection(module.typeAliases, (ta: TypeAliasStructure) => {
-        const typeParams = ta.typeParameters;
+      mapTypeCollection(module.typeAliases, (ta: TypeAlias) => {
+        const typeParams = ta.type_parameters;
         const params = typeParams && typeParams.length > 0 ? `<${typeParams.join(', ')}>` : '';
         const typeStr = ta.type;
         entities.push({
@@ -310,7 +347,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
     }
 
     if (module.enums) {
-      mapTypeCollection(module.enums, (en: EnumStructure) => {
+      mapTypeCollection(module.enums, (en: Enum) => {
         const memberCount = en.members.length;
         entities.push({
           id: en.id,
@@ -322,7 +359,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
     }
 
     if (module.variables) {
-      mapTypeCollection(module.variables, (v: VariableStructure) => {
+      mapTypeCollection(module.variables, (v: Variable) => {
         entities.push({
           id: v.id,
           type: v.kind === 'const' ? 'const' : 'var',
@@ -337,7 +374,7 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
 
   // Optionally create package nodes.
   if (includePackages) {
-    data.packages.forEach((pkg: PackageStructure) => {
+    data.packages.forEach((pkg: Package) => {
       const totalModuleCount = pkg.modules ? Object.keys(pkg.modules).length : 0;
       const visibleModuleCount = includeModules ? totalModuleCount : 0;
       const hiddenModuleCount = Math.max(0, totalModuleCount - visibleModuleCount);
@@ -375,10 +412,10 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
   }
 
   // Create module and symbol nodes.
-  data.packages.forEach((pkg: PackageStructure) => {
+  data.packages.forEach((pkg: Package) => {
     if (!pkg.modules) return;
 
-    mapTypeCollection(pkg.modules, (module: ModuleStructure) => {
+    mapTypeCollection(pkg.modules, (module: Module) => {
       const classCountTotal = module.classes ? Object.keys(module.classes).length : 0;
       const interfaceCountTotal = module.interfaces ? Object.keys(module.interfaces).length : 0;
       const visibleClassCount = includeClassNodes ? classCountTotal : 0;
@@ -484,9 +521,9 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
 
       // Create class nodes as separate VueFlow nodes.
       if (includeClassNodes && module.classes) {
-        mapTypeCollection(module.classes, (cls: ClassStructure) => {
-          const properties = cls.properties ? mapTypeCollection(cls.properties, (prop: NodeProperty) => toNodeProperty(prop)) : [];
-          const methods = cls.methods ? mapTypeCollection(cls.methods, (method: NodeMethod) => toNodeMethod(method)) : [];
+        mapTypeCollection(module.classes, (cls: Class) => {
+          const properties = cls.properties ? mapTypeCollection(cls.properties, (prop: Property) => normalizeProperty(prop)) : [];
+          const methods = cls.methods ? mapTypeCollection(cls.methods, (method: Method) => normalizeMethod(method)) : [];
           const memberTotal = properties.length + methods.length;
 
           const classNode: DependencyNode = {
@@ -529,11 +566,11 @@ export function createGraphNodes(data: DependencyPackageGraph, options: CreateGr
 
       // Create interface nodes as separate VueFlow nodes.
       if (includeInterfaceNodes && module.interfaces) {
-        mapTypeCollection(module.interfaces, (iface: InterfaceStructure) => {
+        mapTypeCollection(module.interfaces, (iface: Interface) => {
           const properties = iface.properties
-            ? mapTypeCollection(iface.properties, (prop: NodeProperty) => toNodeProperty(prop))
+            ? mapTypeCollection(iface.properties, (prop: Property) => normalizeProperty(prop))
             : [];
-          const methods = iface.methods ? mapTypeCollection(iface.methods, (method: NodeMethod) => toNodeMethod(method)) : [];
+          const methods = iface.methods ? mapTypeCollection(iface.methods, (method: Method) => normalizeMethod(method)) : [];
           const memberTotal = properties.length + methods.length;
 
           const interfaceNode: DependencyNode = {

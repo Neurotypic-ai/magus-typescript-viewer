@@ -6,9 +6,9 @@ export interface ITypeAlias {
   readonly package_id: string;
   readonly module_id: string;
   readonly name: string;
-  readonly typeParameters: string[];
+  readonly type_parameters: string[];
   readonly type: string;
-  readonly created_at: Date;
+  readonly created_at: string;
 }
 
 export class TypeAlias implements ITypeAlias {
@@ -18,7 +18,7 @@ export class TypeAlias implements ITypeAlias {
     public readonly module_id: string,
     public readonly name: string,
     public readonly type: string,
-    public readonly typeParameters: string[] = [],
-    public readonly created_at: Date = new Date()
+    public readonly type_parameters: string[] = [],
+    public readonly created_at: string = new Date().toISOString()
   ) {}
 }

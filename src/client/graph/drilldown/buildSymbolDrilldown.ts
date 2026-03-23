@@ -9,20 +9,20 @@ import { getHandlePositions } from '../handleRouting';
 import { filterEdgesByNodeSet, applyEdgeVisibility } from '../graphViewShared';
 import {
   findModuleById,
-  toNodeProperty,
-  toNodeMethod,
+  normalizeProperty,
+  normalizeMethod,
   createSymbolEdge,
 } from './symbolHelpers';
 
-import type { ClassStructure } from '../../../shared/types/graph/ClassStructure';
+import type { Class } from '../../../shared/types/Class';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { DependencyPackageGraph } from '../../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../../types/GraphEdge';
-import type { InterfaceStructure } from '../../../shared/types/graph/InterfaceStructure';
-import type { ModuleStructure } from '../../../shared/types/graph/ModuleStructure';
-import type { NodeMethod } from '../../../shared/types/graph/NodeMethod';
-import type { NodeProperty } from '../../../shared/types/graph/NodeProperty';
-import type { SymbolReferenceRef } from '../../../shared/types/graph/SymbolReferenceRef';
+import type { Interface } from '../../../shared/types/Interface';
+import type { Module } from '../../../shared/types/Module';
+import type { Method } from '../../../shared/types/Method';
+import type { Property } from '../../../shared/types/Property';
+import type { SymbolReference } from '../../../shared/types/SymbolReference';
 import type { GraphViewData } from '../graphViewShared';
 
 export interface BuildSymbolDrilldownGraphOptions {
@@ -33,7 +33,7 @@ export interface BuildSymbolDrilldownGraphOptions {
 }
 
 interface SymbolContext {
-  module: ModuleStructure;
+  module: Module;
   focusType: 'module' | 'class' | 'interface';
   focusId: string;
 }
@@ -128,8 +128,8 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
     symbolId: string,
     type: 'class' | 'interface',
     label: string,
-    properties: NodeProperty[],
-    methods: NodeMethod[]
+    properties: Property[],
+    methods: Method[]
   ) => {
     if (nodeById.has(symbolId)) return;
     const symbolNode: DependencyNode = {
@@ -157,7 +157,7 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
       const memberNode = createMemberNode(
         methodId,
         'method',
-        `${method.name}(): ${method.returnType}`,
+        `${method.name}(): ${method.return_type}`,
         options.direction
       );
       graphNodes.push(memberNode);
@@ -167,31 +167,31 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
   };
 
   if (context.module.classes) {
-    mapTypeCollection(context.module.classes, (cls: ClassStructure) => {
+    mapTypeCollection(context.module.classes, (cls: Class) => {
       if (!includeAllSymbols && cls.id !== context.focusId) return;
       const properties = typeCollectionToArray(
-        cls.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
-      ).map((p) => toNodeProperty(p));
+        cls.properties as Record<string, Property> | Property[] | undefined
+      ).map((p) => normalizeProperty(p));
       const methods = typeCollectionToArray(
-        cls.methods as Record<string, NodeMethod> | NodeMethod[] | undefined
-      ).map((m) => toNodeMethod(m));
+        cls.methods as Record<string, Method> | Method[] | undefined
+      ).map((m) => normalizeMethod(m));
       addSymbol(cls.id, 'class', cls.name, properties, methods);
     });
   }
   if (context.module.interfaces) {
-    mapTypeCollection(context.module.interfaces, (iface: InterfaceStructure) => {
+    mapTypeCollection(context.module.interfaces, (iface: Interface) => {
       if (!includeAllSymbols && iface.id !== context.focusId) return;
       const properties = typeCollectionToArray(
-        iface.properties as Record<string, NodeProperty> | NodeProperty[] | undefined
-      ).map((p) => toNodeProperty(p));
+        iface.properties as Record<string, Property> | Property[] | undefined
+      ).map((p) => normalizeProperty(p));
       const methods = typeCollectionToArray(
-        iface.methods as Record<string, NodeMethod> | NodeMethod[] | undefined
-      ).map((m) => toNodeMethod(m));
+        iface.methods as Record<string, Method> | Method[] | undefined
+      ).map((m) => normalizeMethod(m));
       addSymbol(iface.id, 'interface', iface.name, properties, methods);
     });
   }
   if (context.module.symbol_references) {
-    mapTypeCollection(context.module.symbol_references, (reference: SymbolReferenceRef) => {
+    mapTypeCollection(context.module.symbol_references, (reference: SymbolReference) => {
       const targetId = reference.target_symbol_id;
       const accessKind = reference.access_kind;
       const sourceId = reference.source_symbol_id ?? moduleId;

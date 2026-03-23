@@ -20,6 +20,9 @@ function mapReplacer(_key: string, value: unknown) {
     }
     return obj;
   }
+  if (value instanceof Set) {
+    return Array.from(value);
+  }
   return value;
 }
 

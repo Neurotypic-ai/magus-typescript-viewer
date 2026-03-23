@@ -120,7 +120,7 @@ export class EnumRepository extends BaseRepository<Enum, IEnumCreateDTO, IEnumUp
       row.module_id,
       row.name,
       members,
-      new Date(row.created_at)
+      String(row.created_at)
     );
   }
 }

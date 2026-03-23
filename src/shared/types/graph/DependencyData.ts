@@ -1,5 +1,5 @@
-import type { NodeMethod } from './NodeMethod';
-import type { NodeProperty } from './NodeProperty';
+import type { IMethod } from '../Method';
+import type { IProperty } from '../Property';
 import type { SubnodeMetadata } from './SubnodeMetadata';
 import type { MemberMetadata } from './MemberMetadata';
 import type { EmbeddedSymbol } from './EmbeddedSymbol';
@@ -14,8 +14,8 @@ import type { ExternalDependencyRef } from './ExternalDependencyRef';
 export interface DependencyData {
   label: string;
   parentId?: string;
-  methods?: NodeMethod[];
-  properties?: NodeProperty[];
+  methods?: IMethod[];
+  properties?: IProperty[];
   implements?: string[];
   extends?: string[];
   imports?: string[];

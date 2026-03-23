@@ -1,8 +1,5 @@
-import type { PackageStructure } from './PackageStructure';
+import type { Package } from '../Package';
 
-/**
- * Package graph structure
- */
 export interface DependencyPackageGraph {
-  packages: PackageStructure[];
+  packages: Package[];
 }

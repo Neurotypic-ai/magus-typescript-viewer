@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
+import { defineAsyncComponent, markRaw, onMounted, onUnmounted, shallowRef } from 'vue';
 
 import { createLogger } from '../shared/utils/logger';
-import { GraphDataAssembler } from './assemblers/GraphDataAssembler';
+import { GraphHydrator } from './assemblers/GraphHydrator';
 import ErrorBoundary from './components/ErrorBoundary.vue';
 
 import type { DependencyPackageGraph } from '../shared/types/graph/DependencyPackageGraph';
@@ -12,9 +12,9 @@ const DependencyGraph = defineAsyncComponent(() => import('./components/Dependen
 
 // Create an app-specific logger
 const appLogger = createLogger('App');
-const graphDataAssembler = new GraphDataAssembler();
+const graphHydrator = new GraphHydrator();
 
-const graphData = ref<DependencyPackageGraph>({ packages: [] });
+const graphData = shallowRef<DependencyPackageGraph>({ packages: [] });
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 
@@ -34,12 +34,12 @@ const fetchData = async () => {
 
     // Add signal to fetch operations inside assembleGraphData
     // This way we can abort the fetch if the component unmounts
-    const data = await graphDataAssembler.assembleGraphData(signal);
+    const data = await graphHydrator.assembleGraphData(signal);
 
     if (!mounted) return;
 
     appLogger.debug('Setting graph data...');
-    graphData.value = data;
+    graphData.value = markRaw(data);
     isLoading.value = false;
   } catch (err) {
     if (!mounted) return;

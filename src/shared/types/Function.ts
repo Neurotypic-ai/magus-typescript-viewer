@@ -15,47 +15,47 @@ export interface IModuleFunction {
   /**
    * The unique identifier for the function.
    */
-  id: string;
+  readonly id: string;
 
   /**
    * The UUID of the parent package.
    */
-  package_id: string;
+  readonly package_id: string;
 
   /**
    * The UUID of the parent module.
    */
-  module_id: string;
+  readonly module_id: string;
 
   /**
    * The name of the function.
    */
-  name: string;
+  readonly name: string;
 
   /**
    * The creation date of the function.
    */
-  created_at: Date;
+  readonly created_at: string;
 
   /**
    * The parameters of the function.
    */
-  parameters: TypeCollection<Parameter>;
+  readonly parameters: TypeCollection<Parameter>;
 
   /**
    * The return type of the function.
    */
-  return_type: string;
+  readonly return_type: string;
 
   /**
    * Whether the function is async.
    */
-  is_async: boolean;
+  readonly is_async: boolean;
 
   /**
    * Whether the function is exported.
    */
-  is_exported: boolean;
+  readonly is_exported: boolean;
 }
 
 export class ModuleFunction implements IModuleFunction {
@@ -64,7 +64,7 @@ export class ModuleFunction implements IModuleFunction {
     public readonly package_id: string,
     public readonly module_id: string,
     public readonly name: string,
-    public readonly created_at: Date = new Date(),
+    public readonly created_at: string = new Date().toISOString(),
     public readonly parameters: TypeCollection<Parameter> = new Map(),
     public readonly return_type = 'void',
     public readonly is_async = false,

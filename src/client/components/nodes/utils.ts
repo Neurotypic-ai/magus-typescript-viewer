@@ -4,8 +4,8 @@ import type { InjectionKey, Ref } from 'vue';
 import type { DependencyData } from '../../../shared/types/graph/DependencyData';
 import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
 import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
-import type { NodeMethod } from '../../../shared/types/graph/NodeMethod';
-import type { NodeProperty } from '../../../shared/types/graph/NodeProperty';
+import type { Method } from '../../../shared/types/Method';
+import type { Property } from '../../../shared/types/Property';
 
 import { buildTypeDisplayModel, type TypeDisplayModel } from './typeDisplay';
 
@@ -135,7 +135,7 @@ function visibilityIndicator(visibility: string): string {
   }
 }
 
-export function formatProperty(prop: NodeProperty): FormattedMember {
+export function formatProperty(prop: Property): FormattedMember {
   const typeAnnotation = normalizeTypeAnnotation(prop.type, 'unknown');
   return {
     key: `${prop.name}:${prop.type || 'unknown'}:${prop.visibility || 'default'}`,
@@ -146,10 +146,10 @@ export function formatProperty(prop: NodeProperty): FormattedMember {
   };
 }
 
-export function formatMethod(method: NodeMethod): FormattedMember {
-  const typeAnnotation = normalizeTypeAnnotation(method.returnType, 'void');
+export function formatMethod(method: Method): FormattedMember {
+  const typeAnnotation = normalizeTypeAnnotation(method.return_type, 'void');
   return {
-    key: `${method.name}:${method.returnType || 'void'}:${method.visibility || 'default'}`,
+    key: `${method.name}:${method.return_type || 'void'}:${method.visibility || 'default'}`,
     indicator: visibilityIndicator(method.visibility),
     name: method.name,
     typeAnnotation,

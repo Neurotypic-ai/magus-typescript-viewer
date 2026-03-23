@@ -37,7 +37,7 @@ export interface IModule {
   /**
    * The creation date of the module.
    */
-  readonly created_at: Date;
+  readonly created_at: string;
 
   /**
    * An array of paths that reference this module.
@@ -106,7 +106,7 @@ export class Module implements IModule {
     public readonly package_id: string,
     public readonly name: string,
     public readonly source: FileLocation,
-    public readonly created_at: Date = new Date(),
+    public readonly created_at: string = new Date().toISOString(),
     public readonly classes: TypeCollection<Class> = new Map(),
     public readonly interfaces: TypeCollection<Interface> = new Map(),
     public readonly imports: TypeCollection<Import> = new Map(),

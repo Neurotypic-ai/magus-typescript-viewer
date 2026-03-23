@@ -76,7 +76,7 @@ describe('TypeAliasRepository', () => {
       expect(result.module_id).toBe('mod-uuid-1');
       expect(result.name).toBe('MyType');
       expect(result.type).toBe('string | number');
-      expect(result.typeParameters).toEqual([]);
+      expect(result.type_parameters).toEqual([]);
       expect(result.created_at).toBeInstanceOf(Date);
     });
 
@@ -103,7 +103,7 @@ describe('TypeAliasRepository', () => {
         expect.stringContaining('INSERT INTO type_aliases'),
         ['ta-uuid-1', 'pkg-uuid-1', 'mod-uuid-1', 'MyType', 'string | number', '["T","U"]']
       );
-      expect(result.typeParameters).toEqual(['T', 'U']);
+      expect(result.type_parameters).toEqual(['T', 'U']);
     });
 
     it('throws RepositoryError when the insert returns no row', async () => {
@@ -244,7 +244,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.update('ta-uuid-1', { type_parameters_json: '["K","V"]' });
 
-      expect(result.typeParameters).toEqual(['K', 'V']);
+      expect(result.type_parameters).toEqual(['K', 'V']);
     });
 
     it('builds SET clause for multiple fields', async () => {
@@ -453,7 +453,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual(['T', 'U', 'V']);
+      expect(result?.type_parameters).toEqual(['T', 'U', 'V']);
     });
 
     it('returns empty array when type_parameters_json is null', async () => {
@@ -462,7 +462,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual([]);
+      expect(result?.type_parameters).toEqual([]);
     });
 
     it('returns empty array for invalid JSON in type_parameters_json', async () => {
@@ -471,7 +471,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual([]);
+      expect(result?.type_parameters).toEqual([]);
     });
 
     it('filters out non-string values from type_parameters_json', async () => {
@@ -480,7 +480,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual(['T', 'U']);
+      expect(result?.type_parameters).toEqual(['T', 'U']);
     });
 
     it('returns empty array when type_parameters_json is a non-array JSON value', async () => {
@@ -489,7 +489,7 @@ describe('TypeAliasRepository', () => {
 
       const result = await repo.retrieveById('ta-uuid-1');
 
-      expect(result?.typeParameters).toEqual([]);
+      expect(result?.type_parameters).toEqual([]);
     });
 
     it('converts created_at string to a Date object', async () => {

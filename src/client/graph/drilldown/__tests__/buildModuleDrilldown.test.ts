@@ -6,14 +6,14 @@ import type { BuildModuleDrilldownGraphOptions } from '../buildModuleDrilldown';
 import type { DependencyNode } from '../../../types/DependencyNode';
 import type { DependencyPackageGraph } from '../../../../shared/types/graph/DependencyPackageGraph';
 import type { GraphEdge } from '../../../types/GraphEdge';
-import type { PackageStructure } from '../../../../shared/types/graph/PackageStructure';
-import type { ModuleStructure } from '../../../../shared/types/graph/ModuleStructure';
+import type { Package } from '../../../../shared/types/Package';
+import type { Module } from '../../../../shared/types/Module';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers to build minimal test data                                 */
 /* ------------------------------------------------------------------ */
 
-function makeModule(overrides: Partial<ModuleStructure> & { id: string; name: string }): ModuleStructure {
+function makeModule(overrides: Partial<Module> & { id: string; name: string }): Module {
   return {
     package_id: 'pkg-1',
     source: { relativePath: 'src/index.ts' },
@@ -21,7 +21,7 @@ function makeModule(overrides: Partial<ModuleStructure> & { id: string; name: st
   };
 }
 
-function makePackage(modules: Record<string, ModuleStructure>): PackageStructure {
+function makePackage(modules: Record<string, Module>): Package {
   return {
     id: 'pkg-1',
     name: 'test-pkg',
@@ -32,7 +32,7 @@ function makePackage(modules: Record<string, ModuleStructure>): PackageStructure
   };
 }
 
-function makeGraph(modules: Record<string, ModuleStructure>): DependencyPackageGraph {
+function makeGraph(modules: Record<string, Module>): DependencyPackageGraph {
   return { packages: [makePackage(modules)] };
 }
 

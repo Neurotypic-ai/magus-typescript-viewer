@@ -16,42 +16,42 @@ export interface IInterface {
   /**
    * The unique identifier for the interface.
    */
-  id: string;
+  readonly id: string;
 
   /**
    * The UUID of the parent package.
    */
-  package_id: string;
+  readonly package_id: string;
 
   /**
    * The UUID of the parent module.
    */
-  module_id: string;
+  readonly module_id: string;
 
   /**
    * The name of the interface.
    */
-  name: string;
+  readonly name: string;
 
   /**
    * The creation date of the interface.
    */
-  created_at: Date;
+  readonly created_at: string;
 
   /**
    * The methods defined in the interface.
    */
-  methods: TypeCollection<Method>;
+  readonly methods: TypeCollection<Method>;
 
   /**
    * The properties defined in the interface.
    */
-  properties: TypeCollection<Property>;
+  readonly properties: TypeCollection<Property>;
 
   /**
    * The interfaces that this interface extends.
    */
-  extended_interfaces: TypeCollection<Interface>;
+  readonly extended_interfaces: TypeCollection<Interface>;
 }
 
 export class Interface implements IInterface {
@@ -60,7 +60,7 @@ export class Interface implements IInterface {
     public readonly package_id: string,
     public readonly module_id: string,
     public readonly name: string,
-    public readonly created_at: Date = new Date(),
+    public readonly created_at: string = new Date().toISOString(),
     public readonly methods: TypeCollection<Method> = new Map(),
     public readonly properties: TypeCollection<Property> = new Map(),
     public readonly extended_interfaces: TypeCollection<Interface> = new Map()

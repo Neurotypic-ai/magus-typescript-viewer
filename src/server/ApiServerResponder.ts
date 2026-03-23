@@ -35,7 +35,7 @@ interface PackagesResponseItem {
   name: string;
   version: string;
   path: string;
-  created_at: Date;
+  created_at: string;
   dependencies: TypeCollection<Package>;
   devDependencies: TypeCollection<Package>;
   peerDependencies: TypeCollection<Package>;
@@ -305,7 +305,7 @@ export class ApiServerResponder {
         package_id: string;
         module_id: string;
         name: string;
-        created_at: Date;
+        created_at: string;
         extends_id?: string;
         methods?: TypeCollection<unknown>;
         properties?: TypeCollection<unknown>;
@@ -314,7 +314,7 @@ export class ApiServerResponder {
           package_id: string;
           module_id: string;
           name: string;
-          created_at: Date;
+          created_at: string;
         }>;
       }>
     ).map((cls) => ({
@@ -341,7 +341,7 @@ export class ApiServerResponder {
         package_id: string;
         module_id: string;
         name: string;
-        created_at: Date;
+        created_at: string;
         methods?: TypeCollection<unknown>;
         properties?: TypeCollection<unknown>;
         extended_interfaces?: TypeCollection<{
@@ -349,7 +349,7 @@ export class ApiServerResponder {
           package_id: string;
           module_id: string;
           name: string;
-          created_at: Date;
+          created_at: string;
         }>;
       }>
     ).map((iface) => ({
@@ -697,7 +697,7 @@ export class ApiServerResponder {
           for (const ref of moduleSymbolRefs) {
             symbolReferences.set(ref.id, {
               ...ref,
-              created_at: new Date(),
+              created_at: new Date().toISOString(),
             });
           }
 

@@ -157,7 +157,7 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
       String(mod.package_id),
       String(mod.name),
       source,
-      new Date(String(mod.created_at)),
+      String(mod.created_at),
       new Map(), // classes
       new Map(), // interfaces
       new Map(), // imports

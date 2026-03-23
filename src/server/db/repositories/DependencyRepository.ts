@@ -49,7 +49,7 @@ export class DependencyRepository extends BaseRepository<IDependency, IDependenc
         source_id: dto.source_id,
         target_id: dto.target_id,
         type: dto.type,
-        created_at: new Date(now),
+        created_at: now,
       };
     } catch (error) {
       // Don't log foreign key constraint errors - they're expected for external packages
@@ -120,7 +120,7 @@ export class DependencyRepository extends BaseRepository<IDependency, IDependenc
           source_id: String(dep.source_id),
           target_id: String(dep.target_id),
           type: dep.type as DependencyType,
-          created_at: new Date(String(dep.created_at)),
+          created_at: String(dep.created_at),
         });
       }
 
@@ -153,7 +153,7 @@ export class DependencyRepository extends BaseRepository<IDependency, IDependenc
         source_id: String(dep.source_id),
         target_id: String(dep.target_id),
         type: dep.type as DependencyType,
-        created_at: new Date(String(dep.created_at)),
+        created_at: String(dep.created_at),
       }));
     } catch (error) {
       // Be permissive: if dependency table is absent or query fails, return empty list
@@ -175,7 +175,7 @@ export class DependencyRepository extends BaseRepository<IDependency, IDependenc
         source_id: String(dep.source_id),
         target_id: String(dep.target_id),
         type: dep.type as DependencyType,
-        created_at: new Date(String(dep.created_at)),
+        created_at: String(dep.created_at),
       }));
     } catch (error) {
       this.logger.error('Failed to find dependencies by target (returning empty set)', error);
