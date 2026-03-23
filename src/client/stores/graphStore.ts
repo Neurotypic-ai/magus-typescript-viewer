@@ -19,7 +19,7 @@ const CACHE_DEBOUNCE_MS = 500;
 const MAX_CACHEABLE_NODE_COUNT = 1200;
 const MAX_CACHEABLE_EDGE_COUNT = 5000;
 
-export interface GraphStore {
+interface IGraphStore {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   selectedNode: Ref<DependencyNode | null>;
@@ -65,7 +65,7 @@ function debounce<P extends unknown[]>(func: (...args: P) => void, wait: number)
 /**
  * Pinia store for graph state management
  */
-export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineStore('graph', (): GraphStore => {
+export const useGraphStore: SetupStoreDefinition<'graph', IGraphStore> = defineStore('graph', (): IGraphStore => {
   // State
   const nodes = ref<DependencyNode[]>([]);
   const edges = ref<GraphEdge[]>([]);
@@ -309,5 +309,5 @@ export const useGraphStore: SetupStoreDefinition<'graph', GraphStore> = defineSt
     resumeCacheWrites: () => {
       cacheWriteSuspended.value = false;
     },
-  } as unknown as GraphStore;
+  };
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 
 import { collapseSccs, computeSccs } from '../scc';
 
@@ -46,7 +46,7 @@ function normalisedSccs(nodes: DependencyNode[], edges: GraphEdge[]) {
   const sccs = computeSccs(nodes, edges);
   return sccs
     .map((scc) => ({ ...scc, memberIds: [...scc.memberIds].sort() }))
-    .sort((a, b) => a.memberIds[0]!.localeCompare(b.memberIds[0]!));
+    .sort((a, b) => (a.memberIds[0] ?? '').localeCompare(b.memberIds[0] ?? ''));
 }
 
 // ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ describe('computeSccs', () => {
 
     const sccs = normalisedSccs(nodes, edges);
     expect(sccs).toHaveLength(1);
-    expect(sccs[0]!.memberIds).toEqual(['A', 'B', 'C']);
+    expect(sccs[0]?.memberIds).toEqual(['A', 'B', 'C']);
   });
 
   it('finds one SCC for a 2-node cycle (A<->B)', () => {
@@ -90,7 +90,7 @@ describe('computeSccs', () => {
 
     const sccs = normalisedSccs(nodes, edges);
     expect(sccs).toHaveLength(1);
-    expect(sccs[0]!.memberIds).toEqual(['A', 'B']);
+    expect(sccs[0]?.memberIds).toEqual(['A', 'B']);
   });
 
   it('finds two separate SCCs for two disjoint cycles', () => {
@@ -107,8 +107,8 @@ describe('computeSccs', () => {
 
     const sccs = normalisedSccs(nodes, edges);
     expect(sccs).toHaveLength(2);
-    expect(sccs[0]!.memberIds).toEqual(['A', 'B', 'C']);
-    expect(sccs[1]!.memberIds).toEqual(['X', 'Y']);
+    expect(sccs[0]?.memberIds).toEqual(['A', 'B', 'C']);
+    expect(sccs[1]?.memberIds).toEqual(['X', 'Y']);
   });
 
   it('returns no components for a DAG with no cycles', () => {
@@ -131,7 +131,7 @@ describe('computeSccs', () => {
 
     const sccs = normalisedSccs(nodes, edges);
     expect(sccs).toHaveLength(1);
-    expect(sccs[0]!.memberIds).toEqual(['A', 'B', 'C', 'D']);
+    expect(sccs[0]?.memberIds).toEqual(['A', 'B', 'C', 'D']);
   });
 
   it('separates a cycle from a linear tail (A->B->C->A, C->D)', () => {
@@ -145,7 +145,7 @@ describe('computeSccs', () => {
 
     const sccs = normalisedSccs(nodes, edges);
     expect(sccs).toHaveLength(1);
-    expect(sccs[0]!.memberIds).toEqual(['A', 'B', 'C']);
+    expect(sccs[0]?.memberIds).toEqual(['A', 'B', 'C']);
   });
 
   it('SCC id is deterministic based on sorted member ids', () => {
@@ -156,7 +156,8 @@ describe('computeSccs', () => {
     expect(sccs).toHaveLength(1);
 
     // The id format is `scc:` followed by sorted member ids joined by ','
-    const scc = sccs[0]!;
+    const scc = sccs[0];
+    assert(scc !== undefined);
     const sortedMembers = [...scc.memberIds].sort().join(',');
     expect(scc.id).toBe(`scc:${sortedMembers}`);
   });
@@ -230,7 +231,7 @@ describe('computeSccs', () => {
 
     const sccs = normalisedSccs(nodes, edges);
     expect(sccs).toHaveLength(1);
-    expect(sccs[0]!.memberIds).toEqual(['A', 'B', 'C', 'D']);
+    expect(sccs[0]?.memberIds).toEqual(['A', 'B', 'C', 'D']);
   });
 
   it('handles self-loops (no SCC since single member)', () => {
@@ -265,8 +266,9 @@ describe('collapseSccs', () => {
     const groupNodes = result.nodes.filter((n) => n.type === 'group');
     expect(groupNodes).toHaveLength(1);
 
-    const group = groupNodes[0]!;
-    expect(group.data.label).toBe('Cycle (2)');
+    const group = groupNodes[0];
+    assert(group !== undefined);
+    expect(group.data?.label).toBe('Cycle (2)');
     expect(group.id).toMatch(/^scc:/);
   });
 
@@ -276,15 +278,19 @@ describe('collapseSccs', () => {
 
     const result = collapseSccs(nodes, edges);
     const groupNodes = result.nodes.filter((n) => n.type === 'group');
-    const groupId = groupNodes[0]!.id;
+    const firstGroup = groupNodes[0];
+    assert(firstGroup !== undefined);
+    const groupId = firstGroup.id;
 
     const memberA = result.nodes.find((n) => n.id === 'A');
     const memberB = result.nodes.find((n) => n.id === 'B');
 
     expect(memberA).toBeDefined();
     expect(memberB).toBeDefined();
-    expect(memberA!.parentNode).toBe(groupId);
-    expect(memberB!.parentNode).toBe(groupId);
+    assert(memberA !== undefined);
+    assert(memberB !== undefined);
+    expect(memberA.parentNode).toBe(groupId);
+    expect(memberB.parentNode).toBe(groupId);
     expect((memberA as { extent?: string }).extent).toBe('parent');
     expect((memberB as { extent?: string }).extent).toBe('parent');
   });
@@ -311,12 +317,14 @@ describe('collapseSccs', () => {
     const groupNodes = result.nodes.filter((n) => n.type === 'group');
     expect(groupNodes).toHaveLength(1);
 
-    const sccGroupId = groupNodes[0]!.id;
+    const firstGroup = groupNodes[0];
+    assert(firstGroup !== undefined);
+    const sccGroupId = firstGroup.id;
 
     // The edge from A->C should be redirected: source becomes the SCC group id
     const crossEdges = result.edges.filter((e) => e.target === 'C');
     expect(crossEdges).toHaveLength(1);
-    expect(crossEdges[0]!.source).toBe(sccGroupId);
+    expect(crossEdges[0]?.source).toBe(sccGroupId);
   });
 
   it('deduplicates edges that collapse to the same source/target/type', () => {
@@ -341,8 +349,9 @@ describe('collapseSccs', () => {
     const result = collapseSccs(nodes, edges);
     const cls = result.nodes.find((n) => n.id === 'CLS');
     expect(cls).toBeDefined();
-    expect(cls!.type).toBe('class');
-    expect(cls!.parentNode).toBeUndefined();
+    assert(cls !== undefined);
+    expect(cls.type).toBe('class');
+    expect(cls.parentNode).toBeUndefined();
   });
 
   it('handles two separate cycles creating two group nodes', () => {
@@ -354,7 +363,7 @@ describe('collapseSccs', () => {
     expect(groupNodes).toHaveLength(2);
 
     // Each group has label "Cycle (2)"
-    expect(groupNodes.every((g) => g.data.label === 'Cycle (2)')).toBe(true);
+    expect(groupNodes.every((g) => g.data?.label === 'Cycle (2)')).toBe(true);
   });
 
   it('sets expandParent on group nodes', () => {
@@ -373,9 +382,12 @@ describe('collapseSccs', () => {
 
     const result = collapseSccs(nodes, edges);
     const groupNodes = result.nodes.filter((n) => n.type === 'group');
-    const sccGroupId = groupNodes[0]!.id;
+    const firstGroup = groupNodes[0];
+    assert(firstGroup !== undefined);
+    const sccGroupId = firstGroup.id;
 
     const memberA = result.nodes.find((n) => n.id === 'A');
-    expect(memberA!.data).toHaveProperty('parentId', sccGroupId);
+    assert(memberA !== undefined);
+    expect(memberA.data).toHaveProperty('parentId', sccGroupId);
   });
 });

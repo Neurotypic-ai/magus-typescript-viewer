@@ -1,11 +1,4 @@
 /**
- * Type guard to check if a parent is a Parameter
- */
-export function isParameter(parent: unknown): parent is Parameter {
-  return parent instanceof Parameter;
-}
-
-/**
  * Represents a parameter in a method.
  */
 export interface IParameter {

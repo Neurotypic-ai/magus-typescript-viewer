@@ -58,76 +58,46 @@ function buildGraphDetailsIndex(data: PackageGraph): GraphDetailsIndex {
   const usageByTargetSymbolIdSets = new Map<string, Set<string>>();
 
   data.packages.forEach((pkg) => {
-    if (!pkg.modules) {
-      return;
-    }
-
     mapTypeCollection(pkg.modules, (module) => {
       moduleById.set(module.id, module);
       symbolToModuleId.set(module.id, module.id);
-      symbolLabelById.set(module.id, module.name ?? module.id);
+      symbolLabelById.set(module.id, module.name);
 
-      if (module.classes) {
         mapTypeCollection(module.classes, (cls) => {
-          const classLabel = cls.name ?? 'Unnamed class';
+          const classLabel = cls.name;
           symbolToModuleId.set(cls.id, module.id);
           symbolLabelById.set(cls.id, classLabel);
 
-          if (cls.properties) {
             mapTypeCollection(cls.properties, (prop) => {
-              if (!prop.id) return;
               symbolToModuleId.set(prop.id, module.id);
-              symbolLabelById.set(prop.id, `${classLabel}.${prop.name ?? 'unnamed'}`);
-            });
-          }
-
-          if (cls.methods) {
+              symbolLabelById.set(prop.id, `${classLabel}.${prop.name}`);
+            });  
             mapTypeCollection(cls.methods, (method) => {
-              if (!method.id) return;
               symbolToModuleId.set(method.id, module.id);
-              symbolLabelById.set(method.id, `${classLabel}.${method.name ?? 'unnamed'}()`);
-            });
-          }
+              symbolLabelById.set(method.id, `${classLabel}.${method.name}()`);
+            });  
         });
-      }
 
-      if (module.interfaces) {
         mapTypeCollection(module.interfaces, (iface) => {
-          const interfaceLabel = iface.name ?? 'Unnamed interface';
+          const interfaceLabel = iface.name;
           symbolToModuleId.set(iface.id, module.id);
           symbolLabelById.set(iface.id, interfaceLabel);
 
-          if (iface.properties) {
             mapTypeCollection(iface.properties, (prop) => {
-              if (!prop.id) return;
               symbolToModuleId.set(prop.id, module.id);
-              symbolLabelById.set(prop.id, `${interfaceLabel}.${prop.name ?? 'unnamed'}`);
+              symbolLabelById.set(prop.id, `${interfaceLabel}.${prop.name}`);
             });
-          }
-
-          if (iface.methods) {
             mapTypeCollection(iface.methods, (method) => {
-              if (!method.id) return;
               symbolToModuleId.set(method.id, module.id);
-              symbolLabelById.set(method.id, `${interfaceLabel}.${method.name ?? 'unnamed'}()`);
+              symbolLabelById.set(method.id, `${interfaceLabel}.${method.name}()`);
             });
-          }
         });
-      }
     });
   });
 
   data.packages.forEach((pkg) => {
-    if (!pkg.modules) {
-      return;
-    }
-
     mapTypeCollection(pkg.modules, (module) => {
-      if (!module.symbol_references) {
-        return;
-      }
-
-      const moduleLabel = module.name ?? module.id;
+      const moduleLabel = module.name;
       mapTypeCollection(module.symbol_references, (reference) => reference).forEach((reference) => {
         const targetId = reference.target_symbol_id;
         if (!targetId) {

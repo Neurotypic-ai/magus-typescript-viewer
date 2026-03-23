@@ -135,7 +135,7 @@ describe('typeCollectionToArray', () => {
 
 describe('mapTypeCollection', () => {
   const double = (n: number): number => n * 2;
-  const toString = (n: number): string => `#${n}`;
+  const toString = (n: number): string => `#${String(n)}`;
 
   describe('with Array input', () => {
     it('maps over array elements', () => {

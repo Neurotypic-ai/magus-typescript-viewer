@@ -12,12 +12,12 @@ import type { BuildSymbolDrilldownGraphOptions } from '../buildSymbolDrilldown';
 /*  Helpers to build minimal test data                                 */
 /* ------------------------------------------------------------------ */
 
-function makeModule(overrides: Partial<Module> & { id: string; name: string }): Module {
+function makeModule(overrides: { id: string; name: string } & Record<string, unknown>): Module {
   return {
     package_id: 'pkg-1',
-    source: { relativePath: 'src/index.ts' },
+    source: { relativePath: 'src/index.ts', directory: '', name: 'index', filename: 'index.ts' },
     ...overrides,
-  };
+  } as unknown as Module;
 }
 
 function makePackage(modules: Record<string, Module>): Package {
@@ -27,6 +27,9 @@ function makePackage(modules: Record<string, Module>): Package {
     version: '1.0.0',
     path: '/test',
     created_at: '2024-01-01',
+    dependencies: {},
+    devDependencies: {},
+    peerDependencies: {},
     modules,
   };
 }
@@ -65,7 +68,7 @@ describe('buildSymbolDrilldownGraph', () => {
       const result = buildSymbolDrilldownGraph(defaultOptions({ selectedNode: selected }));
 
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]!.id).toBe('nonexistent');
+      expect(result.nodes[0]?.id).toBe('nonexistent');
       expect(result.edges).toHaveLength(0);
     });
 
@@ -80,7 +83,7 @@ describe('buildSymbolDrilldownGraph', () => {
       );
 
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]!.id).toBe('cls-missing');
+      expect(result.nodes[0]?.id).toBe('cls-missing');
       expect(result.edges).toHaveLength(0);
     });
   });
@@ -98,9 +101,9 @@ describe('buildSymbolDrilldownGraph', () => {
       expect(result.nodes.length).toBeGreaterThanOrEqual(1);
       const moduleNode = result.nodes.find((n) => n.id === 'mod-1');
       expect(moduleNode).toBeDefined();
-      expect(moduleNode!.type).toBe('module');
-      expect(moduleNode!.data.label).toBe('index.ts');
-      expect(moduleNode!.style).toEqual(
+      expect(moduleNode?.type).toBe('module');
+      expect(moduleNode?.data?.label).toBe('index.ts');
+      expect(moduleNode?.style).toEqual(
         expect.objectContaining({ borderColor: 'var(--graph-selection-target-border)', borderWidth: '3px' })
       );
     });
@@ -124,7 +127,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const classNodes = result.nodes.filter((n) => n.type === 'class');
       expect(classNodes).toHaveLength(2);
-      const names = classNodes.map((n) => n.data.label).sort();
+      const names = classNodes.map((n) => n.data?.label).sort();
       expect(names).toEqual(['Alpha', 'Beta']);
     });
 
@@ -196,7 +199,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const classNodes = result.nodes.filter((n) => n.type === 'class');
       expect(classNodes).toHaveLength(1);
-      expect(classNodes[0]!.data.label).toBe('Focused');
+      expect(classNodes[0]?.data?.label).toBe('Focused');
     });
 
     it('expands class properties into member nodes', () => {
@@ -224,7 +227,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const propertyNodes = result.nodes.filter((n) => n.type === 'property');
       expect(propertyNodes).toHaveLength(2);
-      const labels = propertyNodes.map((n) => n.data.label).sort();
+      const labels = propertyNodes.map((n) => n.data?.label).sort();
       expect(labels).toEqual(['id: number', 'name: string']);
     });
 
@@ -253,7 +256,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const methodNodes = result.nodes.filter((n) => n.type === 'method');
       expect(methodNodes).toHaveLength(2);
-      const labels = methodNodes.map((n) => n.data.label).sort();
+      const labels = methodNodes.map((n) => n.data?.label).sort();
       expect(labels).toEqual(['init(): void', 'run(): Promise<void>']);
     });
 
@@ -312,7 +315,7 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const ifaceNodes = result.nodes.filter((n) => n.type === 'interface');
       expect(ifaceNodes).toHaveLength(1);
-      expect(ifaceNodes[0]!.data.label).toBe('IFocused');
+      expect(ifaceNodes[0]?.data?.label).toBe('IFocused');
     });
 
     it('expands interface properties and methods into member nodes', () => {
@@ -340,11 +343,11 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const propertyNodes = result.nodes.filter((n) => n.type === 'property');
       expect(propertyNodes).toHaveLength(1);
-      expect(propertyNodes[0]!.data.label).toBe('port: number');
+      expect(propertyNodes[0]?.data?.label).toBe('port: number');
 
       const methodNodes = result.nodes.filter((n) => n.type === 'method');
       expect(methodNodes).toHaveLength(1);
-      expect(methodNodes[0]!.data.label).toBe('validate(): boolean');
+      expect(methodNodes[0]?.data?.label).toBe('validate(): boolean');
     });
   });
 
@@ -387,9 +390,9 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const usageEdges = result.edges.filter((e) => e.data?.type === 'uses');
       expect(usageEdges).toHaveLength(1);
-      expect(usageEdges[0]!.source).toBe('cls-1');
-      expect(usageEdges[0]!.target).toBe('meth-1');
-      expect(usageEdges[0]!.data?.usageKind).toBe('method');
+      expect(usageEdges[0]?.source).toBe('cls-1');
+      expect(usageEdges[0]?.target).toBe('meth-1');
+      expect(usageEdges[0]?.data?.usageKind).toBe('method');
     });
 
     it('skips references with targets not in the node set', () => {
