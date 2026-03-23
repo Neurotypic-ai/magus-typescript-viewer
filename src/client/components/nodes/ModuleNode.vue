@@ -18,6 +18,7 @@ import { ENTITY_TYPE_CONFIGS, buildBaseNodeProps, formatMethod, formatProperty, 
 import type { EmbeddedModuleEntity } from '../../../shared/types/graph/EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from '../../../shared/types/graph/EmbeddedSymbol';
 import type { ExternalDependencyRef } from '../../../shared/types/graph/ExternalDependencyRef';
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { DependencyProps } from '../../types/DependencyProps';
 
 const props = defineProps<DependencyProps>();
@@ -157,8 +158,8 @@ const subnodeMeta = computed(
           totalCount?: number;
           visibleCount?: number;
           hiddenCount?: number;
-          byTypeTotal?: Partial<Record<'class' | 'interface', number>>;
-          byTypeVisible?: Partial<Record<'class' | 'interface', number>>;
+          byTypeTotal?: Partial<Record<ParentType, number>>;
+          byTypeVisible?: Partial<Record<ParentType, number>>;
         }
       | undefined
 );

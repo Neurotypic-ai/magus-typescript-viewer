@@ -2,6 +2,7 @@ import { generateCodeIssueUUID } from '../../utils/uuid';
 
 import type { ASTPath, ClassDeclaration, TSInterfaceDeclaration, TSTypeAnnotation, TSUnionType } from 'jscodeshift';
 
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { IClassCreateDTO } from '../../../shared/types/dto/ClassDTO';
 import type { IInterfaceCreateDTO } from '../../../shared/types/dto/InterfaceDTO';
 import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
@@ -28,7 +29,7 @@ function findPropertyDTO(
   context: RuleContext,
   parentId: string,
   propertyName: string,
-  parentType: 'class' | 'interface'
+  parentType: ParentType
 ): IPropertyCreateDTO | undefined {
   return context.parseResult.properties.find(
     (p) =>
@@ -53,7 +54,7 @@ function checkUnionProperty(
   typeAnnotation: TSTypeAnnotation | undefined,
   parentName: string,
   parentId: string,
-  parentType: 'class' | 'interface',
+  parentType: ParentType,
   loc: { line: number; column: number } | undefined
 ): CodeIssue | undefined {
   if (!typeAnnotation) return undefined;

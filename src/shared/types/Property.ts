@@ -1,12 +1,3 @@
-export type ParentType = 'class' | 'interface';
-
-/**
- * Type guard to check if a parent type is valid
- */
-export function isValidParentType(type: string): type is ParentType {
-  return type === 'class' || type === 'interface';
-}
-
 /**
  * Type guard to check if a parent is a Property
  */
@@ -71,7 +62,7 @@ export interface IProperty {
   /**
    * The default value of the property, if any.
    */
-  readonly default_value: string | undefined;
+  readonly default_value?: string | undefined;
 }
 
 export class Property implements IProperty {
@@ -86,6 +77,6 @@ export class Property implements IProperty {
     public readonly is_static = false,
     public readonly is_readonly = false,
     public readonly visibility = 'public',
-    public readonly default_value: string | undefined = undefined
+    public readonly default_value?: string | undefined
   ) {}
 }

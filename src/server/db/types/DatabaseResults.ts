@@ -1,5 +1,7 @@
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { ParentType } from '../../../shared/types/ParentType';
+
 export interface IDatabaseRow {
   id: string;
   created_at: string;
@@ -16,7 +18,7 @@ export interface IModuleOwnedRow extends IPackageOwnedRow {
 
 export interface IOwnedByClassOrInterfaceRow extends IModuleOwnedRow {
   parent_id: string;
-  parent_type: 'class' | 'interface';
+  parent_type: ParentType;
   name: string;
   visibility: 'public' | 'private' | 'protected';
   is_static: boolean;

@@ -10,9 +10,9 @@ import type { DependencyProps } from '../../types/DependencyProps';
 const props = defineProps<DependencyProps>();
 const folderActions = inject(FOLDER_COLLAPSE_ACTIONS_KEY, undefined);
 
-const label = computed(() => props.data?.label ?? 'Folder');
-const isCollapsed = computed(() => props.data?.['isCollapsed'] === true);
-const childCount = computed(() => (props.data?.['childCount'] as number | undefined) ?? 0);
+const label = computed(() => props.data.label || 'Folder');
+const isCollapsed = computed(() => props.data['isCollapsed'] === true);
+const childCount = computed(() => (props.data['childCount'] as number | undefined) ?? 0);
 
 function toggleCollapse() {
   folderActions?.toggleFolderCollapsed(props.id);
@@ -72,7 +72,10 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 
 <template>
   <div
-    :class="['group-node-container', { 'group-node-selected': !!props.selected, 'group-node-collapsed': isCollapsed }]"
+    :class="[
+      'group-node-container',
+      { 'group-node-selected': props.selected === true, 'group-node-collapsed': isCollapsed },
+    ]"
   >
     <div class="group-node-header nodrag">
       <button
@@ -88,8 +91,8 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
     </div>
     <Handle
       v-for="h in folderHandles"
-      :key="h.id"
       :id="h.id"
+      :key="h.id"
       :type="h.type"
       :position="h.position"
       :style="h.style"
@@ -141,8 +144,8 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
 .group-node-selected {
   border-color: var(--graph-folder-active-border-strong);
   box-shadow:
-    inset 0 0 0 1px var(--graph-selection-connected-outline),
-    0 0 0 2px var(--graph-selection-connected-outline);
+    inset 0 0 0 1px var(--graph-folder-active-outline),
+    0 0 0 2px var(--graph-folder-active-shadow);
 }
 
 .group-node-header {

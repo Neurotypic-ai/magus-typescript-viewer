@@ -6,9 +6,9 @@ import { isNonEmptyCollection, mapTypeCollection, typeCollectionToArray } from '
 import { createEdgeMarker } from './edgeMarkers';
 import { buildModulePathLookup, isExternalImport, resolveModuleId } from './graphEdgeLookups';
 
-import type { Class } from '../../shared/types/Class';
+import type { IClass } from '../../shared/types/Class';
 import type { Import } from '../../shared/types/Import';
-import type { Interface } from '../../shared/types/Interface';
+import type { IInterface } from '../../shared/types/Interface';
 import type { Method } from '../../shared/types/Method';
 import type { Module } from '../../shared/types/Module';
 import type { Package, PackageGraph } from '../../shared/types/Package';
@@ -47,7 +47,7 @@ interface NodeIndex {
   symbolToModule: Map<string, string>;
 }
 
-function registerMembers(entity: Class | Interface, index: NodeIndex): void {
+function registerMembers(entity: IClass | IInterface, index: NodeIndex): void {
   typeCollectionToArray(entity.properties as Record<string, Property> | Property[]).forEach(
     (property: Property) => {
       index.nodeIds.add(property.id);
@@ -80,7 +80,7 @@ function buildNodeIndex(data: PackageGraph, options: ResolvedOptions): NodeIndex
       index.nodeKinds.set(module.id, 'module');
 
       if (isNonEmptyCollection(module.classes)) {
-        mapTypeCollection(module.classes, (cls: Class) => {
+        mapTypeCollection(module.classes, (cls: IClass) => {
           index.symbolToModule.set(cls.id, module.id);
           if (!options.includeClassEdges) return;
           index.nodeIds.add(cls.id);
@@ -92,7 +92,7 @@ function buildNodeIndex(data: PackageGraph, options: ResolvedOptions): NodeIndex
       }
 
       if (isNonEmptyCollection(module.interfaces)) {
-        mapTypeCollection(module.interfaces, (iface: Interface) => {
+        mapTypeCollection(module.interfaces, (iface: IInterface) => {
           index.symbolToModule.set(iface.id, module.id);
           if (!options.includeClassEdges) return;
           index.nodeIds.add(iface.id);
@@ -134,7 +134,7 @@ function createEdge(
 
 function addContainmentEdges(
   parentId: string,
-  entity: Class | Interface,
+  entity: IClass | IInterface,
   addEdge: (edge: GraphEdge, keyOverride?: string) => void
 ): void {
   typeCollectionToArray(entity.properties as Record<string, Property> | Property[]).forEach(
@@ -274,7 +274,7 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
       }
 
       if (isNonEmptyCollection(module.classes)) {
-        mapTypeCollection(module.classes, (cls: Class) => {
+        mapTypeCollection(module.classes, (cls: IClass) => {
           if (resolvedOptions.includeMemberContainmentEdges) {
             addContainmentEdges(cls.id, cls, addEdge);
           }
@@ -288,7 +288,7 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
           }
 
           if (isNonEmptyCollection(cls.implemented_interfaces)) {
-            mapTypeCollection(cls.implemented_interfaces, (iface: Interface) => {
+            mapTypeCollection(cls.implemented_interfaces, (iface: IInterface) => {
               if (!iface.id) return;
               const implementsEdge = createEdge(cls.id, iface.id, 'implements');
               classRelationshipEdges.push(implementsEdge);
@@ -301,13 +301,13 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
       }
 
       if (isNonEmptyCollection(module.interfaces)) {
-        mapTypeCollection(module.interfaces, (iface: Interface) => {
+        mapTypeCollection(module.interfaces, (iface: IInterface) => {
           if (resolvedOptions.includeMemberContainmentEdges) {
             addContainmentEdges(iface.id, iface, addEdge);
           }
 
           if (isNonEmptyCollection(iface.extended_interfaces)) {
-            mapTypeCollection(iface.extended_interfaces, (extended: Interface) => {
+            mapTypeCollection(iface.extended_interfaces, (extended: IInterface) => {
               if (!extended.id) return;
               const inheritanceEdge = createEdge(iface.id, extended.id, 'inheritance');
               classRelationshipEdges.push(inheritanceEdge);

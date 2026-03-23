@@ -13,8 +13,8 @@ import {
   normalizeProperty,
 } from './symbolHelpers';
 
-import type { Class } from '../../../shared/types/Class';
-import type { Interface } from '../../../shared/types/Interface';
+import type { IClass } from '../../../shared/types/Class';
+import type { IInterface } from '../../../shared/types/Interface';
 import type { Method } from '../../../shared/types/Method';
 import type { PackageGraph } from '../../../shared/types/Package';
 import type { Property } from '../../../shared/types/Property';
@@ -53,7 +53,7 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
   });
 
   if (moduleData.classes) {
-    mapTypeCollection(moduleData.classes, (cls: Class) => {
+    mapTypeCollection(moduleData.classes, (cls: IClass) => {
       const properties = typeCollectionToArray(cls.properties as Record<string, Property> | Property[] | undefined).map(
         (p) => normalizeProperty(p)
       );
@@ -63,7 +63,7 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
       detailedNodes.push(createDetailedSymbolNode(cls.id, 'class', cls.name, properties, methods, options.direction));
       if (cls.extends_id) detailedEdges.push(createSymbolEdge(cls.id, cls.extends_id, 'inheritance'));
       if (cls.implemented_interfaces) {
-        mapTypeCollection(cls.implemented_interfaces, (iface: Interface) => {
+        mapTypeCollection(cls.implemented_interfaces, (iface: IInterface) => {
           if (iface.id) detailedEdges.push(createSymbolEdge(cls.id, iface.id, 'implements'));
         });
       }
@@ -71,7 +71,7 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
   }
 
   if (moduleData.interfaces) {
-    mapTypeCollection(moduleData.interfaces, (iface: Interface) => {
+    mapTypeCollection(moduleData.interfaces, (iface: IInterface) => {
       const properties = typeCollectionToArray(
         iface.properties as Record<string, Property> | Property[] | undefined
       ).map((p) => normalizeProperty(p));
@@ -82,7 +82,7 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
         createDetailedSymbolNode(iface.id, 'interface', iface.name, properties, methods, options.direction)
       );
       if (iface.extended_interfaces) {
-        mapTypeCollection(iface.extended_interfaces, (extended: Interface) => {
+        mapTypeCollection(iface.extended_interfaces, (extended: IInterface) => {
           if (extended.id) detailedEdges.push(createSymbolEdge(iface.id, extended.id, 'inheritance'));
         });
       }

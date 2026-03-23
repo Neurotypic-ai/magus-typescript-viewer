@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { typeUnionWithoutAlias } from '../typeUnionWithoutAlias';
 
+import type { ParentType } from '../../../../shared/types/ParentType';
 import type { IClassCreateDTO } from '../../../../shared/types/dto/ClassDTO';
 import type { IInterfaceCreateDTO } from '../../../../shared/types/dto/InterfaceDTO';
 import type { IPropertyCreateDTO } from '../../../../shared/types/dto/PropertyDTO';
@@ -91,7 +92,7 @@ function makeClassDTO(name: string, id = `class-${name}`): IClassCreateDTO {
 function makePropertyDTO(
   name: string,
   parentId: string,
-  parentType: 'class' | 'interface',
+  parentType: ParentType,
   id = `prop-${parentId}-${name}`
 ): IPropertyCreateDTO {
   return {

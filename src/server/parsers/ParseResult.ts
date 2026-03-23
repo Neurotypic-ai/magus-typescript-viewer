@@ -1,5 +1,6 @@
 import type { Export } from '../../shared/types/Export';
 import type { Import } from '../../shared/types/Import';
+import type { ParentType } from '../../shared/types/ParentType';
 import type { IClassCreateDTO } from '../../shared/types/dto/ClassDTO';
 import type { IEnumCreateDTO } from '../../shared/types/dto/EnumDTO';
 import type { IFunctionCreateDTO } from '../../shared/types/dto/FunctionDTO';
@@ -47,7 +48,7 @@ export interface SymbolUsageRef {
   sourceSymbolType: 'method' | 'function';
   sourceSymbolName?: string | undefined;
   sourceParentName?: string | undefined;
-  sourceParentType?: 'class' | 'interface' | undefined;
+  sourceParentType?: ParentType | undefined;
   targetName: string;
   targetKind: 'method' | 'property';
   qualifierName?: string | undefined;

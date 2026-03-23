@@ -19,6 +19,7 @@ import type {
 import type { IMethodCreateDTO } from '../../../shared/types/dto/MethodDTO';
 import type { IParameterCreateDTO } from '../../../shared/types/dto/ParameterDTO';
 import type { IPropertyCreateDTO } from '../../../shared/types/dto/PropertyDTO';
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { ParseResult, SymbolUsageRef } from '../ParseResult';
 import type { ModuleParserContext } from './types';
 
@@ -34,7 +35,7 @@ import type { ModuleParserContext } from './types';
 export function parseMethods(
   ctx: ModuleParserContext,
   collection: Collection,
-  parentType: 'class' | 'interface',
+  parentType: ParentType,
   parentId: string,
   result: ParseResult,
   parentName?: string
@@ -158,7 +159,7 @@ export function parseProperties(
   ctx: ModuleParserContext,
   moduleId: string,
   parentId: string,
-  parentType: 'class' | 'interface',
+  parentType: ParentType,
   node: ClassDeclaration | TSInterfaceDeclaration
 ): IPropertyCreateDTO[] {
   const properties: IPropertyCreateDTO[] = [];
@@ -399,7 +400,7 @@ function extractSymbolUsages(
     sourceSymbolType: 'method' | 'function';
     sourceSymbolName?: string | undefined;
     sourceParentName?: string | undefined;
-    sourceParentType?: 'class' | 'interface' | undefined;
+    sourceParentType?: ParentType | undefined;
   }
 ): SymbolUsageRef[] {
   const usages: SymbolUsageRef[] = [];

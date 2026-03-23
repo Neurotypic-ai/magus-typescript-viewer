@@ -1,4 +1,6 @@
-export type SymbolSourceType = 'module' | 'class' | 'interface' | 'function' | 'method' | 'property';
+import type { ParentType } from './ParentType';
+
+export type SymbolSourceType = 'module' | ParentType | 'function' | 'method' | 'property';
 export type SymbolTargetType = 'method' | 'property';
 
 export interface ISymbolReference {

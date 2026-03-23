@@ -11,59 +11,79 @@ import { getHandlePositions } from '../handleRouting';
 import type { Method } from '../../../shared/types/Method';
 import type { Module } from '../../../shared/types/Module';
 import type { PackageGraph } from '../../../shared/types/Package';
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { Property } from '../../../shared/types/Property';
 import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 
-export function normalizeProperty(property: Property): Property {
-  const source = property as any;
+type PropertyLike = Property | Partial<Record<keyof Property, unknown>>;
+
+type MethodLike = (Method | Partial<Record<keyof Method, unknown>>) & {
+  returnType?: unknown;
+  parameters?: unknown;
+  signature?: unknown;
+};
+
+function readString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+export function normalizeProperty(property: PropertyLike): Property {
+  const source = property;
   return {
-    id: typeof source.id === 'string' ? source.id : (undefined as unknown as string),
-    package_id: typeof source.package_id === 'string' ? source.package_id : '',
-    module_id: typeof source.module_id === 'string' ? source.module_id : '',
-    parent_id: typeof source.parent_id === 'string' ? source.parent_id : '',
-    name: typeof source.name === 'string' ? source.name : 'unknown',
-    created_at: typeof source.created_at === 'string' ? source.created_at : '',
-    type: typeof source.type === 'string' ? source.type : 'unknown',
+    id: readString(source.id, ''),
+    package_id: readString(source.package_id, ''),
+    module_id: readString(source.module_id, ''),
+    parent_id: readString(source.parent_id, ''),
+    name: readString(source.name, 'unknown'),
+    created_at: readString(source.created_at, ''),
+    type: readString(source.type, 'unknown'),
     is_static: Boolean(source.is_static),
     is_readonly: Boolean(source.is_readonly),
-    visibility: typeof source.visibility === 'string' ? source.visibility : 'public',
-    default_value: typeof source.default_value === 'string' ? source.default_value : undefined,
+    visibility: readString(source.visibility, 'public'),
+    default_value: readOptionalString(source.default_value),
   };
 }
 
-export function normalizeMethod(method: Method): Method {
-  const source = method as any;
-  const name = typeof source.name === 'string' ? source.name : 'unknown';
+function isMethodParameters(value: unknown): value is Method['parameters'] {
+  return value instanceof Map || Array.isArray(value) || (value !== null && typeof value === 'object');
+}
+
+export function normalizeMethod(method: MethodLike): Method {
+  const source = method;
+  const name = readString(source.name, 'unknown');
+  const legacyReturnType = 'returnType' in source ? source.returnType : undefined;
   const returnType =
     typeof source.return_type === 'string'
       ? source.return_type
-      : typeof source.returnType === 'string'
-        ? source.returnType
+      : typeof legacyReturnType === 'string'
+        ? legacyReturnType
         : 'void';
   const signature =
     typeof source.signature === 'string' && source.signature.length > 0 ? source.signature : `${name}(): ${returnType}`;
   return {
-    id: typeof source.id === 'string' ? source.id : (undefined as unknown as string),
-    package_id: typeof source.package_id === 'string' ? source.package_id : '',
-    module_id: typeof source.module_id === 'string' ? source.module_id : '',
-    parent_id: typeof source.parent_id === 'string' ? source.parent_id : '',
+    id: readString(source.id, ''),
+    package_id: readString(source.package_id, ''),
+    module_id: readString(source.module_id, ''),
+    parent_id: readString(source.parent_id, ''),
     name,
-    created_at: typeof source.created_at === 'string' ? source.created_at : '',
-    parameters:
-      source.parameters && typeof source.parameters === 'object' ? (source.parameters as Method['parameters']) : [],
+    created_at: readString(source.created_at, ''),
+    parameters: isMethodParameters(source.parameters) ? source.parameters : [],
     return_type: returnType,
     is_static: Boolean(source.is_static),
     is_async: Boolean(source.is_async),
-    visibility: typeof source.visibility === 'string' ? source.visibility : 'public',
+    visibility: readString(source.visibility, 'public'),
     signature,
   };
 }
 
 export function findModuleById(data: PackageGraph, moduleId: string): Module | undefined {
   for (const pkg of data.packages) {
-    if (!pkg.modules) continue;
     const module = mapTypeCollection(pkg.modules, (entry) => entry).find((entry) => entry.id === moduleId);
     if (module) return module;
   }
@@ -84,7 +104,7 @@ export function createSymbolEdge(source: string, target: string, type: Dependenc
 
 export function createDetailedSymbolNode(
   id: string,
-  type: 'class' | 'interface',
+  type: ParentType,
   label: string,
   properties: Property[],
   methods: Method[],

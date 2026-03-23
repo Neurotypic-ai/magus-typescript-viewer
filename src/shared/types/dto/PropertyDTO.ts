@@ -1,3 +1,4 @@
+import type { ParentType } from '../ParentType';
 import type { VisibilityType } from '../VisibilityType';
 
 /**
@@ -8,7 +9,7 @@ export interface IPropertyCreateDTO {
   package_id: string;
   module_id: string;
   parent_id: string;
-  parent_type: 'class' | 'interface';
+  parent_type: ParentType;
   name: string;
   type: string;
   is_static: boolean;

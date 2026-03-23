@@ -1,4 +1,5 @@
 import type { IMethod } from '../Method';
+import type { ParentType } from '../ParentType';
 import type { IProperty } from '../Property';
 
 /**
@@ -7,7 +8,7 @@ import type { IProperty } from '../Property';
  */
 export interface EmbeddedSymbol {
   id: string;
-  type: 'class' | 'interface';
+  type: ParentType;
   name: string;
   properties: IProperty[];
   methods: IMethod[];

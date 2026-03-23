@@ -7,13 +7,16 @@ import type {
   TSPropertySignature,
 } from 'jscodeshift';
 
+import { isValidParentType } from '../../../shared/types/ParentType';
+
 import type { Transform } from '../Transform';
+import type { ParentType } from '../../../shared/types/ParentType';
 
 interface ExtractTypeUnionContext {
   [key: string]: unknown;
   suggestedName: string;
   parentName: string;
-  parentType: 'class' | 'interface';
+  parentType: ParentType;
   propertyName: string;
   unionMembers: string[];
 }
@@ -23,6 +26,7 @@ function isExtractContext(context: Record<string, unknown>): context is ExtractT
     typeof context['suggestedName'] === 'string' &&
     typeof context['parentName'] === 'string' &&
     typeof context['parentType'] === 'string' &&
+    isValidParentType(context['parentType']) &&
     typeof context['propertyName'] === 'string' &&
     Array.isArray(context['unionMembers'])
   );

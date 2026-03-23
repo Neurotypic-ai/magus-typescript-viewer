@@ -34,7 +34,7 @@ const issuesStore = useIssuesStore();
 const insightsStore = useInsightsStore();
 
 const nodeData = toRef(props, 'data');
-const isSelected = computed(() => !!props.selected);
+const isSelected = computed(() => props.selected);
 
 const issueCount = computed(() => issuesStore.issueCountByNodeId.get(props.id) ?? 0);
 
@@ -55,14 +55,34 @@ function handleIssueBadgeClick(): void {
 function handleContextMenu(event: MouseEvent): void {
   event.preventDefault();
   event.stopPropagation();
-  nodeActions?.showContextMenu(props.id, nodeData.value?.label ?? props.id, event);
+  nodeActions?.showContextMenu(props.id, nodeData.value.label || props.id, event);
+}
+
+function handleContextMenuKeyboard(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  const currentTarget = event.currentTarget;
+  if (!(currentTarget instanceof HTMLElement)) {
+    return;
+  }
+  const rect = currentTarget.getBoundingClientRect();
+  const syntheticEvent = new MouseEvent('contextmenu', {
+    bubbles: true,
+    cancelable: true,
+    clientX: rect.left + rect.width / 2,
+    clientY: rect.top + rect.height / 2,
+  });
+  nodeActions?.showContextMenu(props.id, nodeData.value.label || props.id, syntheticEvent);
 }
 
 const isOrphanGlobal = computed(() => {
-  if (!highlightOrphanGlobal?.value) {
+  if (highlightOrphanGlobal?.value !== true) {
     return false;
   }
-  const diag = nodeData.value?.diagnostics as { orphanGlobal?: boolean } | undefined;
+  const diag = nodeData.value.diagnostics as { orphanGlobal?: boolean } | undefined;
   return diag?.orphanGlobal === true;
 });
 
@@ -145,7 +165,7 @@ const inferredContainer = computed(() => {
     return true;
   }
 
-  return Boolean(nodeData.value?.isContainer);
+  return Boolean(nodeData.value.isContainer);
 });
 
 const subnodesResolved = computed(() => {
@@ -153,7 +173,7 @@ const subnodesResolved = computed(() => {
     return { count: props.subnodesCount, totalCount: props.subnodesCount, hiddenCount: 0 };
   }
   return resolveSubnodesCount(
-    nodeData.value?.subnodes as { count?: number; totalCount?: number; hiddenCount?: number } | undefined
+    nodeData.value.subnodes as { count?: number; totalCount?: number; hiddenCount?: number } | undefined
   );
 });
 
@@ -172,7 +192,7 @@ const containerClasses = computed(() => ({
   'base-node-container--container': inferredContainer.value,
   'base-node-orphan-global': isOrphanGlobal.value,
   'base-node-no-hover': props.type === 'package',
-  [insightGlowClass.value ?? '']: !!insightGlowClass.value,
+  [insightGlowClass.value ?? '']: insightGlowClass.value !== null,
   'base-node-insight-dimmed': isInsightDimmed.value,
 }));
 
@@ -195,7 +215,15 @@ const containerStyle = computed(() => {
 </script>
 
 <template>
-  <div :class="containerClasses" :style="containerStyle" @contextmenu="handleContextMenu">
+  <div
+    :class="containerClasses"
+    :style="containerStyle"
+    role="button"
+    tabindex="0"
+    aria-label="Graph node"
+    @contextmenu="handleContextMenu"
+    @keydown="handleContextMenuKeyboard"
+  >
     <NodeToolbar v-if="isSelected" :is-visible="true" :position="Position.Right" align="start" :offset="8">
       <div :class="['node-toolbar-actions', { 'node-toolbar-visible': isSelected }]">
         <button
@@ -221,8 +249,8 @@ const containerStyle = computed(() => {
 
     <Handle
       v-for="h in handles.slice(0, 5)"
-      :key="h.id"
       :id="h.id"
+      :key="h.id"
       :type="h.type"
       :position="h.position"
       :class="h.class"
@@ -277,8 +305,8 @@ const containerStyle = computed(() => {
 
     <Handle
       v-for="h in handles.slice(5)"
-      :key="h.id"
       :id="h.id"
+      :key="h.id"
       :type="h.type"
       :position="h.position"
       :class="h.class"

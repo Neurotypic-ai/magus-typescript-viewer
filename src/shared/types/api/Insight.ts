@@ -1,3 +1,5 @@
+import type { ParentType } from '../ParentType';
+
 export type InsightCategory =
   | 'dependency-health'
   | 'structural-complexity'
@@ -30,7 +32,7 @@ export type InsightKind =
 
 export interface InsightEntity {
   id: string;
-  kind: 'module' | 'class' | 'interface' | 'function' | 'method' | 'import';
+  kind: 'module' | ParentType | 'function' | 'method' | 'import';
   name: string;
   moduleId?: string | undefined;
   detail?: string | undefined;

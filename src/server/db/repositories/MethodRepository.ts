@@ -5,6 +5,7 @@ import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { VisibilityType } from '../../../shared/types/VisibilityType';
 import type { IMethodCreateDTO, IMethodUpdateDTO } from '../../../shared/types/dto/MethodDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
@@ -189,7 +190,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
    */
   async retrieveByParentIds(
     parentIds: string[],
-    parentType: 'class' | 'interface'
+    parentType: ParentType
   ): Promise<Map<string, Map<string, Method>>> {
     const result = new Map<string, Map<string, Method>>();
     if (parentIds.length === 0) return result;
@@ -283,7 +284,7 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
     }
   }
 
-  async retrieveByParent(parentId: string, parentType: 'class' | 'interface'): Promise<Map<string, Method>> {
+  async retrieveByParent(parentId: string, parentType: ParentType): Promise<Map<string, Method>> {
     try {
       // Fetch methods with proper parameter handling
       const methods = await this.executeQuery<IMethodRow>(

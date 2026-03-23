@@ -5,6 +5,7 @@ import type { ASTNode, ASTPath, Identifier, JSCodeshift, TSTypeAnnotation, TSTyp
 
 import type { IEnumCreateDTO } from '../../../shared/types/dto/EnumDTO';
 import type { IFunctionCreateDTO } from '../../../shared/types/dto/FunctionDTO';
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { ITypeAliasCreateDTO } from '../../../shared/types/dto/TypeAliasDTO';
 import type { IVariableCreateDTO } from '../../../shared/types/dto/VariableDTO';
 import type { ParseResult, SymbolUsageRef } from '../ParseResult';
@@ -25,7 +26,7 @@ function extractSymbolUsages(
     sourceSymbolType: 'method' | 'function';
     sourceSymbolName?: string | undefined;
     sourceParentName?: string | undefined;
-    sourceParentType?: 'class' | 'interface' | undefined;
+    sourceParentType?: ParentType | undefined;
   }
 ): SymbolUsageRef[] {
   const usages: SymbolUsageRef[] = [];

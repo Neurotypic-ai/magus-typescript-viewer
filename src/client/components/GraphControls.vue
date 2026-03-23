@@ -63,22 +63,23 @@ const handleFpsAdvancedToggle = (checked: boolean) => {
   emit('toggle-fps-advanced', checked);
 };
 
-const onSearchQueryUpdate = (v: string) => {
-  if (props.graphSearchContext) {
-    props.graphSearchContext.searchQuery.value = v;
-  }
-};
-
-const searchQueryValue = computed(() => props.graphSearchContext?.searchQuery.value ?? '');
+const searchQueryModel = computed({
+  get: () => props.graphSearchContext?.searchQuery.value ?? '',
+  set: (value: string) => {
+    const searchQuery = props.graphSearchContext?.searchQuery;
+    if (searchQuery) {
+      searchQuery.value = value;
+    }
+  },
+});
 </script>
 
 <template>
   <Panel v-if="graphSearchContext" position="top-left" class="graph-search-panel">
     <div class="graph-search-shell bg-background-paper rounded-lg border border-border-default shadow-xl">
       <GraphSearch
-        :model-value="searchQueryValue"
+        v-model="searchQueryModel"
         :run-search="graphSearchContext.runSearch"
-        @update:model-value="onSearchQueryUpdate"
       />
     </div>
   </Panel>

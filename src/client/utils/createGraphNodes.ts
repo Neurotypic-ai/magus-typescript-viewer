@@ -1,16 +1,17 @@
 import { Position } from '@vue-flow/core';
 
-import { Property } from '../../shared/types/Property';
+import { Method, isMethod } from '../../shared/types/Method';
+import { Property, isProperty } from '../../shared/types/Property';
+import { normalizeProperty as coercePlainProperty, normalizeMethod as coercePlainMethod } from '../graph/drilldown/symbolHelpers';
 import { getNodeStyle } from '../theme/graphTheme';
 import { collectionSize, isNonEmptyCollection, mapTypeCollection } from './collections';
 import { isTestFilePath } from './testFileMatcher';
 
-import type { Class } from '../../shared/types/Class';
+import type { IClass } from '../../shared/types/Class';
 import type { Enum } from '../../shared/types/Enum';
 import type { ModuleFunction } from '../../shared/types/Function';
 import type { IImportSpecifier, Import } from '../../shared/types/Import';
-import type { Interface } from '../../shared/types/Interface';
-import type { Method } from '../../shared/types/Method';
+import type { IInterface } from '../../shared/types/Interface';
 import type { Module } from '../../shared/types/Module';
 import type { Package, PackageGraph } from '../../shared/types/Package';
 import type { TypeAlias } from '../../shared/types/TypeAlias';
@@ -135,11 +136,13 @@ function getImportSpecifierLikes(
 }
 
 function normalizeProperty(property: Property | Record<string, unknown>): Property {
-  return property as Property;
+  if (isProperty(property)) return property;
+  return coercePlainProperty(property) as Property;
 }
 
 function normalizeMethod(method: Method | Record<string, unknown>): Method {
-  return method as Method;
+  if (isMethod(method)) return method;
+  return coercePlainMethod(method) as Method;
 }
 
 /**
@@ -306,7 +309,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
     const symbols: EmbeddedSymbol[] = [];
 
     if (includeClassNodes && module.classes) {
-      mapTypeCollection(module.classes, (cls: Class) => {
+      mapTypeCollection(module.classes, (cls: IClass) => {
         const properties = cls.properties
           ? mapTypeCollection(cls.properties, (prop: Property) => normalizeProperty(prop))
           : [];
@@ -316,7 +319,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
     }
 
     if (includeInterfaceNodes && module.interfaces) {
-      mapTypeCollection(module.interfaces, (iface: Interface) => {
+      mapTypeCollection(module.interfaces, (iface: IInterface) => {
         const properties = iface.properties
           ? mapTypeCollection(iface.properties, (prop: Property) => normalizeProperty(prop))
           : [];
@@ -568,7 +571,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
 
       // Create class nodes as separate VueFlow nodes.
       if (includeClassNodes && module.classes) {
-        mapTypeCollection(module.classes, (cls: Class) => {
+        mapTypeCollection(module.classes, (cls: IClass) => {
           const properties = cls.properties
             ? mapTypeCollection(cls.properties, (prop: Property) => normalizeProperty(prop))
             : [];
@@ -617,7 +620,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
 
       // Create interface nodes as separate VueFlow nodes.
       if (includeInterfaceNodes && module.interfaces) {
-        mapTypeCollection(module.interfaces, (iface: Interface) => {
+        mapTypeCollection(module.interfaces, (iface: IInterface) => {
           const properties = iface.properties
             ? mapTypeCollection(iface.properties, (prop: Property) => normalizeProperty(prop))
             : [];

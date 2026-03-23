@@ -4,6 +4,7 @@ import { BaseRepository } from './BaseRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { ParentType } from '../../../shared/types/ParentType';
 import type { VisibilityType } from '../../../shared/types/VisibilityType';
 import type { IPropertyCreateDTO, IPropertyUpdateDTO } from '../../../shared/types/dto/PropertyDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
@@ -175,7 +176,7 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
    */
   async retrieveByParentIds(
     parentIds: string[],
-    parentType: 'class' | 'interface'
+    parentType: ParentType
   ): Promise<Map<string, Map<string, Property>>> {
     const result = new Map<string, Map<string, Property>>();
     if (parentIds.length === 0) return result;
@@ -225,7 +226,7 @@ export class PropertyRepository extends BaseRepository<Property, IPropertyCreate
     }
   }
 
-  async retrieveByParent(parentId: string, parentType: 'class' | 'interface'): Promise<Map<string, Property>> {
+  async retrieveByParent(parentId: string, parentType: ParentType): Promise<Map<string, Property>> {
     try {
       // Fetch properties with proper parameter handling
       const properties = await this.executeQuery<IPropertyRow>(
