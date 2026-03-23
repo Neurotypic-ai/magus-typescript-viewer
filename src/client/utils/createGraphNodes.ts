@@ -1,21 +1,25 @@
 import { Position } from '@vue-flow/core';
 
-import { Method, isMethod } from '../../shared/types/Method';
+import { isMethod } from '../../shared/types/Method';
 import { Property, isProperty } from '../../shared/types/Property';
-import { normalizeProperty as coercePlainProperty, normalizeMethod as coercePlainMethod } from '../graph/drilldown/symbolHelpers';
+import {
+  normalizeMethod as coercePlainMethod,
+  normalizeProperty as coercePlainProperty,
+} from '../graph/drilldown/symbolHelpers';
 import { getNodeStyle } from '../theme/graphTheme';
 import { collectionSize, isNonEmptyCollection, mapTypeCollection } from './collections';
 import { isTestFilePath } from './testFileMatcher';
 
 import type { IClass } from '../../shared/types/Class';
-import type { Enum } from '../../shared/types/Enum';
-import type { ModuleFunction } from '../../shared/types/Function';
+import type { IEnum } from '../../shared/types/Enum';
+import type { IModuleFunction } from '../../shared/types/Function';
 import type { IImportSpecifier, Import } from '../../shared/types/Import';
 import type { IInterface } from '../../shared/types/Interface';
-import type { Module } from '../../shared/types/Module';
-import type { Package, PackageGraph } from '../../shared/types/Package';
-import type { TypeAlias } from '../../shared/types/TypeAlias';
-import type { Variable } from '../../shared/types/Variable';
+import type { Method } from '../../shared/types/Method';
+import type { IModule } from '../../shared/types/Module';
+import type { IPackage, PackageGraph } from '../../shared/types/Package';
+import type { ITypeAlias } from '../../shared/types/TypeAlias';
+import type { IVariable } from '../../shared/types/Variable';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { EmbeddedModuleEntity } from '../../shared/types/graph/EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from '../../shared/types/graph/EmbeddedSymbol';
@@ -34,11 +38,11 @@ interface CreateGraphNodeOptions {
   direction?: 'LR' | 'RL' | 'TB' | 'BT';
 }
 
-type ImportSpecifierLike = {
+interface ImportSpecifierLike {
   imported: string;
   local?: string | undefined;
   kind: string;
-};
+}
 
 function getExternalDependencyLevel(
   externalDependencyPackageCount: number,
@@ -87,7 +91,7 @@ function firstImportAlias(specifier: IImportSpecifier): string | undefined {
 }
 
 function getImportPath(importValue: Import & { path?: string }): string | undefined {
-  return importValue.relativePath || importValue.fullPath || importValue.path || importValue.name;
+  return importValue.relativePath;
 }
 
 function toImportSpecifierLike(
@@ -118,7 +122,7 @@ function toImportSpecifierLike(
 
 function getImportSpecifierLikes(
   importValue: Import & {
-    specifiers?: Array<{ imported?: string; local?: string; kind?: string }> | Map<string, IImportSpecifier>;
+    specifiers?: { imported?: string; local?: string; kind?: string }[] | Map<string, IImportSpecifier>;
   }
 ): ImportSpecifierLike[] {
   if (importValue.specifiers instanceof Map) {
@@ -128,7 +132,7 @@ function getImportSpecifierLikes(
   }
   const rawSpecifiers = importValue.specifiers as unknown;
   if (Array.isArray(rawSpecifiers)) {
-    return (rawSpecifiers as Array<{ imported?: string; local?: string; kind?: string }>)
+    return (rawSpecifiers as { imported?: string; local?: string; kind?: string }[])
       .map((specifier) => toImportSpecifierLike(specifier))
       .filter((specifier): specifier is ImportSpecifierLike => Boolean(specifier));
   }
@@ -137,12 +141,12 @@ function getImportSpecifierLikes(
 
 function normalizeProperty(property: Property | Record<string, unknown>): Property {
   if (isProperty(property)) return property;
-  return coercePlainProperty(property) as Property;
+  return coercePlainProperty(property);
 }
 
 function normalizeMethod(method: Method | Record<string, unknown>): Method {
   if (isMethod(method)) return method;
-  return coercePlainMethod(method) as Method;
+  return coercePlainMethod(method);
 }
 
 /**
@@ -191,14 +195,14 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
 
   const graphNodes: DependencyNode[] = [];
 
-  const getModuleImports = (module: Module): string[] => {
+  const getModuleImports = (module: IModule): string[] => {
     if (!isNonEmptyCollection(module.imports)) return [];
     return mapTypeCollection(module.imports, (imp: Import & { path?: string }) => getImportPath(imp) ?? '').filter(
       Boolean
     );
   };
 
-  const getModuleExternalDependencies = (module: Module): ExternalDependencyRef[] => {
+  const getModuleExternalDependencies = (module: IModule): ExternalDependencyRef[] => {
     const explicitExternalDeps = (module as { externalDependencies?: unknown }).externalDependencies;
     if (Array.isArray(explicitExternalDeps)) {
       return explicitExternalDeps as ExternalDependencyRef[];
@@ -258,7 +262,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
       }));
   };
 
-  const getModuleExports = (module: Module): string[] => {
+  const getModuleExports = (module: IModule): string[] => {
     const exportsValue = (module as { exports?: unknown }).exports;
     if (!exportsValue) return [];
 
@@ -305,25 +309,27 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
   };
 
   // Collect embedded symbols for a module in compact mode.
-  const collectEmbeddedSymbols = (module: Module): EmbeddedSymbol[] => {
+  const collectEmbeddedSymbols = (module: IModule): EmbeddedSymbol[] => {
     const symbols: EmbeddedSymbol[] = [];
 
-    if (includeClassNodes && module.classes) {
+    if (includeClassNodes && isNonEmptyCollection(module.classes)) {
       mapTypeCollection(module.classes, (cls: IClass) => {
-        const properties = cls.properties
+        const properties = isNonEmptyCollection(cls.properties)
           ? mapTypeCollection(cls.properties, (prop: Property) => normalizeProperty(prop))
           : [];
-        const methods = cls.methods ? mapTypeCollection(cls.methods, (method: Method) => normalizeMethod(method)) : [];
+        const methods = isNonEmptyCollection(cls.methods)
+          ? mapTypeCollection(cls.methods, (method: Method) => normalizeMethod(method))
+          : [];
         symbols.push({ id: cls.id, type: 'class', name: cls.name, properties, methods });
       });
     }
 
-    if (includeInterfaceNodes && module.interfaces) {
+    if (includeInterfaceNodes && isNonEmptyCollection(module.interfaces)) {
       mapTypeCollection(module.interfaces, (iface: IInterface) => {
-        const properties = iface.properties
+        const properties = isNonEmptyCollection(iface.properties)
           ? mapTypeCollection(iface.properties, (prop: Property) => normalizeProperty(prop))
           : [];
-        const methods = iface.methods
+        const methods = isNonEmptyCollection(iface.methods)
           ? mapTypeCollection(iface.methods, (method: Method) => normalizeMethod(method))
           : [];
         symbols.push({ id: iface.id, type: 'interface', name: iface.name, properties, methods });
@@ -334,11 +340,11 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
   };
 
   // Collect module-level entities (functions, types, enums, consts, vars) for display.
-  const collectModuleEntities = (module: Module): EmbeddedModuleEntity[] => {
+  const collectModuleEntities = (module: IModule): EmbeddedModuleEntity[] => {
     const entities: EmbeddedModuleEntity[] = [];
 
-    if (module.functions) {
-      mapTypeCollection(module.functions, (fn: ModuleFunction) => {
+    if (isNonEmptyCollection(module.functions)) {
+      mapTypeCollection(module.functions, (fn: IModuleFunction) => {
         entities.push({
           id: fn.id,
           type: 'function',
@@ -349,10 +355,10 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
       });
     }
 
-    if (module.typeAliases) {
-      mapTypeCollection(module.typeAliases, (ta: TypeAlias) => {
+    if (isNonEmptyCollection(module.typeAliases)) {
+      mapTypeCollection(module.typeAliases, (ta: ITypeAlias) => {
         const typeParams = ta.type_parameters;
-        const params = typeParams && typeParams.length > 0 ? `<${typeParams.join(', ')}>` : '';
+        const params = isNonEmptyCollection(typeParams) ? `<${typeParams.join(', ')}>` : '';
         const typeStr = ta.type;
         entities.push({
           id: ta.id,
@@ -363,8 +369,8 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
       });
     }
 
-    if (module.enums) {
-      mapTypeCollection(module.enums, (en: Enum) => {
+    if (isNonEmptyCollection(module.enums)) {
+      mapTypeCollection(module.enums, (en: IEnum) => {
         const memberCount = en.members.length;
         entities.push({
           id: en.id,
@@ -375,8 +381,8 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
       });
     }
 
-    if (module.variables) {
-      mapTypeCollection(module.variables, (v: Variable) => {
+    if (isNonEmptyCollection(module.variables)) {
+      mapTypeCollection(module.variables, (v: IVariable) => {
         entities.push({
           id: v.id,
           type: v.kind === 'const' ? 'const' : 'var',
@@ -391,7 +397,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
 
   // Optionally create package nodes.
   if (includePackages) {
-    data.packages.forEach((pkg: Package) => {
+    data.packages.forEach((pkg: IPackage) => {
       const totalModuleCount = collectionSize(pkg.modules);
       const visibleModuleCount = includeModules ? totalModuleCount : 0;
       const hiddenModuleCount = Math.max(0, totalModuleCount - visibleModuleCount);
@@ -442,10 +448,10 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
   }
 
   // Create module and symbol nodes.
-  data.packages.forEach((pkg: Package) => {
-    if (!pkg.modules) return;
+  data.packages.forEach((pkg: IPackage) => {
+    if (!isNonEmptyCollection(pkg.modules)) return;
 
-    mapTypeCollection(pkg.modules, (module: Module) => {
+    mapTypeCollection(pkg.modules, (module: IModule) => {
       const classCountTotal = collectionSize(module.classes);
       const interfaceCountTotal = collectionSize(module.interfaces);
       const visibleClassCount = includeClassNodes ? classCountTotal : 0;
@@ -570,12 +576,12 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
       const parentForSymbols = includeModules && nestSymbolsInModules ? module.id : undefined;
 
       // Create class nodes as separate VueFlow nodes.
-      if (includeClassNodes && module.classes) {
+      if (includeClassNodes && isNonEmptyCollection(module.classes)) {
         mapTypeCollection(module.classes, (cls: IClass) => {
-          const properties = cls.properties
+          const properties = isNonEmptyCollection(cls.properties)
             ? mapTypeCollection(cls.properties, (prop: Property) => normalizeProperty(prop))
             : [];
-          const methods = cls.methods
+          const methods = isNonEmptyCollection(cls.methods)
             ? mapTypeCollection(cls.methods, (method: Method) => normalizeMethod(method))
             : [];
           const memberTotal = properties.length + methods.length;
@@ -619,12 +625,12 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
       }
 
       // Create interface nodes as separate VueFlow nodes.
-      if (includeInterfaceNodes && module.interfaces) {
+      if (includeInterfaceNodes && isNonEmptyCollection(module.interfaces)) {
         mapTypeCollection(module.interfaces, (iface: IInterface) => {
-          const properties = iface.properties
+          const properties = isNonEmptyCollection(iface.properties)
             ? mapTypeCollection(iface.properties, (prop: Property) => normalizeProperty(prop))
             : [];
-          const methods = iface.methods
+          const methods = isNonEmptyCollection(iface.methods)
             ? mapTypeCollection(iface.methods, (method: Method) => normalizeMethod(method))
             : [];
           const memberTotal = properties.length + methods.length;

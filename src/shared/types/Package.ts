@@ -1,4 +1,4 @@
-import type { Module } from './Module';
+import type { IModule } from './Module';
 import type { TypeCollection } from './TypeCollection';
 
 /**
@@ -33,22 +33,22 @@ export interface IPackage {
   /**
    * The dependencies of the package.
    */
-  readonly dependencies: TypeCollection<Package>;
+  readonly dependencies: TypeCollection<IPackage>;
 
   /**
    * The dev dependencies of the package.
    */
-  readonly devDependencies: TypeCollection<Package>;
+  readonly devDependencies: TypeCollection<IPackage>;
 
   /**
    * The peer dependencies of the package.
    */
-  readonly peerDependencies: TypeCollection<Package>;
+  readonly peerDependencies: TypeCollection<IPackage>;
 
   /**
    * The modules in the package.
    */
-  readonly modules: TypeCollection<Module>;
+  readonly modules: TypeCollection<IModule>;
 }
 
 export interface PackageGraph {
@@ -62,9 +62,9 @@ export class Package implements IPackage {
     public readonly version: string,
     public readonly path: string,
     public readonly created_at: string = new Date().toISOString(),
-    public readonly dependencies: TypeCollection<Package> = new Map(),
-    public readonly devDependencies: TypeCollection<Package> = new Map(),
-    public readonly peerDependencies: TypeCollection<Package> = new Map(),
-    public readonly modules: TypeCollection<Module> = new Map()
+    public readonly dependencies: TypeCollection<IPackage> = new Map(),
+    public readonly devDependencies: TypeCollection<IPackage> = new Map(),
+    public readonly peerDependencies: TypeCollection<IPackage> = new Map(),
+    public readonly modules: TypeCollection<IModule> = new Map()
   ) {}
 }

@@ -1,4 +1,4 @@
-import type { Parameter } from './Parameter';
+import type { IParameter } from './Parameter';
 import type { TypeCollection } from './TypeCollection';
 
 /**
@@ -45,7 +45,7 @@ export interface IMethod {
   /**
    * The parameters of the method.
    */
-  readonly parameters: TypeCollection<Parameter>;
+  readonly parameters: TypeCollection<IParameter>;
 
   /**
    * The return type of the method.
@@ -81,7 +81,7 @@ export class Method implements IMethod {
     public readonly parent_id: string,
     public readonly name: string,
     public readonly created_at: string = new Date().toISOString(),
-    public readonly parameters: TypeCollection<Parameter> = new Map(),
+    public readonly parameters: TypeCollection<IParameter> = new Map(),
     public readonly return_type = 'void',
     public readonly is_static = false,
     public readonly is_async = false,

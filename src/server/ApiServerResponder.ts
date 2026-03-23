@@ -3,8 +3,8 @@ import { consola } from 'consola';
 import { isClass } from '../shared/types/Class';
 import { isInterface } from '../shared/types/Interface';
 import { isMethod } from '../shared/types/Method';
-import { isProperty } from '../shared/types/Property';
 import { Module } from '../shared/types/Module';
+import { isProperty } from '../shared/types/Property';
 import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
 import { RepositoryError } from './db/errors/RepositoryError';
@@ -23,15 +23,15 @@ import { TypeAliasRepository } from './db/repositories/TypeAliasRepository';
 import { VariableRepository } from './db/repositories/VariableRepository';
 import { InsightEngine } from './insights/InsightEngine';
 
-import type { Package } from '../shared/types/Package';
+import type { Method } from '../shared/types/Method';
+import type { IPackage } from '../shared/types/Package';
+import type { Property } from '../shared/types/Property';
 import type { TypeCollection } from '../shared/types/TypeCollection';
 import type { CodeIssueRef } from '../shared/types/api/CodeIssueRef';
 import type { InsightReport } from '../shared/types/api/Insight';
-import type { Method } from '../shared/types/Method';
-import type { Property } from '../shared/types/Property';
 import type { CodeIssueEntity } from './db/types/CodeIssueEntity';
 
-export interface ApiServerResponderOptions {
+interface ApiServerResponderOptions {
   dbPath?: string;
   readOnly?: boolean;
 }
@@ -42,9 +42,9 @@ interface PackagesResponseItem {
   version: string;
   path: string;
   created_at: string;
-  dependencies: TypeCollection<Package>;
-  devDependencies: TypeCollection<Package>;
-  peerDependencies: TypeCollection<Package>;
+  dependencies: TypeCollection<IPackage>;
+  devDependencies: TypeCollection<IPackage>;
+  peerDependencies: TypeCollection<IPackage>;
   modules: string[];
 }
 

@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/unbound-method -- IDatabaseAdapter vi.fn doubles in expects */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Method } from '../../../../shared/types/Method';
 import { Parameter } from '../../../../shared/types/Parameter';
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { EntityNotFoundError, RepositoryError } from '../../errors/RepositoryError';
 import { MethodRepository } from '../MethodRepository';
 
@@ -14,14 +16,13 @@ import type { IMethodRow, IParameterRow } from '../../types/DatabaseResults';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue([]),
-    close: vi.fn().mockResolvedValue(undefined),
-    transaction: vi.fn().mockImplementation(async (cb: () => Promise<unknown>) => cb()),
-    getDbPath: vi.fn().mockReturnValue(':memory:'),
-  };
+function getMapValue<K, V>(map: Map<K, V>, key: K): V {
+  const v = map.get(key);
+  expect(v).toBeDefined();
+  if (v === undefined) {
+    throw new Error(`expected map key ${String(key)}`);
+  }
+  return v;
 }
 
 function makeMethodDTO(overrides: Partial<IMethodCreateDTO> = {}): IMethodCreateDTO {
@@ -93,7 +94,7 @@ describe('MethodRepository', () => {
   let repo: MethodRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new MethodRepository(adapter);
   });
 
@@ -292,9 +293,9 @@ describe('MethodRepository', () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toBeInstanceOf(Method);
-      expect(result[0]!.id).toBe('method-1');
+      expect(result[0]?.id).toBe('method-1');
       expect(result[1]).toBeInstanceOf(Method);
-      expect(result[1]!.id).toBe('method-2');
+      expect(result[1]?.id).toBe('method-2');
     });
 
     it('filters by id when id is provided', async () => {
@@ -347,10 +348,11 @@ describe('MethodRepository', () => {
 
       const [method] = await repo.retrieve('method-uuid-1');
 
-      expect(method!.is_static).toBe(true);
-      expect(method!.is_async).toBe(true);
-      expect(method!.visibility).toBe('private');
-      expect(method!.return_type).toBe('Promise<string>');
+      expect(method).toBeInstanceOf(Method);
+      expect(method?.is_static).toBe(true);
+      expect(method?.is_async).toBe(true);
+      expect(method?.visibility).toBe('private');
+      expect(method?.return_type).toBe('Promise<string>');
     });
 
     it('throws RepositoryError on query failure', async () => {
@@ -371,7 +373,7 @@ describe('MethodRepository', () => {
       const result = await repo.retrieveById('method-1');
 
       expect(result).toBeInstanceOf(Method);
-      expect(result!.id).toBe('method-1');
+      expect(result?.id).toBe('method-1');
     });
 
     it('returns undefined when not found', async () => {
@@ -502,18 +504,18 @@ describe('MethodRepository', () => {
 
       expect(result.size).toBe(2);
 
-      const method1 = result.get('method-1')!;
+      const method1 = getMapValue(result, 'method-1');
       expect(method1).toBeInstanceOf(Method);
       expect(method1.name).toBe('foo');
       const params1 = method1.parameters as Map<string, Parameter>;
       expect(params1.size).toBe(2);
-      expect(params1.get('param-1')!.name).toBe('x');
-      expect(params1.get('param-2')!.name).toBe('y');
+      expect(getMapValue(params1, 'param-1').name).toBe('x');
+      expect(getMapValue(params1, 'param-2').name).toBe('y');
 
-      const method2 = result.get('method-2')!;
+      const method2 = getMapValue(result, 'method-2');
       const params2 = method2.parameters as Map<string, Parameter>;
       expect(params2.size).toBe(1);
-      expect(params2.get('param-3')!.name).toBe('z');
+      expect(getMapValue(params2, 'param-3').name).toBe('z');
     });
 
     it('handles methods with no parameters', async () => {
@@ -523,7 +525,7 @@ describe('MethodRepository', () => {
 
       const result = await repo.retrieveByParent('class-uuid-1', 'class');
 
-      const method = result.get('method-1')!;
+      const method = getMapValue(result, 'method-1');
       const params = method.parameters as Map<string, Parameter>;
       expect(params.size).toBe(0);
     });
@@ -545,8 +547,8 @@ describe('MethodRepository', () => {
       vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
 
       const result = await repo.retrieveByParent('class-uuid-1', 'class');
-      const method = result.get('method-1')!;
-      const param = (method.parameters as Map<string, Parameter>).get('param-1')!;
+      const method = getMapValue(result, 'method-1');
+      const param = getMapValue(method.parameters as Map<string, Parameter>, 'param-1');
 
       expect(param).toBeInstanceOf(Parameter);
       expect(param.name).toBe('opts');
@@ -573,7 +575,10 @@ describe('MethodRepository', () => {
       vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
 
       const result = await repo.retrieveByParent('class-uuid-1', 'class');
-      const param = (result.get('method-1')!.parameters as Map<string, Parameter>).get('param-1')!;
+      const param = getMapValue(
+        getMapValue(result, 'method-1').parameters as Map<string, Parameter>,
+        'param-1'
+      );
 
       expect(param.is_rest).toBe(true);
       expect(param.default_value).toBeUndefined();
@@ -612,9 +617,9 @@ describe('MethodRepository', () => {
       const result = await repo.retrieveByParentIds(['p1', 'p2', 'p3'], 'interface');
 
       expect(result.size).toBe(3);
-      expect(result.get('p1')!.size).toBe(0);
-      expect(result.get('p2')!.size).toBe(0);
-      expect(result.get('p3')!.size).toBe(0);
+      expect(getMapValue(result, 'p1').size).toBe(0);
+      expect(getMapValue(result, 'p2').size).toBe(0);
+      expect(getMapValue(result, 'p3').size).toBe(0);
     });
 
     it('queries with IN clause for parent ids and parent_type', async () => {
@@ -644,14 +649,14 @@ describe('MethodRepository', () => {
 
       const result = await repo.retrieveByParentIds(['p1', 'p2'], 'class');
 
-      expect(result.get('p1')!.size).toBe(2);
-      expect(result.get('p2')!.size).toBe(1);
+      expect(getMapValue(result, 'p1').size).toBe(2);
+      expect(getMapValue(result, 'p2').size).toBe(1);
 
-      const method1 = result.get('p1')!.get('method-1')!;
+      const method1 = getMapValue(getMapValue(result, 'p1'), 'method-1');
       expect(method1.name).toBe('alpha');
       expect((method1.parameters as Map<string, Parameter>).size).toBe(1);
 
-      const method3 = result.get('p2')!.get('method-3')!;
+      const method3 = getMapValue(getMapValue(result, 'p2'), 'method-3');
       expect(method3.name).toBe('gamma');
       expect((method3.parameters as Map<string, Parameter>).size).toBe(1);
     });
@@ -695,7 +700,7 @@ describe('MethodRepository', () => {
       const result = await repo.retrieveByParentIds(['p1'], 'class');
 
       // p1 should have empty map; p-unknown is not in result at all
-      expect(result.get('p1')!.size).toBe(0);
+      expect(getMapValue(result, 'p1').size).toBe(0);
       expect(result.has('p-unknown')).toBe(false);
     });
   });

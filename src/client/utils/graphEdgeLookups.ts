@@ -6,8 +6,8 @@
 import { mapTypeCollection } from './collections';
 
 import type { IImport } from '../../shared/types/Import';
-import type { Module } from '../../shared/types/Module';
-import type { Package, PackageGraph } from '../../shared/types/Package';
+import type { IModule } from '../../shared/types/Module';
+import type { IPackage, PackageGraph } from '../../shared/types/Package';
 
 export interface ModulePathLookup {
   packagePathMap: Map<string, Map<string, string>>;
@@ -76,11 +76,11 @@ export function buildModulePathLookup(data: PackageGraph): ModulePathLookup {
   const packagePathMap = new Map<string, Map<string, string>>();
   const globalPathMap = new Map<string, Set<string>>();
 
-  data.packages.forEach((pkg: Package) => {
+  data.packages.forEach((pkg: IPackage) => {
     const pathMap = new Map<string, string>();
     packagePathMap.set(pkg.id, pathMap);
     if (!pkg.modules) return;
-    mapTypeCollection(pkg.modules, (module: Module) => {
+    mapTypeCollection(pkg.modules, (module: IModule) => {
       const relativePath: string = module.source.relativePath;
       const moduleId: string = module.id;
       addModulePathEntry(pathMap, relativePath, moduleId);

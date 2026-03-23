@@ -10,8 +10,8 @@ import type { IClass } from '../../shared/types/Class';
 import type { Import } from '../../shared/types/Import';
 import type { IInterface } from '../../shared/types/Interface';
 import type { Method } from '../../shared/types/Method';
-import type { Module } from '../../shared/types/Module';
-import type { Package, PackageGraph } from '../../shared/types/Package';
+import type { IModule } from '../../shared/types/Module';
+import type { IPackage, PackageGraph } from '../../shared/types/Package';
 import type { Property } from '../../shared/types/Property';
 import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
@@ -67,7 +67,7 @@ function buildNodeIndex(data: PackageGraph, options: ResolvedOptions): NodeIndex
     symbolToModule: new Map<string, string>(),
   };
 
-  data.packages.forEach((pkg: Package) => {
+  data.packages.forEach((pkg: IPackage) => {
     if (options.includePackageEdges) {
       index.nodeIds.add(pkg.id);
       index.nodeKinds.set(pkg.id, 'package');
@@ -75,7 +75,7 @@ function buildNodeIndex(data: PackageGraph, options: ResolvedOptions): NodeIndex
 
     if (!isNonEmptyCollection(pkg.modules)) return;
 
-    mapTypeCollection(pkg.modules, (module: Module) => {
+    mapTypeCollection(pkg.modules, (module: IModule) => {
       index.nodeIds.add(module.id);
       index.nodeKinds.set(module.id, 'module');
 
@@ -223,24 +223,24 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
     }
   };
 
-  data.packages.forEach((pkg: Package) => {
+  data.packages.forEach((pkg: IPackage) => {
     if (resolvedOptions.includePackageEdges) {
       if (isNonEmptyCollection(pkg.dependencies)) {
-        mapTypeCollection(pkg.dependencies, (dep: Package) => {
+        mapTypeCollection(pkg.dependencies, (dep: IPackage) => {
           if (!dep.id) return;
           addEdge(createEdge(pkg.id, dep.id, 'dependency'));
         });
       }
 
       if (isNonEmptyCollection(pkg.devDependencies)) {
-        mapTypeCollection(pkg.devDependencies, (dep: Package) => {
+        mapTypeCollection(pkg.devDependencies, (dep: IPackage) => {
           if (!dep.id) return;
           addEdge(createEdge(pkg.id, dep.id, 'devDependency'));
         });
       }
 
       if (isNonEmptyCollection(pkg.peerDependencies)) {
-        mapTypeCollection(pkg.peerDependencies, (dep: Package) => {
+        mapTypeCollection(pkg.peerDependencies, (dep: IPackage) => {
           if (!dep.id) return;
           addEdge(createEdge(pkg.id, dep.id, 'peerDependency'));
         });
@@ -249,7 +249,7 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
 
     if (!isNonEmptyCollection(pkg.modules)) return;
 
-    mapTypeCollection(pkg.modules, (module: Module) => {
+    mapTypeCollection(pkg.modules, (module: IModule) => {
       const moduleId = module.id;
       const packageId = module.package_id;
       const importerPath: string = module.source.relativePath;

@@ -1,4 +1,5 @@
 // @vitest-environment node
+/* eslint-disable @typescript-eslint/unbound-method -- IDatabaseAdapter vi.fn doubles in expects */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Parameter } from '../../../../shared/types/Parameter';

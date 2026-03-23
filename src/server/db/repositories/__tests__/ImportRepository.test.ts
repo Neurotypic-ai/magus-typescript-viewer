@@ -1,4 +1,5 @@
 // @vitest-environment node
+/* eslint-disable @typescript-eslint/unbound-method -- IDatabaseAdapter vi.fn doubles in expects */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
@@ -512,16 +513,17 @@ describe('ImportRepository', () => {
   // constructor / metadata
   // -----------------------------------------------------------------------
   describe('constructor', () => {
-    it('sets the correct table name and error tag', () => {
+    it('sets the correct table name and error tag', async () => {
       // Verified indirectly: queries target "imports" table
       vi.mocked(adapter.query).mockResolvedValue([]);
 
       // The table name is used in batch insert SQL
       const items = [makeImportDTO()];
-      repo.createBatch(items).then(() => {
-        const [sql] = vi.mocked(adapter.query).mock.calls[0] as [string];
-        expect(sql).toContain('INSERT INTO imports');
-      });
+      await repo.createBatch(items);
+      const call = vi.mocked(adapter.query).mock.calls[0];
+      expect(call).toBeDefined();
+      const [sql] = call as [string];
+      expect(sql).toContain('INSERT INTO imports');
     });
   });
 });

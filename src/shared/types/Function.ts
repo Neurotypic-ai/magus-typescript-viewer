@@ -1,10 +1,10 @@
-import type { Parameter } from './Parameter';
+import type { IParameter } from './Parameter';
 import type { TypeCollection } from './TypeCollection';
 
 /**
  * Represents a module-level function with its parameters and return type.
  */
-interface IModuleFunction {
+export interface IModuleFunction {
   /**
    * The unique identifier for the function.
    */
@@ -33,7 +33,7 @@ interface IModuleFunction {
   /**
    * The parameters of the function.
    */
-  readonly parameters: TypeCollection<Parameter>;
+  readonly parameters: TypeCollection<IParameter>;
 
   /**
    * The return type of the function.
@@ -58,7 +58,7 @@ export class ModuleFunction implements IModuleFunction {
     public readonly module_id: string,
     public readonly name: string,
     public readonly created_at: string = new Date().toISOString(),
-    public readonly parameters: TypeCollection<Parameter> = new Map(),
+    public readonly parameters: TypeCollection<IParameter> = new Map(),
     public readonly return_type = 'void',
     public readonly is_async = false,
     public readonly is_exported = false

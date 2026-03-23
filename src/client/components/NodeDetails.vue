@@ -7,7 +7,7 @@ import TypeAnnotationDisplay from './nodes/TypeAnnotationDisplay.vue';
 import { buildTypeDisplayModel } from './nodes/typeDisplay';
 
 import type { IImportSpecifier, Import } from '../../shared/types/Import';
-import type { Module } from '../../shared/types/Module';
+import type { IModule } from '../../shared/types/Module';
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
@@ -43,7 +43,7 @@ interface SymbolSummary {
 }
 
 interface GraphDetailsIndex {
-  moduleById: Map<string, Module>;
+  moduleById: Map<string, IModule>;
   symbolToModuleId: Map<string, string>;
   usageByTargetSymbolId: Map<string, string[]>;
 }
@@ -52,7 +52,7 @@ const graphDetailsIndexCache = new WeakMap<PackageGraph, GraphDetailsIndex>();
 const moduleDetailsAssembler = new GraphHydrator();
 
 function buildGraphDetailsIndex(data: PackageGraph): GraphDetailsIndex {
-  const moduleById = new Map<string, Module>();
+  const moduleById = new Map<string, IModule>();
   const symbolToModuleId = new Map<string, string>();
   const symbolLabelById = new Map<string, string>();
   const usageByTargetSymbolIdSets = new Map<string, Set<string>>();
@@ -179,7 +179,7 @@ const graphDetailsIndex = computed<GraphDetailsIndex>(() => {
   return index;
 });
 
-const hydratedModule = ref<Module | null>(null);
+const hydratedModule = ref<IModule | null>(null);
 const hydratedModuleId = ref<string | null>(null);
 const isHydratingDetails = ref(false);
 const detailsLoadError = ref<string | null>(null);
@@ -274,7 +274,7 @@ function getUsedBy(symbolId: string | undefined): string[] {
   return graphDetailsIndex.value.usageByTargetSymbolId.get(symbolId) ?? [];
 }
 
-const selectedModule = computed<Module | undefined>(() => {
+const selectedModule = computed<IModule | undefined>(() => {
   const moduleId = activeModuleId.value;
   if (!moduleId) {
     return undefined;
@@ -571,8 +571,8 @@ function isRichType(typeText: string): boolean {
     <button
       v-if="canOpenSymbolUsageGraph"
       type="button"
-      @click="openSymbolUsageGraph"
       class="w-full mb-4 px-3 py-2 bg-primary-main/20 text-primary-main border border-primary-main/30 rounded hover:bg-primary-main/30 transition-fast text-xs font-semibold"
+      @click="openSymbolUsageGraph"
     >
       Open Symbol Usage Graph
     </button>

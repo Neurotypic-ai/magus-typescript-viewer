@@ -13,11 +13,11 @@ import { createSymbolEdge, findModuleById, normalizeMethod, normalizeProperty } 
 import type { IClass } from '../../../shared/types/Class';
 import type { IInterface } from '../../../shared/types/Interface';
 import type { Method } from '../../../shared/types/Method';
-import type { Module } from '../../../shared/types/Module';
+import type { IModule } from '../../../shared/types/Module';
 import type { PackageGraph } from '../../../shared/types/Package';
 import type { ParentType } from '../../../shared/types/ParentType';
 import type { Property } from '../../../shared/types/Property';
-import type { SymbolReference } from '../../../shared/types/SymbolReference';
+import type { ISymbolReference } from '../../../shared/types/SymbolReference';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 import type { GraphViewData } from '../graphViewShared';
@@ -30,7 +30,7 @@ export interface BuildSymbolDrilldownGraphOptions {
 }
 
 interface SymbolContext {
-  module: Module;
+  module: IModule;
   focusType: 'module' | ParentType;
   focusId: string;
 }
@@ -191,7 +191,7 @@ export function buildSymbolDrilldownGraph(options: BuildSymbolDrilldownGraphOpti
     );
     addSymbol(iface.id, 'interface', iface.name, properties, methods);
   });
-  mapTypeCollection(context.module.symbol_references, (reference: SymbolReference) => {
+  mapTypeCollection(context.module.symbol_references, (reference: ISymbolReference) => {
     const targetId = reference.target_symbol_id;
     const accessKind = reference.access_kind;
     const sourceId = reference.source_symbol_id ?? moduleId;

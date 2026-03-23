@@ -9,7 +9,7 @@ import { createEdgeMarker } from '../../utils/edgeMarkers';
 import { getHandlePositions } from '../handleRouting';
 
 import type { Method } from '../../../shared/types/Method';
-import type { Module } from '../../../shared/types/Module';
+import type { IModule } from '../../../shared/types/Module';
 import type { PackageGraph } from '../../../shared/types/Package';
 import type { ParentType } from '../../../shared/types/ParentType';
 import type { Property } from '../../../shared/types/Property';
@@ -82,7 +82,7 @@ export function normalizeMethod(method: MethodLike): Method {
   };
 }
 
-export function findModuleById(data: PackageGraph, moduleId: string): Module | undefined {
+export function findModuleById(data: PackageGraph, moduleId: string): IModule | undefined {
   for (const pkg of data.packages) {
     const module = mapTypeCollection(pkg.modules, (entry) => entry).find((entry) => entry.id === moduleId);
     if (module) return module;

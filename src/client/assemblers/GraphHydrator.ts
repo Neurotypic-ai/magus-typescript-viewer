@@ -15,6 +15,12 @@ import { EntityRegistry } from './EntityRegistry';
 import { getApiBaseUrl } from './api';
 import { GraphDataCache } from './graphDataCache';
 
+import type { IEnum } from '../../shared/types/Enum';
+import type { IModuleFunction } from '../../shared/types/Function';
+import type { IParameter } from '../../shared/types/Parameter';
+import type { ISymbolReference } from '../../shared/types/SymbolReference';
+import type { ITypeAlias } from '../../shared/types/TypeAlias';
+import type { IVariable } from '../../shared/types/Variable';
 import type { PackageGraph } from '../../shared/types/Package';
 
 interface GraphApiPackagePayload {
@@ -330,8 +336,8 @@ export class GraphHydrator {
     return properties;
   }
 
-  private hydrateParameters(raw: unknown): Map<string, Parameter> {
-    const parameters = new Map<string, Parameter>();
+  private hydrateParameters(raw: unknown): Map<string, IParameter> {
+    const parameters = new Map<string, IParameter>();
     for (const item of collectionRecords(raw)) {
       const parameter = new Parameter(
         toString(item['id']),
@@ -350,8 +356,8 @@ export class GraphHydrator {
     return parameters;
   }
 
-  private hydrateFunctions(raw: unknown): Map<string, ModuleFunction> {
-    const functions = new Map<string, ModuleFunction>();
+  private hydrateFunctions(raw: unknown): Map<string, IModuleFunction> {
+    const functions = new Map<string, IModuleFunction>();
     for (const item of collectionRecords(raw)) {
       const fn = new ModuleFunction(
         toString(item['id']),
@@ -369,8 +375,8 @@ export class GraphHydrator {
     return functions;
   }
 
-  private hydrateTypeAliases(raw: unknown): Map<string, TypeAlias> {
-    const aliases = new Map<string, TypeAlias>();
+  private hydrateTypeAliases(raw: unknown): Map<string, ITypeAlias> {
+    const aliases = new Map<string, ITypeAlias>();
     for (const item of collectionRecords(raw)) {
       const typeParameters = collectionValues<string>(item['type_parameters']).filter(
         (value): value is string => typeof value === 'string'
@@ -389,8 +395,8 @@ export class GraphHydrator {
     return aliases;
   }
 
-  private hydrateEnums(raw: unknown): Map<string, Enum> {
-    const enums = new Map<string, Enum>();
+  private hydrateEnums(raw: unknown): Map<string, IEnum> {
+    const enums = new Map<string, IEnum>();
     for (const item of collectionRecords(raw)) {
       const enumMembers = collectionValues<string>(item['members']).filter(
         (value): value is string => typeof value === 'string'
@@ -408,8 +414,8 @@ export class GraphHydrator {
     return enums;
   }
 
-  private hydrateVariables(raw: unknown): Map<string, Variable> {
-    const variables = new Map<string, Variable>();
+  private hydrateVariables(raw: unknown): Map<string, IVariable> {
+    const variables = new Map<string, IVariable>();
     for (const item of collectionRecords(raw)) {
       const variable = new Variable(
         toString(item['id']),
@@ -473,8 +479,8 @@ export class GraphHydrator {
     return imports;
   }
 
-  private hydrateSymbolReferences(raw: unknown): Map<string, SymbolReference> {
-    const refs = new Map<string, SymbolReference>();
+  private hydrateSymbolReferences(raw: unknown): Map<string, ISymbolReference> {
+    const refs = new Map<string, ISymbolReference>();
     for (const item of collectionRecords(raw)) {
       const ref = new SymbolReference(
         toString(item['id']),

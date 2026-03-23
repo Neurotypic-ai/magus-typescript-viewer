@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method -- IDatabaseAdapter vi.fn doubles in expects */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ModuleFunction } from '../../../../shared/types/Function';
@@ -42,6 +43,16 @@ function makeCreateDTO(overrides: Partial<IFunctionCreateDTO> = {}): IFunctionCr
   };
 }
 
+function firstQueryCall(adapter: IDatabaseAdapter): [string, unknown[]] {
+  const raw = vi.mocked(adapter.query).mock.calls[0];
+  if (raw === undefined) {
+    throw new Error('expected adapter.query to have been called');
+  }
+  const sql = raw[0];
+  const params = raw[1] ?? [];
+  return [typeof sql === 'string' ? sql : String(sql), Array.isArray(params) ? params : []];
+}
+
 describe('FunctionRepository', () => {
   let adapter: IDatabaseAdapter;
   let repo: FunctionRepository;
@@ -75,7 +86,7 @@ describe('FunctionRepository', () => {
       expect(result.is_exported).toBe(true);
 
       expect(adapter.query).toHaveBeenCalledOnce();
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('INSERT INTO functions');
       expect(sql).toContain('RETURNING *');
       expect(params).toEqual([
@@ -103,7 +114,7 @@ describe('FunctionRepository', () => {
       };
       const result = await repo.create(dto);
 
-      const [, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [, params] = firstQueryCall(adapter);
       // return_type defaults to null, is_async/is_exported default to false
       expect(params).toEqual([dto.id, dto.package_id, dto.module_id, dto.name, null, false, false, false]);
 
@@ -139,7 +150,7 @@ describe('FunctionRepository', () => {
       expect(result?.id).toBe('func-uuid-1');
       expect(result?.name).toBe('myFunction');
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('SELECT * FROM functions WHERE id = ?');
       expect(params).toEqual(['func-uuid-1']);
     });
@@ -189,7 +200,7 @@ describe('FunctionRepository', () => {
       expect(results[0]?.name).toBe('alpha');
       expect(results[1]?.name).toBe('beta');
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('WHERE module_id = ?');
       expect(sql).toContain('ORDER BY name');
       expect(params).toEqual(['mod-uuid-1']);
@@ -239,7 +250,7 @@ describe('FunctionRepository', () => {
       expect(results).toHaveLength(2);
       expect(results[0]).toBeInstanceOf(ModuleFunction);
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('WHERE module_id IN (?, ?)');
       expect(params).toEqual(['mod-1', 'mod-2']);
     });
@@ -271,7 +282,7 @@ describe('FunctionRepository', () => {
       expect(results).toHaveLength(2);
       expect(results[0]?.name).toBe('alpha');
 
-      const [sql] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql] = firstQueryCall(adapter);
       expect(sql).toContain('SELECT * FROM functions ORDER BY name');
     });
 
@@ -301,7 +312,7 @@ describe('FunctionRepository', () => {
       expect(result.name).toBe('renamedFunction');
       expect(result.is_async).toBe(false);
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('UPDATE functions SET');
       expect(sql).toContain('name = ?');
       expect(sql).toContain('is_async = ?');
@@ -318,7 +329,7 @@ describe('FunctionRepository', () => {
 
       expect(result.return_type).toBe('number');
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('return_type = ?');
       expect(params).toEqual(['number', 'func-uuid-1']);
     });
@@ -331,7 +342,7 @@ describe('FunctionRepository', () => {
 
       expect(result.is_exported).toBe(false);
 
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('is_exported = ?');
       expect(params).toEqual([false, 'func-uuid-1']);
     });
@@ -346,7 +357,7 @@ describe('FunctionRepository', () => {
       expect(result.id).toBe('func-uuid-1');
 
       // The query should be a SELECT (from findById), not an UPDATE
-      const [sql] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql] = firstQueryCall(adapter);
       expect(sql).toContain('SELECT * FROM functions WHERE id = ?');
     });
 
@@ -379,7 +390,7 @@ describe('FunctionRepository', () => {
       await repo.delete('func-uuid-1');
 
       expect(adapter.query).toHaveBeenCalledOnce();
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('DELETE FROM functions WHERE id = ?');
       expect(params).toEqual(['func-uuid-1']);
     });
@@ -406,7 +417,7 @@ describe('FunctionRepository', () => {
       await repo.createBatch(items);
 
       expect(adapter.query).toHaveBeenCalledOnce();
-      const [sql, params] = vi.mocked(adapter.query).mock.calls[0]!;
+      const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('INSERT INTO functions');
       expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?)');
       // 2 items x 8 columns = 16 params
