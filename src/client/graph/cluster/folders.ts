@@ -54,6 +54,11 @@ export function clusterByFolder(
         ...getNodeStyle('group'),
         zIndex: 0,
         overflow: 'visible',
+        // GroupNode.vue handles its own padding/border/background via CSS.
+        // Zeroing padding here prevents the Vue Flow wrapper from creating a
+        // content-area offset that would make child positions (relative to the
+        // wrapper's top-left) appear to extend beyond the visible border.
+        padding: 0,
       },
       draggable: true,
     });

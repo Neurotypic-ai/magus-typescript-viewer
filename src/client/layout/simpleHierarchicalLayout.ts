@@ -2,12 +2,12 @@
  * Simple synchronous hierarchical layout.
  *
  * Groups nodes by hierarchy level (package → folder/group → module → symbol)
- * and assigns positions using a grid approach. Child nodes in VueFlow are
+ * and assigns positions using a flow-based approach. Child nodes in VueFlow are
  * positioned relative to their parent, so we:
  *   1. Lay out children within their parent (simple grid, left-to-right then wrap).
  *   2. Compute an explicit size for each parent based on child layout.
- *   3. Assign absolute positions to root-level nodes, using the computed parent
- *      sizes to determine row heights so parents don't overlap each other.
+ *   3. Assign absolute positions to root-level nodes using variable column widths
+ *      so that wider parents don't overlap narrower ones.
  *
  * Pure function — no external dependencies, no Vue reactivity.
  */
@@ -17,25 +17,37 @@ import type { GraphEdge } from '../types/GraphEdge';
 
 // ── Root-level grid constants ────────────────────────────────────────────────
 
-const COLUMN_SPACING = 320;
-const ROW_SPACING = 220;
+/** Horizontal gap between adjacent root nodes in the same row. */
+const ROOT_H_GAP = 40;
+/** Vertical gap between rows of root nodes. */
+const ROOT_V_GAP = 60;
+/** Max root nodes per row before wrapping. */
 const COLS_PER_ROW = 6;
 
 // ── Child layout constants ───────────────────────────────────────────────────
 
-/** Estimated width of a child node (module) before DOM measurement. */
-const CHILD_ESTIMATED_WIDTH = 280;
-/** Estimated height of a child node (module) before DOM measurement. */
-const CHILD_ESTIMATED_HEIGHT = 130;
-/** Space reserved at the top of a parent for its header (folder label). */
-const CHILD_PADDING_TOP = 40;
+/**
+ * Estimated width of a child module node before DOM measurement.
+ * Modules with metadata, imports, symbols etc. are typically 280–340px.
+ */
+const CHILD_ESTIMATED_WIDTH = 320;
+
+/**
+ * Estimated height of a child module node before DOM measurement.
+ * Modules with header, body content (imports, deps, symbols) are typically
+ * 200–400px. Use a generous estimate so expandParent adjustments are small.
+ */
+const CHILD_ESTIMATED_HEIGHT = 260;
+
+/** Space reserved at the top of a parent for its header label. */
+const CHILD_PADDING_TOP = 44;
 /** Horizontal padding inside the parent on each side. */
 const CHILD_PADDING_SIDE = 12;
 /** Bottom padding inside the parent. */
-const CHILD_PADDING_BOTTOM = 12;
+const CHILD_PADDING_BOTTOM = 16;
 /** Gap between sibling child nodes. */
-const CHILD_GAP = 10;
-/** Maximum columns of children per parent row. */
+const CHILD_GAP = 12;
+/** Maximum columns of children per parent. */
 const CHILD_MAX_COLS = 3;
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -110,8 +122,9 @@ function computeChildLayout(children: DependencyNode[]): {
  *
  * - Child nodes (those with a `parentNode`) are positioned relative to their
  *   parent in a simple grid.
- * - Root nodes (no `parentNode`) are placed in a type-ordered grid, with row
- *   heights derived from each root's computed size so rows never overlap.
+ * - Root nodes (no `parentNode`) are placed in a flow layout: each row uses
+ *   the actual node widths for x-positions, and actual heights for row spacing,
+ *   so nodes never overlap each other regardless of size variation.
  */
 export function computeSimpleHierarchicalLayout(
   nodes: DependencyNode[],
@@ -139,13 +152,13 @@ export function computeSimpleHierarchicalLayout(
     sizes.set(parentId, parentSize);
   }
 
-  // ── Step 2: lay out root nodes, using computed sizes for row heights ───────
+  // ── Step 2: lay out root nodes with variable column widths ────────────────
 
   const rootNodes = nodes
     .filter((n) => !n.parentNode)
     .sort((a, b) => getTypeOrder(a) - getTypeOrder(b));
 
-  // Group root nodes by type for row-based layout
+  // Group root nodes by type for row-based layout.
   const byType = new Map<number, DependencyNode[]>();
   for (const node of rootNodes) {
     const order = getTypeOrder(node);
@@ -162,31 +175,33 @@ export function computeSimpleHierarchicalLayout(
     if (!group || group.length === 0) continue;
 
     let col = 0;
-    let rowMaxHeight = ROW_SPACING;
+    let rowX = 0;
+    let rowMaxHeight = 0;
     let rowStartY = currentY;
 
     for (const node of group) {
-      // If this node has a computed size, use its height to track row height.
       const nodeSize = sizes.get(node.id);
-      const nodeHeight = nodeSize?.height ?? ROW_SPACING;
+      const nodeWidth = nodeSize?.width ?? 320;
+      const nodeHeight = nodeSize?.height ?? 260;
+
       rowMaxHeight = Math.max(rowMaxHeight, nodeHeight);
 
-      positions.set(node.id, {
-        x: col * COLUMN_SPACING,
-        y: rowStartY,
-      });
+      positions.set(node.id, { x: rowX, y: rowStartY });
 
       col++;
+      rowX += nodeWidth + ROOT_H_GAP;
+
       if (col >= COLS_PER_ROW) {
         col = 0;
-        rowStartY += rowMaxHeight + ROW_SPACING;
-        rowMaxHeight = ROW_SPACING;
+        rowX = 0;
+        rowStartY += rowMaxHeight + ROOT_V_GAP;
+        rowMaxHeight = 0;
         currentY = rowStartY;
       }
     }
 
-    // Advance past this type group (add one extra row gap between type groups)
-    currentY = rowStartY + rowMaxHeight + ROW_SPACING;
+    // Advance past this type group.
+    currentY = rowStartY + rowMaxHeight + ROOT_V_GAP;
   }
 
   return { positions, sizes };

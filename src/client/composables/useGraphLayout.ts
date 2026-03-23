@@ -264,14 +264,20 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
       // Apply computed positions and explicit sizes to nodes.
       // Children get relative positions within their parent; parents get explicit
-      // width/height so Vue Flow renders them large enough to enclose children.
+      // CSS width/height strings so Vue Flow renders them large enough to enclose
+      // children. Using CSS strings in node.style is the same format Vue Flow's
+      // own handleParentExpand uses, ensuring consistent dimension tracking.
       const positionedNodes = graphData.nodes.map((node) => {
         const pos = positions.get(node.id);
         const sz = sizes.get(node.id);
         return {
           ...node,
           ...(pos ? { position: pos } : {}),
-          ...(sz ? { style: { ...node.style, width: sz.width, height: sz.height } } : {}),
+          ...(sz
+            ? {
+                style: { ...node.style, width: `${sz.width}px`, height: `${sz.height}px` },
+              }
+            : {}),
         };
       });
 

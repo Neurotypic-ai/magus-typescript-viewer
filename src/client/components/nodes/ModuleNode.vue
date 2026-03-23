@@ -260,8 +260,11 @@ useExpandCollapseState(
           class="external-dependency"
         >
           <div class="external-dependency-name">{{ dependency.packageName }}</div>
-          <ul class="external-dependency-symbols" role="list">
-            <li v-for="(sym, symIdx) in dependency.symbols" :key="`${dependency.packageName}-${symIdx}-${sym}`" role="listitem">
+          <ul
+            class="external-dependency-symbols"
+            :aria-label="`Imported symbols from ${dependency.packageName}`"
+          >
+            <li v-for="(sym, symIdx) in dependency.symbols" :key="`${dependency.packageName}-${symIdx}-${sym}`">
               <code class="external-dependency-symbol">{{ sym }}</code>
             </li>
           </ul>
@@ -330,12 +333,20 @@ useExpandCollapseState(
 }
 
 .external-dependency {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem 0.6rem;
   padding: 0.35rem 0.45rem;
   border-radius: 0.35rem;
   background: rgba(255, 255, 255, 0.03);
 }
 
 .external-dependency-name {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--text-primary);
   font-weight: 700;
   font-size: 0.72rem;
@@ -343,15 +354,26 @@ useExpandCollapseState(
 
 .external-dependency-symbols {
   list-style: none;
-  margin: 0.15rem 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 0.12rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+  text-align: right;
+}
+
+.external-dependency-symbols > li {
+  width: 100%;
+  text-align: right;
 }
 
 .external-dependency-symbol {
-  display: block;
+  display: inline-block;
+  max-width: 100%;
   color: var(--text-secondary);
   font-size: 0.68rem;
   line-height: 1.25;
