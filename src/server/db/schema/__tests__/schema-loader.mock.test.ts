@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadSchema } from '../schema-loader';
 
-const mockReadFileSync = vi.fn();
+const { mockReadFileSync } = vi.hoisted(() => ({
+  mockReadFileSync: vi.fn(),
+}));
 
 vi.mock('node:fs', () => ({
   readFileSync: mockReadFileSync,

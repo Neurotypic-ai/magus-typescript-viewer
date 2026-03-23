@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn adapter methods */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { EntityNotFoundError, RepositoryError } from '../../errors/RepositoryError';
 import { SymbolReferenceRepository } from '../SymbolReferenceRepository';
 
@@ -10,16 +12,6 @@ import type { DatabaseRow, IDatabaseAdapter } from '../../adapter/IDatabaseAdapt
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn<IDatabaseAdapter['init']>().mockResolvedValue(undefined),
-    query: vi.fn<IDatabaseAdapter['query']>().mockResolvedValue([]),
-    close: vi.fn<IDatabaseAdapter['close']>().mockResolvedValue(undefined),
-    transaction: vi.fn<IDatabaseAdapter['transaction']>(),
-    getDbPath: vi.fn<IDatabaseAdapter['getDbPath']>().mockReturnValue(':memory:'),
-  };
-}
 
 function makeDTO(overrides: Partial<ISymbolReferenceCreateDTO> = {}): ISymbolReferenceCreateDTO {
   return {
@@ -64,7 +56,7 @@ describe('SymbolReferenceRepository', () => {
   let repo: SymbolReferenceRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new SymbolReferenceRepository(adapter);
   });
 

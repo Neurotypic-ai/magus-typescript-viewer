@@ -7,7 +7,7 @@ import { MethodRepository } from '../MethodRepository';
 
 import type { ParentType } from '../../../../shared/types/ParentType';
 import type { IMethodCreateDTO, IMethodUpdateDTO } from '../../../../shared/types/dto/MethodDTO';
-import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
+import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IMethodRow, IParameterRow } from '../../types/DatabaseResults';
 
 // ---------------------------------------------------------------------------
@@ -74,6 +74,16 @@ function makeParameterRow(overrides: Partial<IParameterRow> = {}): IParameterRow
   };
 }
 
+function getQueryCall(adapter: IDatabaseAdapter, callIndex = 0): [string, unknown[]] {
+  const calls = vi.mocked(adapter.query).mock.calls;
+  const call = calls[callIndex];
+  expect(call).toBeDefined();
+  const raw = call?.[0];
+  const sql = raw == null ? '' : typeof raw === 'string' ? raw : String(raw);
+  const params = (call?.[1] ?? []) as unknown[];
+  return [sql, params];
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -93,7 +103,7 @@ describe('MethodRepository', () => {
   describe('create', () => {
     it('inserts a method row and returns a Method instance', async () => {
       const dto = makeMethodDTO();
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       const result = await repo.create(dto);
 
@@ -111,13 +121,11 @@ describe('MethodRepository', () => {
 
     it('passes has_explicit_return_type defaulting to false', async () => {
       const dto = makeMethodDTO();
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.create(dto);
 
-      const callArgs = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0];
-      const sql: string = callArgs[0];
-      const params: unknown[] = callArgs[1];
+      const [sql, params] = getQueryCall(adapter, 0);
 
       expect(sql).toContain('INSERT INTO methods');
       expect(sql).toContain('has_explicit_return_type');
@@ -127,22 +135,22 @@ describe('MethodRepository', () => {
 
     it('passes has_explicit_return_type when explicitly set to true', async () => {
       const dto = makeMethodDTO({ has_explicit_return_type: true });
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.create(dto);
 
-      const params: unknown[] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const [, params] = getQueryCall(adapter, 0);
       expect(params[params.length - 1]).toBe(true);
     });
 
     it('throws RepositoryError when the query fails', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB write failed'));
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('DB write failed'));
 
       await expect(repo.create(makeMethodDTO())).rejects.toThrow(RepositoryError);
     });
 
     it('returns a Method with an empty parameters map', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       const result = await repo.create(makeMethodDTO());
       expect(result.parameters).toBeInstanceOf(Map);
@@ -162,12 +170,12 @@ describe('MethodRepository', () => {
     it('inserts multiple methods in a single batch statement', async () => {
       const dtos = [makeMethodDTO({ id: 'method-1', name: 'alpha' }), makeMethodDTO({ id: 'method-2', name: 'beta' })];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.createBatch(dtos);
 
       expect(adapter.query).toHaveBeenCalledTimes(1);
-      const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const [sql] = getQueryCall(adapter, 0);
       expect(sql).toContain('INSERT INTO methods');
       // Should have two sets of placeholders
       expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -177,7 +185,7 @@ describe('MethodRepository', () => {
       const dtos = [makeMethodDTO({ id: 'method-1', name: 'alpha' }), makeMethodDTO({ id: 'method-2', name: 'beta' })];
 
       // First batch call fails with duplicate
-      (adapter.query as ReturnType<typeof vi.fn>)
+      vi.mocked(adapter.query)
         .mockRejectedValueOnce(new Error('Duplicate key'))
         // Individual inserts succeed
         .mockResolvedValueOnce([])
@@ -192,7 +200,7 @@ describe('MethodRepository', () => {
     it('skips individual duplicates during fallback', async () => {
       const dtos = [makeMethodDTO({ id: 'method-1', name: 'alpha' }), makeMethodDTO({ id: 'method-2', name: 'beta' })];
 
-      (adapter.query as ReturnType<typeof vi.fn>)
+      vi.mocked(adapter.query)
         .mockRejectedValueOnce(new Error('UNIQUE constraint'))
         // First individual insert is a duplicate
         .mockRejectedValueOnce(new Error('already exists'))
@@ -207,7 +215,7 @@ describe('MethodRepository', () => {
     it('throws non-duplicate errors during batch insert', async () => {
       const dtos = [makeMethodDTO()];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('connection lost'));
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('connection lost'));
 
       await expect(repo.createBatch(dtos)).rejects.toThrow('connection lost');
     });
@@ -221,9 +229,9 @@ describe('MethodRepository', () => {
       const updatedRow = makeMethodRow({ name: 'updatedName', return_type: 'string' });
 
       // First call: UPDATE query
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
       // Second call: retrieve to return updated entity
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([updatedRow]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([updatedRow]);
 
       const updateDTO: IMethodUpdateDTO = { name: 'updatedName', return_type: 'string' };
       const result = await repo.update('method-uuid-1', updateDTO);
@@ -236,11 +244,11 @@ describe('MethodRepository', () => {
     it('builds SET clause only for provided fields', async () => {
       const updatedRow = makeMethodRow({ is_static: true });
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]).mockResolvedValueOnce([updatedRow]);
 
       await repo.update('method-uuid-1', { is_static: true });
 
-      const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const [sql] = getQueryCall(adapter, 0);
       expect(sql).toContain('is_static = ?');
       // Should not contain fields not provided in the DTO
       expect(sql).not.toContain('name = ?');
@@ -249,22 +257,22 @@ describe('MethodRepository', () => {
 
     it('throws EntityNotFoundError when method not found after update', async () => {
       // UPDATE succeeds
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
       // retrieve returns no rows
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await expect(repo.update('nonexistent-id', { name: 'foo' })).rejects.toThrow(EntityNotFoundError);
     });
 
     it('rethrows RepositoryError subclasses without wrapping', async () => {
       const entityError = new EntityNotFoundError('Method', 'bad-id', '[MethodRepository]');
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(entityError);
+      vi.mocked(adapter.query).mockRejectedValueOnce(entityError);
 
       await expect(repo.update('bad-id', { name: 'foo' })).rejects.toThrow(EntityNotFoundError);
     });
 
     it('wraps non-RepositoryError in RepositoryError', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new TypeError('unexpected null'));
+      vi.mocked(adapter.query).mockRejectedValueOnce(new TypeError('unexpected null'));
 
       await expect(repo.update('method-uuid-1', { name: 'x' })).rejects.toThrow(RepositoryError);
     });
@@ -278,7 +286,7 @@ describe('MethodRepository', () => {
       const row1 = makeMethodRow({ id: 'method-1', name: 'alpha' });
       const row2 = makeMethodRow({ id: 'method-2', name: 'beta' });
       const rows = [row1, row2];
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(rows);
+      vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const result = await repo.retrieve();
 
@@ -291,40 +299,38 @@ describe('MethodRepository', () => {
 
     it('filters by id when id is provided', async () => {
       const row = makeMethodRow({ id: 'method-1' });
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
       await repo.retrieve('method-1');
 
-      const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const params: unknown[] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const [sql, params] = getQueryCall(adapter, 0);
       expect(sql).toContain('m.id = ?');
       expect(params).toContain('method-1');
     });
 
     it('filters by module_id when module_id is provided', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.retrieve(undefined, 'mod-uuid-1');
 
-      const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const params: unknown[] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const [sql, params] = getQueryCall(adapter, 0);
       expect(sql).toContain('m.module_id = ?');
       expect(params).toContain('mod-uuid-1');
     });
 
     it('combines id and module_id conditions with AND', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.retrieve('method-1', 'mod-uuid-1');
 
-      const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const [sql] = getQueryCall(adapter, 0);
       expect(sql).toContain('m.id = ?');
       expect(sql).toContain('AND');
       expect(sql).toContain('m.module_id = ?');
     });
 
     it('returns empty array when no results', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       const result = await repo.retrieve('nonexistent');
       expect(result).toEqual([]);
@@ -337,7 +343,7 @@ describe('MethodRepository', () => {
         visibility: 'private',
         return_type: 'Promise<string>',
       });
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
       const [method] = await repo.retrieve('method-uuid-1');
 
@@ -348,7 +354,7 @@ describe('MethodRepository', () => {
     });
 
     it('throws RepositoryError on query failure', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('query timeout'));
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('query timeout'));
 
       await expect(repo.retrieve()).rejects.toThrow(RepositoryError);
     });
@@ -360,7 +366,7 @@ describe('MethodRepository', () => {
   describe('retrieveById', () => {
     it('returns the Method when found', async () => {
       const row = makeMethodRow({ id: 'method-1' });
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([row]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
       const result = await repo.retrieveById('method-1');
 
@@ -369,7 +375,7 @@ describe('MethodRepository', () => {
     });
 
     it('returns undefined when not found', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       const result = await repo.retrieveById('nonexistent');
       expect(result).toBeUndefined();
@@ -385,7 +391,7 @@ describe('MethodRepository', () => {
         makeMethodRow({ id: 'method-1', module_id: 'mod-1' }),
         makeMethodRow({ id: 'method-2', module_id: 'mod-1' }),
       ];
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(rows);
+      vi.mocked(adapter.query).mockResolvedValueOnce(rows);
 
       const result = await repo.retrieveByModuleId('mod-1');
 
@@ -396,7 +402,7 @@ describe('MethodRepository', () => {
     });
 
     it('returns empty array when module has no methods', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       const result = await repo.retrieveByModuleId('empty-mod');
       expect(result).toEqual([]);
@@ -408,7 +414,7 @@ describe('MethodRepository', () => {
   // -----------------------------------------------------------------------
   describe('delete', () => {
     it('deletes parameters first, then the method', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>)
+      vi.mocked(adapter.query)
         .mockResolvedValueOnce([]) // DELETE parameters
         .mockResolvedValueOnce([]); // DELETE method
 
@@ -416,8 +422,8 @@ describe('MethodRepository', () => {
 
       expect(adapter.query).toHaveBeenCalledTimes(2);
 
-      const firstSql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const secondSql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[1][0];
+      const [firstSql] = getQueryCall(adapter, 0);
+      const [secondSql] = getQueryCall(adapter, 1);
 
       expect(firstSql).toContain('DELETE FROM parameters');
       expect(firstSql).toContain('method_id = ?');
@@ -426,19 +432,19 @@ describe('MethodRepository', () => {
     });
 
     it('passes the correct id to both delete queries', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
       await repo.delete('target-id');
 
-      const firstParams = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][1];
-      const secondParams = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[1][1];
+      const [, firstParams] = getQueryCall(adapter, 0);
+      const [, secondParams] = getQueryCall(adapter, 1);
 
       expect(firstParams).toEqual(['target-id']);
       expect(secondParams).toEqual(['target-id']);
     });
 
     it('throws RepositoryError when delete fails', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('FK constraint'));
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('FK constraint'));
 
       await expect(repo.delete('method-uuid-1')).rejects.toThrow(RepositoryError);
     });
@@ -457,7 +463,7 @@ describe('MethodRepository', () => {
     });
 
     it('returns an empty map when no methods exist for the parent', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       const result = await repo.retrieveByParent('class-1', 'class');
 
@@ -468,12 +474,11 @@ describe('MethodRepository', () => {
     });
 
     it('queries with the correct parent_id and parent_type', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.retrieveByParent('iface-1', 'interface');
 
-      const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const params: unknown[] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const [sql, params] = getQueryCall(adapter, 0);
 
       expect(sql).toContain('m.parent_id = ?');
       expect(sql).toContain('m.parent_type = ?');
@@ -491,7 +496,7 @@ describe('MethodRepository', () => {
         makeParameterRow({ id: 'param-3', method_id: 'method-2', name: 'z', type: 'boolean' }),
       ];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
+      vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
 
       const result = await repo.retrieveByParent('class-uuid-1', 'class');
 
@@ -514,7 +519,7 @@ describe('MethodRepository', () => {
     it('handles methods with no parameters', async () => {
       const methodRows: IMethodRow[] = [makeMethodRow({ id: 'method-1' })];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(methodRows).mockResolvedValueOnce([]); // no parameters
+      vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce([]); // no parameters
 
       const result = await repo.retrieveByParent('class-uuid-1', 'class');
 
@@ -537,7 +542,7 @@ describe('MethodRepository', () => {
         }),
       ];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
+      vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
 
       const result = await repo.retrieveByParent('class-uuid-1', 'class');
       const method = result.get('method-1')!;
@@ -565,7 +570,7 @@ describe('MethodRepository', () => {
         }),
       ];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
+      vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
 
       const result = await repo.retrieveByParent('class-uuid-1', 'class');
       const param = (result.get('method-1')!.parameters as Map<string, Parameter>).get('param-1')!;
@@ -575,7 +580,7 @@ describe('MethodRepository', () => {
     });
 
     it('throws RepositoryError on query failure', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('connection refused'));
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('connection refused'));
 
       await expect(repo.retrieveByParent('class-1', 'class')).rejects.toThrow(RepositoryError);
     });
@@ -602,7 +607,7 @@ describe('MethodRepository', () => {
     });
 
     it('initializes empty maps for every requested parent', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]); // no methods
+      vi.mocked(adapter.query).mockResolvedValueOnce([]); // no methods
 
       const result = await repo.retrieveByParentIds(['p1', 'p2', 'p3'], 'interface');
 
@@ -613,12 +618,11 @@ describe('MethodRepository', () => {
     });
 
     it('queries with IN clause for parent ids and parent_type', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.retrieveByParentIds(['p1', 'p2'], 'class');
 
-      const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const params: unknown[] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const [sql, params] = getQueryCall(adapter, 0);
 
       expect(sql).toContain('IN (?, ?)');
       expect(sql).toContain('m.parent_type = ?');
@@ -636,7 +640,7 @@ describe('MethodRepository', () => {
         makeParameterRow({ id: 'param-2', method_id: 'method-3', name: 'y' }),
       ];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
+      vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce(paramRows);
 
       const result = await repo.retrieveByParentIds(['p1', 'p2'], 'class');
 
@@ -655,19 +659,19 @@ describe('MethodRepository', () => {
     it('fetches parameters for retrieved methods', async () => {
       const methodRows: IMethodRow[] = [makeMethodRow({ id: 'method-1', parent_id: 'p1' })];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(methodRows).mockResolvedValueOnce([]); // parameters query
+      vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce([]); // parameters query
 
       await repo.retrieveByParentIds(['p1'], 'class');
 
       // Should have 2 queries: methods + parameters
       expect(adapter.query).toHaveBeenCalledTimes(2);
-      const paramSql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[1][0];
+      const [paramSql] = getQueryCall(adapter, 1);
       expect(paramSql).toContain('SELECT p.* FROM parameters p');
       expect(paramSql).toContain('p.method_id IN');
     });
 
     it('does not query for parameters when no methods found', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce([]);
 
       await repo.retrieveByParentIds(['p1'], 'class');
 
@@ -676,7 +680,7 @@ describe('MethodRepository', () => {
     });
 
     it('throws RepositoryError on query failure', async () => {
-      (adapter.query as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('database locked'));
+      vi.mocked(adapter.query).mockRejectedValueOnce(new Error('database locked'));
 
       await expect(repo.retrieveByParentIds(['p1'], 'class')).rejects.toThrow(RepositoryError);
     });
@@ -686,7 +690,7 @@ describe('MethodRepository', () => {
       // (shouldn't happen in practice, but ensures no crash)
       const methodRows: IMethodRow[] = [makeMethodRow({ id: 'method-1', parent_id: 'p-unknown' })];
 
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(methodRows).mockResolvedValueOnce([]);
+      vi.mocked(adapter.query).mockResolvedValueOnce(methodRows).mockResolvedValueOnce([]);
 
       const result = await repo.retrieveByParentIds(['p1'], 'class');
 
@@ -702,7 +706,7 @@ describe('MethodRepository', () => {
   describe('constructor', () => {
     it('sets the table name to "methods"', async () => {
       // Access the protected tableName through a query that embeds it
-      (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      vi.mocked(adapter.query).mockResolvedValue([]);
 
       // Trigger an update which uses this.tableName
       await repo.update('x', { name: 'y' }).catch(() => {
@@ -710,7 +714,7 @@ describe('MethodRepository', () => {
       });
 
       // The UPDATE query should reference the "methods" table
-      const sql: string = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '';
+      const [sql] = getQueryCall(adapter, 0);
       expect(sql).toContain('methods');
     });
   });

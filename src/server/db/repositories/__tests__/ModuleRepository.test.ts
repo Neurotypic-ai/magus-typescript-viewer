@@ -1,7 +1,9 @@
 // @vitest-environment node
+/* eslint-disable @typescript-eslint/unbound-method -- test doubles: adapter.query is vi.fn */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { Module } from '../../../../shared/types/Module';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { ModuleRepository } from '../ModuleRepository';
@@ -14,17 +16,6 @@ import type { IModuleRow } from '../../types/DatabaseResults';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createMockAdapter(overrides: Partial<IDatabaseAdapter> = {}): IDatabaseAdapter {
-  return {
-    init: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue([]),
-    close: vi.fn().mockResolvedValue(undefined),
-    transaction: vi.fn().mockImplementation(async (cb: () => Promise<unknown>) => cb()),
-    getDbPath: vi.fn().mockReturnValue(':memory:'),
-    ...overrides,
-  };
-}
 
 function createFileLocation(overrides: Partial<FileLocation> = {}): FileLocation {
   return {
@@ -70,9 +61,10 @@ function getQueryCall(adapter: IDatabaseAdapter, callIndex = 0): [string, unknow
   const calls = vi.mocked(adapter.query).mock.calls;
   const call = calls[callIndex];
   expect(call).toBeDefined();
-  const sql = call?.[0] ?? '';
+  const raw = call?.[0];
+  const sql = raw == null ? '' : typeof raw === 'string' ? raw : String(raw);
   const params = (call?.[1] ?? []) as unknown[];
-  return [sql as string, params];
+  return [sql, params];
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +76,7 @@ describe('ModuleRepository', () => {
   let repo: ModuleRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new ModuleRepository(adapter);
   });
 
@@ -150,7 +142,9 @@ describe('ModuleRepository', () => {
     });
 
     it('should default line_count to 0 when not provided', async () => {
-      const dto = createModuleDTO({ line_count: undefined });
+      const base = createModuleDTO();
+      const { line_count: _omit, ...withoutLineCount } = base;
+      const dto = withoutLineCount as IModuleCreateDTO;
       const row = createModuleRow(dto);
 
       vi.mocked(adapter.query).mockResolvedValueOnce([row] as QueryResult);
@@ -505,7 +499,8 @@ describe('ModuleRepository', () => {
 
       // Verify cascading deletes happen in correct order
       const deletedTables = calls.map(([sql]) => {
-        const match = /DELETE FROM (\w+)/.exec(sql as string);
+        const sqlText = typeof sql === 'string' ? sql : String(sql);
+        const match = /DELETE FROM (\w+)/.exec(sqlText);
         return match?.[1];
       });
 

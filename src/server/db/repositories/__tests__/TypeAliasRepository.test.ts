@@ -1,27 +1,19 @@
 // @vitest-environment node
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn adapter methods */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { TypeAlias } from '../../../../shared/types/TypeAlias';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { TypeAliasRepository } from '../TypeAliasRepository';
 
 import type { ITypeAliasCreateDTO } from '../../../../shared/types/dto/TypeAliasDTO';
-import type { IDatabaseAdapter, QueryResult } from '../../adapter/IDatabaseAdapter';
+import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { ITypeAliasRow } from '../../types/DatabaseResults';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    query: vi.fn<() => Promise<QueryResult>>().mockResolvedValue([]),
-    close: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    transaction: vi.fn<() => Promise<unknown>>(),
-    getDbPath: vi.fn<() => string>().mockReturnValue(':memory:'),
-  };
-}
 
 function makeRow(overrides: Partial<ITypeAliasRow> = {}): ITypeAliasRow {
   return {
@@ -56,7 +48,7 @@ describe('TypeAliasRepository', () => {
   let repo: TypeAliasRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new TypeAliasRepository(adapter);
   });
 

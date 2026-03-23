@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn adapter methods */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { Enum } from '../../../../shared/types/Enum';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { EnumRepository } from '../EnumRepository';
@@ -11,16 +13,6 @@ import type { IEnumRow } from '../../types/DatabaseResults';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn<IDatabaseAdapter['init']>().mockResolvedValue(undefined),
-    query: vi.fn<IDatabaseAdapter['query']>().mockResolvedValue([]),
-    close: vi.fn<IDatabaseAdapter['close']>().mockResolvedValue(undefined),
-    transaction: vi.fn<IDatabaseAdapter['transaction']>(),
-    getDbPath: vi.fn<IDatabaseAdapter['getDbPath']>().mockReturnValue(':memory:'),
-  };
-}
 
 const NOW_ISO = '2025-01-15T12:00:00.000Z';
 
@@ -45,7 +37,7 @@ describe('EnumRepository', () => {
   let repo: EnumRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new EnumRepository(adapter);
   });
 

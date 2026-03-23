@@ -2,16 +2,9 @@ import type { Parameter } from './Parameter';
 import type { TypeCollection } from './TypeCollection';
 
 /**
- * Type guard to check if a value is a Function
- */
-export function isFunction(value: unknown): value is ModuleFunction {
-  return value instanceof ModuleFunction;
-}
-
-/**
  * Represents a module-level function with its parameters and return type.
  */
-export interface IModuleFunction {
+interface IModuleFunction {
   /**
    * The unique identifier for the function.
    */

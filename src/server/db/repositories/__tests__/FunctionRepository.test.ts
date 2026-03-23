@@ -1,25 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ModuleFunction } from '../../../../shared/types/Function';
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { FunctionRepository } from '../FunctionRepository';
 
 import type { IFunctionCreateDTO } from '../../../../shared/types/dto/FunctionDTO';
 import type { IDatabaseAdapter } from '../../adapter/IDatabaseAdapter';
 import type { IFunctionRow } from '../../types/DatabaseResults';
-
-/**
- * Creates a mock IDatabaseAdapter with vi.fn() stubs for every method.
- */
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue([]),
-    close: vi.fn().mockResolvedValue(undefined),
-    transaction: vi.fn().mockImplementation(async (cb: () => Promise<unknown>) => cb()),
-    getDbPath: vi.fn().mockReturnValue(':memory:'),
-  };
-}
 
 /**
  * Returns a realistic IFunctionRow as DuckDB would return it.
@@ -59,7 +47,7 @@ describe('FunctionRepository', () => {
   let repo: FunctionRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new FunctionRepository(adapter);
   });
 
@@ -106,11 +94,13 @@ describe('FunctionRepository', () => {
       const row = makeFunctionRow({ return_type: null, is_async: 'false', is_exported: 'false' });
       vi.mocked(adapter.query).mockResolvedValueOnce([row]);
 
-      const dto = makeCreateDTO({
-        return_type: undefined,
-        is_async: undefined,
-        is_exported: undefined,
-      });
+      const base = makeCreateDTO();
+      const dto: IFunctionCreateDTO = {
+        id: base.id,
+        package_id: base.package_id,
+        module_id: base.module_id,
+        name: base.name,
+      };
       const result = await repo.create(dto);
 
       const [, params] = vi.mocked(adapter.query).mock.calls[0]!;
@@ -524,8 +514,10 @@ describe('FunctionRepository', () => {
 
       const result = await repo.findById('func-uuid-1');
 
-      expect(result?.parameters).toBeInstanceOf(Map);
-      expect(result?.parameters.size).toBe(0);
+      const parameters = result?.parameters;
+      expect(parameters).toBeInstanceOf(Map);
+      if (!(parameters instanceof Map)) throw new Error('expected parameters Map');
+      expect(parameters.size).toBe(0);
     });
   });
 });

@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Parameter } from '../../../../shared/types/Parameter';
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { EntityNotFoundError, NoFieldsToUpdateError, RepositoryError } from '../../errors/RepositoryError';
 import { ParameterRepository } from '../ParameterRepository';
 
@@ -13,17 +14,6 @@ import type { IParameterRow } from '../../types/DatabaseResults';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createMockAdapter(overrides: Partial<IDatabaseAdapter> = {}): IDatabaseAdapter {
-  return {
-    init: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue([]),
-    close: vi.fn().mockResolvedValue(undefined),
-    transaction: vi.fn().mockImplementation(async (cb: () => Promise<unknown>) => cb()),
-    getDbPath: vi.fn().mockReturnValue(':memory:'),
-    ...overrides,
-  };
-}
-
 function makeDTO(overrides: Partial<IParameterCreateDTO> = {}): IParameterCreateDTO {
   return {
     id: 'param-1',
@@ -34,7 +24,6 @@ function makeDTO(overrides: Partial<IParameterCreateDTO> = {}): IParameterCreate
     type: 'string',
     is_optional: false,
     is_rest: false,
-    default_value: undefined,
     ...overrides,
   };
 }
@@ -64,7 +53,7 @@ describe('ParameterRepository', () => {
   let repo: ParameterRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new ParameterRepository(adapter);
   });
 
@@ -126,7 +115,7 @@ describe('ParameterRepository', () => {
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      adapter = createMockAdapter({
+      adapter = createMockDatabaseAdapter({
         query: vi.fn().mockRejectedValue(new Error('DB connection lost')),
       });
       repo = new ParameterRepository(adapter);
@@ -196,7 +185,7 @@ describe('ParameterRepository', () => {
     });
 
     it('wraps non-RepositoryError errors in RepositoryError', async () => {
-      adapter = createMockAdapter({
+      adapter = createMockDatabaseAdapter({
         query: vi.fn().mockRejectedValue(new TypeError('something unexpected')),
       });
       repo = new ParameterRepository(adapter);
@@ -289,7 +278,7 @@ describe('ParameterRepository', () => {
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      adapter = createMockAdapter({
+      adapter = createMockDatabaseAdapter({
         query: vi.fn().mockRejectedValue(new Error('query failed')),
       });
       repo = new ParameterRepository(adapter);
@@ -351,7 +340,7 @@ describe('ParameterRepository', () => {
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      adapter = createMockAdapter({
+      adapter = createMockDatabaseAdapter({
         query: vi.fn().mockRejectedValue(new Error('delete failed')),
       });
       repo = new ParameterRepository(adapter);
@@ -403,7 +392,7 @@ describe('ParameterRepository', () => {
     });
 
     it('wraps adapter errors in RepositoryError', async () => {
-      adapter = createMockAdapter({
+      adapter = createMockDatabaseAdapter({
         query: vi.fn().mockRejectedValue(new Error('method lookup failed')),
       });
       repo = new ParameterRepository(adapter);

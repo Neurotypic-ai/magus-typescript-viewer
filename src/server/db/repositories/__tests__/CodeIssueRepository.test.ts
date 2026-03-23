@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/unbound-method -- vi.fn adapter methods */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockDatabaseAdapter } from '../../__tests__/mockDatabaseAdapter';
 import { RepositoryError } from '../../errors/RepositoryError';
 import { CodeIssueRepository } from '../CodeIssueRepository';
 
@@ -11,16 +13,6 @@ import type { ICodeIssueRow } from '../../types/DatabaseResults';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function createMockAdapter(): IDatabaseAdapter {
-  return {
-    init: vi.fn<IDatabaseAdapter['init']>().mockResolvedValue(undefined),
-    query: vi.fn<IDatabaseAdapter['query']>().mockResolvedValue([]),
-    close: vi.fn<IDatabaseAdapter['close']>().mockResolvedValue(undefined),
-    transaction: vi.fn<IDatabaseAdapter['transaction']>(),
-    getDbPath: vi.fn<IDatabaseAdapter['getDbPath']>().mockReturnValue(':memory:'),
-  };
-}
 
 function makeRow(overrides: Partial<ICodeIssueRow> = {}): ICodeIssueRow {
   return {
@@ -70,7 +62,7 @@ describe('CodeIssueRepository', () => {
   let repo: CodeIssueRepository;
 
   beforeEach(() => {
-    adapter = createMockAdapter();
+    adapter = createMockDatabaseAdapter();
     repo = new CodeIssueRepository(adapter);
   });
 
