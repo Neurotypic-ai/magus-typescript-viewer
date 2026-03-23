@@ -1,6 +1,4 @@
-import type { DependencyNode } from '../types/DependencyNode';
-
-export interface NodeDimensionMeasurement {
+interface NodeDimensionMeasurement {
   width: number;
   height: number;
   headerHeight: number;
@@ -166,8 +164,4 @@ export function createNodeDimensionTracker(): NodeDimensionTracker {
       paused = false;
     },
   };
-}
-
-export function isContainerNode(node: DependencyNode): boolean {
-  return node.type === 'module' || node.type === 'package' || node.type === 'group' || node.data?.isContainer === true;
 }

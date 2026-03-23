@@ -2,21 +2,21 @@ import { computed } from 'vue';
 import { useVueFlow } from '@vue-flow/core';
 
 /** Axis-aligned bounding rectangle used for obstacle-aware routing. */
-export interface ObstacleRect {
+interface ObstacleRect {
   x: number;
   y: number;
   width: number;
   height: number;
 }
 
-export interface FolderObstacleSnapshot {
+interface FolderObstacleSnapshot {
   folderId: string;
   ready: boolean;
   version: string;
   obstacles: (ObstacleRect & { nodeId: string })[];
 }
 
-export interface IntraFolderObstacleIndex {
+interface IntraFolderObstacleIndex {
   getSnapshot(folderId: string): FolderObstacleSnapshot | null;
 }
 

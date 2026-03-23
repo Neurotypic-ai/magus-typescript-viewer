@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { consola } from 'consola';
 import { defineAsyncComponent, markRaw, onMounted, onUnmounted, ref, shallowRef } from 'vue';
 
-import { createLogger } from '../shared/utils/logger';
 import { GraphHydrator } from './assemblers/GraphHydrator';
 import ErrorBoundary from './components/ErrorBoundary.vue';
 
@@ -10,8 +10,7 @@ import type { PackageGraph } from '../shared/types/Package';
 // Lazy load the DependencyGraph component for code splitting and better performance
 const DependencyGraph = defineAsyncComponent(() => import('./components/DependencyGraphLazy.vue'));
 
-// Create an app-specific logger
-const appLogger = createLogger('App');
+const appLogger = consola.withTag('App');
 const graphHydrator = new GraphHydrator();
 
 const graphData = shallowRef<PackageGraph>({ packages: [] });

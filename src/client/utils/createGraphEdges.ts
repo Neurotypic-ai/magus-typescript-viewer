@@ -1,3 +1,5 @@
+import { consola } from 'consola';
+
 import { createEdgeMarker } from './edgeMarkers';
 import { isValidEdgeConnection } from '../graph/edgeTypeRegistry';
 import { mapTypeCollection, typeCollectionToArray } from './collections';
@@ -20,6 +22,7 @@ type ImportDirection = 'importer-to-imported' | 'imported-to-importer';
 const EDGE_REGISTRY_DEBUG =
   import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
 const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
+const graphEdgesLogger = consola.withTag('GraphEdges');
 
 export interface CreateGraphEdgesOptions {
   includePackageEdges?: boolean;
@@ -440,9 +443,8 @@ export function createGraphEdges(
   }
 
   if (EDGE_REGISTRY_DEBUG && invalidEdgeRegistryCount > 0) {
-    console.warn(
-      '[createGraphEdges] ' +
-        String(invalidEdgeRegistryCount) +
+    graphEdgesLogger.warn(
+      String(invalidEdgeRegistryCount) +
         ' edge(s) failed edge-type registry validation. ' +
         'Set VITE_DEBUG_EDGE_REGISTRY=false (or unset) to silence this check.',
       { sample: invalidEdgeRegistrySamples }

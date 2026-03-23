@@ -12,7 +12,7 @@ const MAC_MOUSE_WHEEL_ZOOM_SENSITIVITY = 0.006;
 const DEFAULT_MAC_TRACKPAD_PAN_SPEED = 1.6;
 const MAX_ZOOM_DELTA_PER_EVENT = 140;
 
-export interface UseGraphViewportOptions {
+interface UseGraphViewportOptions {
   getViewport: () => { x: number; y: number; zoom: number };
   setViewport: (vp: { x: number; y: number; zoom: number }, opts?: { duration: number }) => Promise<boolean>;
   zoomTo: (zoom: number, opts?: { duration: number }) => Promise<boolean>;
@@ -21,7 +21,7 @@ export interface UseGraphViewportOptions {
   onViewportChange?: () => void;
 }
 
-export interface GraphViewport {
+interface GraphViewport {
   viewportState: Ref<{ x: number; y: number; zoom: number }>;
   isPanning: Ref<boolean>;
   isMac: Ref<boolean>;

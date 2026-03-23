@@ -2,11 +2,11 @@ import type { Ref } from 'vue';
 
 import type { DependencyNode } from '../types/DependencyNode';
 
-export interface UseMinimapHelpersOptions {
+interface UseMinimapHelpersOptions {
   selectedNode: Ref<DependencyNode | null>;
 }
 
-export interface MinimapHelpers {
+interface MinimapHelpers {
   minimapNodeColor: (node: { type?: string }) => string;
   minimapNodeStrokeColor: (node: { id?: string }) => string;
 }

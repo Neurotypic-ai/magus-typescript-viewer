@@ -1,3 +1,5 @@
+import { consola } from 'consola';
+
 import { type EdgeHandleSide, GROUP_ENTRY_STUB_PX, getHandleSide } from '../../layout/edgeGeometryPolicy';
 import { buildAbsoluteNodeBoundsMap } from '../../layout/geometryBounds';
 import { getEdgeStyle } from '../../theme/graphTheme';
@@ -17,12 +19,13 @@ import type { GraphEdge } from '../../types/GraphEdge';
 const EDGE_REGISTRY_DEBUG =
   import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
 const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
+const edgeHighwaysLogger = consola.withTag('EdgeHighways');
 
-export interface EdgeHighwayOptions {
+interface EdgeHighwayOptions {
   direction: 'LR' | 'RL' | 'TB' | 'BT';
 }
 
-export interface EdgeHighwayResult {
+interface EdgeHighwayResult {
   nodes: DependencyNode[];
   edges: GraphEdge[];
 }
@@ -208,8 +211,8 @@ export function applyEdgeHighways(
   }
 
   if (EDGE_REGISTRY_DEBUG && invalidEdgeRegistryCount > 0) {
-    console.warn(
-      '[edgeHighways] skipped ' +
+    edgeHighwaysLogger.warn(
+      'Skipped ' +
         String(invalidEdgeRegistryCount) +
         ' edge(s) with invalid type/source/target kind combinations.',
       { sample: invalidEdgeRegistrySamples }

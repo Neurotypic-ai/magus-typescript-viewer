@@ -1,7 +1,8 @@
-import { createLogger } from '../../../shared/utils/logger';
+import { consola } from 'consola';
+
 import { RepositoryError } from '../errors/RepositoryError';
 
-import type { Logger } from '../../../shared/utils/logger';
+import type { ConsolaInstance } from 'consola';
 import type { DatabaseRow, IDatabaseAdapter, QueryParams } from '../adapter/IDatabaseAdapter';
 
 interface IBaseEntity {
@@ -28,13 +29,13 @@ export abstract class BaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO
   protected adapter: IDatabaseAdapter;
   protected readonly errorTag: string;
   protected readonly tableName: string;
-  protected readonly logger: Logger;
+  protected readonly logger: ConsolaInstance;
 
   constructor(adapter: IDatabaseAdapter, errorTag: string, tableName: string) {
     this.adapter = adapter;
     this.errorTag = errorTag;
     this.tableName = tableName;
-    this.logger = createLogger(errorTag);
+    this.logger = consola.withTag(errorTag);
   }
 
   abstract create(dto: CreateDTO): Promise<T>;

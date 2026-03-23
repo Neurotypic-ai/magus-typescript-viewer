@@ -1,8 +1,10 @@
 import http from 'node:http';
 
+import { consola } from 'consola';
+
 import { ApiServerResponder } from './server/ApiServerResponder';
 import { RepositoryError } from './server/db/errors/RepositoryError';
-import { createLogger } from './shared/utils/logger';
+import { RefactorEngine } from './server/refactors/RefactorEngine';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,7 +23,7 @@ function mapReplacer(_key: string, value: unknown) {
     return obj;
   }
   if (value instanceof Set) {
-    return Array.from(value);
+    return Array.from(value.values()) as unknown[];
   }
   return value;
 }
@@ -59,8 +61,7 @@ function readRequestBody(req: http.IncomingMessage): Promise<string> {
   });
 }
 
-// Initialize logger
-const logger = createLogger('Server');
+const logger = consola.withTag('Server');
 
 // Initialize database and repositories in read-only mode
 const apiServerResponder = new ApiServerResponder({
@@ -242,7 +243,6 @@ const server = http.createServer((req, res) => {
             return;
           }
 
-          const { RefactorEngine } = await import('./server/refactors/RefactorEngine');
           const engine = new RefactorEngine();
           const request = {
             filePath: issue.file_path,

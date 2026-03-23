@@ -1,10 +1,10 @@
 import { access, readFile } from 'fs/promises';
 import { dirname, join, relative } from 'path';
 
+import { consola } from 'consola';
 import jscodeshift from 'jscodeshift';
 
 import { Export } from '../../shared/types/Export';
-import { createLogger } from '../../shared/utils/logger';
 import { generateExportUUID, generateModuleUUID } from '../utils/uuid';
 
 import type { FileLocation } from '../../shared/types/FileLocation';
@@ -19,7 +19,7 @@ import { parseEnums, parseFunctions, parseTypeAliases, parseVariables } from './
 
 export class ModuleParser {
   private readonly j = jscodeshift.withParser('tsx');
-  private readonly logger = createLogger('ModuleParser');
+  private readonly logger = consola.withTag('ModuleParser');
 
   constructor(
     private readonly filePath: string,
@@ -90,7 +90,7 @@ export class ModuleParser {
 
       return result;
     } catch (error) {
-      console.warn(
+      this.logger.warn(
         `Warning: Failed to process ${relativePath}:`,
         error instanceof Error ? error.message : String(error)
       );

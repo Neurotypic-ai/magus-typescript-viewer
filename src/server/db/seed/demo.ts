@@ -1,3 +1,5 @@
+import { consola } from 'consola';
+
 import {
   generateClassUUID,
   generateInterfaceUUID,
@@ -14,6 +16,8 @@ import { MethodRepository } from '../repositories/MethodRepository';
 import { ModuleRepository } from '../repositories/ModuleRepository';
 import { PackageRepository } from '../repositories/PackageRepository';
 import { PropertyRepository } from '../repositories/PropertyRepository';
+
+const demoSeedLogger = consola.withTag('DemoSeed');
 
 /**
  * Creates and seeds an in-memory database with sample TypeScript project data.
@@ -109,7 +113,7 @@ export async function createDemoDatabase(): Promise<Database> {
 
     return db;
   } catch (error) {
-    console.error('Error seeding demo database:', error);
+    demoSeedLogger.error('Error seeding demo database:', error);
     if (error instanceof Error) {
       throw new Error(`Error seeding demo database: ${error.message}`);
     }

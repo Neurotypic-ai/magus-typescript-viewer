@@ -4,12 +4,12 @@ import type { DependencyNode } from '../types/DependencyNode';
 
 const HOVER_Z = '9999';
 
-export interface UseNodeHoverZIndexOptions {
+interface UseNodeHoverZIndexOptions {
   graphRootRef: Ref<HTMLElement | null>;
   nodes: Ref<DependencyNode[]>;
 }
 
-export interface NodeHoverZIndex {
+interface NodeHoverZIndex {
   elevateNodeAndChildren: (nodeId: string) => void;
   restoreHoverZIndex: (nodeId: string) => void;
 }

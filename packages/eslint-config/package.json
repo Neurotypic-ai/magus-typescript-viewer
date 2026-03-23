@@ -46,5 +46,8 @@
     "lint:fix": "eslint . --fix"
   },
   "type": "module",
-  "version": "5.0.0"
+  "version": "5.0.0",
+  "dependencies": {
+    "consola": "^3.4.2"
+  }
 }

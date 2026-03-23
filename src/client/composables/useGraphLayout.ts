@@ -1,3 +1,4 @@
+import { consola } from 'consola';
 import { nextTick, ref } from 'vue';
 
 import { buildOverviewGraph } from '../graph/buildGraphView';
@@ -13,6 +14,8 @@ import type { DependencyNode } from '../types/DependencyNode';
 import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
+
+const layoutLogger = consola.withTag('GraphLayout');
 
 export interface LayoutProcessOptions {
   fitViewToResult?: boolean;
@@ -292,7 +295,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       return { nodes: finalNodes, edges: normalized.edges };
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error during layout processing');
-      console.error('Layout processing failed:', error);
+      layoutLogger.error('Layout processing failed:', error);
       return null;
     } finally {
       graphStore.resumeCacheWrites();
@@ -335,7 +338,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error during graph initialization');
-      console.error('Graph initialization failed:', error);
+      layoutLogger.error('Graph initialization failed:', error);
     }
   };
 

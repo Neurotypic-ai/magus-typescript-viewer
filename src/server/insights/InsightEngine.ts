@@ -1,4 +1,5 @@
-import { createLogger } from '../../shared/utils/logger';
+import { consola } from 'consola';
+
 import { buildImportGraph } from './import-graph';
 import { detectCommunities, findArticulationPoints, findStronglyConnectedComponents } from './graph-algorithms';
 
@@ -131,7 +132,7 @@ function inferExternalPackageName(source: string): string | undefined {
 
 export class InsightEngine {
   private readonly adapter: IDatabaseAdapter;
-  private readonly logger = createLogger('InsightEngine');
+  private readonly logger = consola.withTag('InsightEngine');
 
   constructor(adapter: IDatabaseAdapter) {
     this.adapter = adapter;

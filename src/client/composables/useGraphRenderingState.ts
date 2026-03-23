@@ -8,7 +8,7 @@ import type { GraphEdge } from '../types/GraphEdge';
 const EDGE_MARKER_WIDTH_PX = 12;
 const EDGE_MARKER_HEIGHT_PX = 12;
 
-export interface GraphRenderingThresholds {
+interface GraphRenderingThresholds {
   EDGE_VISIBLE_RENDER_THRESHOLD: number;
   MINIMAP_AUTO_HIDE_EDGE_THRESHOLD: number;
   HEAVY_EDGE_STYLE_THRESHOLD: number;
@@ -17,7 +17,7 @@ export interface GraphRenderingThresholds {
   NODE_VISIBLE_RENDER_THRESHOLD: number;
 }
 
-export interface UseGraphRenderingStateOptions {
+interface UseGraphRenderingStateOptions {
   env: GraphRenderingThresholds;
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
@@ -26,7 +26,7 @@ export interface UseGraphRenderingStateOptions {
   isFirefox: Ref<boolean>;
 }
 
-export interface GraphRenderingState {
+interface GraphRenderingState {
   renderedEdges: ComputedRef<GraphEdge[]>;
   useOnlyRenderVisibleElements: ComputedRef<boolean>;
   isHeavyEdgeMode: ComputedRef<boolean>;

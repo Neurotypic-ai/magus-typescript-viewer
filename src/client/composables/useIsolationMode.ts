@@ -29,10 +29,10 @@ import type { GraphEdge } from '../types/GraphEdge';
 // ── Isolate graph store (subset of full graph store) ──
 
 /** Restores the overview snapshot; returns true if restored. */
-export type RestoreOverviewSnapshot = () => boolean;
+type RestoreOverviewSnapshot = () => boolean;
 
 /** Graph store API used by isolation mode (setNodes, setEdges, snapshots, restore). */
-export interface IsolateGraphStore {
+interface IsolateGraphStore {
   setNodes: (nodes: DependencyNode[]) => void;
   setEdges: (edges: GraphEdge[]) => void;
   setViewMode: (mode: GraphViewMode) => void;
@@ -42,29 +42,29 @@ export interface IsolateGraphStore {
 }
 
 /** Graph settings used by isolation mode. */
-export interface IsolateGraphSettings {
+interface IsolateGraphSettings {
   activeRelationshipTypes: string[];
 }
 
 /** Interaction API for scope mode (isolate, symbolDrilldown, overview). */
-export interface IsolateInteraction {
+interface IsolateInteraction {
   setScopeMode: (mode: ScopeMode) => void;
   scopeMode: Readonly<Ref<ScopeMode>>;
 }
 
 /** Sets the currently selected node (or null). */
-export type SetSelectedNode = (node: DependencyNode | null) => void;
+type SetSelectedNode = (node: DependencyNode | null) => void;
 
 /** Requests full graph initialization (overview layout). */
-export type RequestGraphInitialization = () => Promise<void>;
+type RequestGraphInitialization = () => Promise<void>;
 
 /** Map of node id → position (x, y). */
-export type NodePositionMap = Map<string, { x: number; y: number }>;
+type NodePositionMap = Map<string, { x: number; y: number }>;
 
 /** Layout direction for isolate layout (LR, RL, TB, BT). */
-export type LayoutDirection = LayoutConfig['direction'];
+type LayoutDirection = LayoutConfig['direction'];
 
-export interface UseIsolationModeOptions {
+interface UseIsolationModeOptions {
   propsData: Ref<PackageGraph>;
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
@@ -84,15 +84,15 @@ export interface UseIsolationModeOptions {
 }
 
 /** Isolates the neighborhood of a node (inbound/outbound). */
-export type IsolateNeighborhood = (nodeId: string) => Promise<void>;
+type IsolateNeighborhood = (nodeId: string) => Promise<void>;
 
 /** Opens the symbol drilldown graph for a node. */
-export type HandleOpenSymbolUsageGraph = (nodeId: string) => Promise<void>;
+type HandleOpenSymbolUsageGraph = (nodeId: string) => Promise<void>;
 
 /** Returns to overview (restore snapshot or re-init). */
-export type HandleReturnToOverview = () => Promise<void>;
+type HandleReturnToOverview = () => Promise<void>;
 
-export interface IsolationMode {
+interface IsolationMode {
   isIsolateAnimating: Readonly<Ref<boolean>>;
   isolateExpandAll: Ref<boolean>;
   isolateNeighborhood: IsolateNeighborhood;

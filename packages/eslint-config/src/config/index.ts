@@ -1,3 +1,5 @@
+import { consola } from 'consola';
+
 import { baseConfig } from './base';
 import { ignoresConfig } from './ignore';
 import { jsConfig } from './javascript';
@@ -76,7 +78,7 @@ export function createESLintConfig(
   ];
 
   if (DEBUG) {
-    console.info(configs);
+    consola.withTag('ESLintConfig').info(configs);
   }
 
   return configs;

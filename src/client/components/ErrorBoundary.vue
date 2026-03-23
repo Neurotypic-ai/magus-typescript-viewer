@@ -1,9 +1,8 @@
 <script setup lang="ts">
+import { consola } from 'consola';
 import { onErrorCaptured, ref } from 'vue';
 
-import { createLogger } from '../../shared/utils/logger';
-
-const errorLogger = createLogger('ErrorBoundary');
+const errorLogger = consola.withTag('ErrorBoundary');
 
 /**
  * Error telemetry service for collecting error data

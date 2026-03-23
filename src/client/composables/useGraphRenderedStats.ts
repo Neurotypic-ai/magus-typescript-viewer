@@ -6,12 +6,12 @@ import type { GraphStatCountEntry } from './dependencyGraphCoreTypes';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
-export interface UseGraphRenderedStatsOptions {
+interface UseGraphRenderedStatsOptions {
   visualNodes: Ref<DependencyNode[]>;
   visualEdges: Ref<GraphEdge[]>;
 }
 
-export interface GraphRenderedStats {
+interface GraphRenderedStats {
   renderedNodeCount: ComputedRef<number>;
   renderedEdgeCount: ComputedRef<number>;
   renderedNodeTypeCounts: ComputedRef<GraphStatCountEntry[]>;

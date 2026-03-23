@@ -1,9 +1,13 @@
 import * as fs from 'fs/promises';
 import { join } from 'path';
 
+import { consola } from 'consola';
+
 import { loadSchema } from './schema/schema-loader';
 
 import type { IDatabaseAdapter } from './adapter/IDatabaseAdapter';
+
+const databaseLogger = consola.withTag('Database');
 
 export class Database {
   private adapter: IDatabaseAdapter;
@@ -143,7 +147,7 @@ export class Database {
         // Check if table exists by selecting 1 row
         await this.adapter.query(`SELECT 1 FROM ${table} LIMIT 1`);
       } catch {
-        console.log(`Schema verification missing table: ${table}`);
+        databaseLogger.warn(`Schema verification missing table: ${table}`);
         return false;
       }
     }
@@ -160,9 +164,9 @@ export class Database {
   }
 
   public async initializeDatabase(reset = false, allowSchemaChanges = true): Promise<void> {
-    console.log('this.dbPath', this.dbPath);
+    databaseLogger.info('dbPath', this.dbPath);
     if (this.dbPath === ':memory:') {
-      console.log('initializing in-memory database');
+      databaseLogger.info('Initializing in-memory database');
       if (!allowSchemaChanges) {
         throw new Error('Cannot initialize in-memory database in read-only mode without schema changes');
       }
@@ -172,14 +176,14 @@ export class Database {
       return;
     }
 
-    console.log('initializing file-based database');
+    databaseLogger.info('Initializing file-based database');
     const path = join(process.cwd(), this.dbPath);
-    console.log('Absolute path being checked:', path);
+    databaseLogger.info('Absolute path being checked:', path);
 
     let exists = false;
     try {
       const stats = await fs.stat(path);
-      console.log('File stats:', {
+      databaseLogger.info('File stats:', {
         size: stats.size,
         isFile: stats.isFile(),
         created: stats.birthtime,
@@ -187,16 +191,16 @@ export class Database {
       });
       exists = true;
     } catch (error) {
-      console.log('Error checking file:', error);
+      databaseLogger.warn('Error checking file:', error);
       exists = false;
     }
 
-    console.log('exists:', exists);
-    console.log('reset', reset);
+    databaseLogger.info('exists:', exists);
+    databaseLogger.info('reset', reset);
 
     // For file-based databases, remove the file BEFORE initializing if it exists and reset is true
     if (exists && reset) {
-      console.log('Resetting database: removing existing file...');
+      databaseLogger.info('Resetting database: removing existing file...');
       await fs.unlink(path);
       exists = false;
     }
@@ -217,7 +221,7 @@ export class Database {
     // If the file doesn't exist, or if reset is true, or if schema verification fails,
     // we need to execute the schema.
     if (requiresSchemaInitialization) {
-      console.log('Loading and executing schema...');
+      databaseLogger.info('Loading and executing schema...');
       await this.executeSchema(loadSchema());
       await this.migrateSchemaIfNeeded();
     } else if (allowSchemaChanges) {

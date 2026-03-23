@@ -19,7 +19,7 @@ import type {
   TSPropertySignature,
   TSTypeAnnotation,
 } from 'jscodeshift';
-import type { Logger } from '../../../shared/utils/logger';
+import type { ConsolaInstance } from 'consola';
 
 // ---------------------------------------------------------------------------
 // Exported functions
@@ -332,7 +332,7 @@ function getReturnTypeNode(
  */
 function getMethodName(
   node: MethodDefinition | TSMethodSignature | ClassProperty | TSPropertySignature,
-  logger: Logger
+  logger: ConsolaInstance
 ): string | undefined {
   try {
     return node.key.type === 'Identifier' ? node.key.name : undefined;
@@ -346,7 +346,7 @@ function getMethodName(
 /**
  * Get the name of a property node from its key.
  */
-function getPropertyName(node: ClassProperty | TSPropertySignature, logger: Logger): string | undefined {
+function getPropertyName(node: ClassProperty | TSPropertySignature, logger: ConsolaInstance): string | undefined {
   try {
     if (node.key.type === 'Identifier') {
       return node.key.name;
@@ -363,7 +363,7 @@ function getPropertyName(node: ClassProperty | TSPropertySignature, logger: Logg
  * Check if a property has a function type annotation (TSFunctionType,
  * TSConstructorType, or is an arrow function expression).
  */
-function isFunctionTypeProperty(node: ClassProperty | TSPropertySignature, logger: Logger): boolean {
+function isFunctionTypeProperty(node: ClassProperty | TSPropertySignature, logger: ConsolaInstance): boolean {
   try {
     if (node.typeAnnotation?.type !== 'TSTypeAnnotation') {
       return false;

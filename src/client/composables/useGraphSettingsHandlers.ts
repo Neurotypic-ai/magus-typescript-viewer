@@ -1,10 +1,10 @@
 import type { DependencyNode } from '../types/DependencyNode';
 
-export interface SettingsHandlerGraphLayout {
+interface SettingsHandlerGraphLayout {
   requestGraphInitialization: () => Promise<void>;
 }
 
-export interface SettingsHandlerGraphSettings {
+interface SettingsHandlerGraphSettings {
   showFps: boolean;
   setEnabledRelationshipTypes: (types: string[]) => void;
   setHideTestFiles: (value: boolean) => void;
@@ -13,14 +13,14 @@ export interface SettingsHandlerGraphSettings {
   setShowFpsAdvanced: (value: boolean) => void;
 }
 
-export interface UseGraphSettingsHandlersOptions {
+interface UseGraphSettingsHandlersOptions {
   graphLayout: SettingsHandlerGraphLayout;
   graphSettings: SettingsHandlerGraphSettings;
   setSelectedNode: (node: DependencyNode | null) => void;
   syncViewportState: () => void;
 }
 
-export interface GraphSettingsHandlers {
+interface GraphSettingsHandlers {
   handleRelationshipFilterChange: (types: string[]) => Promise<void>;
   handleHideTestFilesToggle: (value: boolean) => Promise<void>;
   handleOrphanGlobalToggle: (value: boolean) => Promise<void>;

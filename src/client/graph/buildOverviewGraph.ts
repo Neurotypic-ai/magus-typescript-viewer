@@ -2,6 +2,8 @@
  * Overview graph building: nodes/edges from package graph, folder transforms, visibility.
  */
 
+import { consola } from 'consola';
+
 import { collapseFolders } from './cluster/collapseFolders';
 import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
@@ -23,6 +25,7 @@ import type { GraphEdge } from '../types/GraphEdge';
 const EDGE_REGISTRY_DEBUG =
   import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
 const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
+const overviewGraphLogger = consola.withTag('OverviewGraph');
 
 export interface BuildOverviewGraphOptions {
   data: PackageGraph;
@@ -78,8 +81,8 @@ function validateEdgesAgainstRegistry(nodes: DependencyNode[], edges: GraphEdge[
     }
   });
   if (invalidCount > 0) {
-    console.warn(
-      `[buildGraphView] ${String(invalidCount)} edge(s) failed edge-type registry validation. ` +
+    overviewGraphLogger.warn(
+      `${String(invalidCount)} edge(s) failed edge-type registry validation. ` +
         'Set VITE_DEBUG_EDGE_REGISTRY=false (or unset) to silence this check.',
       { sample }
     );

@@ -1,14 +1,14 @@
 import { readFile, writeFile } from 'fs/promises';
 
+import { consola } from 'consola';
 import jscodeshift from 'jscodeshift';
 
-import { createLogger } from '../../shared/utils/logger';
 import { allTransforms } from './transforms/index';
 
 import type { TransformRequest, TransformResult } from './Transform';
 
 export class RefactorEngine {
-  private readonly logger = createLogger('RefactorEngine');
+  private readonly logger = consola.withTag('RefactorEngine');
   private readonly j = jscodeshift.withParser('tsx');
   private readonly transforms = new Map(allTransforms.map((t) => [t.action, t]));
 

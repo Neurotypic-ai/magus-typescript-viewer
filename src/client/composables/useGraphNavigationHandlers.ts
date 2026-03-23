@@ -7,28 +7,28 @@ import type { FitView } from './useGraphLayout';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
-export interface NavigationHandlerViewport {
+interface NavigationHandlerViewport {
   onMoveEnd: () => void;
 }
 
-export interface NavigationHandlerInteraction {
+interface NavigationHandlerInteraction {
   setCameraMode: (mode: CameraMode) => void;
 }
 
-export interface NavigationHandlerGraphSnapshot {
+interface NavigationHandlerGraphSnapshot {
   nodes: DependencyNode[];
   edges: GraphEdge[];
 }
 
-export interface NavigationHandlerGraphStore {
+interface NavigationHandlerGraphStore {
   semanticSnapshot: NavigationHandlerGraphSnapshot | null;
 }
 
-export interface NavigationHandlerGraphLayout {
+interface NavigationHandlerGraphLayout {
   requestGraphInitialization: () => Promise<void>;
 }
 
-export interface UseGraphNavigationHandlersOptions {
+interface UseGraphNavigationHandlersOptions {
   nodes: Ref<DependencyNode[]>;
   setSelectedNode: (node: DependencyNode | null) => void;
   fitView: FitView;
@@ -39,7 +39,7 @@ export interface UseGraphNavigationHandlersOptions {
   syncViewportState: () => void;
 }
 
-export interface GraphNavigationHandlers {
+interface GraphNavigationHandlers {
   handleFocusNode: (nodeId: string) => Promise<void>;
   handleMinimapNodeClick: (params: { node: { id: string } }) => void;
   onMoveEnd: () => void;

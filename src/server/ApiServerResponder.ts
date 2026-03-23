@@ -1,5 +1,6 @@
+import { consola } from 'consola';
+
 import { Module } from '../shared/types/Module';
-import { createLogger } from '../shared/utils/logger';
 import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
 import { RepositoryError } from './db/errors/RepositoryError';
@@ -160,7 +161,7 @@ function codeIssueEntityToRef(entity: CodeIssueEntity): CodeIssueRef {
 export class ApiServerResponder {
   private readonly database: Database;
   private readonly dbAdapter: DuckDBAdapter;
-  private readonly logger;
+  private readonly logger = consola.withTag('ApiServerResponder');
   private readonly readOnly: boolean;
 
   private readonly classRepository: ClassRepository;
@@ -182,7 +183,6 @@ export class ApiServerResponder {
     this.readOnly = options.readOnly ?? false;
     this.dbAdapter = new DuckDBAdapter(dbPath, { allowWrite: !this.readOnly });
     this.database = new Database(this.dbAdapter, dbPath);
-    this.logger = createLogger('ApiServerResponder');
 
     // Initialize repositories
     this.classRepository = new ClassRepository(this.dbAdapter);

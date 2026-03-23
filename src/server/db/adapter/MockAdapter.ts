@@ -1,6 +1,10 @@
+import { consola } from 'consola';
+
 import type { DuckDBType, DuckDBValue } from '@duckdb/node-api';
 
 import type { DatabaseRow, IDatabaseAdapter, QueryParams, QueryResult } from './IDatabaseAdapter';
+
+const mockAdapterLogger = consola.withTag('MockAdapter');
 
 export class MockAdapter implements IDatabaseAdapter {
   private tables = new Map<string, Record<string, unknown>[]>();
@@ -17,7 +21,7 @@ export class MockAdapter implements IDatabaseAdapter {
     types?: DuckDBType[] | Record<string, DuckDBType>
   ): Promise<QueryResult<T>> {
     await Promise.resolve(); // Simulate async operation
-    console.log('MockAdapter: query executed', { sql, params, types });
+    mockAdapterLogger.debug('SQL query', { sql, params, types });
 
     // Simple SQL parsing for basic operations
     const sqlLower = sql.toLowerCase();
@@ -39,29 +43,29 @@ export class MockAdapter implements IDatabaseAdapter {
   }
 
   close(): Promise<void> {
-    console.log('MockAdapter: connection closed');
+    mockAdapterLogger.debug('Connection closed');
     return Promise.resolve();
   }
 
   async transaction<T>(callback: () => Promise<T>): Promise<T> {
-    console.log('MockAdapter: BEGIN TRANSACTION');
+    mockAdapterLogger.debug('BEGIN TRANSACTION');
     // Create snapshot of current state
     const snapshot = new Map(this.tables);
     try {
       const result = await callback();
-      console.log('MockAdapter: COMMIT');
+      mockAdapterLogger.debug('COMMIT');
       return result;
     } catch (error) {
       // Restore from snapshot on error
       this.tables = snapshot;
-      console.log('MockAdapter: ROLLBACK');
+      mockAdapterLogger.debug('ROLLBACK');
       throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
   async init(): Promise<void> {
     await Promise.resolve(); // Simulate async operation
-    console.log('MockAdapter: initialized');
+    mockAdapterLogger.debug('Initialized');
     this.tables.clear();
   }
 

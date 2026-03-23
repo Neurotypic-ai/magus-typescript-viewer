@@ -4,13 +4,13 @@ import type { FitView } from './useGraphLayout';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
-export interface SelectionHandlerState {
+interface SelectionHandlerState {
   selectedNode: Ref<DependencyNode | null>;
   hoveredNodeId: Ref<string | null>;
   contextMenu: Ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>;
 }
 
-export interface SelectionHandlerActions {
+interface SelectionHandlerActions {
   setSelectedNode: (node: DependencyNode | null) => void;
   clearHoverState: () => void;
   applyHoverEdgeHighlight: (nodeId: string | null) => void;
@@ -18,16 +18,16 @@ export interface SelectionHandlerActions {
   elevateNodeAndChildren: (nodeId: string) => void;
 }
 
-export interface SelectionHandlerGraphSettings {
+interface SelectionHandlerGraphSettings {
   showFps: boolean;
   setShowFps: (value: boolean) => void;
 }
 
-export interface SelectionHandlerInteraction {
+interface SelectionHandlerInteraction {
   setCameraMode: (mode: CameraMode) => void;
 }
 
-export interface UseGraphSelectionHandlersOptions {
+interface UseGraphSelectionHandlersOptions {
   state: SelectionHandlerState;
   actions: SelectionHandlerActions;
   graphSettings: SelectionHandlerGraphSettings;
@@ -38,7 +38,7 @@ export interface UseGraphSelectionHandlersOptions {
   syncViewportState: () => void;
 }
 
-export interface GraphSelectionHandlers {
+interface GraphSelectionHandlers {
   onNodeClick: (params: { node: unknown }) => void;
   onPaneClick: () => void;
   handleKeyDown: (event: KeyboardEvent) => void;

@@ -26,12 +26,12 @@ import type { GraphEdge } from '../types/GraphEdge';
 
 const EMPTY_EDGE_SET = new Set<string>();
 
-export interface SelectionAdjacency {
+interface SelectionAdjacency {
   connectedNodeIds: Set<string>;
   connectedEdgeIds: Set<string>;
 }
 
-export interface UseSelectionHighlightingOptions {
+interface UseSelectionHighlightingOptions {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   selectedNode: Ref<DependencyNode | null>;
@@ -52,7 +52,7 @@ export interface UseSelectionHighlightingOptions {
   restoreHoverZIndex: (nodeId: string) => void;
 }
 
-export interface SelectionHighlighting {
+interface SelectionHighlighting {
   hoveredNodeId: Ref<string | null>;
   visualNodes: Ref<DependencyNode[]>;
   visualEdges: Ref<GraphEdge[]>;

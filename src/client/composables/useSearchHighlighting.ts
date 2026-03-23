@@ -22,7 +22,7 @@ export interface SearchHighlightState {
   matchingEdgeIds: Set<string>;
 }
 
-export interface UseSearchHighlightingOptions {
+interface UseSearchHighlightingOptions {
   nodes: Ref<DependencyNode[]>;
   edges: Ref<GraphEdge[]>;
   graphTheme: typeof GraphThemeType;
@@ -32,7 +32,7 @@ export interface UseSearchHighlightingOptions {
   perfMarksEnabled: boolean;
 }
 
-export interface SearchHighlighting {
+ interface SearchHighlighting {
   searchHighlightState: SearchHighlightState;
   handleSearchResult: (result: SearchResult) => void;
   resetSearchHighlightState: () => void;

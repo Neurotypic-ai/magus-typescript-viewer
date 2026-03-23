@@ -1,6 +1,6 @@
-import { createLogger } from '../../shared/utils/logger';
+import { consola } from 'consola';
 
-const perfLogger = createLogger('Performance');
+const perfLogger = consola.withTag('Performance');
 let performanceMeasureSequence = 0;
 
 /**

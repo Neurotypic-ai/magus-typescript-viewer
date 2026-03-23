@@ -1,11 +1,11 @@
 import { readFile, readdir } from 'fs/promises';
 import { dirname, join, relative, resolve } from 'path';
 
+import { consola } from 'consola';
 import { readPackage } from 'read-pkg';
 import ts from 'typescript';
 
 import { PackageImport } from '../../shared/types/Import';
-import { createLogger } from '../../shared/utils/logger';
 import { generateImportUUID, generatePackageUUID, generateRelationshipUUID } from '../utils/uuid';
 import { ModuleParser } from './ModuleParser';
 
@@ -98,7 +98,7 @@ const ALWAYS_EXCLUDED_DIRECTORIES = new Set([
 ]);
 
 export class PackageParser {
-  private readonly logger = createLogger('PackageParser');
+  private readonly logger = consola.withTag('PackageParser');
 
   constructor(
     private readonly packagePath: string,
