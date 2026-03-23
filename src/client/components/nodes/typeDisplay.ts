@@ -23,7 +23,7 @@ function skipWs(s: string, i: number): number {
   return j;
 }
 
-export interface DelimiterScanState {
+interface DelimiterScanState {
   paren: number;
   bracket: number;
   brace: number;
@@ -178,7 +178,7 @@ function isBalancedBraces(s: string): boolean {
  */
 export function prettyPrintObjectLikeType(input: string): string | null {
   const s = input.trim();
-  if (s.length === 0 || s[0] !== '{' || s[s.length - 1] !== '}') return null;
+  if (s.length === 0 || !s.startsWith('{') || !s.endsWith('}')) return null;
   if (!isBalancedBraces(s)) return null;
 
   let out = '';
@@ -192,7 +192,7 @@ export function prettyPrintObjectLikeType(input: string): string | null {
     const st = scanDelimitersUpTo(s, i);
 
     if (st.inString !== 'none') {
-      out += c;
+      out += c ?? '';
       i++;
       continue;
     }
@@ -245,7 +245,7 @@ export function prettyPrintObjectLikeType(input: string): string | null {
       continue;
     }
 
-    out += c;
+    out += c ?? '';
     i++;
   }
 

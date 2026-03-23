@@ -4,18 +4,18 @@ import { RepositoryError } from '../errors/RepositoryError';
 import type { Logger } from '../../../shared/utils/logger';
 import type { DatabaseRow, IDatabaseAdapter, QueryParams } from '../adapter/IDatabaseAdapter';
 
-export interface IBaseEntity {
+interface IBaseEntity {
   id: string;
 }
 
-export interface IBaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO> {
+interface IBaseRepository<T extends IBaseEntity, CreateDTO, UpdateDTO> {
   create(dto: CreateDTO): Promise<T>;
   update(id: string, dto: UpdateDTO): Promise<T>;
   retrieve(id?: string, module_id?: string): Promise<T | T[]>;
   delete(id: string): Promise<void>;
 }
 
-export class DatabaseResultError extends RepositoryError {
+class DatabaseResultError extends RepositoryError {
   constructor(message: string, operation: string, repository: string) {
     super(message, operation, repository);
     this.name = 'DatabaseResultError';

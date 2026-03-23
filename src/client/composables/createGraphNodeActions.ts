@@ -3,7 +3,7 @@ import type { Ref } from 'vue';
 import type { FolderCollapseActions, NodeActions } from '../components/nodes/utils';
 import type { LayoutProcessOptions } from './useGraphLayout';
 
-export interface CreateGraphNodeActionsOptions {
+interface CreateGraphNodeActionsOptions {
   handleFocusNode: (nodeId: string) => void | Promise<void>;
   isolateNeighborhood: (nodeId: string) => void | Promise<void>;
   contextMenu: Ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>;
@@ -11,7 +11,7 @@ export interface CreateGraphNodeActionsOptions {
   requestGraphInitialization: (options?: LayoutProcessOptions) => void | Promise<void>;
 }
 
-export interface GraphNodeActionsResult {
+interface GraphNodeActionsResult {
   nodeActions: NodeActions;
   folderCollapseActions: FolderCollapseActions;
 }

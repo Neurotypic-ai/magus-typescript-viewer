@@ -10,7 +10,7 @@ import {
   useGraphSettings,
 } from '../stores/graphSettings';
 
-export interface GraphSearchContext {
+interface GraphSearchContext {
   searchQuery: Ref<string>;
   runSearch: () => void;
   clearSearch?: () => void;
@@ -41,8 +41,7 @@ const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
 const getRelationshipAvailability = (type: string) => props.relationshipAvailability[type] ?? { available: true };
 const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
 const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
-const relationshipReasonId = (type: string): string =>
-  `relationship-reason-${type.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()}`;
+const relationshipReasonId = (type: string): string => `relationship-reason-${type.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()}`;
 
 const toggleListItem = (values: string[], value: string, enabled: boolean): string[] =>
   enabled ? (values.includes(value) ? values : [...values, value]) : values.filter((x) => x !== value);
@@ -58,11 +57,13 @@ const handleShowFpsToggle = (checked: boolean) => { emit('toggle-show-fps', chec
 const handleFpsAdvancedToggle = (checked: boolean) => { emit('toggle-fps-advanced', checked); };
 
 const onSearchQueryUpdate = (v: string) => {
-  if (props.graphSearchContext) props.graphSearchContext.searchQuery.value = v;
+  if (props.graphSearchContext) {
+    props.graphSearchContext.searchQuery.value = v;
+  }
 };
 
 const searchQueryValue = computed(
-  () => props.graphSearchContext?.searchQuery?.value ?? ''
+  () => props.graphSearchContext?.searchQuery.value ?? ''
 );
 </script>
 

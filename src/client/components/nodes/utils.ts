@@ -62,14 +62,14 @@ interface DependencyPropsInput {
   readonly parentNodeId?: string | undefined;
 }
 
-export interface BuildBaseNodePropsOverrides {
+interface BuildBaseNodePropsOverrides {
   isContainer?: boolean;
   showSubnodes?: boolean;
   subnodesCount?: number;
   zIndex?: number;
 }
 
-export interface BaseNodeProps extends BuildBaseNodePropsOverrides {
+interface BaseNodeProps extends BuildBaseNodePropsOverrides {
   id: string;
   type: DependencyKind;
   data: DependencyData;
@@ -122,7 +122,7 @@ function normalizeTypeAnnotation(annotation: string | undefined, fallback: strin
   return normalized && normalized.length > 0 ? normalized : fallback;
 }
 
-export function visibilityIndicator(visibility: string): string {
+function visibilityIndicator(visibility: string): string {
   switch (visibility) {
     case 'public':
       return 'p';
@@ -159,7 +159,7 @@ export function formatMethod(method: NodeMethod): FormattedMember {
 
 // ── Entity type display config ────────────────────────────────────
 
-export interface EntityTypeConfig {
+interface EntityTypeConfig {
   type: EmbeddedModuleEntity['type'];
   title: string;
   badgeText: string;
@@ -176,7 +176,7 @@ export const ENTITY_TYPE_CONFIGS: EntityTypeConfig[] = [
 
 // ── Subnodes count resolution ─────────────────────────────────────
 
-export interface SubnodesCount {
+interface SubnodesCount {
   count: number;
   totalCount: number;
   hiddenCount: number;

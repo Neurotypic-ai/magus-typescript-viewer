@@ -4,7 +4,7 @@ import MemberListSection from './MemberListSection.vue';
 
 import type { FormattedMember } from './utils';
 
-export interface FormattedSymbol {
+interface FormattedSymbol {
   id: string;
   type: 'class' | 'interface';
   name: string;

@@ -2,13 +2,13 @@ import { computed } from 'vue';
 
 import type { ComputedRef, Ref } from 'vue';
 
-export interface UseFpsChartOptions {
+interface UseFpsChartOptions {
   fpsHistory: Ref<number[]>;
   width?: number;
   height?: number;
 }
 
-export interface FpsChart {
+interface FpsChart {
   fpsChartScaleMax: ComputedRef<number>;
   fpsChartPoints: ComputedRef<string>;
   fpsTargetLineY: ComputedRef<string>;

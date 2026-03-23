@@ -45,12 +45,6 @@ import type {
 } from './dependencyGraphCoreTypes';
 
 export { DEFAULT_VIEWPORT };
-export type {
-  DependencyGraphCoreEnv,
-  DependencyGraphCoreReturn,
-  GraphStatCountEntry,
-  UseDependencyGraphCoreOptions,
-} from './dependencyGraphCoreTypes';
 
 export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): DependencyGraphCoreReturn {
   const { propsData, graphRootRef, env } = options;

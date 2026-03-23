@@ -3,7 +3,7 @@ import { readonly, ref, type Ref } from 'vue';
 type ScopeMode = 'overview' | 'isolate' | 'moduleDrilldown' | 'symbolDrilldown';
 type CameraMode = 'free' | 'fitSelection';
 
-export interface GraphInteractionController {
+interface GraphInteractionController {
   selectionNodeId: Readonly<Ref<string | null>>;
   scopeMode: Readonly<Ref<ScopeMode>>;
   cameraMode: Readonly<Ref<CameraMode>>;

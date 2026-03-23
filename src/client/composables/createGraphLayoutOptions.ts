@@ -17,7 +17,7 @@ import type { DependencyPackageGraph } from '../types/DependencyPackageGraph';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { GraphViewMode } from '../stores/graphStore';
 
-export interface LayoutOptionsGraphStoreSource {
+interface LayoutOptionsGraphStoreSource {
   nodes: DependencyNode[];
   manualOffsets: Map<string, ManualOffset>;
   setNodes: (nodes: DependencyNode[]) => void;
@@ -30,14 +30,14 @@ export interface LayoutOptionsGraphStoreSource {
   applyManualOffsets: (nodes: DependencyNode[]) => DependencyNode[];
 }
 
-export interface LayoutOptionsGraphSettingsSource {
+interface LayoutOptionsGraphSettingsSource {
   activeRelationshipTypes: string[];
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
 }
 
-export interface CreateGraphLayoutOptionsOptions {
+interface CreateGraphLayoutOptionsOptions {
   propsData: Ref<DependencyPackageGraph>;
   graphStore: LayoutOptionsGraphStoreSource;
   graphSettings: LayoutOptionsGraphSettingsSource;

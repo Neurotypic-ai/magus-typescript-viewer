@@ -21,23 +21,8 @@ export interface LayoutProcessOptions {
   twoPassMeasure?: boolean;
 }
 
-// ── Layout cache ──
-
-/** One entry in the layout cache (nodes, edges, weight). */
-export interface LayoutCacheEntry {
-  nodes: DependencyNode[];
-  edges: GraphEdge[];
-  weight: number;
-}
-
-/** Measured width/height on a node (node.measured). */
-export interface NodeMeasuredData {
-  width?: number;
-  height?: number;
-}
-
 /** Result of measureAllNodeDimensions. */
-export interface MeasureNodesResult {
+interface MeasureNodesResult {
   nodes: DependencyNode[];
   hasChanges: boolean;
 }
@@ -45,7 +30,7 @@ export interface MeasureNodesResult {
 // ── Types ──
 
 /** Snapshot of graph nodes and edges (overview or semantic). */
-export interface GraphSnapshot {
+interface GraphSnapshot {
   nodes: DependencyNode[];
   edges: GraphEdge[];
 }
@@ -145,13 +130,6 @@ export interface NodeDimensionTracker {
   resume: () => void;
 }
 
-/** One entry in the node measurement cache (width, height, topInset). */
-export interface NodeMeasurementCacheEntry {
-  width: number;
-  height: number;
-  topInset: number;
-}
-
 export interface UseGraphLayoutOptions {
   propsData: Ref<DependencyPackageGraph>;
   graphStore: GraphLayoutStore;
@@ -183,7 +161,7 @@ export interface LayoutConfig {
   direction: 'TB' | 'LR' | 'BT' | 'RL';
 }
 
-export interface GraphLayout {
+interface GraphLayout {
   isLayoutPending: Readonly<Ref<boolean>>;
   isLayoutMeasuring: Readonly<Ref<boolean>>;
   layoutConfig: LayoutConfig;
