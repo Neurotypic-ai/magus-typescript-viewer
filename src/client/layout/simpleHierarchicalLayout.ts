@@ -15,6 +15,8 @@
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
+import { resolveNodeDimensions } from './geometryBounds';
+
 // ── Root-level grid constants ────────────────────────────────────────────────
 
 /** Horizontal gap between adjacent root nodes in the same row. */
@@ -38,6 +40,11 @@ const CHILD_ESTIMATED_WIDTH = 320;
  * 200–400px. Use a generous estimate so expandParent adjustments are small.
  */
 const CHILD_ESTIMATED_HEIGHT = 260;
+
+const DEFAULT_NODE_DIMENSIONS = {
+  defaultNodeWidth: CHILD_ESTIMATED_WIDTH,
+  defaultNodeHeight: CHILD_ESTIMATED_HEIGHT,
+} as const;
 
 /** Space reserved at the top of a parent for its header label. */
 const CHILD_PADDING_TOP = 44;
@@ -93,18 +100,42 @@ function computeChildLayout(children: DependencyNode[]): {
 
   const cols = Math.min(CHILD_MAX_COLS, Math.max(1, Math.ceil(Math.sqrt(children.length))));
   const rows = Math.ceil(children.length / cols);
+  const childDimensions = children.map((child) => resolveNodeDimensions(child, DEFAULT_NODE_DIMENSIONS));
+  const columnWidths = Array.from({ length: cols }, () => 0);
+  const rowHeights = Array.from({ length: rows }, () => 0);
 
-  children.forEach((child, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
+  childDimensions.forEach((dimensions, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    columnWidths[col] = Math.max(columnWidths[col] ?? 0, dimensions.width);
+    rowHeights[row] = Math.max(rowHeights[row] ?? 0, dimensions.height);
+  });
+
+  const columnOffsets = new Array<number>(cols);
+  let nextColumnOffset = CHILD_PADDING_SIDE;
+  for (let col = 0; col < cols; col++) {
+    columnOffsets[col] = nextColumnOffset;
+    nextColumnOffset += (columnWidths[col] ?? 0) + CHILD_GAP;
+  }
+
+  const rowOffsets = new Array<number>(rows);
+  let nextRowOffset = CHILD_PADDING_TOP;
+  for (let row = 0; row < rows; row++) {
+    rowOffsets[row] = nextRowOffset;
+    nextRowOffset += (rowHeights[row] ?? 0) + CHILD_GAP;
+  }
+
+  children.forEach((child, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
     childPositions.set(child.id, {
-      x: CHILD_PADDING_SIDE + col * (CHILD_ESTIMATED_WIDTH + CHILD_GAP),
-      y: CHILD_PADDING_TOP + row * (CHILD_ESTIMATED_HEIGHT + CHILD_GAP),
+      x: columnOffsets[col] ?? CHILD_PADDING_SIDE,
+      y: rowOffsets[row] ?? CHILD_PADDING_TOP,
     });
   });
 
-  const contentWidth = cols * CHILD_ESTIMATED_WIDTH + (cols - 1) * CHILD_GAP;
-  const contentHeight = rows * CHILD_ESTIMATED_HEIGHT + (rows - 1) * CHILD_GAP;
+  const contentWidth = columnWidths.reduce((sum, width) => sum + width, 0) + Math.max(0, cols - 1) * CHILD_GAP;
+  const contentHeight = rowHeights.reduce((sum, height) => sum + height, 0) + Math.max(0, rows - 1) * CHILD_GAP;
 
   return {
     childPositions,
@@ -179,8 +210,9 @@ export function computeSimpleHierarchicalLayout(
 
     for (const node of group) {
       const nodeSize = sizes.get(node.id);
-      const nodeWidth = nodeSize?.width ?? 320;
-      const nodeHeight = nodeSize?.height ?? 260;
+      const explicitNodeSize = resolveNodeDimensions(node, DEFAULT_NODE_DIMENSIONS);
+      const nodeWidth = nodeSize?.width ?? explicitNodeSize.width;
+      const nodeHeight = nodeSize?.height ?? explicitNodeSize.height;
 
       rowMaxHeight = Math.max(rowMaxHeight, nodeHeight);
 

@@ -10,6 +10,7 @@ import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { SearchResult } from '../types/SearchResult';
 import type { LayoutProcessOptions } from './useGraphLayout';
+import type { NodePremeasure } from './nodePremeasureTypes';
 
 /** Type for graph/edge stat count entries (avoids exporting local interface). */
 export interface GraphStatCountEntry {
@@ -113,6 +114,7 @@ export interface DependencyGraphCoreReturn {
   minimapNodeColor: (node: { type?: string }) => string;
   minimapNodeStrokeColor: (node: { id?: string }) => string;
   nodeDimensionTracker: { start: (root: HTMLElement) => void; stop: () => void };
+  nodePremeasure: NodePremeasure;
   renderedNodeCount: ComputedRef<number>;
   renderedEdgeCount: ComputedRef<number>;
   renderedNodeTypeCounts: Ref<GraphStatCountEntry[]>;

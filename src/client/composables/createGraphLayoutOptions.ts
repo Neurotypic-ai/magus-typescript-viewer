@@ -16,6 +16,7 @@ import type {
   UpdateNodeInternals,
   UseGraphLayoutOptions,
 } from './useGraphLayout';
+import type { NodePremeasure } from './nodePremeasureTypes';
 
 interface LayoutOptionsGraphStoreSource {
   nodes: DependencyNode[];
@@ -46,6 +47,7 @@ interface CreateGraphLayoutOptionsOptions {
   updateNodeInternals: UpdateNodeInternals;
   syncViewportState: SyncViewportState;
   nodeDimensionTracker: NodeDimensionTracker;
+  nodePremeasure: NodePremeasure;
   resetSearchHighlightState: ResetSearchHighlightState;
   isFirefox: Ref<boolean>;
   graphRootRef: Ref<HTMLElement | null>;
@@ -61,6 +63,7 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
     updateNodeInternals,
     syncViewportState,
     nodeDimensionTracker,
+    nodePremeasure,
     resetSearchHighlightState,
     isFirefox,
     graphRootRef,
@@ -121,6 +124,7 @@ export function createGraphLayoutOptions(options: CreateGraphLayoutOptionsOption
     updateNodeInternals,
     syncViewportState,
     nodeDimensionTracker,
+    nodePremeasure,
     resetSearchHighlightState,
     isFirefox,
     graphRootRef,

@@ -7,6 +7,7 @@ import { getHandlePositions } from '../graph/handleRouting';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { optimizeHighwayHandleRouting } from '../graph/transforms/edgeHighways';
 import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
+import { parseDimension } from '../layout/geometryBounds';
 
 import type { Ref } from 'vue';
 
@@ -15,6 +16,7 @@ import type { ManualOffset } from '../../shared/types/graph/ManualOffset';
 import type { GraphViewMode } from '../stores/graphStore';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { NodePremeasure, NodePremeasureResult } from './nodePremeasureTypes';
 
 const layoutLogger = consola.withTag('GraphLayout');
 
@@ -132,6 +134,7 @@ export interface NodeDimensionTracker {
   get: (nodeId: string) => NodeDimensions | undefined;
   pause: () => void;
   resume: () => void;
+  subscribe?: (listener: (changedNodeIds: string[]) => void) => () => void;
 }
 
 export interface UseGraphLayoutOptions {
@@ -143,6 +146,7 @@ export interface UseGraphLayoutOptions {
   updateNodeInternals: UpdateNodeInternals;
   syncViewportState: SyncViewportState;
   nodeDimensionTracker: NodeDimensionTracker;
+  nodePremeasure?: NodePremeasure;
   resetSearchHighlightState: ResetSearchHighlightState;
   isFirefox: Ref<boolean>;
   graphRootRef: Ref<HTMLElement | null>;
@@ -188,6 +192,8 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     fitView,
     updateNodeInternals,
     syncViewportState,
+    nodeDimensionTracker,
+    nodePremeasure,
     resetSearchHighlightState,
     isFirefox,
     graphRootRef,
@@ -205,10 +211,65 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
   // ── Stub measurement functions (kept for API compatibility with useIsolationMode) ──
 
-  const shouldRunTwoPassMeasure = (_nodeCount: number): boolean => false;
+  const shouldRunTwoPassMeasure = (nodeCount: number): boolean => nodeCount > 0;
+
+  const getNodeWidth = (node: DependencyNode): number => {
+    const measured = (node as { measured?: { width?: number } }).measured?.width;
+    const style =
+      typeof node.style === 'object' && !Array.isArray(node.style)
+        ? parseDimension((node.style as Record<string, unknown>)['width'])
+        : undefined;
+    return measured ?? style ?? parseDimension(node.width) ?? 0;
+  };
+
+  const getNodeHeight = (node: DependencyNode): number => {
+    const measured = (node as { measured?: { height?: number } }).measured?.height;
+    const style =
+      typeof node.style === 'object' && !Array.isArray(node.style)
+        ? parseDimension((node.style as Record<string, unknown>)['height'])
+        : undefined;
+    return measured ?? style ?? parseDimension(node.height) ?? 0;
+  };
+
+  const applyNodeDimensions = (node: DependencyNode, dimensions: NodePremeasureResult): DependencyNode => {
+    const styleBase =
+      node.style && typeof node.style === 'object' && !Array.isArray(node.style)
+        ? (node.style as Record<string, string | number>)
+        : undefined;
+
+    return {
+      ...node,
+      measured: {
+        width: dimensions.width,
+        height: dimensions.height,
+      },
+      style: {
+        ...(styleBase ?? {}),
+        width: `${String(dimensions.width)}px`,
+        height: `${String(dimensions.height)}px`,
+      },
+    } as DependencyNode;
+  };
 
   const measureAllNodeDimensions = (layoutedNodes: DependencyNode[]): MeasureNodesResult => {
-    return { nodes: layoutedNodes, hasChanges: false };
+    let hasChanges = false;
+
+    const nodes = layoutedNodes.map((node) => {
+      const dimensions = nodeDimensionTracker.get(node.id);
+      if (!dimensions) {
+        return node;
+      }
+
+      const currentWidth = getNodeWidth(node);
+      const currentHeight = getNodeHeight(node);
+      if (Math.abs(currentWidth - dimensions.width) > 1 || Math.abs(currentHeight - dimensions.height) > 1) {
+        hasChanges = true;
+      }
+
+      return applyNodeDimensions(node, dimensions);
+    });
+
+    return { nodes, hasChanges };
   };
 
   // ── Layout normalization ──
@@ -338,9 +399,30 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       });
       graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 
+      let graphForLayout = overviewGraph;
+      if (nodePremeasure) {
+        const previousLayoutMeasuring = isLayoutMeasuring.value;
+        isLayoutMeasuring.value = true;
+        try {
+          const measuredNodes = await nodePremeasure.measureBatch(overviewGraph.nodes);
+          if (measuredNodes.size > 0) {
+            graphForLayout = {
+              ...overviewGraph,
+              nodes: overviewGraph.nodes.map((node) => {
+                const dimensions = measuredNodes.get(node.id);
+                return dimensions ? applyNodeDimensions(node, dimensions) : node;
+              }),
+            };
+          }
+        } finally {
+          nodePremeasure.clearBatch();
+          isLayoutMeasuring.value = previousLayoutMeasuring;
+        }
+      }
+
       const fitViewToResult = overrides.fitViewToResult ?? true;
       const fitPadding = overrides.fitPadding ?? 0.1;
-      const layoutResult = await processGraphLayout(overviewGraph, {
+      const layoutResult = await processGraphLayout(graphForLayout, {
         fitViewToResult,
         fitPadding,
         ...(overrides.fitNodes ? { fitNodes: overrides.fitNodes } : {}),

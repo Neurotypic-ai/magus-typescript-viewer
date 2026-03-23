@@ -37,6 +37,7 @@ import { useIsolationMode } from './useIsolationMode';
 import { useMinimapHelpers } from './useMinimapHelpers';
 import { createNodeDimensionTracker } from './useNodeDimensions';
 import { useNodeHoverZIndex } from './useNodeHoverZIndex';
+import { createNodePremeasure } from './useNodePremeasure';
 import { useSearchHighlighting } from './useSearchHighlighting';
 import { useSelectionHighlighting } from './useSelectionHighlighting';
 
@@ -63,6 +64,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
 
   const contextMenu = ref<{ nodeId: string; nodeLabel: string; x: number; y: number } | null>(null);
   const nodeDimensionTracker = createNodeDimensionTracker();
+  const nodePremeasure = createNodePremeasure(graphRootRef);
 
   const showFps = computed(() => graphSettings.showFps);
   const { fps, fpsHistory, fpsStats, start: startFps, stop: stopFps } = useFpsCounter(showFps);
@@ -128,6 +130,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
       updateNodeInternals,
       syncViewportState,
       nodeDimensionTracker,
+      nodePremeasure,
       resetSearchHighlightState: () => {
         searchHighlighting.resetSearchHighlightState();
       },
@@ -453,6 +456,7 @@ export function useDependencyGraphCore(options: UseDependencyGraphCoreOptions): 
     minimapNodeColor,
     minimapNodeStrokeColor,
     nodeDimensionTracker,
+    nodePremeasure,
     scopeMode: interaction.scopeMode,
 
     // Lifecycle

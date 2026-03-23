@@ -16,6 +16,7 @@ import IssuesPanel from './IssuesPanel.vue';
 import NodeContextMenu from './NodeContextMenu.vue';
 import NodeDetails from './NodeDetails.vue';
 import IntraFolderEdge from './edges/IntraFolderEdge.vue';
+import NodePremeasureHost from './nodes/measure/NodePremeasureHost.vue';
 import GroupNode from './nodes/GroupNode.vue';
 import ModuleNode from './nodes/ModuleNode.vue';
 import PackageNode from './nodes/PackageNode.vue';
@@ -123,6 +124,7 @@ const {
   minimapNodeColor,
   minimapNodeStrokeColor,
   nodeDimensionTracker,
+  nodePremeasure,
   renderedNodeCount,
   renderedEdgeCount,
   renderedNodeTypeCounts,
@@ -134,6 +136,7 @@ const {
 } = core;
 
 const USE_CSS_SELECTION_HOVER = env.USE_CSS_SELECTION_HOVER;
+const premeasureNodes = nodePremeasure.batchNodes;
 
 const nodeTypes: Record<string, Component> = Object.freeze({
   package: PackageNode,
@@ -218,6 +221,7 @@ onUnmounted(() => {
     :data-selected-node-id="selectedNode?.id ?? ''"
     :data-hovered-node-id="hoveredNodeId ?? ''"
   >
+    <NodePremeasureHost :nodes="premeasureNodes" />
     <VueFlow
       :nodes="visualNodes"
       :edges="renderedEdges"
