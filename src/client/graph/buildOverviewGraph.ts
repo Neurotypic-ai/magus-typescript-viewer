@@ -18,6 +18,7 @@ import {
 } from './graphViewShared';
 
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
+import type { DependencyData } from '../../shared/types/graph/DependencyData';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { PackageGraph } from '../../shared/types/Package';
 import type { GraphEdge } from '../types/GraphEdge';
@@ -91,7 +92,10 @@ function validateEdgesAgainstRegistry(nodes: DependencyNode[], edges: GraphEdge[
 
 function filterGraphByTestVisibility(graphData: GraphViewData, hideTestFiles: boolean): GraphViewData {
   if (!hideTestFiles) return graphData;
-  const filteredNodes = graphData.nodes.filter((node) => node.data?.diagnostics?.isTestFile !== true);
+  const filteredNodes = graphData.nodes.filter((node) => {
+    const data = node.data;
+    return data?.diagnostics?.isTestFile !== true;
+  });
   return {
     nodes: filteredNodes,
     edges: filterEdgesByNodeSet(filteredNodes, graphData.edges),
@@ -121,8 +125,8 @@ function annotateOrphanDiagnostics(
   return nodes.map((node) => {
     const orphanCurrent = (currentDegreeMap.get(node.id) ?? 0) === 0;
     const orphanGlobal = (globalDegreeMap.get(node.id) ?? 0) === 0;
-    const existingData = node.data ?? { label: node.id };
-    const existingDiagnostics = node.data?.diagnostics;
+    const existingData: DependencyData = node.data ?? { label: node.id };
+    const existingDiagnostics = existingData.diagnostics;
     return {
       ...node,
       data: {
@@ -157,7 +161,7 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     includeClassEdges: false,
     liftClassEdgesToModuleLevel: true,
     importDirection: 'importer-to-imported',
-  }) as unknown as GraphEdge[];
+  });
 
   const unfilteredGraph = {
     nodes: graphNodes,

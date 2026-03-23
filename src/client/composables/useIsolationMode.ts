@@ -438,8 +438,9 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
     graphStore.setViewMode('symbolDrilldown');
     interaction.setScopeMode('symbolDrilldown');
 
+    const sourceData: PackageGraph = propsData.value;
     const symbolGraph = buildSymbolDrilldownGraph({
-      data: propsData.value,
+      data: sourceData,
       selectedNode: targetNode,
       direction: layoutConfig.direction,
       enabledRelationshipTypes: graphSettings.activeRelationshipTypes,

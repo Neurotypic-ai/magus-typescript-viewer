@@ -2,7 +2,7 @@ import { MarkerType } from '@vue-flow/core';
 
 import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
 
-export interface EdgeMarkerConfig {
+interface EdgeMarkerConfig {
   type: MarkerType;
   width: number;
   height: number;

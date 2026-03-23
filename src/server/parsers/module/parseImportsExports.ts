@@ -5,7 +5,7 @@ import { generateImportUUID } from '../../utils/uuid';
 import { getIdentifierName } from './astUtils';
 import type { ModuleParserContext } from './types';
 
-export interface ImportsExportsResult {
+interface ImportsExportsResult {
   imports: Map<string, Import>;
   exports: Set<string>;
   reExports: Set<string>;

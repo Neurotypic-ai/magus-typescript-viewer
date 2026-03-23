@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { consola } from 'consola';
-import { defineAsyncComponent, markRaw, onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { markRaw, onMounted, onUnmounted, ref, shallowRef } from 'vue';
 
 import { GraphHydrator } from './assemblers/GraphHydrator';
+import DependencyGraph from './components/DependencyGraphLazy.vue';
 import ErrorBoundary from './components/ErrorBoundary.vue';
 
 import type { PackageGraph } from '../shared/types/Package';
-
-// Lazy load the DependencyGraph component for code splitting and better performance
-const DependencyGraph = defineAsyncComponent(() => import('./components/DependencyGraphLazy.vue'));
 
 const appLogger = consola.withTag('App');
 const graphHydrator = new GraphHydrator();
@@ -93,8 +91,8 @@ onUnmounted(() => {
     <h1 class="text-2xl font-bold mb-4 text-text-primary">Error Loading Graph</h1>
     <p class="mb-6 text-text-secondary">{{ error }}</p>
     <button
-      @click="retryLoad"
       class="px-6 py-3 bg-white/10 text-text-primary rounded-lg hover:bg-white/20 transition-fast cursor-pointer border border-border-default font-semibold"
+      @click="retryLoad"
     >
       Retry
     </button>

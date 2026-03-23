@@ -240,8 +240,11 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
     graphStore.suspendCacheWrites();
 
     try {
-      // Compute positions and parent sizes synchronously using the simple hierarchical layout
-      const { positions, sizes } = computeSimpleHierarchicalLayout(graphData.nodes, graphData.edges);
+      // Compute positions and parent sizes synchronously using the simple hierarchical layout.
+      const layoutResult = computeSimpleHierarchicalLayout(graphData.nodes, graphData.edges) as unknown as {
+        positions: Map<string, { x: number; y: number }>;
+        sizes: Map<string, { width: number; height: number }>;
+      };
 
       // Apply computed positions and explicit sizes to nodes.
       // Children get relative positions within their parent; parents get explicit
@@ -249,14 +252,28 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       // children. Using CSS strings in node.style is the same format Vue Flow's
       // own handleParentExpand uses, ensuring consistent dimension tracking.
       const positionedNodes = graphData.nodes.map((node) => {
-        const pos = positions.get(node.id);
-        const sz = sizes.get(node.id);
+        const pos = layoutResult.positions.get(node.id);
+        const rawSize = layoutResult.sizes.get(node.id);
+        const sz =
+          rawSize &&
+          typeof rawSize.width === 'number' &&
+          typeof rawSize.height === 'number'
+            ? rawSize
+            : undefined;
+        const styleBase =
+          node.style && typeof node.style === 'object' && !Array.isArray(node.style)
+            ? (node.style as Record<string, string | number>)
+            : undefined;
         return {
           ...node,
           ...(pos ? { position: pos } : {}),
           ...(sz
             ? {
-                style: { ...node.style, width: `${sz.width}px`, height: `${sz.height}px` },
+                style: {
+                  ...(styleBase ?? {}),
+                  width: `${String(sz.width)}px`,
+                  height: `${String(sz.height)}px`,
+                },
               }
             : {}),
         };
