@@ -20,9 +20,9 @@ import type { GraphEdge } from '../types/GraphEdge';
 // ── Root-level grid constants ────────────────────────────────────────────────
 
 /** Horizontal gap between adjacent root nodes in the same row. */
-const ROOT_H_GAP = 40;
+const ROOT_H_GAP = 120;
 /** Vertical gap between rows of root nodes. */
-const ROOT_V_GAP = 60;
+const ROOT_V_GAP = 120;
 /** Max root nodes per row before wrapping. */
 const COLS_PER_ROW = 6;
 
@@ -47,15 +47,15 @@ const DEFAULT_NODE_DIMENSIONS = {
 } as const;
 
 /** Space reserved at the top of a parent for its header label. */
-const CHILD_PADDING_TOP = 44;
+const CHILD_PADDING_TOP = 120;
 /** Horizontal inset from the parent border to the first child column. */
-const CHILD_PADDING_LEFT = 10;
+const CHILD_PADDING_LEFT = 100;
 /** Horizontal inset from the last child column to the parent border. */
-const CHILD_PADDING_RIGHT = 10;
+const CHILD_PADDING_RIGHT = 100;
 /** Bottom padding inside the parent. */
-const CHILD_PADDING_BOTTOM = 10;
+const CHILD_PADDING_BOTTOM = 100;
 /** Gap between sibling child nodes. */
-const CHILD_GAP = 12;
+const CHILD_GAP = 120;
 /** Maximum columns of children per parent. */
 const CHILD_MAX_COLS = 3;
 
