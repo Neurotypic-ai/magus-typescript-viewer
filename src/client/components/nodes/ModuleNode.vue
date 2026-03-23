@@ -319,8 +319,8 @@ useExpandCollapseState(
 .external-dependency {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  flex-wrap: nowrap;
+  align-items: baseline;
   justify-content: space-between;
   gap: 0.35rem 0.6rem;
   padding: 0.35rem 0.45rem;
@@ -331,6 +331,9 @@ useExpandCollapseState(
 .external-dependency-name {
   flex: 0 1 auto;
   min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-primary);
   font-weight: 700;
   font-size: 0.72rem;
@@ -344,7 +347,7 @@ useExpandCollapseState(
   flex-direction: column;
   align-items: flex-end;
   gap: 0.12rem;
-  flex: 1 1 12rem;
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
   text-align: right;

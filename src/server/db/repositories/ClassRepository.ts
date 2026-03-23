@@ -13,31 +13,6 @@ import type { IClassCreateDTO, IClassUpdateDTO } from '../../../shared/types/dto
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IClassOrInterfaceRow } from '../types/DatabaseResults';
 
-/**
- * Repository interface for managing classes.
- */
-export interface IClassRepository {
-  /**
-   * Creates a new class.
-   */
-  create(dto: IClassCreateDTO): Promise<Class>;
-
-  /**
-   * Finds a class by its ID.
-   */
-  findById(id: string): Promise<IClassCreateDTO | null>;
-
-  /**
-   * Finds all classes in a module.
-   */
-  findByModuleId(moduleId: string): Promise<IClassCreateDTO[]>;
-
-  /**
-   * Deletes a class by its ID.
-   */
-  delete(id: string): Promise<void>;
-}
-
 export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, IClassUpdateDTO> {
   private readonly methodRepository: MethodRepository;
   private readonly propertyRepository: PropertyRepository;

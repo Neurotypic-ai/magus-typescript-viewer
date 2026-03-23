@@ -52,7 +52,7 @@ const CHILD_MAX_COLS = 3;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface HierarchicalLayoutResult {
+interface HierarchicalLayoutResult {
   /** Map from node ID to its assigned position. */
   positions: Map<string, { x: number; y: number }>;
   /**

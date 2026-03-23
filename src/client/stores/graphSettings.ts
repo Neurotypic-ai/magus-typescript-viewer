@@ -18,7 +18,7 @@ const GRAPH_SETTINGS_CACHE_KEY = 'v2:typescript-viewer-graph-settings';
 
 type RelationshipType = (typeof DEFAULT_RELATIONSHIP_TYPES)[number];
 
-export interface RelationshipAvailability {
+interface RelationshipAvailability {
   available: boolean;
   reason?: string;
 }

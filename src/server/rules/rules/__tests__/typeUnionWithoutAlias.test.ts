@@ -254,11 +254,11 @@ interface Config {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].rule_code).toBe('type-union-without-alias');
-    expect(issues[0].severity).toBe('warning');
-    expect(issues[0].entity_name).toBe('mode');
-    expect(issues[0].parent_entity_type).toBe('interface');
-    expect(issues[0].parent_entity_name).toBe('Config');
+    expect(issues[0]?.rule_code).toBe('type-union-without-alias');
+    expect(issues[0]?.severity).toBe('warning');
+    expect(issues[0]?.entity_name).toBe('mode');
+    expect(issues[0]?.parent_entity_type).toBe('interface');
+    expect(issues[0]?.parent_entity_name).toBe('Config');
   });
 
   it('includes the correct suggestion with PascalCase property name', () => {
@@ -272,7 +272,7 @@ interface MyWidget {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].suggestion).toBe("Extract to type alias 'MyWidgetColorScheme'");
+    expect(issues[0]?.suggestion).toBe("Extract to type alias 'MyWidgetColorScheme'");
   });
 
   it('includes union member texts in refactor_context', () => {
@@ -286,12 +286,15 @@ interface Config {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    const refCtx = issues[0].refactor_context!;
-    expect(refCtx.suggestedName).toBe('ConfigState');
-    expect(refCtx.parentName).toBe('Config');
-    expect(refCtx.parentType).toBe('interface');
-    expect(refCtx.propertyName).toBe('state');
-    expect(refCtx.unionMembers).toEqual(['"active"', '"inactive"', '"pending"']);
+    const refCtx = issues[0]?.refactor_context;
+    if (!refCtx) {
+      throw new Error('Refactor context is undefined');
+    }
+    expect(refCtx['suggestedName']).toBe('ConfigState');
+    expect(refCtx['parentName']).toBe('Config');
+    expect(refCtx['parentType']).toBe('interface');
+    expect(refCtx['propertyName']).toBe('state');
+    expect(refCtx['unionMembers']).toEqual(['"active"', '"inactive"', '"pending"']);
   });
 
   it('detects multiple properties with unions on the same interface', () => {
@@ -324,7 +327,7 @@ interface WithMethod {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_name).toBe('value');
+    expect(issues[0]?.entity_name).toBe('value');
   });
 
   it('sets entity_id when property DTO is found in parseResult', () => {
@@ -339,7 +342,7 @@ interface Item {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_id).toBe('prop-kind-123');
+    expect(issues[0]?.entity_id).toBe('prop-kind-123');
   });
 
   it('omits entity_id when property DTO is not found in parseResult', () => {
@@ -353,7 +356,7 @@ interface Item {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0].entity_id).toBeUndefined();
+    expect(issues[0]?.entity_id).toBeUndefined();
   });
 
   it('includes line and column from the AST node location', () => {
@@ -559,8 +562,8 @@ class AppConfig {
     const classIssue = issues.find((i) => i.parent_entity_name === 'AppConfig');
     expect(ifaceIssue).toBeDefined();
     expect(classIssue).toBeDefined();
-    expect(ifaceIssue!.parent_entity_type).toBe('interface');
-    expect(classIssue!.parent_entity_type).toBe('class');
+    expect(ifaceIssue?.parent_entity_type).toBe('interface');
+    expect(classIssue?.parent_entity_type).toBe('class');
   });
 
   it('only flags properties over threshold in a mixed scenario', () => {
@@ -576,7 +579,7 @@ interface Partial {
     });
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
-    expect(issues[0]? .entity_name).toBe('threeMembers');
+    expect(issues[0]?.entity_name).toBe('threeMembers');
   });
 });
 
@@ -731,8 +734,11 @@ interface Complex {
     const issues = typeUnionWithoutAlias.check(context);
     expect(issues).toHaveLength(1);
     expect(issues[0]?.entity_name).toBe('handler');
-    const refCtx = issues[0]?.refactor_context!;
-    expect(refCtx.unionMembers).toHaveLength(3);
+    const refCtx = issues[0]?.refactor_context;
+    if (!refCtx) {
+      throw new Error('Refactor context is undefined');
+    }
+    expect(refCtx['unionMembers']).toHaveLength(3);
   });
 
   it('handles class with anonymous class expression (no id)', () => {

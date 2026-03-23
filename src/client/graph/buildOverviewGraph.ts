@@ -142,9 +142,10 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     includePackages: false,
     includeModules: true,
     includeClasses: false,
-    includeClassNodes: false,
-    includeInterfaceNodes: false,
+    includeClassNodes: true,
+    includeInterfaceNodes: true,
     nestSymbolsInModules: false,
+    memberNodeMode: 'compact',
     direction: options.direction,
   });
 
