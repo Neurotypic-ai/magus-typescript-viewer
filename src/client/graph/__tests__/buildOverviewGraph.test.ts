@@ -365,7 +365,7 @@ describe('buildOverviewGraph', () => {
       expect(groupNodes.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('produces edge highways across folder boundaries', () => {
+    it('keeps direct module-to-module edges across folder boundaries', () => {
       const result = buildOverviewGraph(
         defaultOptions({
           data: multifolderGraph(),
@@ -373,8 +373,10 @@ describe('buildOverviewGraph', () => {
         })
       );
 
-      const highwayEdges = result.edges.filter((e) => e.data?.highwaySegment === 'highway');
-      expect(highwayEdges.length).toBeGreaterThanOrEqual(1);
+      expect(result.edges.some((edge) => 'highwaySegment' in (edge.data ?? {}))).toBe(false);
+      expect(
+        result.edges.some((edge) => edge.source === 'mod-a' && edge.target === 'mod-b' && edge.data?.type === 'import')
+      ).toBe(true);
     });
   });
 

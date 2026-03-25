@@ -259,7 +259,7 @@ describe('collapseFolders', () => {
       expect(types).toContain('inheritance');
     });
 
-    it('clears source/target handles when endpoint is remapped', () => {
+    it('routes remapped collapsed-folder edges through the folder outer handles', () => {
       const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
       const edges: GraphEdge[] = [
         {
@@ -276,8 +276,8 @@ describe('collapseFolders', () => {
       const result = collapseFolders(nodes, edges, collapsed);
 
       expect(result.edges).toHaveLength(1);
-      // source was remapped, so sourceHandle is cleared
-      expect(result.edges[0]?.sourceHandle).toBeNull();
+      // source was remapped to the collapsed folder, so it should use the folder's outgoing handle
+      expect(result.edges[0]?.sourceHandle).toBe('folder-right-out');
       // target was not remapped, so targetHandle is preserved
       expect(result.edges[0]?.targetHandle).toBe('relational-in');
     });
@@ -298,52 +298,6 @@ describe('collapseFolders', () => {
       const e2 = result.edges.find((e) => e.source === 'm2' && e.target === 'm3');
       expect(e2).toBeDefined();
       expect(e2?.data?.type).toBe('dependency');
-    });
-  });
-
-  describe('highway segment handling', () => {
-    it('drops entry/exit highway edges when they are remapped', () => {
-      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
-      const edges: GraphEdge[] = [
-        makeEdge('exit-edge', 'm1', 'm2', 'import', { highwaySegment: 'exit' }),
-        makeEdge('entry-edge', 'm2', 'm1', 'import', { highwaySegment: 'entry' }),
-      ];
-      const collapsed = new Set(['folder-a']);
-
-      const result = collapseFolders(nodes, edges, collapsed);
-
-      // Both should be dropped because their endpoints are being remapped
-      expect(result.edges).toHaveLength(0);
-    });
-
-    it('keeps highway trunk edges even when endpoints are remapped', () => {
-      const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m2', 'module')];
-      const edges: GraphEdge[] = [makeEdge('trunk-edge', 'm1', 'm2', 'import', { highwaySegment: 'highway' })];
-      const collapsed = new Set(['folder-a']);
-
-      const result = collapseFolders(nodes, edges, collapsed);
-
-      // Trunk edges are kept even when remapped
-      expect(result.edges).toHaveLength(1);
-      expect(result.edges[0]?.source).toBe('folder-a');
-    });
-
-    it('keeps entry/exit highway edges when neither endpoint is remapped', () => {
-      const nodes = [
-        makeNode('folder-a', 'group'),
-        makeNode('m1', 'module', 'folder-a'),
-        makeNode('m2', 'module'),
-        makeNode('m3', 'module'),
-      ];
-      const edges: GraphEdge[] = [makeEdge('exit-edge', 'm2', 'm3', 'import', { highwaySegment: 'exit' })];
-      const collapsed = new Set(['folder-a']);
-
-      const result = collapseFolders(nodes, edges, collapsed);
-
-      // m2->m3 is not remapped, so the exit edge survives
-      expect(result.edges).toHaveLength(1);
-      expect(result.edges[0]?.source).toBe('m2');
-      expect(result.edges[0]?.target).toBe('m3');
     });
   });
 
@@ -374,19 +328,8 @@ describe('collapseFolders', () => {
       const meta = result.collapsedMeta.get('folder-a');
 
       expect(meta).toBeDefined();
-      // The intra-folder edge was remapped but then dropped (same source/target),
-      // so it is not counted as a lifted edge because the remapped check
-      // happens before the intra-folder drop
-      // Actually looking at the code: wasRemapped increments totalLifted before the
-      // intra-folder check. But the intra-folder check skips via `continue` before
-      // the dedup logic, so the edge won't appear. However totalLifted is still 0
-      // because the intra-folder `continue` comes *after* the highway check but
-      // *after* wasRemapped. Let me re-read the code flow:
-      //   1. mappedSource/mappedTarget computed
-      //   2. highway segment check (skips remapped entry/exit)
-      //   3. if mappedSource === mappedTarget -> continue (drops intra-folder)
-      //   4. wasRemapped -> totalLifted++
-      // So step 3 happens BEFORE step 4 — intra-folder edges don't count as lifted.
+      // Intra-folder edges are dropped before lifted-edge counting, so they do
+      // not contribute to the collapsed folder's liftedEdgeCount.
       expect(meta?.liftedEdgeCount).toBe(0);
     });
   });

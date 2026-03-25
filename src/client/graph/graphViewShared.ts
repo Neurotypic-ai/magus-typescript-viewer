@@ -49,11 +49,6 @@ export function bundleParallelEdges(edges: GraphEdge[]): GraphEdge[] {
       continue;
     }
 
-    if (group.some((edge) => edge.data?.highwaySegment === 'highway')) {
-      result.push(...group);
-      continue;
-    }
-
     group.sort((a, b) => {
       const typeA = a.data?.type;
       const typeB = b.data?.type;

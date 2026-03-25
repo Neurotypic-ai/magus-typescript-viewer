@@ -19,7 +19,7 @@ describe('edgeGeometryPolicy', () => {
     const source = { x: 0, y: 0 };
     const target = { x: 100, y: 50 };
     const polyline = buildEdgePolyline(source, target, {
-      targetHandle: 'folder-left-in-inner',
+      targetHandle: 'folder-left-in',
       targetNodeType: 'group',
     });
 
@@ -166,9 +166,12 @@ describe('edgeGeometryPolicy', () => {
 
     it('maps canonical folder handles to fixed horizontal sides', () => {
       expect(getHandleSide('folder-left-in')).toBe('left');
-      expect(getHandleSide('folder-left-in-inner')).toBe('left');
       expect(getHandleSide('folder-right-out')).toBe('right');
-      expect(getHandleSide('folder-right-out-inner')).toBe('right');
+    });
+
+    it('does not recognize removed inner folder handles', () => {
+      expect(getHandleSide('folder-left-in-inner')).toBeUndefined();
+      expect(getHandleSide('folder-right-out-inner')).toBeUndefined();
     });
   });
 

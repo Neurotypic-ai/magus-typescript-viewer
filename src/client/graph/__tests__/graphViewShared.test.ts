@@ -29,7 +29,7 @@ function makeEdge(
     id,
     source,
     target,
-    data: { type: type ?? 'dependency', ...extra },
+    data: { ...(type !== undefined ? { type } : {}), ...(extra ?? {}) },
   };
 }
 
@@ -154,19 +154,6 @@ describe('bundleParallelEdges', () => {
 
     // Representative should be the highest-priority: 'inheritance'
     expect(bundled?.data?.type).toBe('inheritance');
-  });
-
-  it('does NOT bundle highway segment edges', () => {
-    const highwayEdges = [
-      makeEdge('h1', 'a', 'b', 'import', { highwaySegment: 'highway' }),
-      makeEdge('h2', 'a', 'b', 'extends'),
-    ];
-    const edges = [...highwayEdges, ...makeFiller(48)];
-
-    const result = bundleParallelEdges(edges);
-    // Both highway edges should be preserved as separate entries
-    const abEdges = result.filter((e) => e.source === 'a' && e.target === 'b');
-    expect(abEdges).toHaveLength(2);
   });
 
   it('leaves single edges in a group untouched', () => {

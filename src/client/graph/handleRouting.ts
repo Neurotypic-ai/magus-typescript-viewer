@@ -5,11 +5,6 @@ export const FOLDER_HANDLE_IDS = {
   leftIn: 'folder-left-in',
 } as const;
 
-export const FOLDER_INNER_HANDLE_IDS = {
-  rightOut: 'folder-right-out-inner',
-  leftIn: 'folder-left-in-inner',
-} as const;
-
 /**
  * Canonical node handles are always right-out and left-in.
  * The direction argument is kept for compatibility with existing callers.

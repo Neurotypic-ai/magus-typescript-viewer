@@ -5,7 +5,6 @@ import { consola } from 'consola';
 import { buildOverviewGraph } from '../graph/buildGraphView';
 import { getHandlePositions } from '../graph/handleRouting';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
-import { optimizeHighwayHandleRouting } from '../graph/transforms/edgeHighways';
 import { parseDimension } from '../layout/geometryBounds';
 import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
 
@@ -335,7 +334,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
 
     return {
       nodes: nodesWithHandles,
-      edges: optimizeHighwayHandleRouting(nodesWithHandles, resultEdges),
+      edges: resultEdges,
     };
   };
 

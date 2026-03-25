@@ -31,7 +31,7 @@ export const GROUP_ENTRY_STUB_PX: number = EDGE_ARROW_SIZE_PX;
 export const NODE_PRE_APPROACH_STUB_PX: number = EDGE_ARROW_SIZE_PX;
 export const NODE_FINAL_APPROACH_PX: number = EDGE_ARROW_SIZE_PX * 2;
 
-const FOLDER_HANDLE_SIDE_PATTERN = /^folder-(right|left)-(?:in|out)(?:-inner)?$/;
+const FOLDER_HANDLE_SIDE_PATTERN = /^folder-(right|left)-(?:in|out)$/;
 
 const SIDE_NORMALS: Record<EdgeHandleSide, EdgeGeometryPoint> = {
   top: { x: 0, y: -1 },

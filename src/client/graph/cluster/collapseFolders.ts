@@ -2,6 +2,7 @@ import { MarkerType } from '@vue-flow/core';
 
 import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../layout/edgeGeometryPolicy';
 import { getNodeStyle } from '../../theme/graphTheme';
+import { FOLDER_HANDLE_IDS } from '../handleRouting';
 import { buildParentMap, findCollapsedAncestor } from './folderMembership';
 
 import type { DependencyNode } from '../../types/DependencyNode';
@@ -98,13 +99,6 @@ export function collapseFolders(
     const mappedSource = childToFolder.get(edge.source) ?? edge.source;
     const mappedTarget = childToFolder.get(edge.target) ?? edge.target;
 
-    // Highway entry/exit edges become invalid when collapse remaps one endpoint.
-    // Keep trunks, but drop remapped connectors so collapsed folders show only trunk paths.
-    const segment = edge.data?.highwaySegment;
-    if ((segment === 'exit' || segment === 'entry') && (mappedSource !== edge.source || mappedTarget !== edge.target)) {
-      continue;
-    }
-
     // Drop intra-folder edges
     if (mappedSource === mappedTarget) continue;
 
@@ -118,8 +112,8 @@ export function collapseFolders(
         id: key,
         source: mappedSource,
         target: mappedTarget,
-        sourceHandle: mappedSource === edge.source ? (edge.sourceHandle ?? null) : null,
-        targetHandle: mappedTarget === edge.target ? (edge.targetHandle ?? null) : null,
+        sourceHandle: mappedSource === edge.source ? (edge.sourceHandle ?? null) : FOLDER_HANDLE_IDS.rightOut,
+        targetHandle: mappedTarget === edge.target ? (edge.targetHandle ?? null) : FOLDER_HANDLE_IDS.leftIn,
         hidden: false,
         markerEnd: edge.markerEnd ?? {
           type: MarkerType.ArrowClosed,

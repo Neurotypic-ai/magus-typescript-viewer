@@ -10,7 +10,6 @@ import { collapseFolders } from './cluster/collapseFolders';
 import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
 import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
-import { applyEdgeHighways } from './transforms/edgeHighways';
 
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyData } from '../../shared/types/graph/DependencyData';
@@ -225,7 +224,10 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
 
   const nodesWithFolderWeights = aggregateFolderWeights(transformedGraph.nodes);
 
-  let projectedGraph = applyEdgeHighways(nodesWithFolderWeights, transformedGraph.edges);
+  let projectedGraph: GraphViewData = {
+    nodes: nodesWithFolderWeights,
+    edges: transformedGraph.edges,
+  };
   if (options.collapsedFolderIds.size > 0) {
     const folderCollapsed = collapseFolders(projectedGraph.nodes, projectedGraph.edges, options.collapsedFolderIds);
     projectedGraph = { nodes: folderCollapsed.nodes, edges: folderCollapsed.edges };

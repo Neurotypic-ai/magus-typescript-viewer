@@ -137,7 +137,7 @@ describe('buildOverviewGraph', () => {
     expect(mainNode?.data?.diagnostics?.orphanGlobal).toBe(true);
   });
 
-  it('returns a semantic snapshot and projects folder highways in folder mode', () => {
+  it('returns a semantic snapshot and preserves direct cross-folder module edges in folder mode', () => {
     const data: PackageGraph = {
       packages: [
         {
@@ -211,7 +211,12 @@ describe('buildOverviewGraph', () => {
 
     expect(result.semanticSnapshot).toBeDefined();
     expect(result.semanticSnapshot?.nodes.some((node) => node.type === 'group')).toBe(false);
-    expect(result.edges.some((edge) => edge.data?.highwaySegment === 'highway')).toBe(true);
+    expect(result.edges.some((edge) => 'highwaySegment' in (edge.data ?? {}))).toBe(false);
+    expect(
+      result.edges.some(
+        (edge) => edge.source === 'module-a' && edge.target === 'module-b' && edge.data?.type === 'import'
+      )
+    ).toBe(true);
   });
 });
 

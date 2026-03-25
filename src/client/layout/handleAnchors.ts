@@ -1,5 +1,3 @@
-import { GROUP_ENTRY_STUB_PX } from './edgeGeometryPolicy';
-
 interface HandleAnchorNodeBounds {
   x: number;
   y: number;
@@ -7,8 +5,7 @@ interface HandleAnchorNodeBounds {
   height: number;
 }
 
-const FOLDER_HANDLE_PATTERN = /^folder-(right|left)-(in|out)(-inner)?$/;
-const INNER_FOLDER_HANDLE_INSET_PX = GROUP_ENTRY_STUB_PX;
+const FOLDER_HANDLE_PATTERN = /^folder-(right|left)-(in|out)$/;
 
 export function getHandleAnchor(
   nodeBounds: HandleAnchorNodeBounds,
@@ -18,15 +15,14 @@ export function getHandleAnchor(
   const folderMatch = handleId.match(FOLDER_HANDLE_PATTERN);
   if (folderMatch) {
     const side = folderMatch[1] as 'right' | 'left';
-    const isInner = folderMatch[3] === '-inner';
     if (side === 'left') {
       return {
-        x: nodeBounds.x + (isInner ? INNER_FOLDER_HANDLE_INSET_PX : 0),
+        x: nodeBounds.x,
         y: nodeBounds.y + nodeBounds.height * 0.5,
       };
     }
     return {
-      x: nodeBounds.x + nodeBounds.width - (isInner ? INNER_FOLDER_HANDLE_INSET_PX : 0),
+      x: nodeBounds.x + nodeBounds.width,
       y: nodeBounds.y + nodeBounds.height * 0.5,
     };
   }

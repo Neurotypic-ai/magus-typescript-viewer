@@ -37,25 +37,11 @@ const folderHandles: FolderHandleConfig[] = [
     class: 'folder-handle',
   },
   {
-    id: 'folder-left-in-inner',
-    type: 'target' as HandleType,
-    position: Position.Left,
-    style: { top: '50%' },
-    class: 'folder-handle folder-handle-inner folder-handle-inner-left',
-  },
-  {
     id: 'folder-right-out',
     type: 'source' as HandleType,
     position: Position.Right,
     style: { top: '50%' },
     class: 'folder-handle',
-  },
-  {
-    id: 'folder-right-out-inner',
-    type: 'source' as HandleType,
-    position: Position.Right,
-    style: { top: '50%' },
-    class: 'folder-handle folder-handle-inner folder-handle-inner-right',
   },
 ];
 </script>
@@ -80,7 +66,7 @@ const folderHandles: FolderHandleConfig[] = [
       <span v-if="isCollapsed && childCount > 0" class="folder-badge">{{ childCount }}</span>
     </div>
     <Handle
-      v-for="h in folderHandles"
+      v-for="h in isCollapsed ? folderHandles : []"
       :id="h.id"
       :key="h.id"
       :type="h.type"
@@ -95,7 +81,6 @@ const folderHandles: FolderHandleConfig[] = [
 
 <style scoped>
 .group-node-container {
-  --folder-inner-handle-inset: var(--graph-handle-size);
   width: 100%;
   height: 100%;
   min-width: 220px;
@@ -222,19 +207,4 @@ const folderHandles: FolderHandleConfig[] = [
   box-shadow: 0 0 4px var(--graph-folder-handle-shadow);
 }
 
-.folder-handle-inner {
-  opacity: 0;
-  pointer-events: none;
-  box-shadow: none !important;
-}
-
-.folder-handle-inner-right {
-  right: var(--folder-inner-handle-inset) !important;
-  transform: translate(0, -50%) !important;
-}
-
-.folder-handle-inner-left {
-  left: var(--folder-inner-handle-inset) !important;
-  transform: translate(0, -50%) !important;
-}
 </style>

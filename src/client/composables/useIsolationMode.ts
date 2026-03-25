@@ -3,7 +3,6 @@ import { nextTick, ref } from 'vue';
 import { applyEdgeVisibility, buildSymbolDrilldownGraph, toDependencyEdgeKind } from '../graph/buildGraphView';
 import { buildParentMap } from '../graph/cluster/folderMembership';
 import { clusterByFolder } from '../graph/cluster/folders';
-import { applyEdgeHighways } from '../graph/transforms/edgeHighways';
 import { traverseGraph } from '../graph/traversal';
 import { mergeNodeInteractionStyle, stripNodeClass } from '../theme/graphClasses';
 import { getEdgeStyle, graphTheme } from '../theme/graphTheme';
@@ -259,9 +258,8 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
       );
 
       const clustered = clusterByFolder(isolatedSemanticNodes, isolatedSemanticEdges);
-      const highwayProjected = applyEdgeHighways(clustered.nodes, clustered.edges);
-      sourceNodes = highwayProjected.nodes;
-      sourceEdges = highwayProjected.edges;
+      sourceNodes = clustered.nodes;
+      sourceEdges = clustered.edges;
     }
 
     const targetNode = sourceNodes.find((node) => node.id === nodeId);

@@ -1,7 +1,8 @@
 import { Position } from '@vue-flow/core';
 import { describe, expect, it } from 'vitest';
 
-import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, getHandlePositions } from '../handleRouting';
+import { FOLDER_HANDLE_IDS, getHandlePositions } from '../handleRouting';
+import * as handleRoutingModule from '../handleRouting';
 
 describe('handleRouting', () => {
   it('exposes only canonical outer folder handles', () => {
@@ -11,11 +12,8 @@ describe('handleRouting', () => {
     });
   });
 
-  it('exposes only canonical inner folder handles', () => {
-    expect(FOLDER_INNER_HANDLE_IDS).toEqual({
-      leftIn: 'folder-left-in-inner',
-      rightOut: 'folder-right-out-inner',
-    });
+  it('does not expose any inner folder handle constants', () => {
+    expect('FOLDER_INNER_HANDLE_IDS' in handleRoutingModule).toBe(false);
   });
 
   it.each(['LR', 'RL', 'TB', 'BT'] as const)(
