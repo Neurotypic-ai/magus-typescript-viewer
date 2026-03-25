@@ -32,7 +32,6 @@ export const NODE_PRE_APPROACH_STUB_PX: number = EDGE_ARROW_SIZE_PX;
 export const NODE_FINAL_APPROACH_PX: number = EDGE_ARROW_SIZE_PX * 2;
 
 const FOLDER_HANDLE_SIDE_PATTERN = /^folder-(top|right|bottom|left)-(?:in|out)(?:-inner)?$/;
-const RELATIONAL_SIDE_HANDLE_PATTERN = /^relational-(?:in|out)-(top|right|bottom|left)$/;
 
 const SIDE_NORMALS: Record<EdgeHandleSide, EdgeGeometryPoint> = {
   top: { x: 0, y: -1 },
@@ -78,10 +77,6 @@ export function getHandleSide(handleId: string | null | undefined): EdgeHandleSi
   /* eslint-disable-next-line @typescript-eslint/prefer-regexp-exec -- .exec blocked by project hook */
   const folderMatch = handleId.match(FOLDER_HANDLE_SIDE_PATTERN);
   if (folderMatch) return folderMatch[1] as EdgeHandleSide;
-
-  /* eslint-disable-next-line @typescript-eslint/prefer-regexp-exec -- .exec blocked by project hook */
-  const relationalMatch = handleId.match(RELATIONAL_SIDE_HANDLE_PATTERN);
-  if (relationalMatch) return relationalMatch[1] as EdgeHandleSide;
 
   return undefined;
 }

@@ -137,6 +137,58 @@ function annotateOrphanDiagnostics(
   });
 }
 
+function computeModuleLayoutWeights(
+  nodes: DependencyNode[],
+  edges: GraphEdge[]
+): Map<string, number> {
+  const outgoing = new Map<string, number>();
+  const incoming = new Map<string, number>();
+  for (const node of nodes) {
+    outgoing.set(node.id, 0);
+    incoming.set(node.id, 0);
+  }
+  for (const edge of edges) {
+    if (!edge.hidden) {
+      outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
+      incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+    }
+  }
+  const weights = new Map<string, number>();
+  for (const node of nodes) {
+    weights.set(node.id, (outgoing.get(node.id) ?? 0) - (incoming.get(node.id) ?? 0));
+  }
+  return weights;
+}
+
+function applyModuleWeights(
+  nodes: DependencyNode[],
+  weights: Map<string, number>
+): DependencyNode[] {
+  return nodes.map((node) => {
+    const weight = weights.get(node.id);
+    if (weight === undefined) return node;
+    const existingData: DependencyData = node.data ?? { label: node.id };
+    return { ...node, data: { ...existingData, layoutWeight: weight } };
+  });
+}
+
+function aggregateFolderWeights(nodes: DependencyNode[]): DependencyNode[] {
+  const folderWeightSum = new Map<string, number>();
+  for (const node of nodes) {
+    if (node.parentNode) {
+      const childWeight = (node.data?.layoutWeight as number | undefined) ?? 0;
+      folderWeightSum.set(node.parentNode, (folderWeightSum.get(node.parentNode) ?? 0) + childWeight);
+    }
+  }
+  if (folderWeightSum.size === 0) return nodes;
+  return nodes.map((node) => {
+    const weight = folderWeightSum.get(node.id);
+    if (weight === undefined) return node;
+    const existingData: DependencyData = node.data ?? { label: node.id };
+    return { ...node, data: { ...existingData, layoutWeight: weight } };
+  });
+}
+
 export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphViewData {
   const graphNodes = createGraphNodes(options.data, {
     includePackages: false,
@@ -164,11 +216,17 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const semanticSnapshot = { nodes: filteredGraph.nodes, edges: filteredGraph.edges };
   validateEdgesAgainstRegistry(semanticSnapshot.nodes, semanticSnapshot.edges);
 
-  const transformedGraph = applyGraphTransforms(filteredGraph);
+  const moduleWeights = computeModuleLayoutWeights(semanticSnapshot.nodes, semanticSnapshot.edges);
+  const weightedFilteredGraph = {
+    nodes: applyModuleWeights(filteredGraph.nodes, moduleWeights),
+    edges: filteredGraph.edges,
+  };
 
-  let projectedGraph = applyEdgeHighways(transformedGraph.nodes, transformedGraph.edges, {
-    direction: options.direction,
-  });
+  const transformedGraph = applyGraphTransforms(weightedFilteredGraph);
+
+  const nodesWithFolderWeights = aggregateFolderWeights(transformedGraph.nodes);
+
+  let projectedGraph = applyEdgeHighways(nodesWithFolderWeights, transformedGraph.edges);
   if (options.collapsedFolderIds.size > 0) {
     const folderCollapsed = collapseFolders(projectedGraph.nodes, projectedGraph.edges, options.collapsedFolderIds);
     projectedGraph = { nodes: folderCollapsed.nodes, edges: folderCollapsed.edges };

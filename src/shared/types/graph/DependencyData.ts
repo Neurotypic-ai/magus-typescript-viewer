@@ -28,6 +28,7 @@ export interface DependencyData {
   diagnostics?: NodeDiagnostics;
   layoutInsets?: LayoutInsets;
   isContainer?: boolean;
+  layoutWeight?: number;
   collapsible?: boolean;
   [key: string]: unknown;
 }

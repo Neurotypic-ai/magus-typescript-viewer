@@ -259,9 +259,7 @@ export function useIsolationMode(options: UseIsolationModeOptions): IsolationMod
       );
 
       const clustered = clusterByFolder(isolatedSemanticNodes, isolatedSemanticEdges);
-      const highwayProjected = applyEdgeHighways(clustered.nodes, clustered.edges, {
-        direction: layoutConfig.direction,
-      });
+      const highwayProjected = applyEdgeHighways(clustered.nodes, clustered.edges);
       sourceNodes = highwayProjected.nodes;
       sourceEdges = highwayProjected.edges;
     }

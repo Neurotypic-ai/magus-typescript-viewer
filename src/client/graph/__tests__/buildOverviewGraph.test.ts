@@ -474,4 +474,47 @@ describe('buildOverviewGraph', () => {
       expect(result.edges).toHaveLength(0);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Layout weights
+  // -----------------------------------------------------------------------
+
+  describe('layout weights', () => {
+    it('assigns positive layoutWeight to importer modules and negative to imported-only modules', () => {
+      const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts');
+      const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+
+      const result = buildOverviewGraph(defaultOptions({ data }));
+
+      const nodeA = result.nodes.find((n) => n.id === 'mod-a');
+      const nodeB = result.nodes.find((n) => n.id === 'mod-b');
+      // mod-a has 1 outgoing import, 0 incoming → weight = +1
+      expect(nodeA?.data?.layoutWeight).toBe(1);
+      // mod-b has 0 outgoing, 1 incoming → weight = -1
+      expect(nodeB?.data?.layoutWeight).toBe(-1);
+    });
+
+    it('assigns aggregated layoutWeight to folder group nodes', () => {
+      // Same two-module graph: mod-a imports mod-b, both in the same folder (src/)
+      const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts');
+      const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+
+      const result = buildOverviewGraph(defaultOptions({ data }));
+
+      const groupNode = result.nodes.find((n) => n.type === 'group');
+      expect(groupNode).toBeDefined();
+      // sum of children weights: +1 + (-1) = 0
+      expect(groupNode?.data?.layoutWeight).toBe(0);
+    });
+  });
 });

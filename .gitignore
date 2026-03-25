@@ -14,3 +14,4 @@ playwright-report/index.html
 test-results/.last-run.json
 
 dist-server/
+test-results/

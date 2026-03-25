@@ -28,46 +28,36 @@ interface FolderHandleConfig {
   class: string;
 }
 
-const SIDES: { position: Position; inPct: string; outPct: string; axis: 'left' | 'top'; innerClass: string }[] = [
-  { position: Position.Top, inPct: '33%', outPct: '66%', axis: 'left', innerClass: 'folder-handle-inner-top' },
-  { position: Position.Right, inPct: '33%', outPct: '66%', axis: 'top', innerClass: 'folder-handle-inner-right' },
-  { position: Position.Bottom, inPct: '33%', outPct: '66%', axis: 'left', innerClass: 'folder-handle-inner-bottom' },
-  { position: Position.Left, inPct: '33%', outPct: '66%', axis: 'top', innerClass: 'folder-handle-inner-left' },
+const folderHandles: FolderHandleConfig[] = [
+  {
+    id: 'folder-left-in',
+    type: 'target' as HandleType,
+    position: Position.Left,
+    style: { top: '50%' },
+    class: 'folder-handle',
+  },
+  {
+    id: 'folder-left-in-inner',
+    type: 'target' as HandleType,
+    position: Position.Left,
+    style: { top: '50%' },
+    class: 'folder-handle folder-handle-inner folder-handle-inner-left',
+  },
+  {
+    id: 'folder-right-out',
+    type: 'source' as HandleType,
+    position: Position.Right,
+    style: { top: '50%' },
+    class: 'folder-handle',
+  },
+  {
+    id: 'folder-right-out-inner',
+    type: 'source' as HandleType,
+    position: Position.Right,
+    style: { top: '50%' },
+    class: 'folder-handle folder-handle-inner folder-handle-inner-right',
+  },
 ];
-
-const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
-  const sideName = side.position.toLowerCase();
-  return [
-    {
-      id: `folder-${sideName}-in`,
-      type: 'target' as HandleType,
-      position: side.position,
-      style: { [side.axis]: side.inPct },
-      class: 'folder-handle',
-    },
-    {
-      id: `folder-${sideName}-in-inner`,
-      type: 'target' as HandleType,
-      position: side.position,
-      style: { [side.axis]: side.inPct },
-      class: `folder-handle folder-handle-inner ${side.innerClass}`,
-    },
-    {
-      id: `folder-${sideName}-out`,
-      type: 'source' as HandleType,
-      position: side.position,
-      style: { [side.axis]: side.outPct },
-      class: 'folder-handle',
-    },
-    {
-      id: `folder-${sideName}-out-inner`,
-      type: 'source' as HandleType,
-      position: side.position,
-      style: { [side.axis]: side.outPct },
-      class: `folder-handle folder-handle-inner ${side.innerClass}`,
-    },
-  ];
-});
 </script>
 
 <template>
@@ -238,19 +228,9 @@ const folderHandles: FolderHandleConfig[] = SIDES.flatMap((side) => {
   box-shadow: none !important;
 }
 
-.folder-handle-inner-top {
-  top: var(--folder-inner-handle-inset) !important;
-  transform: translate(-50%, 0) !important;
-}
-
 .folder-handle-inner-right {
   right: var(--folder-inner-handle-inset) !important;
   transform: translate(0, -50%) !important;
-}
-
-.folder-handle-inner-bottom {
-  bottom: var(--folder-inner-handle-inset) !important;
-  transform: translate(-50%, 0) !important;
 }
 
 .folder-handle-inner-left {

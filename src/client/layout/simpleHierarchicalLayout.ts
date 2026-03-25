@@ -59,6 +59,15 @@ const CHILD_GAP = 120;
 /** Maximum columns of children per parent. */
 const CHILD_MAX_COLS = 3;
 
+/**
+ * Actual visual inset from the folder chrome to where child nodes should start.
+ * The larger `CHILD_PADDING_*` constants are preserved as reserve space for the
+ * enclosing parent bounds, but they are too large to use as literal child
+ * positions inside the folder.
+ */
+const CHILD_VISUAL_INSET_TOP = 44;
+const CHILD_VISUAL_INSET_LEFT = 10;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface HierarchicalLayoutResult {
@@ -87,6 +96,10 @@ function getTypeOrder(node: DependencyNode): number {
   return TYPE_ORDER[t] ?? 99;
 }
 
+function getLayoutWeight(node: DependencyNode): number {
+  return (node.data?.layoutWeight as number | undefined) ?? 0;
+}
+
 // ── Child layout ─────────────────────────────────────────────────────────────
 
 /**
@@ -100,9 +113,13 @@ function computeChildLayout(children: DependencyNode[]): {
 } {
   const childPositions = new Map<string, { x: number; y: number }>();
 
+  const sortedChildren = children
+    .slice()
+    .sort((a, b) => getLayoutWeight(b) - getLayoutWeight(a) || a.id.localeCompare(b.id));
+
   const cols = Math.min(CHILD_MAX_COLS, Math.max(1, Math.ceil(Math.sqrt(children.length))));
   const rows = Math.ceil(children.length / cols);
-  const childDimensions = children.map((child) => resolveNodeDimensions(child, DEFAULT_NODE_DIMENSIONS));
+  const childDimensions = sortedChildren.map((child) => resolveNodeDimensions(child, DEFAULT_NODE_DIMENSIONS));
   const columnWidths = Array.from({ length: cols }, () => 0);
   const rowHeights = Array.from({ length: rows }, () => 0);
 
@@ -114,25 +131,25 @@ function computeChildLayout(children: DependencyNode[]): {
   });
 
   const columnOffsets = new Array<number>(cols);
-  let nextColumnOffset = CHILD_PADDING_LEFT;
+  let nextColumnOffset = CHILD_VISUAL_INSET_LEFT;
   for (let col = 0; col < cols; col++) {
     columnOffsets[col] = nextColumnOffset;
     nextColumnOffset += (columnWidths[col] ?? 0) + CHILD_GAP;
   }
 
   const rowOffsets = new Array<number>(rows);
-  let nextRowOffset = CHILD_PADDING_TOP;
+  let nextRowOffset = CHILD_VISUAL_INSET_TOP;
   for (let row = 0; row < rows; row++) {
     rowOffsets[row] = nextRowOffset;
     nextRowOffset += (rowHeights[row] ?? 0) + CHILD_GAP;
   }
 
-  children.forEach((child, index) => {
+  sortedChildren.forEach((child, index) => {
     const col = index % cols;
     const row = Math.floor(index / cols);
     childPositions.set(child.id, {
-      x: columnOffsets[col] ?? CHILD_PADDING_LEFT,
-      y: rowOffsets[row] ?? CHILD_PADDING_TOP,
+      x: columnOffsets[col] ?? CHILD_VISUAL_INSET_LEFT,
+      y: rowOffsets[row] ?? CHILD_VISUAL_INSET_TOP,
     });
   });
 
@@ -204,6 +221,10 @@ export function computeSimpleHierarchicalLayout(
   for (const typeOrder of sortedTypeOrders) {
     const group = byType.get(typeOrder);
     if (!group || group.length === 0) continue;
+
+    // Sort within type group: import-heavy producers left, consumer-heavy nodes right.
+    // Tiebreaker: node ID for determinism.
+    group.sort((a, b) => getLayoutWeight(b) - getLayoutWeight(a) || a.id.localeCompare(b.id));
 
     let col = 0;
     let rowX = 0;

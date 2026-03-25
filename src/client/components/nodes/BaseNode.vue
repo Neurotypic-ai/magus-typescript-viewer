@@ -100,60 +100,12 @@ const isInsightDimmed = computed(() => {
   return !insightsStore.filteredNodeIds.has(props.id);
 });
 
-const sourcePosition = computed(() => props.sourcePosition ?? Position.Bottom);
-const targetPosition = computed(() => props.targetPosition ?? Position.Top);
+const sourcePosition = computed(() => props.sourcePosition ?? Position.Right);
+const targetPosition = computed(() => props.targetPosition ?? Position.Left);
 
 const handles = computed(() => [
-  { id: 'relational-in', type: 'target' as const, position: targetPosition.value, class: 'base-node-handle' },
-  {
-    id: 'relational-in-top',
-    type: 'target' as const,
-    position: Position.Top,
-    class: 'base-node-handle base-node-handle--aux',
-  },
-  {
-    id: 'relational-in-right',
-    type: 'target' as const,
-    position: Position.Right,
-    class: 'base-node-handle base-node-handle--aux',
-  },
-  {
-    id: 'relational-in-bottom',
-    type: 'target' as const,
-    position: Position.Bottom,
-    class: 'base-node-handle base-node-handle--aux',
-  },
-  {
-    id: 'relational-in-left',
-    type: 'target' as const,
-    position: Position.Left,
-    class: 'base-node-handle base-node-handle--aux',
-  },
+  { id: 'relational-in',  type: 'target' as const, position: targetPosition.value, class: 'base-node-handle' },
   { id: 'relational-out', type: 'source' as const, position: sourcePosition.value, class: 'base-node-handle' },
-  {
-    id: 'relational-out-top',
-    type: 'source' as const,
-    position: Position.Top,
-    class: 'base-node-handle base-node-handle--aux',
-  },
-  {
-    id: 'relational-out-right',
-    type: 'source' as const,
-    position: Position.Right,
-    class: 'base-node-handle base-node-handle--aux',
-  },
-  {
-    id: 'relational-out-bottom',
-    type: 'source' as const,
-    position: Position.Bottom,
-    class: 'base-node-handle base-node-handle--aux',
-  },
-  {
-    id: 'relational-out-left',
-    type: 'source' as const,
-    position: Position.Left,
-    class: 'base-node-handle base-node-handle--aux',
-  },
 ]);
 
 const inferredContainer = computed(() => {
@@ -248,7 +200,7 @@ const containerStyle = computed(() => {
     </NodeToolbar>
 
     <Handle
-      v-for="h in handles.slice(0, 5)"
+      v-for="h in handles.slice(0, 1)"
       :id="h.id"
       :key="h.id"
       :type="h.type"
@@ -304,7 +256,7 @@ const containerStyle = computed(() => {
     <slot name="empty" />
 
     <Handle
-      v-for="h in handles.slice(5)"
+      v-for="h in handles.slice(1)"
       :id="h.id"
       :key="h.id"
       :type="h.type"
@@ -378,12 +330,6 @@ const containerStyle = computed(() => {
   height: 0.75rem !important;
 }
 
-.base-node-handle--aux {
-  width: 4px !important;
-  height: 4px !important;
-  opacity: 0;
-  pointer-events: none;
-}
 
 .base-node-header {
   display: flex;

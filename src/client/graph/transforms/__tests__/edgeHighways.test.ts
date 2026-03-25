@@ -34,18 +34,6 @@ const makeEdge = (id: string, source: string, target: string, type: DependencyEd
     data: { type },
   }) as GraphEdge;
 
-const reFolderSide = /folder-(top|right|bottom|left)-(?:in|out)(?:-inner)?$/;
-const reRelationalSide = /relational-(?:in|out)-(top|right|bottom|left)$/;
-const getHandleSide = (handleId: string | null | undefined): string | undefined => {
-  if (!handleId) return undefined;
-  const folderMatch = reFolderSide.exec(handleId);
-  if (folderMatch) {
-    return folderMatch[1];
-  }
-  const relationalMatch = reRelationalSide.exec(handleId);
-  return relationalMatch?.[1];
-};
-
 describe('applyEdgeHighways', () => {
   it('projects cross-folder edges into exit, trunk, and entry segments', () => {
     const nodes: DependencyNode[] = [
@@ -59,7 +47,7 @@ describe('applyEdgeHighways', () => {
       makeEdge('e-intra', 'module:A1', 'module:A1', 'uses'),
     ];
 
-    const result = applyEdgeHighways(nodes, edges, { direction: 'LR' });
+    const result = applyEdgeHighways(nodes, edges);
     const optimizedEdges = optimizeHighwayHandleRouting(nodes, result.edges);
     const segmentKinds = optimizedEdges.map((edge) => edge.data?.highwaySegment);
 
@@ -71,16 +59,14 @@ describe('applyEdgeHighways', () => {
     const entry = optimizedEdges.find((edge) => edge.data?.highwaySegment === 'entry');
     expect(trunk?.source).toBe('folder:A');
     expect(trunk?.target).toBe('folder:B');
-    expect(trunk?.sourceHandle).toMatch(/^folder-(top|right|bottom|left)-out$/);
-    expect(trunk?.targetHandle).toMatch(/^folder-(top|right|bottom|left)-in$/);
-    expect(exit?.sourceHandle).toMatch(/^relational-out-(top|right|bottom|left)$/);
-    expect(exit?.targetHandle).toMatch(/^folder-(top|right|bottom|left)-out-inner$/);
+    expect(trunk?.sourceHandle).toBe('folder-right-out');
+    expect(trunk?.targetHandle).toBe('folder-left-in');
+    expect(exit?.sourceHandle).toBe('relational-out');
+    expect(exit?.targetHandle).toBe('folder-right-out-inner');
     expect(exit?.type).toBe('smoothstep');
     expect(exit?.pathOptions).toMatchObject({ offset: GROUP_ENTRY_STUB_PX, borderRadius: 0 });
-    expect(getHandleSide(exit?.sourceHandle)).toBe(getHandleSide(exit?.targetHandle));
-    expect(entry?.sourceHandle).toMatch(/^folder-(top|right|bottom|left)-in-inner$/);
-    expect(entry?.targetHandle).toMatch(/^relational-in-(top|right|bottom|left)$/);
-    expect(getHandleSide(entry?.sourceHandle)).toBe(getHandleSide(entry?.targetHandle));
+    expect(entry?.sourceHandle).toBe('folder-left-in-inner');
+    expect(entry?.targetHandle).toBe('relational-in');
     expect(entry?.type).toBe('smoothstep');
     expect(entry?.pathOptions).toMatchObject({ offset: GROUP_ENTRY_STUB_PX, borderRadius: 0 });
   });
@@ -99,7 +85,7 @@ describe('applyEdgeHighways', () => {
       makeEdge('e3', 'module:A2', 'module:B1', 'inheritance'),
     ];
 
-    const result = applyEdgeHighways(nodes, edges, { direction: 'TB' });
+    const result = applyEdgeHighways(nodes, edges);
     const trunks = result.edges.filter((edge) => edge.data?.highwaySegment === 'highway');
     expect(trunks).toHaveLength(1);
 
@@ -109,8 +95,8 @@ describe('applyEdgeHighways', () => {
     expect(trunk.data?.highwayCount).toBe(3);
     expect(trunk.data?.highwayTypeBreakdown?.import).toBe(2);
     expect(trunk.data?.highwayTypeBreakdown?.inheritance).toBe(1);
-    expect(trunk.sourceHandle).toBe('folder-bottom-out');
-    expect(trunk.targetHandle).toBe('folder-top-in');
+    expect(trunk.sourceHandle).toBe('folder-right-out');
+    expect(trunk.targetHandle).toBe('folder-left-in');
   });
 
   it('resolves nested endpoints through parentNode chain', () => {
@@ -136,7 +122,7 @@ describe('applyEdgeHighways', () => {
     ];
     const edges: GraphEdge[] = [makeEdge('nested', 'class:A1', 'class:B1', 'inheritance')];
 
-    const result = applyEdgeHighways(nodes, edges, { direction: 'LR' });
+    const result = applyEdgeHighways(nodes, edges);
     const trunk = result.edges.find((edge) => edge.data?.highwaySegment === 'highway');
     expect(trunk).toBeDefined();
     expect(trunk?.source).toBe('folder:A');
@@ -152,62 +138,12 @@ describe('applyEdgeHighways', () => {
     ];
     const edges: GraphEdge[] = [makeEdge('e-cross', 'module:A1', 'module:B1', 'import')];
 
-    const highwayGraph = applyEdgeHighways(nodes, edges, { direction: 'LR' });
+    const highwayGraph = applyEdgeHighways(nodes, edges);
     const collapsed = collapseFolders(highwayGraph.nodes, highwayGraph.edges, new Set(['folder:A']));
 
     const trunk = collapsed.edges.find((edge) => edge.data?.highwaySegment === 'highway');
     expect(trunk).toBeDefined();
     expect(collapsed.edges.some((edge) => edge.data?.highwaySegment === 'exit')).toBe(false);
-  });
-
-  it('chooses nearest handles and allows multiple outgoing handles per module', () => {
-    const nodes: DependencyNode[] = [
-      {
-        ...makeGroup('folder:A'),
-        position: { x: 0, y: 0 },
-        style: { width: 300, height: 300 },
-      } as DependencyNode,
-      {
-        ...makeGroup('folder:B'),
-        position: { x: 700, y: 40 },
-        style: { width: 260, height: 220 },
-      } as DependencyNode,
-      {
-        ...makeGroup('folder:C'),
-        position: { x: 40, y: 760 },
-        style: { width: 260, height: 220 },
-      } as DependencyNode,
-      {
-        ...makeModule('module:A1', 'folder:A'),
-        position: { x: 230, y: 210 },
-      } as DependencyNode,
-      {
-        ...makeModule('module:B1', 'folder:B'),
-        position: { x: 40, y: 80 },
-      } as DependencyNode,
-      {
-        ...makeModule('module:C1', 'folder:C'),
-        position: { x: 80, y: 70 },
-      } as DependencyNode,
-    ];
-
-    const edges: GraphEdge[] = [
-      makeEdge('a-to-b', 'module:A1', 'module:B1', 'import'),
-      makeEdge('a-to-c', 'module:A1', 'module:C1', 'import'),
-    ];
-
-    const projected = applyEdgeHighways(nodes, edges, { direction: 'LR' });
-    const optimized = optimizeHighwayHandleRouting(nodes, projected.edges);
-    const exits = optimized.filter((edge) => edge.data?.highwaySegment === 'exit' && edge.source === 'module:A1');
-
-    expect(exits).toHaveLength(2);
-    expect(new Set(exits.map((edge) => edge.targetHandle))).toEqual(
-      new Set(['folder-right-out-inner', 'folder-bottom-out-inner'])
-    );
-    expect(new Set(exits.map((edge) => edge.sourceHandle))).toEqual(
-      new Set(['relational-out-right', 'relational-out-bottom'])
-    );
-    expect(exits.every((edge) => edge.type === 'smoothstep')).toBe(true);
   });
 
   it('does not force straight rendering for folder-to-descendant edges', () => {

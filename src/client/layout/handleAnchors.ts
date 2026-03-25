@@ -8,7 +8,6 @@ interface HandleAnchorNodeBounds {
 }
 
 const FOLDER_HANDLE_PATTERN = /^folder-(top|right|bottom|left)-(in|out)(-inner)?$/;
-const RELATIONAL_SIDE_HANDLE_PATTERN = /^relational-(in|out)-(top|right|bottom|left)$/;
 const INNER_FOLDER_HANDLE_INSET_PX = GROUP_ENTRY_STUB_PX;
 
 export function getHandleAnchor(
@@ -47,44 +46,16 @@ export function getHandleAnchor(
     };
   }
 
-  /* eslint-disable-next-line @typescript-eslint/prefer-regexp-exec -- .exec blocked by project hook */
-  const relationalSideMatch = handleId.match(RELATIONAL_SIDE_HANDLE_PATTERN);
-  if (relationalSideMatch) {
-    const side = relationalSideMatch[2] as 'top' | 'right' | 'bottom' | 'left';
-    if (side === 'top') {
-      return {
-        x: nodeBounds.x + nodeBounds.width * 0.5,
-        y: nodeBounds.y,
-      };
-    }
-    if (side === 'right') {
-      return {
-        x: nodeBounds.x + nodeBounds.width,
-        y: nodeBounds.y + nodeBounds.height * 0.5,
-      };
-    }
-    if (side === 'bottom') {
-      return {
-        x: nodeBounds.x + nodeBounds.width * 0.5,
-        y: nodeBounds.y + nodeBounds.height,
-      };
-    }
+  if (handleId === 'relational-in') {
     return {
       x: nodeBounds.x,
       y: nodeBounds.y + nodeBounds.height * 0.5,
     };
   }
-
-  if (handleId === 'relational-in') {
-    return {
-      x: nodeBounds.x + nodeBounds.width * 0.5,
-      y: nodeBounds.y,
-    };
-  }
   if (handleId === 'relational-out') {
     return {
-      x: nodeBounds.x + nodeBounds.width * 0.5,
-      y: nodeBounds.y + nodeBounds.height,
+      x: nodeBounds.x + nodeBounds.width,
+      y: nodeBounds.y + nodeBounds.height * 0.5,
     };
   }
 
