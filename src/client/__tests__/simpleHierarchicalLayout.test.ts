@@ -70,7 +70,7 @@ describe('computeSimpleHierarchicalLayout', () => {
     expect(layout.positions.get('pkg-b')).toEqual({ x: 240, y: 0 });
   });
 
-  it('places import-heavy root nodes left of consumer-heavy root nodes', () => {
+  it('places foundation root nodes (positive weight) left of consumer root nodes (negative weight)', () => {
     const producer = makeNode({ id: 'producer', type: 'group', data: { label: 'producer', layoutWeight: 5 } });
     const balanced = makeNode({ id: 'balanced', type: 'group', data: { label: 'balanced', layoutWeight: 0 } });
     const consumer = makeNode({ id: 'consumer', type: 'group', data: { label: 'consumer', layoutWeight: -5 } });
@@ -85,7 +85,7 @@ describe('computeSimpleHierarchicalLayout', () => {
     expect(xBalanced).toBeLessThan(xConsumer);
   });
 
-  it('places import-heavy child modules left within their folder', () => {
+  it('places foundation child modules (positive weight) left within their folder', () => {
     const parent = makeNode({ id: 'folder', type: 'group' });
     const producer = makeNode({ id: 'child-producer', parentNode: 'folder', data: { label: 'producer', layoutWeight: 3 } });
     const consumer = makeNode({ id: 'child-consumer', parentNode: 'folder', data: { label: 'consumer', layoutWeight: -3 } });

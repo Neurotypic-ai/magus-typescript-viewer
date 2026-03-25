@@ -154,7 +154,7 @@ function computeModuleLayoutWeights(
   }
   const weights = new Map<string, number>();
   for (const node of nodes) {
-    weights.set(node.id, (outgoing.get(node.id) ?? 0) - (incoming.get(node.id) ?? 0));
+    weights.set(node.id, (incoming.get(node.id) ?? 0) - (outgoing.get(node.id) ?? 0));
   }
   return weights;
 }

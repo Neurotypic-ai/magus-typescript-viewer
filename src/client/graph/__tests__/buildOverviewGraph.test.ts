@@ -480,7 +480,7 @@ describe('buildOverviewGraph', () => {
   // -----------------------------------------------------------------------
 
   describe('layout weights', () => {
-    it('assigns positive layoutWeight to importer modules and negative to imported-only modules', () => {
+    it('assigns positive layoutWeight to heavily-imported foundation modules and negative to consumer modules', () => {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
         imports: {
           i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
@@ -493,10 +493,10 @@ describe('buildOverviewGraph', () => {
 
       const nodeA = result.nodes.find((n) => n.id === 'mod-a');
       const nodeB = result.nodes.find((n) => n.id === 'mod-b');
-      // mod-a has 1 outgoing import, 0 incoming → weight = +1
-      expect(nodeA?.data?.layoutWeight).toBe(1);
-      // mod-b has 0 outgoing, 1 incoming → weight = -1
-      expect(nodeB?.data?.layoutWeight).toBe(-1);
+      // mod-a has 1 outgoing import, 0 incoming → weight = 0 - 1 = -1 (consumer)
+      expect(nodeA?.data?.layoutWeight).toBe(-1);
+      // mod-b has 0 outgoing, 1 incoming → weight = 1 - 0 = +1 (foundation)
+      expect(nodeB?.data?.layoutWeight).toBe(1);
     });
 
     it('assigns aggregated layoutWeight to folder group nodes', () => {
