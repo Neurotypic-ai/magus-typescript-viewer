@@ -140,20 +140,50 @@ function computeModuleLayoutWeights(
   nodes: DependencyNode[],
   edges: GraphEdge[]
 ): Map<string, number> {
-  const outgoing = new Map<string, number>();
-  const incoming = new Map<string, number>();
+  // Build adjacency: edge.source imports edge.target (importer-to-imported)
+  const importsOf = new Map<string, Set<string>>();
+  const nodeIds = new Set<string>();
+
   for (const node of nodes) {
-    outgoing.set(node.id, 0);
-    incoming.set(node.id, 0);
+    nodeIds.add(node.id);
+    importsOf.set(node.id, new Set());
   }
+
   for (const edge of edges) {
     if (edge.hidden || edge.data?.type !== 'import') continue;
-    outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
-    incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
+    importsOf.get(edge.source)?.add(edge.target);
   }
+
+  // Memoized longest-path depth with cycle detection
+  const depthCache = new Map<string, number>();
+  const visiting = new Set<string>();
+
+  function computeDepth(nodeId: string): number {
+    const cached = depthCache.get(nodeId);
+    if (cached !== undefined) return cached;
+    if (visiting.has(nodeId)) return 0; // cycle → treat as leaf
+
+    visiting.add(nodeId);
+    const imports = importsOf.get(nodeId);
+    let maxImportDepth = -1;
+    if (imports) {
+      for (const targetId of imports) {
+        maxImportDepth = Math.max(maxImportDepth, computeDepth(targetId));
+      }
+    }
+    visiting.delete(nodeId);
+
+    const depth = maxImportDepth === -1 ? 0 : maxImportDepth + 1;
+    depthCache.set(nodeId, depth);
+    return depth;
+  }
+
+  // layoutWeight = -depth → foundations (0) left, consumers (negative) right
   const weights = new Map<string, number>();
   for (const node of nodes) {
-    weights.set(node.id, (incoming.get(node.id) ?? 0) - (outgoing.get(node.id) ?? 0));
+    const depth = computeDepth(node.id);
+    weights.set(node.id, depth > 0 ? -depth : 0);
   }
   return weights;
 }

@@ -66,7 +66,7 @@ const folderHandles: FolderHandleConfig[] = [
       <span v-if="isCollapsed && childCount > 0" class="folder-badge">{{ childCount }}</span>
     </div>
     <Handle
-      v-for="h in isCollapsed ? folderHandles : []"
+      v-for="h in folderHandles"
       :id="h.id"
       :key="h.id"
       :type="h.type"
@@ -205,6 +205,13 @@ const folderHandles: FolderHandleConfig[] = [
 .group-node-container:hover .folder-handle {
   opacity: 0.42;
   box-shadow: 0 0 4px var(--graph-folder-handle-shadow);
+}
+
+.group-node-container:not(.group-node-collapsed) .folder-handle {
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0;
+  pointer-events: none;
 }
 
 </style>
