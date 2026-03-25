@@ -1,39 +1,22 @@
 import { Position } from '@vue-flow/core';
 
 export const FOLDER_HANDLE_IDS = {
-  topIn: 'folder-top-in',
-  topOut: 'folder-top-out',
-  rightIn: 'folder-right-in',
   rightOut: 'folder-right-out',
-  bottomIn: 'folder-bottom-in',
-  bottomOut: 'folder-bottom-out',
   leftIn: 'folder-left-in',
-  leftOut: 'folder-left-out',
 } as const;
 
 export const FOLDER_INNER_HANDLE_IDS = {
-  topIn: 'folder-top-in-inner',
-  topOut: 'folder-top-out-inner',
-  rightIn: 'folder-right-in-inner',
   rightOut: 'folder-right-out-inner',
-  bottomIn: 'folder-bottom-in-inner',
-  bottomOut: 'folder-bottom-out-inner',
   leftIn: 'folder-left-in-inner',
-  leftOut: 'folder-left-out-inner',
 } as const;
 
+/**
+ * Canonical node handles are always right-out and left-in.
+ * The direction argument is kept for compatibility with existing callers.
+ */
 export const getHandlePositions = (
-  direction: 'LR' | 'RL' | 'TB' | 'BT'
+  _direction: 'LR' | 'RL' | 'TB' | 'BT'
 ): { sourcePosition: Position; targetPosition: Position } => {
-  switch (direction) {
-    case 'LR':
-      return { sourcePosition: Position.Right, targetPosition: Position.Left };
-    case 'RL':
-      return { sourcePosition: Position.Left, targetPosition: Position.Right };
-    case 'TB':
-      return { sourcePosition: Position.Bottom, targetPosition: Position.Top };
-    case 'BT':
-      return { sourcePosition: Position.Top, targetPosition: Position.Bottom };
-  }
+  return { sourcePosition: Position.Right, targetPosition: Position.Left };
 };
 

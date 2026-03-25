@@ -1,25 +1,30 @@
+import { Position } from '@vue-flow/core';
 import { describe, expect, it } from 'vitest';
 
-import { selectFolderHandle } from '../handleRouting';
+import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS, getHandlePositions } from '../handleRouting';
 
 describe('handleRouting', () => {
-  it('maps LR direction handles correctly', () => {
-    expect(selectFolderHandle('LR', 'incoming')).toBe('folder-left-in');
-    expect(selectFolderHandle('LR', 'outgoing')).toBe('folder-right-out');
+  it('exposes only canonical outer folder handles', () => {
+    expect(FOLDER_HANDLE_IDS).toEqual({
+      leftIn: 'folder-left-in',
+      rightOut: 'folder-right-out',
+    });
   });
 
-  it('maps RL direction handles correctly', () => {
-    expect(selectFolderHandle('RL', 'incoming')).toBe('folder-right-in');
-    expect(selectFolderHandle('RL', 'outgoing')).toBe('folder-left-out');
+  it('exposes only canonical inner folder handles', () => {
+    expect(FOLDER_INNER_HANDLE_IDS).toEqual({
+      leftIn: 'folder-left-in-inner',
+      rightOut: 'folder-right-out-inner',
+    });
   });
 
-  it('maps TB direction handles correctly', () => {
-    expect(selectFolderHandle('TB', 'incoming')).toBe('folder-top-in');
-    expect(selectFolderHandle('TB', 'outgoing')).toBe('folder-bottom-out');
-  });
-
-  it('maps BT direction handles correctly', () => {
-    expect(selectFolderHandle('BT', 'incoming')).toBe('folder-bottom-in');
-    expect(selectFolderHandle('BT', 'outgoing')).toBe('folder-top-out');
-  });
+  it.each(['LR', 'RL', 'TB', 'BT'] as const)(
+    'returns canonical left/right node handle positions for %s layouts',
+    (direction) => {
+      expect(getHandlePositions(direction)).toEqual({
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      });
+    }
+  );
 });

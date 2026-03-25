@@ -148,10 +148,9 @@ function computeModuleLayoutWeights(
     incoming.set(node.id, 0);
   }
   for (const edge of edges) {
-    if (!edge.hidden) {
-      outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
-      incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
-    }
+    if (edge.hidden || edge.data?.type !== 'import') continue;
+    outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
+    incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
   }
   const weights = new Map<string, number>();
   for (const node of nodes) {

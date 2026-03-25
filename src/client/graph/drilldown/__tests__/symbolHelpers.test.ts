@@ -382,26 +382,26 @@ describe('createDetailedSymbolNode', () => {
   });
 
   describe('handle positions for RL direction', () => {
-    it('sets sourcePosition to Left and targetPosition to Right', () => {
+    it('keeps sourcePosition on Right and targetPosition on Left', () => {
       const node = createDetailedSymbolNode('n', 'class', 'C', [], [], 'RL');
-      expect(node.sourcePosition).toBe(Position.Left);
-      expect(node.targetPosition).toBe(Position.Right);
+      expect(node.sourcePosition).toBe(Position.Right);
+      expect(node.targetPosition).toBe(Position.Left);
     });
   });
 
   describe('handle positions for TB direction', () => {
-    it('sets sourcePosition to Bottom and targetPosition to Top', () => {
+    it('keeps sourcePosition on Right and targetPosition on Left', () => {
       const node = createDetailedSymbolNode('n', 'class', 'C', [], [], 'TB');
-      expect(node.sourcePosition).toBe(Position.Bottom);
-      expect(node.targetPosition).toBe(Position.Top);
+      expect(node.sourcePosition).toBe(Position.Right);
+      expect(node.targetPosition).toBe(Position.Left);
     });
   });
 
   describe('handle positions for BT direction', () => {
-    it('sets sourcePosition to Top and targetPosition to Bottom', () => {
+    it('keeps sourcePosition on Right and targetPosition on Left', () => {
       const node = createDetailedSymbolNode('n', 'class', 'C', [], [], 'BT');
-      expect(node.sourcePosition).toBe(Position.Top);
-      expect(node.targetPosition).toBe(Position.Bottom);
+      expect(node.sourcePosition).toBe(Position.Right);
+      expect(node.targetPosition).toBe(Position.Left);
     });
   });
 

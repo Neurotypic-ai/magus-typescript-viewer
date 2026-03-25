@@ -516,5 +516,41 @@ describe('buildOverviewGraph', () => {
       // sum of children weights: +1 + (-1) = 0
       expect(groupNode?.data?.layoutWeight).toBe(0);
     });
+
+    it('ignores non-import relationships when computing layoutWeight', () => {
+      const baseClass = {
+        id: 'cls-base',
+        name: 'Base',
+        package_id: 'pkg-1',
+        module_id: 'mod-base',
+        created_at: '2024-01-01T00:00:00.000Z',
+        implemented_interfaces: {},
+        properties: [],
+        methods: [],
+      } as unknown as IClass;
+      const derivedClass = {
+        id: 'cls-derived',
+        name: 'Derived',
+        package_id: 'pkg-1',
+        module_id: 'mod-derived',
+        created_at: '2024-01-01T00:00:00.000Z',
+        extends_id: 'cls-base',
+        implemented_interfaces: {},
+        properties: [],
+        methods: [],
+      } as unknown as IClass;
+      const modBase = makeModule('mod-base', 'base.ts', 'pkg-1', 'src/base.ts', {
+        classes: { Base: baseClass },
+      });
+      const modDerived = makeModule('mod-derived', 'derived.ts', 'pkg-1', 'src/derived.ts', {
+        classes: { Derived: derivedClass },
+      });
+      const data = makeGraph([makePackage('pkg-1', 'app', { base: modBase, derived: modDerived })]);
+
+      const result = buildOverviewGraph(defaultOptions({ data, enabledRelationshipTypes: ['inheritance'] }));
+
+      expect(result.nodes.find((node) => node.id === 'mod-base')?.data?.layoutWeight).toBe(0);
+      expect(result.nodes.find((node) => node.id === 'mod-derived')?.data?.layoutWeight).toBe(0);
+    });
   });
 });

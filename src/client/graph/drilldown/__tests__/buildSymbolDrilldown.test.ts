@@ -581,8 +581,8 @@ describe('buildSymbolDrilldownGraph', () => {
     });
   });
 
-  describe('direction parameter', () => {
-    it('applies TB direction positions to nodes', () => {
+  describe('canonical handle positions', () => {
+    it('keeps left/right handle positions even when the requested layout direction is TB', () => {
       const mod = makeModule({ id: 'mod-1', name: 'index.ts' });
       const result = buildSymbolDrilldownGraph(
         defaultOptions({
@@ -594,11 +594,11 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const moduleNode = result.nodes.find((n) => n.id === 'mod-1');
       expect(moduleNode).toBeDefined();
-      expect(moduleNode?.sourcePosition).toBe(Position.Bottom);
-      expect(moduleNode?.targetPosition).toBe(Position.Top);
+      expect(moduleNode?.sourcePosition).toBe(Position.Right);
+      expect(moduleNode?.targetPosition).toBe(Position.Left);
     });
 
-    it('applies RL direction positions', () => {
+    it('keeps left/right handle positions even when the requested layout direction is RL', () => {
       const mod = makeModule({
         id: 'mod-1',
         name: 'index.ts',
@@ -621,14 +621,14 @@ describe('buildSymbolDrilldownGraph', () => {
 
       const classNode = result.nodes.find((n) => n.type === 'class');
       expect(classNode).toBeDefined();
-      expect(classNode?.sourcePosition).toBe(Position.Left);
-      expect(classNode?.targetPosition).toBe(Position.Right);
+      expect(classNode?.sourcePosition).toBe(Position.Right);
+      expect(classNode?.targetPosition).toBe(Position.Left);
 
-      // Member nodes also get RL positions
+      // Member nodes follow the same canonical handle positions.
       const propNode = result.nodes.find((n) => n.type === 'property');
       expect(propNode).toBeDefined();
-      expect(propNode?.sourcePosition).toBe(Position.Left);
-      expect(propNode?.targetPosition).toBe(Position.Right);
+      expect(propNode?.sourcePosition).toBe(Position.Right);
+      expect(propNode?.targetPosition).toBe(Position.Left);
     });
   });
 

@@ -425,8 +425,8 @@ describe('buildModuleDrilldownGraph', () => {
     });
   });
 
-  describe('direction parameter', () => {
-    it('applies TB direction positions to nodes', () => {
+  describe('canonical handle positions', () => {
+    it('keeps left/right handle positions even when the requested layout direction is TB', () => {
       const mod = makeModule({ id: 'mod-1', name: 'index.ts' });
       const result = buildModuleDrilldownGraph(
         defaultOptions({
@@ -437,8 +437,8 @@ describe('buildModuleDrilldownGraph', () => {
       );
 
       const focusNode = expectDefined(result.nodes[0], 'focus node');
-      expect(focusNode.sourcePosition).toBe(Position.Bottom);
-      expect(focusNode.targetPosition).toBe(Position.Top);
+      expect(focusNode.sourcePosition).toBe(Position.Right);
+      expect(focusNode.targetPosition).toBe(Position.Left);
     });
   });
 

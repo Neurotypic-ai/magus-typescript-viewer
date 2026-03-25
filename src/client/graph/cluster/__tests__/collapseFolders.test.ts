@@ -266,8 +266,8 @@ describe('collapseFolders', () => {
           id: 'e1',
           source: 'm1',
           target: 'm2',
-          sourceHandle: 'folder-left-out',
-          targetHandle: 'folder-right-in',
+          sourceHandle: 'relational-out',
+          targetHandle: 'relational-in',
           data: { type: 'import' },
         } as GraphEdge,
       ];
@@ -279,7 +279,7 @@ describe('collapseFolders', () => {
       // source was remapped, so sourceHandle is cleared
       expect(result.edges[0]?.sourceHandle).toBeNull();
       // target was not remapped, so targetHandle is preserved
-      expect(result.edges[0]?.targetHandle).toBe('folder-right-in');
+      expect(result.edges[0]?.targetHandle).toBe('relational-in');
     });
 
     it('preserves edges that are not affected by collapsing', () => {

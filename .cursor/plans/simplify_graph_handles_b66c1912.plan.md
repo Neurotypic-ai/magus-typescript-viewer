@@ -8,23 +8,23 @@ todos:
     content:
       Reduce regular and folder nodes to a canonical left-in/right-out handle contract and remove side-specific routing
       helpers.
-    status: in_progress
+    status: completed
   - id: simplify-highway-routing
     content:
       Keep exit/highway/entry aggregation but switch all projected edges to fixed left/right handles instead of
       nearest-side selection.
-    status: pending
+    status: completed
   - id: add-layout-weights
     content: Derive module and folder import-consumer weights from semantic import edges before highway projection.
-    status: pending
+    status: completed
   - id: weight-layout-ordering
     content:
       Sort folder roots and child modules by layoutWeight with deterministic fallback ordering in the simple
       hierarchical layout.
-    status: pending
+    status: completed
   - id: update-tests-verify
     content: Update focused graph/layout tests and verify the new simplified routing visually and with Vitest.
-    status: pending
+    status: in_progress
 isProject: false
 ---
 

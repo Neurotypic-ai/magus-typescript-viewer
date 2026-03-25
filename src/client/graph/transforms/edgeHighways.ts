@@ -6,7 +6,7 @@ import { createEdgeMarker } from '../../utils/edgeMarkers';
 import { buildNodeToFolderMap } from '../cluster/folderMembership';
 import { EDGE_KIND_PRIORITY } from '../edgePriority';
 import { isValidEdgeConnection } from '../edgeTypeRegistry';
-import { FOLDER_HANDLE_IDS } from '../handleRouting';
+import { FOLDER_HANDLE_IDS, FOLDER_INNER_HANDLE_IDS } from '../handleRouting';
 
 import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
@@ -222,7 +222,7 @@ export function optimizeHighwayHandleRouting(_nodes: DependencyNode[], edges: Gr
     const segment = edge.data?.highwaySegment;
     if (segment === 'exit') {
       const wantSource = 'relational-out';
-      const wantTarget = 'folder-right-out-inner';
+      const wantTarget = FOLDER_INNER_HANDLE_IDS.rightOut;
       const needsUpdate =
         edge.sourceHandle !== wantSource ||
         edge.targetHandle !== wantTarget ||
@@ -239,7 +239,7 @@ export function optimizeHighwayHandleRouting(_nodes: DependencyNode[], edges: Gr
     }
 
     if (segment === 'entry') {
-      const wantSource = 'folder-left-in-inner';
+      const wantSource = FOLDER_INNER_HANDLE_IDS.leftIn;
       const wantTarget = 'relational-in';
       const needsUpdate =
         edge.sourceHandle !== wantSource ||

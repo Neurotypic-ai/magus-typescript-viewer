@@ -6,6 +6,7 @@ import {
   NODE_PRE_APPROACH_STUB_PX,
   buildEdgePolyline,
   buildRoundedPolylinePath,
+  getHandleSide,
   inferHandleSide,
   insertOrthogonalMidpoints,
   isHorizontalSide,
@@ -18,14 +19,14 @@ describe('edgeGeometryPolicy', () => {
     const source = { x: 0, y: 0 };
     const target = { x: 100, y: 50 };
     const polyline = buildEdgePolyline(source, target, {
-      targetHandle: 'folder-right-in-inner',
+      targetHandle: 'folder-left-in-inner',
       targetNodeType: 'group',
     });
 
-    // Source side inferred as 'right' (dx=100 > dy=50), target side explicit 'right'.
+    // Source side inferred as 'right' (dx=100 > dy=50), target side explicit 'left'.
     // Both horizontal → S-shape orthogonal routing between stubs.
     const sourceStubX = NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX;
-    const targetStubX = target.x + GROUP_ENTRY_STUB_PX;
+    const targetStubX = target.x - GROUP_ENTRY_STUB_PX;
     const midX = (sourceStubX + targetStubX) / 2;
 
     expect(polyline).toEqual([
@@ -42,7 +43,7 @@ describe('edgeGeometryPolicy', () => {
     const source = { x: 0, y: 0 };
     const target = { x: 200, y: 80 };
     const polyline = buildEdgePolyline(source, target, {
-      targetHandle: 'relational-in-left',
+      targetHandle: 'relational-in',
       targetNodeType: 'module',
     });
 
@@ -68,20 +69,20 @@ describe('edgeGeometryPolicy', () => {
     const source = { x: 40, y: 120 };
     const target = { x: 300, y: 120 };
     const polyline = buildEdgePolyline(source, target, {
-      sourceHandle: 'folder-left-out',
+      sourceHandle: 'folder-right-out',
       sourceNodeType: 'group',
-      targetHandle: 'relational-in-right',
+      targetHandle: 'relational-in',
       targetNodeType: 'module',
     });
 
-    expect(polyline[1]).toEqual({ x: source.x - GROUP_ENTRY_STUB_PX, y: source.y });
+    expect(polyline[1]).toEqual({ x: source.x + GROUP_ENTRY_STUB_PX, y: source.y });
   });
 
   it('adds source-side stub for non-group source nodes', () => {
     const source = { x: 50, y: 100 };
     const target = { x: 300, y: 100 };
     const polyline = buildEdgePolyline(source, target, {
-      sourceHandle: 'relational-out-right',
+      sourceHandle: 'relational-out',
       sourceNodeType: 'module',
     });
 
@@ -154,6 +155,20 @@ describe('edgeGeometryPolicy', () => {
 
     it('returns "right" for coincident points (zero-length vector)', () => {
       expect(inferHandleSide({ x: 50, y: 50 }, { x: 50, y: 50 })).toBe('right');
+    });
+  });
+
+  describe('getHandleSide', () => {
+    it('maps canonical relational handles to fixed horizontal sides', () => {
+      expect(getHandleSide('relational-in')).toBe('left');
+      expect(getHandleSide('relational-out')).toBe('right');
+    });
+
+    it('maps canonical folder handles to fixed horizontal sides', () => {
+      expect(getHandleSide('folder-left-in')).toBe('left');
+      expect(getHandleSide('folder-left-in-inner')).toBe('left');
+      expect(getHandleSide('folder-right-out')).toBe('right');
+      expect(getHandleSide('folder-right-out-inner')).toBe('right');
     });
   });
 
