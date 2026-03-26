@@ -1,13 +1,14 @@
 /**
- * Simple synchronous hierarchical layout.
+ * Sugiyama-based synchronous hierarchical layout.
  *
- * Groups nodes by hierarchy level (package → folder/group → module → symbol)
- * and assigns positions using a flow-based approach. Child nodes in VueFlow are
- * positioned relative to their parent, so we:
- *   1. Lay out children within their parent (simple grid, left-to-right then wrap).
+ * Root-level nodes are arranged in layer-based columns (Sugiyama framework):
+ *   - X position determined by layerIndex (foundations left, consumers right)
+ *   - Y position within each column determined by sortOrder (barycenter heuristic)
+ *
+ * Child nodes in VueFlow are positioned relative to their parent:
+ *   1. Lay out children within their parent (layer columns, sorted by sortOrder).
  *   2. Compute an explicit size for each parent based on child layout.
- *   3. Assign absolute positions to root-level nodes using variable column widths
- *      so that wider parents don't overlap narrower ones.
+ *   3. Assign column positions to root-level nodes by layerIndex.
  *
  * Pure function — no external dependencies, no Vue reactivity.
  */
@@ -17,14 +18,12 @@ import { resolveNodeDimensions } from './geometryBounds';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 
-// ── Root-level grid constants ────────────────────────────────────────────────
+// ── Root-level column constants ──────────────────────────────────────────────
 
-/** Horizontal gap between adjacent root nodes in the same row. */
+/** Horizontal gap between adjacent layer columns. */
 const ROOT_H_GAP = 120;
-/** Vertical gap between rows of root nodes. */
+/** Vertical gap between nodes stacked in the same column. */
 const ROOT_V_GAP = 120;
-/** Max root nodes per row before wrapping. */
-const COLS_PER_ROW = 6;
 
 // ── Child layout constants ───────────────────────────────────────────────────
 
@@ -56,8 +55,6 @@ const CHILD_PADDING_RIGHT = 100;
 const CHILD_PADDING_BOTTOM = 100;
 /** Gap between sibling child nodes. */
 const CHILD_GAP = 120;
-/** Maximum columns of children per parent. */
-const CHILD_MAX_COLS = 3;
 
 /**
  * Actual visual inset from the folder chrome to where child nodes should start.
@@ -83,29 +80,22 @@ interface HierarchicalLayoutResult {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Node type priority for ordering within a row. */
-const TYPE_ORDER: Record<string, number> = {
-  package: 0,
-  group: 1,
-  module: 2,
-  symbol: 3,
-};
-
-function getTypeOrder(node: DependencyNode): number {
-  const t = node.type ?? '';
-  return TYPE_ORDER[t] ?? 99;
+function getSortOrder(node: DependencyNode): number {
+  return node.data?.sortOrder ?? 0;
 }
 
-function getLayoutWeight(node: DependencyNode): number {
-  return (node.data?.layoutWeight as number | undefined) ?? 0;
+function getLayerIndex(node: DependencyNode): number {
+  return node.data?.layerIndex ?? 0;
 }
 
 // ── Child layout ─────────────────────────────────────────────────────────────
 
 /**
- * Lay out child nodes within their parent and compute the parent's required size.
- * Returns positions for each child (relative to parent top-left) and the
- * minimum width/height the parent needs to enclose them.
+ * Lay out child nodes within their parent using Sugiyama layer columns.
+ *
+ * Children are grouped by layerIndex into sub-columns (foundations left,
+ * consumers right), sorted by sortOrder within each column, and stacked
+ * vertically. This mirrors the root-level layout within each folder.
  */
 function computeChildLayout(children: DependencyNode[]): {
   childPositions: Map<string, { x: number; y: number }>;
@@ -113,48 +103,46 @@ function computeChildLayout(children: DependencyNode[]): {
 } {
   const childPositions = new Map<string, { x: number; y: number }>();
 
-  const sortedChildren = children
-    .slice()
-    .sort((a, b) => getLayoutWeight(b) - getLayoutWeight(a) || a.id.localeCompare(b.id));
-
-  const cols = Math.min(CHILD_MAX_COLS, Math.max(1, Math.ceil(Math.sqrt(children.length))));
-  const rows = Math.ceil(children.length / cols);
-  const childDimensions = sortedChildren.map((child) => resolveNodeDimensions(child, DEFAULT_NODE_DIMENSIONS));
-  const columnWidths = Array.from({ length: cols }, () => 0);
-  const rowHeights = Array.from({ length: rows }, () => 0);
-
-  childDimensions.forEach((dimensions, index) => {
-    const col = index % cols;
-    const row = Math.floor(index / cols);
-    columnWidths[col] = Math.max(columnWidths[col] ?? 0, dimensions.width);
-    rowHeights[row] = Math.max(rowHeights[row] ?? 0, dimensions.height);
-  });
-
-  const columnOffsets = new Array<number>(cols);
-  let nextColumnOffset = CHILD_VISUAL_INSET_LEFT;
-  for (let col = 0; col < cols; col++) {
-    columnOffsets[col] = nextColumnOffset;
-    nextColumnOffset += (columnWidths[col] ?? 0) + CHILD_GAP;
+  // Group children by layer index
+  const byLayer = new Map<number, DependencyNode[]>();
+  for (const child of children) {
+    const layer = getLayerIndex(child);
+    const group = byLayer.get(layer) ?? [];
+    group.push(child);
+    byLayer.set(layer, group);
   }
 
-  const rowOffsets = new Array<number>(rows);
-  let nextRowOffset = CHILD_VISUAL_INSET_TOP;
-  for (let row = 0; row < rows; row++) {
-    rowOffsets[row] = nextRowOffset;
-    nextRowOffset += (rowHeights[row] ?? 0) + CHILD_GAP;
+  // Sort each column by sortOrder, tiebreak by ID
+  for (const [, group] of byLayer) {
+    group.sort((a, b) => getSortOrder(a) - getSortOrder(b) || a.id.localeCompare(b.id));
   }
 
-  sortedChildren.forEach((child, index) => {
-    const col = index % cols;
-    const row = Math.floor(index / cols);
-    childPositions.set(child.id, {
-      x: columnOffsets[col] ?? CHILD_VISUAL_INSET_LEFT,
-      y: rowOffsets[row] ?? CHILD_VISUAL_INSET_TOP,
-    });
-  });
+  const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b);
 
-  const contentWidth = columnWidths.reduce((sum, width) => sum + width, 0) + Math.max(0, cols - 1) * CHILD_GAP;
-  const contentHeight = rowHeights.reduce((sum, height) => sum + height, 0) + Math.max(0, rows - 1) * CHILD_GAP;
+  // Compute column widths and row heights per column
+  let columnX = CHILD_VISUAL_INSET_LEFT;
+  let maxColumnHeight = 0;
+
+  for (const layer of sortedLayers) {
+    const group = byLayer.get(layer);
+    if (!group || group.length === 0) continue;
+
+    let columnWidth = 0;
+    let columnY = CHILD_VISUAL_INSET_TOP;
+
+    for (const child of group) {
+      const dims = resolveNodeDimensions(child, DEFAULT_NODE_DIMENSIONS);
+      columnWidth = Math.max(columnWidth, dims.width);
+      childPositions.set(child.id, { x: columnX, y: columnY });
+      columnY += dims.height + CHILD_GAP;
+    }
+
+    maxColumnHeight = Math.max(maxColumnHeight, columnY - CHILD_GAP - CHILD_VISUAL_INSET_TOP);
+    columnX += columnWidth + CHILD_GAP;
+  }
+
+  const contentWidth = Math.max(0, columnX - CHILD_GAP - CHILD_VISUAL_INSET_LEFT);
+  const contentHeight = maxColumnHeight;
 
   return {
     childPositions,
@@ -170,11 +158,11 @@ function computeChildLayout(children: DependencyNode[]): {
 /**
  * Compute hierarchical positions and parent sizes for a set of nodes.
  *
- * - Child nodes (those with a `parentNode`) are positioned relative to their
- *   parent in a simple grid.
- * - Root nodes (no `parentNode`) are placed in a flow layout: each row uses
- *   the actual node widths for x-positions, and actual heights for row spacing,
- *   so nodes never overlap each other regardless of size variation.
+ * - Child nodes (those with a `parentNode`) are positioned in layer columns
+ *   within their parent, grouped by layerIndex and sorted by sortOrder.
+ * - Root nodes (no `parentNode`) are placed in Sugiyama layer columns:
+ *   grouped by layerIndex (foundations left, consumers right) and sorted
+ *   vertically by sortOrder (barycenter heuristic).
  */
 export function computeSimpleHierarchicalLayout(
   nodes: DependencyNode[],
@@ -202,34 +190,39 @@ export function computeSimpleHierarchicalLayout(
     sizes.set(parentId, parentSize);
   }
 
-  // ── Step 2: lay out root nodes with variable column widths ────────────────
+  // ── Step 2: lay out root nodes in Sugiyama layer columns ──────────────────
+  //
+  // Group root nodes by layerIndex, sort each column by sortOrder (barycenter),
+  // and stack them vertically. Columns are placed left-to-right, foundations
+  // (layer 0) on the left, consumers on the right.
 
-  const rootNodes = nodes.filter((n) => !n.parentNode).sort((a, b) => getTypeOrder(a) - getTypeOrder(b));
+  const rootNodes = nodes.filter((n) => !n.parentNode);
 
-  // Group root nodes by type for row-based layout.
-  const byType = new Map<number, DependencyNode[]>();
+  // Group by layer index
+  const byLayer = new Map<number, DependencyNode[]>();
   for (const node of rootNodes) {
-    const order = getTypeOrder(node);
-    const group = byType.get(order) ?? [];
+    const layer = getLayerIndex(node);
+    const group = byLayer.get(layer) ?? [];
     group.push(node);
-    byType.set(order, group);
+    byLayer.set(layer, group);
   }
 
-  let currentY = 0;
+  // Sort each column by sortOrder (barycenter), tiebreak by ID
+  for (const [, group] of byLayer) {
+    group.sort((a, b) => getSortOrder(a) - getSortOrder(b) || a.id.localeCompare(b.id));
+  }
 
-  const sortedTypeOrders = [...byType.keys()].sort((a, b) => a - b);
-  for (const typeOrder of sortedTypeOrders) {
-    const group = byType.get(typeOrder);
+  // Lay out columns left-to-right
+  const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b);
+  let columnX = 0;
+
+  for (const layer of sortedLayers) {
+    const group = byLayer.get(layer);
     if (!group || group.length === 0) continue;
 
-    // Sort within type group: import-heavy producers left, consumer-heavy nodes right.
-    // Tiebreaker: node ID for determinism.
-    group.sort((a, b) => getLayoutWeight(b) - getLayoutWeight(a) || a.id.localeCompare(b.id));
-
-    let col = 0;
-    let rowX = 0;
-    let rowMaxHeight = 0;
-    let rowStartY = currentY;
+    // Determine the width of this column (max node width in the column)
+    let columnWidth = 0;
+    let columnY = 0;
 
     for (const node of group) {
       const nodeSize = sizes.get(node.id);
@@ -237,24 +230,12 @@ export function computeSimpleHierarchicalLayout(
       const nodeWidth = nodeSize?.width ?? explicitNodeSize.width;
       const nodeHeight = nodeSize?.height ?? explicitNodeSize.height;
 
-      rowMaxHeight = Math.max(rowMaxHeight, nodeHeight);
-
-      positions.set(node.id, { x: rowX, y: rowStartY });
-
-      col++;
-      rowX += nodeWidth + ROOT_H_GAP;
-
-      if (col >= COLS_PER_ROW) {
-        col = 0;
-        rowX = 0;
-        rowStartY += rowMaxHeight + ROOT_V_GAP;
-        rowMaxHeight = 0;
-        currentY = rowStartY;
-      }
+      columnWidth = Math.max(columnWidth, nodeWidth);
+      positions.set(node.id, { x: columnX, y: columnY });
+      columnY += nodeHeight + ROOT_V_GAP;
     }
 
-    // Advance past this type group.
-    currentY = rowStartY + rowMaxHeight + ROOT_V_GAP;
+    columnX += columnWidth + ROOT_H_GAP;
   }
 
   return { positions, sizes };

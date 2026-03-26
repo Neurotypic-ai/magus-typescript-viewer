@@ -29,6 +29,8 @@ export interface DependencyData {
   layoutInsets?: LayoutInsets;
   isContainer?: boolean;
   layoutWeight?: number;
+  layerIndex?: number;
+  sortOrder?: number;
   collapsible?: boolean;
   [key: string]: unknown;
 }

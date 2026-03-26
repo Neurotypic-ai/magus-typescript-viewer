@@ -18,4 +18,5 @@ export interface GraphEdgeData {
   sourceAnchor?: GraphEdgeAnchor;
   targetAnchor?: GraphEdgeAnchor;
   aggregatedCount?: number;
+  isBackEdge?: boolean;
 }
