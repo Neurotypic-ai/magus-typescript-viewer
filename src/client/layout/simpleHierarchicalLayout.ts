@@ -46,7 +46,7 @@ const DEFAULT_NODE_DIMENSIONS = {
 } as const;
 
 /** Space reserved at the top of a parent for its header label. */
-const CHILD_PADDING_TOP = 120;
+const CHILD_PADDING_TOP = 100;
 /** Horizontal inset from the parent border to the first child column. */
 const CHILD_PADDING_LEFT = 100;
 /** Horizontal inset from the last child column to the parent border. */
@@ -54,7 +54,7 @@ const CHILD_PADDING_RIGHT = 100;
 /** Bottom padding inside the parent. */
 const CHILD_PADDING_BOTTOM = 100;
 /** Gap between sibling child nodes. */
-const CHILD_GAP = 120;
+const CHILD_GAP = 200;
 
 /**
  * Actual visual inset from the folder chrome to where child nodes should start.
@@ -62,8 +62,8 @@ const CHILD_GAP = 120;
  * enclosing parent bounds, but they are too large to use as literal child
  * positions inside the folder.
  */
-const CHILD_VISUAL_INSET_TOP = 44;
-const CHILD_VISUAL_INSET_LEFT = 10;
+const CHILD_VISUAL_INSET_TOP = 100;
+const CHILD_VISUAL_INSET_LEFT = 100;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ function computeChildLayout(children: DependencyNode[]): {
     group.sort((a, b) => getSortOrder(a) - getSortOrder(b) || a.id.localeCompare(b.id));
   }
 
-  const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b);
+  const sortedLayers = [...byLayer.keys()].sort((a, b) => b - a);
 
   // Compute column widths and row heights per column
   let columnX = CHILD_VISUAL_INSET_LEFT;
@@ -207,13 +207,13 @@ export function computeSimpleHierarchicalLayout(
     byLayer.set(layer, group);
   }
 
-  // Sort each column by sortOrder (barycenter), tiebreak by ID
+  // Sort each column by sortOrder (barycenter) descending, tiebreak by ID
   for (const [, group] of byLayer) {
-    group.sort((a, b) => getSortOrder(a) - getSortOrder(b) || a.id.localeCompare(b.id));
+    group.sort((a, b) => getSortOrder(b) - getSortOrder(a) || a.id.localeCompare(b.id));
   }
 
   // Lay out columns left-to-right
-  const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b);
+  const sortedLayers = [...byLayer.keys()].sort((a, b) => b - a);
   let columnX = 0;
 
   for (const layer of sortedLayers) {

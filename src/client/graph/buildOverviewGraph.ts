@@ -15,6 +15,7 @@ import { createGraphNodes } from '../utils/createGraphNodes';
 import { collapseFolders } from './cluster/collapseFolders';
 import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
+import { FOLDER_HANDLE_IDS } from './handleRouting';
 import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
 
 import type { PackageGraph } from '../../shared/types/Package';
@@ -449,6 +450,99 @@ function applyModuleWeights(
   });
 }
 
+/**
+ * Lifts cross-folder edges to the folder level.
+ *
+ * For each edge whose source and target belong to DIFFERENT folder group nodes,
+ * the edge is replaced by a folder→folder edge (parentNode(source) → parentNode(target)).
+ * Duplicate folder→folder pairs for the same edge type are deduplicated and their
+ * count is recorded in `data.aggregatedCount`.
+ *
+ * Intra-folder edges (same parent folder) and edges without a parent are left unchanged.
+ * Must be called after `clusterByFolder` has assigned `parentNode` to modules.
+ */
+function liftCrossfolderEdgesToFolderLevel(nodes: DependencyNode[], edges: GraphEdge[]): GraphEdge[] {
+  const parentById = new Map<string, string | undefined>();
+  for (const node of nodes) {
+    parentById.set(node.id, node.parentNode);
+  }
+
+  const edgeMap = new Map<string, GraphEdge>();
+  const aggregatedCount = new Map<string, number>();
+  const sourceStubs = new Map<string, GraphEdge>();
+  const targetStubs = new Map<string, GraphEdge>();
+
+  for (const edge of edges) {
+    const sourceParent = parentById.get(edge.source);
+    const targetParent = parentById.get(edge.target);
+
+    if (sourceParent && targetParent && sourceParent !== targetParent) {
+      // Cross-folder: lift to folder→folder edge and deduplicate
+      const type = edge.data?.type ?? 'import';
+      const key = `${sourceParent}|${targetParent}|${type}`;
+      aggregatedCount.set(key, (aggregatedCount.get(key) ?? 0) + 1);
+
+      if (!edgeMap.has(key)) {
+        edgeMap.set(key, {
+          ...edge,
+          id: key,
+          source: sourceParent,
+          target: targetParent,
+          sourceHandle: FOLDER_HANDLE_IDS.rightOut,
+          targetHandle: FOLDER_HANDLE_IDS.leftIn,
+          type: 'crossFolder',
+        });
+      }
+
+      // Source stub: child module → source folder right boundary
+      const srcKey = `stub-src|${edge.source}|${sourceParent}`;
+      if (!sourceStubs.has(srcKey)) {
+        sourceStubs.set(srcKey, {
+          ...edge,
+          id: srcKey,
+          source: edge.source,
+          target: sourceParent,
+          sourceHandle: 'relational-out',
+          targetHandle: FOLDER_HANDLE_IDS.rightStub,
+          type: 'folderStub',
+          markerEnd: undefined,
+        });
+      }
+
+      // Target stub: target folder left boundary → child module
+      const tgtKey = `stub-tgt|${targetParent}|${edge.target}`;
+      if (!targetStubs.has(tgtKey)) {
+        targetStubs.set(tgtKey, {
+          ...edge,
+          id: tgtKey,
+          source: targetParent,
+          target: edge.target,
+          sourceHandle: FOLDER_HANDLE_IDS.leftStub,
+          targetHandle: 'relational-in',
+          type: 'folderStub',
+          markerEnd: undefined,
+        });
+      }
+    } else {
+      // Intra-folder or folder-level: keep as-is (deduplicate by canonical key)
+      const type = edge.data?.type ?? 'import';
+      const key = edge.id || `${edge.source}|${edge.target}|${type}`;
+      if (!edgeMap.has(key)) {
+        edgeMap.set(key, edge);
+      }
+    }
+  }
+
+  // Stamp aggregatedCount onto each lifted edge
+  const result = Array.from(edgeMap.values()).map((edge) => {
+    const count = aggregatedCount.get(edge.id);
+    if (count === undefined || count <= 1) return edge;
+    return { ...edge, data: { ...edge.data, aggregatedCount: count } };
+  });
+
+  return [...result, ...sourceStubs.values(), ...targetStubs.values()];
+}
+
 function aggregateFolderWeights(nodes: DependencyNode[]): DependencyNode[] {
   // Sugiyama: folderRank = min(rank(child)) — place folder flush-left with its
   // earliest child.  Since weight = -rank, min(rank) = max(weight).
@@ -535,10 +629,11 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const transformedGraph = applyGraphTransforms(weightedFilteredGraph);
 
   const nodesWithFolderWeights = aggregateFolderWeights(transformedGraph.nodes);
+  const edgesWithCrossfolderTypes = liftCrossfolderEdgesToFolderLevel(nodesWithFolderWeights, transformedGraph.edges);
 
   let projectedGraph: GraphViewData = {
     nodes: nodesWithFolderWeights,
-    edges: transformedGraph.edges,
+    edges: edgesWithCrossfolderTypes,
   };
   if (options.collapsedFolderIds.size > 0) {
     const folderCollapsed = collapseFolders(projectedGraph.nodes, projectedGraph.edges, options.collapsedFolderIds);

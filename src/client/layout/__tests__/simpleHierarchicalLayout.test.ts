@@ -30,7 +30,7 @@ function makeNode(
 
 describe('computeSimpleHierarchicalLayout', () => {
   describe('layer-based columnar arrangement', () => {
-    it('places root nodes in columns by layerIndex — layer 0 leftmost', () => {
+    it('places root nodes in columns by layerIndex — layer 0 rightmost (consumers left)', () => {
       const nodes = [
         makeNode('g-a', 'group', { label: 'A', layerIndex: 0, sortOrder: 0 }),
         makeNode('g-b', 'group', { label: 'B', layerIndex: 1, sortOrder: 0 }),
@@ -42,9 +42,9 @@ describe('computeSimpleHierarchicalLayout', () => {
       const xA = positions.get('g-a')?.x ?? 0;
       const xB = positions.get('g-b')?.x ?? 0;
       const xC = positions.get('g-c')?.x ?? 0;
-      // Columns should go left-to-right by layer index
-      expect(xA).toBeLessThan(xB);
-      expect(xB).toBeLessThan(xC);
+      // Columns go high-layerIndex-left: layer 0 is rightmost, layer 2 is leftmost
+      expect(xA).toBeGreaterThan(xB);
+      expect(xB).toBeGreaterThan(xC);
     });
 
     it('stacks multiple nodes in the same layer column vertically', () => {
@@ -60,16 +60,16 @@ describe('computeSimpleHierarchicalLayout', () => {
       expect(positions.get('g-a')?.x).toBe(positions.get('g-b')?.x);
       expect(positions.get('g-b')?.x).toBe(positions.get('g-c')?.x);
 
-      // Stacked vertically by sortOrder
+      // Root sort is descending: sortOrder 2 is at top (lower y), sortOrder 0 is at bottom
       const yA = positions.get('g-a')?.y ?? 0;
       const yB = positions.get('g-b')?.y ?? 0;
       const yC = positions.get('g-c')?.y ?? 0;
-      expect(yA).toBeLessThan(yB);
-      expect(yB).toBeLessThan(yC);
+      expect(yA).toBeGreaterThan(yB);
+      expect(yB).toBeGreaterThan(yC);
     });
 
     it('orders nodes within a column by sortOrder (barycenter)', () => {
-      // sortOrder 5 should be below sortOrder 2
+      // sortOrder 5 should be ABOVE sortOrder 2 (root sort descending)
       const nodes = [
         makeNode('g-high', 'group', { label: 'High', layerIndex: 1, sortOrder: 5 }),
         makeNode('g-low', 'group', { label: 'Low', layerIndex: 1, sortOrder: 2 }),
@@ -79,8 +79,8 @@ describe('computeSimpleHierarchicalLayout', () => {
 
       const yHigh = positions.get('g-high')?.y ?? 0;
       const yLow = positions.get('g-low')?.y ?? 0;
-      // Lower sortOrder should be higher up (smaller Y)
-      expect(yLow).toBeLessThan(yHigh);
+      // Higher sortOrder is higher up (descending root sort): sortOrder 5 at top
+      expect(yHigh).toBeLessThan(yLow);
     });
   });
 
@@ -119,9 +119,9 @@ describe('computeSimpleHierarchicalLayout', () => {
       const xFoundation = positions.get('foundation')?.x ?? 0;
       const xMid = positions.get('mid')?.x ?? 0;
       const xConsumer = positions.get('consumer')?.x ?? 0;
-      // Children should be in sub-columns by layer: foundation leftmost, consumer rightmost
-      expect(xFoundation).toBeLessThan(xMid);
-      expect(xMid).toBeLessThan(xConsumer);
+      // Children sub-columns reversed: consumer (high layerIndex) leftmost, foundation (low) rightmost
+      expect(xFoundation).toBeGreaterThan(xMid);
+      expect(xMid).toBeGreaterThan(xConsumer);
     });
 
     it('stacks same-layer children vertically by sortOrder within a folder', () => {

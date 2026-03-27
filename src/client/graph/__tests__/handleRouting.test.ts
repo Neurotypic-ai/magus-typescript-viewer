@@ -8,7 +8,9 @@ describe('handleRouting', () => {
   it('exposes only canonical outer folder handles', () => {
     expect(FOLDER_HANDLE_IDS).toEqual({
       leftIn: 'folder-left-in',
+      leftStub: 'folder-left-stub',
       rightOut: 'folder-right-out',
+      rightStub: 'folder-right-stub',
     });
   });
 

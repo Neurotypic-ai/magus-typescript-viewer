@@ -514,6 +514,12 @@ function typeModel(typeText: string) {
 function isRichType(typeText: string): boolean {
   return buildTypeDisplayModel(typeText).kind !== 'plain';
 }
+
+// Runtime-only node fields added by Vue Flow after DOM measurement.
+const nodeDimensions = computed(() => {
+  const n = props.node as unknown as { dimensions?: { width?: number; height?: number } };
+  return n.dimensions ?? null;
+});
 </script>
 
 <template>
@@ -788,5 +794,36 @@ function isRichType(typeText: string): boolean {
         </div>
       </div>
     </div>
+
+    <details class="mb-4">
+      <summary class="text-sm font-semibold text-text-primary block mb-2 cursor-pointer select-none">
+        Debug Info
+      </summary>
+      <div class="space-y-0.5 ml-2 font-mono text-xs text-text-secondary">
+        <div><span class="opacity-60">id:</span> {{ node.id }}</div>
+        <div><span class="opacity-60">type:</span> {{ node.type }}</div>
+        <div v-if="node.parentNode"><span class="opacity-60">parentNode:</span> {{ node.parentNode }}</div>
+        <div>
+          <span class="opacity-60">position:</span>
+          {{ node.position.x.toFixed(1) }}, {{ node.position.y.toFixed(1) }}
+        </div>
+        <div v-if="node.data?.layoutWeight !== undefined">
+          <span class="opacity-60">layoutWeight:</span> {{ node.data?.layoutWeight }}
+        </div>
+        <div v-if="node.data?.layerIndex !== undefined">
+          <span class="opacity-60">layerIndex:</span> {{ node.data?.layerIndex }}
+        </div>
+        <div v-if="node.data?.sortOrder !== undefined">
+          <span class="opacity-60">sortOrder:</span> {{ node.data?.sortOrder }}
+        </div>
+        <div v-if="nodeDimensions">
+          <span class="opacity-60">measured:</span>
+          {{ nodeDimensions.width }}×{{ nodeDimensions.height }}
+        </div>
+        <div v-if="node.width || node.height">
+          <span class="opacity-60">explicit:</span> {{ node.width }}×{{ node.height }}
+        </div>
+      </div>
+    </details>
   </div>
 </template>

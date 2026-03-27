@@ -3,6 +3,8 @@ import { Position } from '@vue-flow/core';
 export const FOLDER_HANDLE_IDS = {
   rightOut: 'folder-right-out',
   leftIn: 'folder-left-in',
+  rightStub: 'folder-right-stub',
+  leftStub: 'folder-left-stub',
 } as const;
 
 /**

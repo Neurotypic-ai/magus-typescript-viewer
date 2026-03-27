@@ -21,6 +21,7 @@ const makeNode = (overrides: Partial<DependencyNode> & { id: string }): Dependen
 describe('computeSimpleHierarchicalLayout', () => {
   it('accounts for folder chrome insets when computing parent size and child positions', () => {
     const parent = makeNode({ id: 'folder', type: 'group' });
+    // Both have no layerIndex → same column, stacked vertically (ascending child sort by id)
     const childAlpha = makeNode({
       id: 'alpha',
       parentNode: 'folder',
@@ -34,9 +35,10 @@ describe('computeSimpleHierarchicalLayout', () => {
 
     const layout = computeSimpleHierarchicalLayout([parent, childAlpha, childBeta], EMPTY_EDGES);
 
-    expect(layout.positions.get('alpha')).toEqual({ x: 10, y: 44 });
-    expect(layout.positions.get('beta')).toEqual({ x: 230, y: 44 });
-    expect(layout.sizes.get('folder')).toEqual({ width: 660, height: 340 });
+    // Same column (both layerIndex=0), stacked: alpha first (id 'alpha' < 'beta')
+    expect(layout.positions.get('alpha')).toEqual({ x: 100, y: 100 });
+    expect(layout.positions.get('beta')).toEqual({ x: 100, y: 380 });
+    expect(layout.sizes.get('folder')).toEqual({ width: 440, height: 600 });
   });
 
   it('falls back to default estimates when child dimensions are missing', () => {
@@ -48,8 +50,8 @@ describe('computeSimpleHierarchicalLayout', () => {
 
     const layout = computeSimpleHierarchicalLayout([parent, child], EMPTY_EDGES);
 
-    expect(layout.positions.get('child')).toEqual({ x: 10, y: 44 });
-    expect(layout.sizes.get('folder')).toEqual({ width: 520, height: 480 });
+    expect(layout.positions.get('child')).toEqual({ x: 100, y: 100 });
+    expect(layout.sizes.get('folder')).toEqual({ width: 520, height: 460 });
   });
 
   it('uses the current root node spacing behavior', () => {
@@ -66,35 +68,39 @@ describe('computeSimpleHierarchicalLayout', () => {
 
     const layout = computeSimpleHierarchicalLayout([packageNode, secondPackageNode], EMPTY_EDGES);
 
+    // Both have no layerIndex → same column. Root sort descending tiebreaks by id ascending.
+    // 'pkg-a' < 'pkg-b' → pkg-a at y=0, pkg-b below at y=90+120=210
     expect(layout.positions.get('pkg-a')).toEqual({ x: 0, y: 0 });
-    expect(layout.positions.get('pkg-b')).toEqual({ x: 240, y: 0 });
+    expect(layout.positions.get('pkg-b')).toEqual({ x: 0, y: 210 });
   });
 
-  it('places foundation root nodes (positive weight) left of consumer root nodes (negative weight)', () => {
-    const producer = makeNode({ id: 'producer', type: 'group', data: { label: 'producer', layoutWeight: 5 } });
-    const balanced = makeNode({ id: 'balanced', type: 'group', data: { label: 'balanced', layoutWeight: 0 } });
-    const consumer = makeNode({ id: 'consumer', type: 'group', data: { label: 'consumer', layoutWeight: -5 } });
+  it('places consumer root nodes (high layerIndex) left of foundation root nodes (low layerIndex)', () => {
+    const foundation = makeNode({ id: 'foundation', type: 'group', data: { label: 'foundation', layerIndex: 0 } });
+    const balanced = makeNode({ id: 'balanced', type: 'group', data: { label: 'balanced', layerIndex: 1 } });
+    const consumer = makeNode({ id: 'consumer', type: 'group', data: { label: 'consumer', layerIndex: 2 } });
 
-    const layout = computeSimpleHierarchicalLayout([producer, balanced, consumer], EMPTY_EDGES);
+    const layout = computeSimpleHierarchicalLayout([foundation, balanced, consumer], EMPTY_EDGES);
 
-    const xProducer = layout.positions.get('producer')?.x ?? Infinity;
+    const xFoundation = layout.positions.get('foundation')?.x ?? Infinity;
     const xBalanced = layout.positions.get('balanced')?.x ?? Infinity;
     const xConsumer = layout.positions.get('consumer')?.x ?? Infinity;
 
-    expect(xProducer).toBeLessThan(xBalanced);
-    expect(xBalanced).toBeLessThan(xConsumer);
+    // Reversed column sort: consumer (layerIndex=2) is leftmost, foundation (layerIndex=0) is rightmost
+    expect(xConsumer).toBeLessThan(xBalanced);
+    expect(xBalanced).toBeLessThan(xFoundation);
   });
 
-  it('places foundation child modules (positive weight) left within their folder', () => {
+  it('places consumer child modules (high layerIndex) left within their folder', () => {
     const parent = makeNode({ id: 'folder', type: 'group' });
-    const producer = makeNode({ id: 'child-producer', parentNode: 'folder', data: { label: 'producer', layoutWeight: 3 } });
-    const consumer = makeNode({ id: 'child-consumer', parentNode: 'folder', data: { label: 'consumer', layoutWeight: -3 } });
+    const foundation = makeNode({ id: 'child-foundation', parentNode: 'folder', data: { label: 'foundation', layerIndex: 0 } });
+    const consumer = makeNode({ id: 'child-consumer', parentNode: 'folder', data: { label: 'consumer', layerIndex: 2 } });
 
-    const layout = computeSimpleHierarchicalLayout([parent, producer, consumer], EMPTY_EDGES);
+    const layout = computeSimpleHierarchicalLayout([parent, foundation, consumer], EMPTY_EDGES);
 
-    const xProducer = layout.positions.get('child-producer')?.x ?? Infinity;
+    const xFoundation = layout.positions.get('child-foundation')?.x ?? Infinity;
     const xConsumer = layout.positions.get('child-consumer')?.x ?? Infinity;
 
-    expect(xProducer).toBeLessThan(xConsumer);
+    // Reversed child column sort: consumer (layerIndex=2) is leftmost
+    expect(xConsumer).toBeLessThan(xFoundation);
   });
 });

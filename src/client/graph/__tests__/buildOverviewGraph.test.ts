@@ -365,7 +365,7 @@ describe('buildOverviewGraph', () => {
       expect(groupNodes.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('keeps direct module-to-module edges across folder boundaries', () => {
+    it('lifts cross-folder module edges to a single folder→folder edge', () => {
       const result = buildOverviewGraph(
         defaultOptions({
           data: multifolderGraph(),
@@ -373,10 +373,18 @@ describe('buildOverviewGraph', () => {
         })
       );
 
+      // No highway segment metadata on any edge
       expect(result.edges.some((edge) => 'highwaySegment' in (edge.data ?? {}))).toBe(false);
+      // Module-level edge is gone — lifted to folder level
       expect(
-        result.edges.some((edge) => edge.source === 'mod-a' && edge.target === 'mod-b' && edge.data?.type === 'import')
-      ).toBe(true);
+        result.edges.some((edge) => edge.source === 'mod-a' && edge.target === 'mod-b')
+      ).toBe(false);
+      // Folder→folder edge exists with crossFolder type
+      const folderEdge = result.edges.find(
+        (edge) => edge.source === 'dir:app:src/a' && edge.target === 'dir:app:src/b'
+      );
+      expect(folderEdge).toBeDefined();
+      expect(folderEdge?.type).toBe('crossFolder');
     });
   });
 
@@ -1108,6 +1116,79 @@ describe('buildOverviewGraph', () => {
       // Both should have valid non-negative layer indices
       expect(layerA).toBeGreaterThanOrEqual(0);
       expect(layerB).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Cross-folder edge annotation
+  // -----------------------------------------------------------------------
+
+  describe('cross-folder edge lifting', () => {
+    it('lifts cross-folder module edges to folder→folder edges with type crossFolder', () => {
+      // modA (src/a/) imports modB (src/b/) — different directories
+      const modA = makeModule('mod-a', 'index.ts', 'pkg-1', 'src/a/index.ts', {
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: '../b/index', relativePath: '../b/index', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modB = makeModule('mod-b', 'index.ts', 'pkg-1', 'src/b/index.ts');
+      const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+
+      const result = buildOverviewGraph(defaultOptions({ data }));
+
+      // Cross-folder edge is lifted to folder level; no module→module edge exists
+      const moduleLevelEdge = result.edges.find((e) => e.source === 'mod-a' && e.target === 'mod-b');
+      expect(moduleLevelEdge).toBeUndefined();
+
+      // Folder→folder edge is created
+      const folderA = 'dir:app:src/a';
+      const folderB = 'dir:app:src/b';
+      const folderEdge = result.edges.find((e) => e.source === folderA && e.target === folderB);
+      expect(folderEdge).toBeDefined();
+      expect(folderEdge?.type).toBe('crossFolder');
+    });
+
+    it('does not lift edges between modules in the same directory', () => {
+      // Both modules are in src/utils/ — same folder
+      const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/utils/a.ts', {
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/utils/b.ts');
+      const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+
+      const result = buildOverviewGraph(defaultOptions({ data }));
+
+      // Intra-folder: edge stays at module level, no crossFolder type
+      const edge = result.edges.find((e) => e.source === 'mod-a' && e.target === 'mod-b');
+      expect(edge).toBeDefined();
+      expect(edge?.type).toBeUndefined();
+    });
+
+    it('deduplicates multiple module→module edges between the same folder pair', () => {
+      // Two modules in src/a/ each import a module in src/b/
+      const modA1 = makeModule('mod-a1', 'a1.ts', 'pkg-1', 'src/a/a1.ts', {
+        imports: {
+          i1: { uuid: 'i1', name: 'b1', fullPath: '../b/b1', relativePath: '../b/b1', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modA2 = makeModule('mod-a2', 'a2.ts', 'pkg-1', 'src/a/a2.ts', {
+        imports: {
+          i2: { uuid: 'i2', name: 'b1', fullPath: '../b/b1', relativePath: '../b/b1', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modB1 = makeModule('mod-b1', 'b1.ts', 'pkg-1', 'src/b/b1.ts');
+      const data = makeGraph([makePackage('pkg-1', 'app', { a1: modA1, a2: modA2, b1: modB1 })]);
+
+      const result = buildOverviewGraph(defaultOptions({ data }));
+
+      // Two module-level edges → one folder-level edge
+      const folderA = 'dir:app:src/a';
+      const folderB = 'dir:app:src/b';
+      const folderEdges = result.edges.filter((e) => e.source === folderA && e.target === folderB);
+      expect(folderEdges).toHaveLength(1);
+      expect(folderEdges[0]?.data?.aggregatedCount).toBe(2);
     });
   });
 });

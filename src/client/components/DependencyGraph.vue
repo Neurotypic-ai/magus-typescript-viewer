@@ -11,10 +11,11 @@ import { useGraphSearch } from '../composables/useGraphSearch';
 import { parseEnvBoolean, parseEnvFloat, parseEnvInt } from '../utils/env';
 import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
 import GraphControls from './GraphControls.vue';
-import InsightsDashboard from './InsightsDashboard.vue';
 import IssuesPanel from './IssuesPanel.vue';
 import NodeContextMenu from './NodeContextMenu.vue';
 import NodeDetails from './NodeDetails.vue';
+import CrossFolderEdge from './edges/CrossFolderEdge.vue';
+import FolderStubEdge from './edges/FolderStubEdge.vue';
 import IntraFolderEdge from './edges/IntraFolderEdge.vue';
 import NodePremeasureHost from './nodes/measure/NodePremeasureHost.vue';
 import GroupNode from './nodes/GroupNode.vue';
@@ -153,6 +154,8 @@ const nodeTypes: Record<string, Component> = Object.freeze({
 });
 
 const edgeTypes: Record<string, Component> = Object.freeze({
+  crossFolder: CrossFolderEdge,
+  folderStub: FolderStubEdge,
   intraFolder: IntraFolderEdge,
 });
 
@@ -256,6 +259,16 @@ onUnmounted(() => {
       <GraphControls
         :relationship-availability="graphSettings.relationshipAvailability"
         :graph-search-context="graphSearchContext"
+        :fps="fps"
+        :fps-stats="fpsStats"
+        :fps-chart-points="fpsChartPoints"
+        :fps-target-line-y="fpsTargetLineY"
+        :fps-chart-width="FPS_CHART_WIDTH"
+        :fps-chart-height="FPS_CHART_HEIGHT"
+        :rendered-node-count="renderedNodeCount"
+        :rendered-edge-count="renderedEdgeCount"
+        :rendered-node-type-counts="renderedNodeTypeCounts"
+        :rendered-edge-type-counts="renderedEdgeTypeCounts"
         @relationship-filter-change="handleRelationshipFilterChange"
         @toggle-hide-test-files="handleHideTestFilesToggle"
         @toggle-orphan-global="handleOrphanGlobalToggle"
@@ -285,101 +298,6 @@ onUnmounted(() => {
         <div class="layout-loading-indicator">Updating graph layout...</div>
       </Panel>
 
-      <Panel v-if="graphSettings.showFps" position="top-right" class="fps-panel fps-panel-slot">
-        <div class="fps-shell" :class="{ 'fps-shell-advanced': graphSettings.showFpsAdvanced }">
-          <div
-            class="fps-counter"
-            :class="{ 'fps-low': fps < 30, 'fps-ok': fps >= 30 && fps < 55, 'fps-good': fps >= 55 }"
-          >
-            {{ fps }} <span class="fps-label">FPS</span>
-          </div>
-          <template v-if="graphSettings.showFpsAdvanced">
-            <div class="fps-stats-grid">
-              <div class="fps-stat-card">
-                <span class="fps-stat-label">Min</span>
-                <span class="fps-stat-value">{{ fpsStats.min }}</span>
-              </div>
-              <div class="fps-stat-card">
-                <span class="fps-stat-label">Max</span>
-                <span class="fps-stat-value">{{ fpsStats.max }}</span>
-              </div>
-              <div class="fps-stat-card">
-                <span class="fps-stat-label">Avg</span>
-                <span class="fps-stat-value">{{ fpsStats.avg.toFixed(1) }}</span>
-              </div>
-              <div class="fps-stat-card">
-                <span class="fps-stat-label">P90</span>
-                <span class="fps-stat-value">{{ fpsStats.p90 }}</span>
-              </div>
-            </div>
-            <div class="fps-chart-wrapper">
-              <svg
-                class="fps-chart"
-                :viewBox="`0 0 ${FPS_CHART_WIDTH} ${FPS_CHART_HEIGHT}`"
-                preserveAspectRatio="none"
-                role="img"
-                aria-label="Real-time FPS trend"
-              >
-                <line x1="0" :y1="fpsTargetLineY" :x2="FPS_CHART_WIDTH" :y2="fpsTargetLineY" class="fps-chart-target" />
-                <polyline v-if="fpsChartPoints" :points="fpsChartPoints" class="fps-chart-line" />
-              </svg>
-              <div class="fps-chart-caption">Last {{ fpsStats.sampleCount }} samples</div>
-            </div>
-          </template>
-        </div>
-      </Panel>
-      <Panel position="top-right" class="graph-stats-panel graph-stats-panel-slot">
-        <details class="graph-stats-shell">
-          <summary class="graph-stats-summary">
-            <span>Graph Stats</span>
-            <span class="graph-stats-summary-metrics"
-              >{{ renderedNodeCount }} nodes · {{ renderedEdgeCount }} edges</span
-            >
-          </summary>
-          <div class="graph-stats-content">
-            <dl class="graph-stats-overview">
-              <div class="graph-stats-overview-row">
-                <dt>Nodes</dt>
-                <dd>{{ renderedNodeCount }}</dd>
-              </div>
-              <div class="graph-stats-overview-row">
-                <dt>Edges</dt>
-                <dd>{{ renderedEdgeCount }}</dd>
-              </div>
-            </dl>
-
-            <section class="graph-stats-section">
-              <h4>Node Types</h4>
-              <ul class="graph-stats-list">
-                <li
-                  v-for="entry in renderedNodeTypeCounts"
-                  :key="`node-type-${entry.type}`"
-                  class="graph-stats-list-row"
-                >
-                  <span class="graph-stats-type">{{ entry.type }}</span>
-                  <span class="graph-stats-count">{{ entry.count }}</span>
-                </li>
-              </ul>
-            </section>
-
-            <section class="graph-stats-section">
-              <h4>Edge Types</h4>
-              <ul v-if="renderedEdgeTypeCounts.length > 0" class="graph-stats-list">
-                <li
-                  v-for="entry in renderedEdgeTypeCounts"
-                  :key="`edge-type-${entry.type}`"
-                  class="graph-stats-list-row"
-                >
-                  <span class="graph-stats-type">{{ entry.type }}</span>
-                  <span class="graph-stats-count">{{ entry.count }}</span>
-                </li>
-              </ul>
-              <div v-else class="graph-stats-empty">No visible edges</div>
-            </section>
-          </div>
-        </details>
-      </Panel>
-
       <Panel v-if="scopeMode !== 'overview'" position="bottom-left">
         <button
           class="px-4 py-2 bg-primary-main text-white rounded-md hover:bg-primary-dark transition-colors shadow-lg border border-primary-light"
@@ -390,9 +308,6 @@ onUnmounted(() => {
         </button>
       </Panel>
 
-      <Panel position="top-right" class="insights-dashboard-panel insights-panel-slot">
-        <InsightsDashboard />
-      </Panel>
     </VueFlow>
     <DebugBoundsOverlay
       v-if="graphSettings.showDebugNodeIds && !isLayoutPending && !isLayoutMeasuring"
@@ -627,282 +542,6 @@ onUnmounted(() => {
   font-size: 0.72rem;
   letter-spacing: 0.02em;
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
-}
-
-/* ── FPS counter ── */
-
-.fps-panel {
-  pointer-events: none;
-}
-
-.fps-panel-slot {
-  margin-top: 4.25rem;
-  margin-right: 0.5rem;
-}
-
-.fps-shell {
-  min-width: 5rem;
-}
-
-.fps-shell-advanced {
-  min-width: 17rem;
-  max-width: min(19rem, calc(100vw - 1.5rem));
-}
-
-.fps-counter {
-  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  font-size: 1.1rem;
-  font-weight: 700;
-  padding: 0.4rem 0.85rem;
-  border-radius: 0.5rem;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  letter-spacing: 0.05em;
-  min-width: 5rem;
-  text-align: center;
-}
-
-.fps-stats-grid {
-  margin-top: 0.4rem;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.35rem;
-}
-
-.fps-stat-card {
-  border-radius: 0.35rem;
-  border: 1px solid rgba(100, 116, 139, 0.45);
-  background: rgba(15, 23, 42, 0.84);
-  padding: 0.2rem 0.35rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.05rem;
-}
-
-.fps-stat-label {
-  font-family: 'Inter', 'SF Pro Text', system-ui, sans-serif;
-  color: rgba(148, 163, 184, 0.95);
-  font-size: 0.62rem;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.fps-stat-value {
-  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  color: rgba(226, 232, 240, 0.98);
-  font-size: 0.78rem;
-  font-weight: 650;
-  line-height: 1.15;
-}
-
-.fps-chart-wrapper {
-  margin-top: 0.4rem;
-}
-
-.fps-chart {
-  width: 100%;
-  height: 3.5rem;
-  border-radius: 0.4rem;
-  border: 1px solid rgba(100, 116, 139, 0.45);
-  background: linear-gradient(to top, rgba(34, 211, 238, 0.08), rgba(34, 211, 238, 0.01)), rgba(15, 23, 42, 0.88);
-}
-
-.fps-chart-target {
-  stroke: rgba(244, 63, 94, 0.5);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
-}
-
-.fps-chart-line {
-  fill: none;
-  stroke: var(--graph-fps-line);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-
-.fps-chart-caption {
-  margin-top: 0.2rem;
-  text-align: right;
-  font-size: 0.62rem;
-  color: rgba(148, 163, 184, 0.9);
-  letter-spacing: 0.01em;
-}
-
-.fps-label {
-  font-size: 0.8rem;
-  opacity: 0.6;
-  font-weight: 500;
-}
-
-.fps-good {
-  color: var(--graph-fps-good);
-}
-
-.fps-ok {
-  color: var(--graph-fps-ok);
-}
-
-.fps-low {
-  color: var(--graph-fps-low);
-}
-
-.graph-stats-panel-slot {
-  margin-top: 16.85rem;
-  margin-right: 0.5rem;
-}
-
-.graph-stats-shell {
-  width: min(19rem, calc(100vw - 1.5rem));
-  border-radius: 0.5rem;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.94);
-  color: rgba(226, 232, 240, 0.95);
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
-}
-
-.graph-stats-summary {
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.45rem 0.65rem;
-  border-radius: 0.5rem;
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-}
-
-.graph-stats-summary::-webkit-details-marker {
-  display: none;
-}
-
-.graph-stats-summary::marker {
-  display: none;
-}
-
-.graph-stats-summary::after {
-  content: '▸';
-  font-size: 0.65rem;
-  opacity: 0.9;
-  transition: transform 120ms ease-out;
-}
-
-.graph-stats-shell[open] .graph-stats-summary::after {
-  transform: rotate(90deg);
-}
-
-.graph-stats-summary:focus-visible {
-  outline: 2px solid var(--graph-selection-connected-border);
-  outline-offset: 2px;
-}
-
-.graph-stats-summary-metrics {
-  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  color: rgba(148, 163, 184, 0.95);
-  font-size: 0.68rem;
-  font-weight: 600;
-}
-
-.graph-stats-content {
-  border-top: 1px solid rgba(148, 163, 184, 0.25);
-  padding: 0.55rem 0.65rem 0.6rem;
-  max-height: min(12rem, calc(100vh - 17rem));
-  overflow: auto;
-}
-
-.graph-stats-overview {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.35rem;
-  margin: 0;
-}
-
-.graph-stats-overview-row {
-  margin: 0;
-  border-radius: 0.35rem;
-  border: 1px solid rgba(100, 116, 139, 0.35);
-  background: rgba(15, 23, 42, 0.72);
-  padding: 0.22rem 0.4rem;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.graph-stats-overview-row dt {
-  font-size: 0.62rem;
-  color: rgba(148, 163, 184, 0.92);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.graph-stats-overview-row dd {
-  margin: 0;
-  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  font-size: 0.74rem;
-  color: rgba(226, 232, 240, 0.98);
-}
-
-.graph-stats-section {
-  margin-top: 0.6rem;
-}
-
-.graph-stats-section h4 {
-  margin: 0 0 0.25rem;
-  font-size: 0.64rem;
-  color: rgba(148, 163, 184, 0.95);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.graph-stats-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.14rem;
-}
-
-.graph-stats-list-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  font-size: 0.7rem;
-}
-
-.graph-stats-type {
-  color: rgba(203, 213, 225, 0.96);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.graph-stats-count {
-  flex-shrink: 0;
-  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  color: rgba(148, 163, 184, 0.96);
-}
-
-.graph-stats-empty {
-  font-size: 0.67rem;
-  color: rgba(148, 163, 184, 0.9);
-}
-
-.insights-panel-slot {
-  margin-top: 8.1rem;
-  margin-right: 0.5rem;
-}
-
-.insights-panel-slot :deep(.insights-dashboard) {
-  width: min(19rem, calc(100vw - 1.5rem));
-}
-
-.insights-panel-slot :deep(.insights-panel) {
-  max-height: min(7rem, calc(100vh - 18rem));
 }
 
 .renderer-mode-panel {

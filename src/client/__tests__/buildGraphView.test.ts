@@ -212,9 +212,16 @@ describe('buildOverviewGraph', () => {
     expect(result.semanticSnapshot).toBeDefined();
     expect(result.semanticSnapshot?.nodes.some((node) => node.type === 'group')).toBe(false);
     expect(result.edges.some((edge) => 'highwaySegment' in (edge.data ?? {}))).toBe(false);
+    // Cross-folder module edges are lifted to folder→folder trunk edges
     expect(
       result.edges.some(
-        (edge) => edge.source === 'module-a' && edge.target === 'module-b' && edge.data?.type === 'import'
+        (edge) => edge.type === 'crossFolder' && edge.source.includes('src/a') && edge.target.includes('src/b')
+      )
+    ).toBe(true);
+    // Stub edges connect the source module to the folder boundary
+    expect(
+      result.edges.some(
+        (edge) => edge.type === 'folderStub' && edge.source === 'module-a'
       )
     ).toBe(true);
   });

@@ -43,6 +43,20 @@ const folderHandles: FolderHandleConfig[] = [
     style: { top: '50%' },
     class: 'folder-handle',
   },
+  {
+    id: 'folder-right-stub',
+    type: 'target' as HandleType,
+    position: Position.Right,
+    style: { top: '50%' },
+    class: 'folder-handle',
+  },
+  {
+    id: 'folder-left-stub',
+    type: 'source' as HandleType,
+    position: Position.Left,
+    style: { top: '50%' },
+    class: 'folder-handle',
+  },
 ];
 </script>
 
