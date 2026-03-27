@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { BaseEdge, getSmoothStepPath } from '@vue-flow/core';
+import { BaseEdge, Position, getSmoothStepPath } from '@vue-flow/core';
 
 import { getEdgeStyle } from '../../theme/graphTheme';
 
@@ -10,14 +10,18 @@ import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyE
 
 const props = defineProps<EdgeProps>();
 
+// Stubs always route Right→Left so they travel through the folder interior
+// rather than looping outside. Both stub types share this convention:
+//   source stub: child-right → folder-right-wall (source is left of target)
+//   target stub: folder-left-wall → child-left  (source is left of target)
 const routeResult = computed(() => {
   const [path, labelX, labelY] = getSmoothStepPath({
     sourceX: props.sourceX,
     sourceY: props.sourceY,
-    sourcePosition: props.sourcePosition,
+    sourcePosition: Position.Right,
     targetX: props.targetX,
     targetY: props.targetY,
-    targetPosition: props.targetPosition,
+    targetPosition: Position.Left,
     offset: 8,
     borderRadius: 4,
   });
@@ -27,13 +31,7 @@ const routeResult = computed(() => {
 const edgeStyle = computed(() => {
   const edgeData = props.data as { type?: DependencyEdgeKind } | undefined;
   const type = edgeData?.type;
-  const base = type ? getEdgeStyle(type) : {};
-  return {
-    ...base,
-    strokeWidth: 0.75,
-    opacity: 0.4,
-    strokeDasharray: '4 3',
-  };
+  return type ? getEdgeStyle(type) : {};
 });
 </script>
 
@@ -42,6 +40,9 @@ const edgeStyle = computed(() => {
     :id="id"
     :path="routeResult.path"
     :style="edgeStyle"
-    v-bind="interactionWidth === undefined ? {} : { interactionWidth }"
+    v-bind="{
+      ...(markerEnd === undefined ? {} : { markerEnd }),
+      ...(interactionWidth === undefined ? {} : { interactionWidth }),
+    }"
   />
 </template>

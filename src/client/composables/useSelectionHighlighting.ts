@@ -26,6 +26,12 @@ import type { SearchHighlightState } from './useSearchHighlighting';
 
 const EMPTY_EDGE_SET = new Set<string>();
 
+function pushToMultiMap<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const arr = map.get(key);
+  if (arr) arr.push(value);
+  else map.set(key, [value]);
+}
+
 interface SelectionAdjacency {
   connectedNodeIds: Set<string>;
   connectedEdgeIds: Set<string>;
@@ -177,7 +183,66 @@ export function useSelectionHighlighting(options: UseSelectionHighlightingOption
     if (hoveredNodeId.value === null || selectedNode.value !== null || scopeMode.value === 'isolate') {
       return EMPTY_EDGE_SET;
     }
-    return selectionAdjacencyByNodeId.value.get(hoveredNodeId.value)?.connectedEdgeIds ?? EMPTY_EDGE_SET;
+
+    const adjacency = selectionAdjacencyByNodeId.value;
+    const directEntry = adjacency.get(hoveredNodeId.value);
+    if (!directEntry) return EMPTY_EDGE_SET;
+
+    const result = new Set<string>(directEntry.connectedEdgeIds);
+
+    // Cross-folder edges are split into three VueFlow edge segments:
+    //   source stub (module → sourceFolder)  →  trunk (sourceFolder → targetFolder)
+    //                                        →  target stub (targetFolder → module)
+    //
+    // The adjacency only includes the one stub directly touching the hovered module.
+    // Here we traverse the chain by edge type to expose the full visual path,
+    // avoiding the adjacency map (which is inflated by parent-propagation and
+    // would incorrectly pull in every edge in the folder).
+
+    const groupNodeIds = new Set<string>();
+    for (const node of nodes.value) {
+      if (node.type === 'group') groupNodeIds.add(node.id);
+    }
+
+    // One pass: build directional lookups and collect directly connected stubs.
+    const directStubs: GraphEdge[] = [];
+    const crossFolderBySource = new Map<string, GraphEdge[]>();
+    const crossFolderByTarget = new Map<string, GraphEdge[]>();
+    const sourceStubsByFolder = new Map<string, GraphEdge[]>(); // keyed by folder (stub.target)
+    const targetStubsByFolder = new Map<string, GraphEdge[]>(); // keyed by folder (stub.source)
+
+    for (const edge of edges.value) {
+      if (edge.type === 'crossFolder') {
+        pushToMultiMap(crossFolderBySource, edge.source, edge);
+        pushToMultiMap(crossFolderByTarget, edge.target, edge);
+      } else if (edge.type === 'folderStub') {
+        if (groupNodeIds.has(edge.target)) pushToMultiMap(sourceStubsByFolder, edge.target, edge);
+        if (groupNodeIds.has(edge.source)) pushToMultiMap(targetStubsByFolder, edge.source, edge);
+        if (directEntry.connectedEdgeIds.has(edge.id)) directStubs.push(edge);
+      }
+    }
+
+    for (const stub of directStubs) {
+      if (groupNodeIds.has(stub.target)) {
+        // Source stub (module → folder): follow outgoing trunks to target folder stubs.
+        for (const trunk of crossFolderBySource.get(stub.target) ?? []) {
+          result.add(trunk.id);
+          for (const tgtStub of targetStubsByFolder.get(trunk.target) ?? []) {
+            result.add(tgtStub.id);
+          }
+        }
+      } else if (groupNodeIds.has(stub.source)) {
+        // Target stub (folder → module): follow incoming trunks to source folder stubs.
+        for (const trunk of crossFolderByTarget.get(stub.source) ?? []) {
+          result.add(trunk.id);
+          for (const srcStub of sourceStubsByFolder.get(trunk.source) ?? []) {
+            result.add(srcStub.id);
+          }
+        }
+      }
+    }
+
+    return result;
   });
 
   const highlightedEdgeIds = computed<Set<string>>(() => {

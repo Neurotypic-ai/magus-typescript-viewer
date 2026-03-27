@@ -6,6 +6,7 @@ type GraphCssVariableName = `--${string}`;
 export const ALL_DEPENDENCY_KINDS: DependencyKind[] = [
   'package',
   'module',
+  'externalPackage',
   'class',
   'interface',
   'enum',
@@ -42,6 +43,10 @@ export const graphCssVariableNames = {
     module: {
       background: '--graph-node-module-bg',
       border: '--graph-node-module-border',
+    },
+    externalPackage: {
+      background: '--graph-node-external-package-bg',
+      border: '--graph-node-external-package-border',
     },
     class: {
       background: '--graph-node-class-bg',
@@ -226,6 +231,14 @@ export const graphTokenValues = {
         borderRadius: 4,
         minimapColor: 'rgba(59, 130, 246, 0.75)',
       },
+      externalPackage: {
+        background: 'rgba(245, 158, 11, 0.08)',
+        border: 'rgba(245, 158, 11, 0.4)',
+        minWidth: '140px',
+        padding: '10px 14px',
+        borderRadius: 4,
+        minimapColor: 'rgba(245, 158, 11, 0.7)',
+      },
       class: {
         background: 'rgba(59, 130, 246, 0.10)',
         border: 'rgba(59, 130, 246, 0.35)',
@@ -301,15 +314,15 @@ export const graphTokenValues = {
   edges: {
     colors: {
       dependency: '#f44336',
-      devDependency: '#795548',
-      peerDependency: '#009688',
+      devDependency: '#bcaaa4',
+      peerDependency: '#4db6ac',
       import: '#61dafb',
       export: '#ffd700',
       inheritance: '#4caf50',
       implements: '#ff9800',
-      extends: '#4caf50',
-      contains: '#9c27b0',
-      uses: '#404040',
+      extends: '#66bb6a',
+      contains: '#ce93d8',
+      uses: '#9e9e9e',
     } as Record<DependencyEdgeKind, string>,
     widths: {
       default: 1.5,

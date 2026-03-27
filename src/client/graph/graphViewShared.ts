@@ -83,9 +83,6 @@ export function applyEdgeVisibility(edges: GraphEdge[], enabledRelationshipTypes
 
   return edges.map((edge) => {
     const type = edge.data?.type;
-    if (type === 'uses' || type === 'contains') {
-      return { ...edge, hidden: false };
-    }
     if (!type) {
       return { ...edge, hidden: false };
     }

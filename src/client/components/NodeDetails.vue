@@ -525,7 +525,7 @@ const nodeDimensions = computed(() => {
 <template>
   <div
     data-graph-overlay-scrollable
-    class="nowheel absolute top-14 right-4 z-50 bg-background-paper p-5 rounded-lg border border-border-default shadow-2xl max-w-md max-h-128 overflow-y-auto"
+    class="nowheel absolute bottom-4 left-4 z-50 bg-background-paper p-5 rounded-lg border border-border-default shadow-2xl max-w-md max-h-[calc(100vh-8rem)] overflow-y-auto"
     role="dialog"
     aria-modal="false"
     aria-labelledby="node-details-title"

@@ -10,7 +10,11 @@ import { DEFAULT_VIEWPORT, useDependencyGraphCore } from '../composables/useDepe
 import { useGraphSearch } from '../composables/useGraphSearch';
 import { parseEnvBoolean, parseEnvFloat, parseEnvInt } from '../utils/env';
 import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
+import FpsPanel from './FpsPanel.vue';
 import GraphControls from './GraphControls.vue';
+import GraphStatsPanel from './GraphStatsPanel.vue';
+import InsightsPanel from './InsightsPanel.vue';
+import RankDebugPanel from './RankDebugPanel.vue';
 import IssuesPanel from './IssuesPanel.vue';
 import NodeContextMenu from './NodeContextMenu.vue';
 import NodeDetails from './NodeDetails.vue';
@@ -143,6 +147,7 @@ const premeasureNodes = nodePremeasure.batchNodes as Ref<DependencyNode[]>;
 const nodeTypes: Record<string, Component> = Object.freeze({
   package: PackageNode,
   module: ModuleNode,
+  externalPackage: ModuleNode,
   class: SymbolNode,
   interface: SymbolNode,
   enum: SymbolNode,
@@ -259,22 +264,36 @@ onUnmounted(() => {
       <GraphControls
         :relationship-availability="graphSettings.relationshipAvailability"
         :graph-search-context="graphSearchContext"
-        :fps="fps"
-        :fps-stats="fpsStats"
-        :fps-chart-points="fpsChartPoints"
-        :fps-target-line-y="fpsTargetLineY"
-        :fps-chart-width="FPS_CHART_WIDTH"
-        :fps-chart-height="FPS_CHART_HEIGHT"
-        :rendered-node-count="renderedNodeCount"
-        :rendered-edge-count="renderedEdgeCount"
-        :rendered-node-type-counts="renderedNodeTypeCounts"
-        :rendered-edge-type-counts="renderedEdgeTypeCounts"
         @relationship-filter-change="handleRelationshipFilterChange"
         @toggle-hide-test-files="handleHideTestFilesToggle"
         @toggle-orphan-global="handleOrphanGlobalToggle"
         @toggle-show-fps="handleShowFpsToggle"
         @toggle-fps-advanced="handleFpsAdvancedToggle"
       />
+      <Panel position="top-right" class="right-panels-stack">
+        <div class="right-panels-column">
+          <FpsPanel
+            v-if="graphSettings.showFps"
+            :fps="fps"
+            :fps-stats="fpsStats"
+            :fps-chart-points="fpsChartPoints"
+            :fps-target-line-y="fpsTargetLineY"
+            :fps-chart-width="FPS_CHART_WIDTH"
+            :fps-chart-height="FPS_CHART_HEIGHT"
+          />
+          <GraphStatsPanel
+            :rendered-node-count="renderedNodeCount"
+            :rendered-edge-count="renderedEdgeCount"
+            :rendered-node-type-counts="renderedNodeTypeCounts"
+            :rendered-edge-type-counts="renderedEdgeTypeCounts"
+          />
+          <RankDebugPanel
+            v-if="graphSettings.showDebugNodeIds"
+            :selected-node="selectedNode"
+          />
+          <InsightsPanel />
+        </div>
+      </Panel>
       <MiniMap
         v-if="showMiniMap && !isLayoutPending && !isLayoutMeasuring"
         position="bottom-right"
@@ -562,5 +581,26 @@ onUnmounted(() => {
   color: rgba(226, 232, 240, 0.9);
   font-size: 0.68rem;
   letter-spacing: 0.02em;
+}
+
+/* ── Right-side panel stack ── */
+
+.right-panels-stack {
+  /* Override the blanket panel background set by .vue-flow__panel — the
+     individual card shells supply their own backgrounds. */
+  background-color: transparent !important;
+}
+
+.right-panels-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: calc(100vh - 1.5rem);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.right-panels-column::-webkit-scrollbar {
+  display: none;
 }
 </style>

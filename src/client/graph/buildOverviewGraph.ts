@@ -21,6 +21,7 @@ import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from '
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyData } from '../../shared/types/graph/DependencyData';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
+import type { LayoutRankTrace, RankContribution } from '../../shared/types/graph/LayoutRankTrace';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { GraphViewData } from './graphViewShared';
@@ -194,19 +195,26 @@ function markBackEdges(edges: GraphEdge[], backEdgeIds: Set<string>): GraphEdge[
   });
 }
 
+interface ModuleLayoutWeightResult {
+  weights: Map<string, number>;
+  traces: Map<string, LayoutRankTrace>;
+}
+
 function computeModuleLayoutWeights(
   nodes: DependencyNode[],
   edges: GraphEdge[],
   backEdgeIds?: Set<string>
-): Map<string, number> {
+): ModuleLayoutWeightResult {
   // Build adjacency: edge.source imports edge.target (importer-to-imported)
   // Back-edges (cycle-creating) are excluded for cleaner layering.
   const importsOf = new Map<string, Set<string>>();
   const nodeIds = new Set<string>();
+  const labelOf = new Map<string, string>();
 
   for (const node of nodes) {
     nodeIds.add(node.id);
     importsOf.set(node.id, new Set());
+    labelOf.set(node.id, node.data?.label ?? node.id);
   }
 
   // Build import adjacency and fan-in counts (how many modules import each target)
@@ -257,13 +265,53 @@ function computeModuleLayoutWeights(
     return depth;
   }
 
+  // First pass: populate depthCache for all nodes.
   // layoutWeight = -weightedDepth → foundations (0) left, consumers (negative) right
   const weights = new Map<string, number>();
   for (const node of nodes) {
     const depth = computeWeightedDepth(node.id);
     weights.set(node.id, depth > 0 ? -depth : 0);
   }
-  return weights;
+
+  // Second pass: build per-node traces now that depthCache is fully populated.
+  const traces = new Map<string, LayoutRankTrace>();
+  for (const node of nodes) {
+    const weightedDepth = depthCache.get(node.id) ?? 0;
+    const layoutWeight = weightedDepth > 0 ? -weightedDepth : 0;
+    const imports = importsOf.get(node.id);
+    const contributions: RankContribution[] = [];
+
+    if (imports && imports.size > 0) {
+      let maxTotal = -Infinity;
+      for (const targetId of imports) {
+        const sc = stepCost(targetId);
+        const targetDepth = depthCache.get(targetId) ?? 0;
+        const total = sc + targetDepth;
+        if (total > maxTotal) maxTotal = total;
+        contributions.push({
+          importedId: targetId,
+          importedLabel: labelOf.get(targetId) ?? targetId,
+          fanIn: fanIn.get(targetId) ?? 0,
+          stepCost: sc,
+          depth: targetDepth,
+          total,
+          isWinner: false, // resolved below
+        });
+      }
+      for (const c of contributions) {
+        c.isWinner = c.total === maxTotal;
+      }
+      // Winners first, then by total descending
+      contributions.sort((a, b) => {
+        if (a.isWinner !== b.isWinner) return a.isWinner ? -1 : 1;
+        return b.total - a.total;
+      });
+    }
+
+    traces.set(node.id, { weightedDepth, layoutWeight, contributions });
+  }
+
+  return { weights, traces };
 }
 
 /**
@@ -435,7 +483,8 @@ function applyModuleWeights(
   nodes: DependencyNode[],
   weights: Map<string, number>,
   layerMap?: Map<string, number>,
-  sortOrderMap?: Map<string, number>
+  sortOrderMap?: Map<string, number>,
+  traces?: Map<string, LayoutRankTrace>
 ): DependencyNode[] {
   return nodes.map((node) => {
     const weight = weights.get(node.id);
@@ -446,6 +495,8 @@ function applyModuleWeights(
     if (layer !== undefined) data.layerIndex = layer;
     const sort = sortOrderMap?.get(node.id);
     if (sort !== undefined) data.sortOrder = sort;
+    const trace = traces?.get(node.id);
+    if (trace !== undefined) data.layoutRankTrace = trace;
     return { ...node, data };
   });
 }
@@ -483,33 +534,35 @@ function liftCrossfolderEdgesToFolderLevel(nodes: DependencyNode[], edges: Graph
       aggregatedCount.set(key, (aggregatedCount.get(key) ?? 0) + 1);
 
       if (!edgeMap.has(key)) {
+        // Omit markerEnd from trunk — arrow belongs on the target stub only.
+        const { markerEnd: _m, ...trunkBase } = edge;
         edgeMap.set(key, {
-          ...edge,
+          ...trunkBase,
           id: key,
           source: sourceParent,
           target: targetParent,
           sourceHandle: FOLDER_HANDLE_IDS.rightOut,
           targetHandle: FOLDER_HANDLE_IDS.leftIn,
           type: 'crossFolder',
-        });
+        } as GraphEdge);
       }
 
-      // Source stub: child module → source folder right boundary
+      // Source stub: child module → source folder right boundary (no arrow)
       const srcKey = `stub-src|${edge.source}|${sourceParent}`;
       if (!sourceStubs.has(srcKey)) {
+        const { markerEnd: _m, ...srcBase } = edge;
         sourceStubs.set(srcKey, {
-          ...edge,
+          ...srcBase,
           id: srcKey,
           source: edge.source,
           target: sourceParent,
           sourceHandle: 'relational-out',
           targetHandle: FOLDER_HANDLE_IDS.rightStub,
           type: 'folderStub',
-          markerEnd: undefined,
-        });
+        } as GraphEdge);
       }
 
-      // Target stub: target folder left boundary → child module
+      // Target stub: target folder left boundary → child module (keeps arrow)
       const tgtKey = `stub-tgt|${targetParent}|${edge.target}`;
       if (!targetStubs.has(tgtKey)) {
         targetStubs.set(tgtKey, {
@@ -520,15 +573,18 @@ function liftCrossfolderEdgesToFolderLevel(nodes: DependencyNode[], edges: Graph
           sourceHandle: FOLDER_HANDLE_IDS.leftStub,
           targetHandle: 'relational-in',
           type: 'folderStub',
-          markerEnd: undefined,
-        });
+        } as GraphEdge);
       }
     } else {
-      // Intra-folder or folder-level: keep as-is (deduplicate by canonical key)
+      // Intra-folder or folder-level: tag with intraFolder type when both nodes share a parent
       const type = edge.data?.type ?? 'import';
       const key = edge.id || `${edge.source}|${edge.target}|${type}`;
       if (!edgeMap.has(key)) {
-        edgeMap.set(key, edge);
+        if (sourceParent && targetParent && sourceParent === targetParent) {
+          edgeMap.set(key, { ...edge, type: 'intraFolder' } as GraphEdge);
+        } else {
+          edgeMap.set(key, edge);
+        }
       }
     }
   }
@@ -593,6 +649,7 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const graphNodes = createGraphNodes(options.data, {
     includePackages: false,
     includeModules: true,
+    includeExternalPackages: true,
     includeClasses: false,
     includeClassNodes: true,
     includeInterfaceNodes: true,
@@ -606,6 +663,8 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     includeClassEdges: false,
     liftClassEdgesToModuleLevel: true,
     importDirection: 'importer-to-imported',
+    includeUsesEdges: true,
+    includeExternalPackageEdges: true,
   });
 
   const unfilteredGraph = {
@@ -618,11 +677,11 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const semanticSnapshot = { nodes: filteredGraph.nodes, edges: edgesWithBackEdgeMarks };
   validateEdgesAgainstRegistry(semanticSnapshot.nodes, semanticSnapshot.edges);
 
-  const moduleWeights = computeModuleLayoutWeights(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
+  const { weights: moduleWeights, traces: rankTraces } = computeModuleLayoutWeights(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
   const layerAssignment = computeLayerAssignment(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
   const sortOrder = computeBarycenterSortOrder(semanticSnapshot.nodes, semanticSnapshot.edges, layerAssignment, backEdgeIds);
   const weightedFilteredGraph = {
-    nodes: applyModuleWeights(filteredGraph.nodes, moduleWeights, layerAssignment, sortOrder),
+    nodes: applyModuleWeights(filteredGraph.nodes, moduleWeights, layerAssignment, sortOrder, rankTraces),
     edges: edgesWithBackEdgeMarks,
   };
 

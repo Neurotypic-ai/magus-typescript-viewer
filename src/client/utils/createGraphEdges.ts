@@ -7,12 +7,14 @@ import { createEdgeMarker } from './edgeMarkers';
 import { buildModulePathLookup, isExternalImport, resolveModuleId } from './graphEdgeLookups';
 
 import type { IClass } from '../../shared/types/Class';
+import type { IExport } from '../../shared/types/Export';
 import type { Import } from '../../shared/types/Import';
 import type { IInterface } from '../../shared/types/Interface';
 import type { Method } from '../../shared/types/Method';
 import type { IModule } from '../../shared/types/Module';
 import type { IPackage, PackageGraph } from '../../shared/types/Package';
 import type { Property } from '../../shared/types/Property';
+import type { ISymbolReference } from '../../shared/types/SymbolReference';
 import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { GraphEdge } from '../types/GraphEdge';
@@ -31,6 +33,8 @@ interface CreateGraphEdgesOptions {
   includeMemberContainmentEdges?: boolean;
   liftClassEdgesToModuleLevel?: boolean;
   importDirection?: ImportDirection;
+  includeUsesEdges?: boolean;
+  includeExternalPackageEdges?: boolean;
 }
 
 interface ResolvedOptions {
@@ -39,6 +43,8 @@ interface ResolvedOptions {
   includeMemberContainmentEdges: boolean;
   liftClassEdgesToModuleLevel: boolean;
   importDirection: ImportDirection;
+  includeUsesEdges: boolean;
+  includeExternalPackageEdges: boolean;
 }
 
 interface NodeIndex {
@@ -82,6 +88,14 @@ function buildNodeIndex(data: PackageGraph, options: ResolvedOptions): NodeIndex
       if (isNonEmptyCollection(module.classes)) {
         mapTypeCollection(module.classes, (cls: IClass) => {
           index.symbolToModule.set(cls.id, module.id);
+          if (options.includeUsesEdges) {
+            typeCollectionToArray(cls.properties as Record<string, Property> | Property[]).forEach(
+              (p: Property) => { index.symbolToModule.set(p.id, module.id); }
+            );
+            typeCollectionToArray(cls.methods as Record<string, Method> | Method[]).forEach(
+              (m: Method) => { index.symbolToModule.set(m.id, module.id); }
+            );
+          }
           if (!options.includeClassEdges) return;
           index.nodeIds.add(cls.id);
           index.nodeKinds.set(cls.id, 'class');
@@ -94,6 +108,14 @@ function buildNodeIndex(data: PackageGraph, options: ResolvedOptions): NodeIndex
       if (isNonEmptyCollection(module.interfaces)) {
         mapTypeCollection(module.interfaces, (iface: IInterface) => {
           index.symbolToModule.set(iface.id, module.id);
+          if (options.includeUsesEdges) {
+            typeCollectionToArray(iface.properties as Record<string, Property> | Property[]).forEach(
+              (p: Property) => { index.symbolToModule.set(p.id, module.id); }
+            );
+            typeCollectionToArray(iface.methods as Record<string, Method> | Method[]).forEach(
+              (m: Method) => { index.symbolToModule.set(m.id, module.id); }
+            );
+          }
           if (!options.includeClassEdges) return;
           index.nodeIds.add(iface.id);
           index.nodeKinds.set(iface.id, 'interface');
@@ -104,6 +126,30 @@ function buildNodeIndex(data: PackageGraph, options: ResolvedOptions): NodeIndex
       }
     });
   });
+
+  if (options.includeExternalPackageEdges) {
+    data.packages.forEach((pkg: IPackage) => {
+      if (!isNonEmptyCollection(pkg.modules)) return;
+      mapTypeCollection(pkg.modules, (module: IModule) => {
+        if (!isNonEmptyCollection(module.imports)) return;
+        mapTypeCollection(
+          module.imports,
+          (imp: Import & { path?: string; isExternal?: boolean; packageName?: string }) => {
+            if (!isExternalImport(imp)) return;
+            // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentional: skip empty strings
+            const path = imp.relativePath || imp.fullPath || imp.path || imp.name || '';
+            const segments = path.split('/');
+            const pkgName =
+              imp.packageName ?? (path.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? ''));
+            if (!pkgName) return;
+            const externalId = `external:${pkgName}`;
+            index.nodeIds.add(externalId);
+            index.nodeKinds.set(externalId, 'externalPackage');
+          }
+        );
+      });
+    });
+  }
 
   return index;
 }
@@ -175,6 +221,8 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
     includeMemberContainmentEdges: options.includeMemberContainmentEdges ?? false,
     liftClassEdgesToModuleLevel: options.liftClassEdgesToModuleLevel ?? false,
     importDirection: options.importDirection ?? 'importer-to-imported',
+    includeUsesEdges: options.includeUsesEdges ?? false,
+    includeExternalPackageEdges: options.includeExternalPackageEdges ?? false,
   };
 
   const lookup = buildModulePathLookup(data);
@@ -261,7 +309,18 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
             // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentional: skip empty strings
             const path = imp.relativePath || imp.fullPath || imp.path || imp.name;
             if (!path) return;
-            if (isExternalImport(imp)) return;
+
+            if (isExternalImport(imp)) {
+              if (resolvedOptions.includeExternalPackageEdges) {
+                const segments = path.split('/');
+                const pkgName =
+                  imp.packageName ?? (path.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? ''));
+                if (pkgName) {
+                  addEdge(createEdge(moduleId, `external:${pkgName}`, 'import'), `${moduleId}|external:${pkgName}|import`);
+                }
+              }
+              return;
+            }
 
             const importedModuleId = resolveModuleId(lookup, packageId, importerPath, path);
             if (!importedModuleId || importedModuleId === moduleId) return;
@@ -271,6 +330,13 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
             addEdge(createEdge(source, target, 'import', imp.name));
           }
         );
+      }
+
+      if (isNonEmptyCollection(module.exports)) {
+        mapTypeCollection(module.exports, (exp: IExport) => {
+          if (!exp.exportedFrom) return;
+          addEdge(createEdge(moduleId, exp.exportedFrom, 'export', exp.name));
+        });
       }
 
       if (isNonEmptyCollection(module.classes)) {
@@ -309,12 +375,28 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
           if (isNonEmptyCollection(iface.extended_interfaces)) {
             mapTypeCollection(iface.extended_interfaces, (extended: IInterface) => {
               if (!extended.id) return;
-              const inheritanceEdge = createEdge(iface.id, extended.id, 'inheritance');
-              classRelationshipEdges.push(inheritanceEdge);
+              const extendsEdge = createEdge(iface.id, extended.id, 'extends');
+              classRelationshipEdges.push(extendsEdge);
               if (resolvedOptions.includeClassEdges) {
-                addEdge(inheritanceEdge);
+                addEdge(extendsEdge);
               }
             });
+          }
+        });
+      }
+
+      if (resolvedOptions.includeUsesEdges && isNonEmptyCollection(module.symbol_references)) {
+        mapTypeCollection(module.symbol_references, (ref: ISymbolReference) => {
+          if (!ref.source_symbol_id) return;
+          if (resolvedOptions.includeClassEdges) {
+            addEdge(createEdge(ref.source_symbol_id, ref.target_symbol_id, 'uses'));
+          } else if (resolvedOptions.liftClassEdgesToModuleLevel) {
+            const targetModuleId = symbolToModuleMap.get(ref.target_symbol_id);
+            if (!targetModuleId || targetModuleId === moduleId) return;
+            addEdge(
+              createEdge(moduleId, targetModuleId, 'uses'),
+              `${moduleId}|${targetModuleId}|uses|lifted`
+            );
           }
         });
       }

@@ -4,6 +4,7 @@ import type { EmbeddedModuleEntity } from './EmbeddedModuleEntity';
 import type { EmbeddedSymbol } from './EmbeddedSymbol';
 import type { ExternalDependencyRef } from './ExternalDependencyRef';
 import type { LayoutInsets } from './LayoutInsets';
+import type { LayoutRankTrace } from './LayoutRankTrace';
 import type { MemberMetadata } from './MemberMetadata';
 import type { NodeDiagnostics } from './NodeDiagnostics';
 import type { SubnodeMetadata } from './SubnodeMetadata';
@@ -31,6 +32,7 @@ export interface DependencyData {
   layoutWeight?: number;
   layerIndex?: number;
   sortOrder?: number;
+  layoutRankTrace?: LayoutRankTrace;
   collapsible?: boolean;
   [key: string]: unknown;
 }

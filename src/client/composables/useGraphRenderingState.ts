@@ -1,9 +1,5 @@
 import { computed } from 'vue';
 
-import { MarkerType } from '@vue-flow/core';
-
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../layout/edgeGeometryPolicy';
-
 import type { ComputedRef, Ref } from 'vue';
 
 import type { DependencyNode } from '../types/DependencyNode';
@@ -60,7 +56,6 @@ export function useGraphRenderingState(options: UseGraphRenderingStateOptions): 
       return { zIndex: 2, type: 'straight' };
     }
     return {
-      markerEnd: { type: MarkerType.ArrowClosed, width: EDGE_MARKER_WIDTH_PX, height: EDGE_MARKER_HEIGHT_PX },
       zIndex: 2,
       type: 'smoothstep',
     };

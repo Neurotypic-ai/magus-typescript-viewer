@@ -4,6 +4,7 @@
 export type DependencyKind =
   | 'package'
   | 'module'
+  | 'externalPackage'
   | 'class'
   | 'interface'
   | 'enum'

@@ -1160,10 +1160,10 @@ describe('buildOverviewGraph', () => {
 
       const result = buildOverviewGraph(defaultOptions({ data }));
 
-      // Intra-folder: edge stays at module level, no crossFolder type
+      // Intra-folder: edge stays at module level, tagged as intraFolder
       const edge = result.edges.find((e) => e.source === 'mod-a' && e.target === 'mod-b');
       expect(edge).toBeDefined();
-      expect(edge?.type).toBeUndefined();
+      expect(edge?.type).toBe('intraFolder');
     });
 
     it('deduplicates multiple module→module edges between the same folder pair', () => {

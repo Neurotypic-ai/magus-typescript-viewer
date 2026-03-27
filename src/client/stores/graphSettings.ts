@@ -9,9 +9,13 @@ export const DEFAULT_RELATIONSHIP_TYPES = [
   'import',
   'inheritance',
   'implements',
+  'extends',
+  'export',
   'dependency',
   'devDependency',
   'peerDependency',
+  'uses',
+  'contains',
 ] as const;
 
 const GRAPH_SETTINGS_CACHE_KEY = 'v2:typescript-viewer-graph-settings';
@@ -71,9 +75,13 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
       import: { available: true },
       inheritance: { available: true },
       implements: { available: true },
+      extends: { available: true },
+      export: { available: true },
       dependency: { available: true },
       devDependency: { available: true },
       peerDependency: { available: true },
+      uses: { available: true },
+      contains: { available: true },
     };
   });
 

@@ -16,7 +16,7 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
     kind: 'import',
     label: 'Imports',
     validSources: ['module'],
-    validTargets: ['module'],
+    validTargets: ['module', 'externalPackage'],
     directed: true,
     handleCategory: 'relational',
   },

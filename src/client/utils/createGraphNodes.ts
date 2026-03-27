@@ -30,6 +30,7 @@ import type { DependencyNode } from '../types/DependencyNode';
 interface CreateGraphNodeOptions {
   includePackages?: boolean;
   includeModules?: boolean;
+  includeExternalPackages?: boolean;
   includeClasses?: boolean;
   includeClassNodes?: boolean;
   includeInterfaceNodes?: boolean;
@@ -160,6 +161,7 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
   const {
     includePackages = false,
     includeModules = true,
+    includeExternalPackages = false,
     includeClasses = false,
     includeClassNodes = includeClasses,
     includeInterfaceNodes = includeClasses,
@@ -674,6 +676,51 @@ export function createGraphNodes(data: PackageGraph, options: CreateGraphNodeOpt
       }
     });
   });
+
+  if (includeExternalPackages) {
+    const seenPackages = new Map<string, { symbolCount: number }>();
+
+    data.packages.forEach((pkg: IPackage) => {
+      if (!isNonEmptyCollection(pkg.modules)) return;
+      mapTypeCollection(pkg.modules, (module: IModule) => {
+        getModuleExternalDependencies(module).forEach((dep: ExternalDependencyRef) => {
+          const existing = seenPackages.get(dep.packageName);
+          if (existing) {
+            existing.symbolCount += dep.symbols.length;
+          } else {
+            seenPackages.set(dep.packageName, { symbolCount: dep.symbols.length });
+          }
+        });
+      });
+    });
+
+    seenPackages.forEach(({ symbolCount }, packageName) => {
+      graphNodes.push({
+        id: `external:${packageName}`,
+        type: 'externalPackage' as DependencyKind,
+        position: { x: 0, y: 0 },
+        sourcePosition,
+        targetPosition,
+        data: {
+          label: packageName,
+          isContainer: false,
+          diagnostics: createDiagnostics({ isTestFile: false }),
+          subnodes: {
+            count: 0,
+            totalCount: 0,
+            visibleCount: 0,
+            hiddenCount: 0,
+            byType: {},
+            byTypeTotal: {},
+            byTypeVisible: {},
+            isContainer: false,
+          },
+          externalPackageSymbolCount: symbolCount,
+        },
+        style: getNodeStyle('externalPackage'),
+      });
+    });
+  }
 
   return graphNodes;
 }
