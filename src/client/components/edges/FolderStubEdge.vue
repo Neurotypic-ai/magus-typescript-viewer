@@ -31,7 +31,11 @@ const routeResult = computed(() => {
 const edgeStyle = computed(() => {
   const edgeData = props.data as { type?: DependencyEdgeKind } | undefined;
   const type = edgeData?.type;
-  return type ? getEdgeStyle(type) : {};
+  const baseStyle = type ? getEdgeStyle(type) : {};
+  // Merge props.style so CSS variables (e.g. --edge-hover-base-stroke) set by the
+  // hover system are applied to the path element. baseStyle goes first so that
+  // explicit type-specific values are the baseline; props.style adds variables on top.
+  return props.style ? { ...baseStyle, ...props.style } : baseStyle;
 });
 </script>
 
