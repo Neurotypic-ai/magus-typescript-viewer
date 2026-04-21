@@ -6,7 +6,6 @@ const VALID_EDGE_KINDS: DependencyEdgeKind[] = [
   'peerDependency',
   'import',
   'export',
-  'inheritance',
   'implements',
   'extends',
   'contains',

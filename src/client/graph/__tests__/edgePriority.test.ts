@@ -9,7 +9,6 @@ describe('EDGE_KIND_PRIORITY', () => {
     const allKinds: DependencyEdgeKind[] = [
       'contains',
       'uses',
-      'inheritance',
       'implements',
       'extends',
       'dependency',
@@ -25,8 +24,8 @@ describe('EDGE_KIND_PRIORITY', () => {
     }
   });
 
-  it('has exactly 10 entries matching all DependencyEdgeKind values', () => {
-    expect(Object.keys(EDGE_KIND_PRIORITY)).toHaveLength(10);
+  it('has exactly 9 entries matching all DependencyEdgeKind values', () => {
+    expect(Object.keys(EDGE_KIND_PRIORITY)).toHaveLength(9);
   });
 
   // ── Tier verification ─────────────────────────────────────────────────
@@ -36,13 +35,12 @@ describe('EDGE_KIND_PRIORITY', () => {
     expect(EDGE_KIND_PRIORITY.uses).toBe(5);
   });
 
-  it('gives "inheritance" the second-highest priority (4)', () => {
-    expect(EDGE_KIND_PRIORITY.inheritance).toBe(4);
+  it('gives "extends" the second-highest priority (4)', () => {
+    expect(EDGE_KIND_PRIORITY.extends).toBe(4);
   });
 
-  it('gives "implements" and "extends" equal priority (3)', () => {
+  it('gives "implements" priority 3', () => {
     expect(EDGE_KIND_PRIORITY.implements).toBe(3);
-    expect(EDGE_KIND_PRIORITY.extends).toBe(3);
   });
 
   it('gives "dependency" priority 2', () => {
@@ -62,14 +60,13 @@ describe('EDGE_KIND_PRIORITY', () => {
   // ── Relative ordering ─────────────────────────────────────────────────
 
   it('ranks structural edges (contains/uses) above type-relationship edges', () => {
-    expect(EDGE_KIND_PRIORITY.contains).toBeGreaterThan(EDGE_KIND_PRIORITY.inheritance);
+    expect(EDGE_KIND_PRIORITY.contains).toBeGreaterThan(EDGE_KIND_PRIORITY.extends);
     expect(EDGE_KIND_PRIORITY.uses).toBeGreaterThan(EDGE_KIND_PRIORITY.implements);
     expect(EDGE_KIND_PRIORITY.uses).toBeGreaterThan(EDGE_KIND_PRIORITY.extends);
   });
 
-  it('ranks inheritance above implements/extends', () => {
-    expect(EDGE_KIND_PRIORITY.inheritance).toBeGreaterThan(EDGE_KIND_PRIORITY.implements);
-    expect(EDGE_KIND_PRIORITY.inheritance).toBeGreaterThan(EDGE_KIND_PRIORITY.extends);
+  it('ranks extends above implements', () => {
+    expect(EDGE_KIND_PRIORITY.extends).toBeGreaterThan(EDGE_KIND_PRIORITY.implements);
   });
 
   it('ranks implements/extends above dependency', () => {
@@ -95,7 +92,6 @@ describe('EDGE_KIND_PRIORITY', () => {
       'import',
       'contains',
       'dependency',
-      'inheritance',
       'extends',
       'uses',
       'devDependency',
@@ -112,34 +108,34 @@ describe('EDGE_KIND_PRIORITY', () => {
     expect(sortedPriorities[0]).toBe(5);
     expect(sortedPriorities[1]).toBe(5);
 
-    // Next should be inheritance (4)
-    expect(sorted[2]).toBe('inheritance');
+    // Next should be extends (4)
+    expect(sorted[2]).toBe('extends');
     expect(sortedPriorities[2]).toBe(4);
 
-    // Then implements and extends (3), in some order
+    // Then implements (3)
+    expect(sorted[3]).toBe('implements');
     expect(sortedPriorities[3]).toBe(3);
-    expect(sortedPriorities[4]).toBe(3);
 
     // Then dependency (2)
-    expect(sorted[5]).toBe('dependency');
-    expect(sortedPriorities[5]).toBe(2);
+    expect(sorted[4]).toBe('dependency');
+    expect(sortedPriorities[4]).toBe(2);
 
     // Then import (1)
-    expect(sorted[6]).toBe('import');
-    expect(sortedPriorities[6]).toBe(1);
+    expect(sorted[5]).toBe('import');
+    expect(sortedPriorities[5]).toBe(1);
 
     // Remaining three all have priority 0
+    expect(sortedPriorities[6]).toBe(0);
     expect(sortedPriorities[7]).toBe(0);
     expect(sortedPriorities[8]).toBe(0);
-    expect(sortedPriorities[9]).toBe(0);
   });
 
   it('can select the highest-priority edge from a mixed set', () => {
-    const edgeKinds: DependencyEdgeKind[] = ['import', 'dependency', 'inheritance', 'export'];
+    const edgeKinds: DependencyEdgeKind[] = ['import', 'dependency', 'extends', 'export'];
 
     const best = edgeKinds.reduce((a, b) => (EDGE_KIND_PRIORITY[a] >= EDGE_KIND_PRIORITY[b] ? a : b));
 
-    expect(best).toBe('inheritance');
+    expect(best).toBe('extends');
   });
 
   it('can select the highest-priority edge when multiple share top rank', () => {

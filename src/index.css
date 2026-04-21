@@ -108,20 +108,27 @@
   --graph-node-method-border: rgba(186, 85, 211, 0.4);
 
   --graph-edge-default: #404040;
-  --graph-edge-dependency: #f44336;
-  --graph-edge-dev-dependency: #bcaaa4;
-  --graph-edge-peer-dependency: #4db6ac;
-  --graph-edge-import: #61dafb;
-  --graph-edge-export: #ffd700;
-  --graph-edge-inheritance: #4caf50;
-  --graph-edge-implements: #ff9800;
-  --graph-edge-extends: #66bb6a;
-  --graph-edge-contains: #ce93d8;
-  --graph-edge-uses: #9e9e9e;
+
+  /* Package.json family — warm hues, declaration-scope coded:
+     red (production) → orange (dev-only) → amber (peer). */
+  --graph-edge-dependency: #ef4444;
+  --graph-edge-dev-dependency: #f97316;
+  --graph-edge-peer-dependency: #fbbf24;
+
+  /* Code-flow family — blues, the everyday imports/exports. */
+  --graph-edge-import: #38bdf8;
+  --graph-edge-export: #22d3ee;
+
+  /* Type-hierarchy family — purples, paired. */
+  --graph-edge-extends: #a855f7;
+  --graph-edge-implements: #ec4899;
+
+  /* Structural (drill-down only) — de-emphasized slates. */
+  --graph-edge-contains: #94a3b8;
+  --graph-edge-uses: #64748b;
 
   --graph-edge-width: 1.5px;
   --graph-edge-width-selected: 2.5px;
-  --graph-edge-width-inheritance: 1.5px;
   --graph-edge-width-contains: 1.5px;
   --graph-edge-width-extends: 1.5px;
   --graph-edge-width-uses: 1.5px;
@@ -135,6 +142,8 @@
 
   --graph-badge-module-bg: rgba(20, 184, 166, 0.2);
   --graph-badge-module-text: rgb(94, 234, 212);
+  --graph-badge-external-package-bg: rgba(245, 158, 11, 0.2);
+  --graph-badge-external-package-text: rgb(252, 211, 77);
   --graph-badge-class-bg: rgba(59, 130, 246, 0.2);
   --graph-badge-class-text: rgb(147, 197, 253);
   --graph-badge-interface-bg: rgba(168, 85, 247, 0.2);

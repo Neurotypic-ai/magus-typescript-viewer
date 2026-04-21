@@ -98,7 +98,7 @@ function defaultOptions(overrides: Partial<BuildModuleDrilldownGraphOptions> = {
     currentNodes: [],
     currentEdges: [],
     direction: 'LR',
-    enabledRelationshipTypes: ['import', 'inheritance', 'implements', 'contains'],
+    enabledRelationshipTypes: ['import', 'extends', 'implements', 'contains'],
     ...overrides,
   };
 }
@@ -191,7 +191,7 @@ describe('buildModuleDrilldownGraph', () => {
         })
       );
 
-      const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'inheritance');
+      const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'extends');
       expect(inheritanceEdges).toHaveLength(1);
       expect(inheritanceEdges[0]?.source).toBe('cls-1');
       expect(inheritanceEdges[0]?.target).toBe('cls-parent');
@@ -284,7 +284,7 @@ describe('buildModuleDrilldownGraph', () => {
         })
       );
 
-      const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'inheritance');
+      const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'extends');
       expect(inheritanceEdges).toHaveLength(1);
       const ifaceInhEdge = expectDefined(inheritanceEdges[0], 'inheritance edge');
       expect(ifaceInhEdge.source).toBe('iface-1');
@@ -395,7 +395,7 @@ describe('buildModuleDrilldownGraph', () => {
         })
       );
 
-      const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'inheritance');
+      const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'extends');
       expect(inheritanceEdges.length).toBeGreaterThan(0);
       // All inheritance edges should be hidden since not in enabled types
       expect(inheritanceEdges.every((e) => e.hidden)).toBe(true);
@@ -415,11 +415,11 @@ describe('buildModuleDrilldownGraph', () => {
         defaultOptions({
           data: makeGraph({ 'mod-1': mod }),
           selectedNode: makeNode('mod-1'),
-          enabledRelationshipTypes: ['inheritance'],
+          enabledRelationshipTypes: ['extends'],
         })
       );
 
-      const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'inheritance');
+      const inheritanceEdges = result.edges.filter((e) => e.data?.type === 'extends');
       expect(inheritanceEdges.length).toBeGreaterThan(0);
       expect(inheritanceEdges.every((e) => !e.hidden)).toBe(true);
     });

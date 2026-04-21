@@ -7,7 +7,6 @@ export type DependencyEdgeKind =
   | 'peerDependency'
   | 'import'
   | 'export'
-  | 'inheritance'
   | 'implements'
   | 'extends'
   | 'contains'

@@ -4,11 +4,19 @@
 -- Note: DuckDB does not support ON DELETE CASCADE or triggers.
 
 -- Packages table
+-- package_json_deps_json stores the per-package declared dep classification
+-- as JSON: { [packageName]: 'dependency' | 'devDependency' | 'peerDependency' }.
+-- This lives here (rather than in the `dependencies` junction table below)
+-- because external npm packages are never inserted as `packages` rows, so
+-- the junction table's FK would silently reject them. Storing the scope
+-- alongside the package keeps the classification attached to the workspace
+-- package that declared the dep.
 CREATE TABLE packages (
   id CHAR(36) PRIMARY KEY,
   name TEXT NOT NULL,
   version TEXT NOT NULL,
   path TEXT NOT NULL,
+  package_json_deps_json TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 

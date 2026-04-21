@@ -20,11 +20,18 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
     directed: true,
     handleCategory: 'relational',
   },
+  // Package-scoped dependency edges can originate at either a package node
+  // (package.json → package.json) OR a module node (module → externalPackage),
+  // when external imports are reclassified by package.json category.
+  // dependency/devDependency/peerDependency definitions below.
   extends: {
     kind: 'extends',
     label: 'Extends',
-    validSources: ['class', 'interface'],
-    validTargets: ['class', 'interface'],
+    // Covers both class→class and interface→interface. The legacy
+    // 'inheritance' kind has been merged in. 'module' is accepted so
+    // module-level lifted edges (liftClassEdgesToModuleLevel) validate.
+    validSources: ['class', 'interface', 'module'],
+    validTargets: ['class', 'interface', 'module'],
     directed: true,
     handleCategory: 'relational',
   },
@@ -33,14 +40,6 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
     label: 'Implements',
     validSources: ['class', 'module'],
     validTargets: ['interface', 'module'],
-    directed: true,
-    handleCategory: 'relational',
-  },
-  inheritance: {
-    kind: 'inheritance',
-    label: 'Inheritance',
-    validSources: ['class', 'interface', 'module'],
-    validTargets: ['class', 'interface', 'module'],
     directed: true,
     handleCategory: 'relational',
   },
@@ -55,24 +54,24 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
   dependency: {
     kind: 'dependency',
     label: 'Dependency',
-    validSources: ['package'],
-    validTargets: ['package'],
+    validSources: ['package', 'module'],
+    validTargets: ['package', 'externalPackage'],
     directed: true,
     handleCategory: 'relational',
   },
   devDependency: {
     kind: 'devDependency',
     label: 'Dev Dependency',
-    validSources: ['package'],
-    validTargets: ['package'],
+    validSources: ['package', 'module'],
+    validTargets: ['package', 'externalPackage'],
     directed: true,
     handleCategory: 'relational',
   },
   peerDependency: {
     kind: 'peerDependency',
     label: 'Peer Dependency',
-    validSources: ['package'],
-    validTargets: ['package'],
+    validSources: ['package', 'module'],
+    validTargets: ['package', 'externalPackage'],
     directed: true,
     handleCategory: 'relational',
   },

@@ -5,9 +5,47 @@ import { DependencyRepository } from './DependencyRepository';
 
 import type { DuckDBValue } from '@duckdb/node-api';
 
+import type { ExternalDepsByName, PackageJsonDepScope } from '../../../shared/types/Package';
 import type { IPackageCreateDTO, IPackageUpdateDTO } from '../../../shared/types/dto/PackageDTO';
 import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
 import type { IPackageRow } from '../types/DatabaseResults';
+
+/**
+ * Merge a DTO's dependency Maps into the single `{name: scope}` shape stored
+ * in `packages.package_json_deps_json`. Precedence for a name appearing in
+ * multiple scopes: dependency > peerDependency > devDependency (matches how
+ * package managers resolve overlap — production wins).
+ */
+function buildExternalDepsByName(dto: IPackageCreateDTO): ExternalDepsByName {
+  const result: ExternalDepsByName = {};
+  dto.devDependencies?.forEach((_id, name) => {
+    result[name] = 'devDependency';
+  });
+  dto.peerDependencies?.forEach((_id, name) => {
+    result[name] = 'peerDependency';
+  });
+  dto.dependencies?.forEach((_id, name) => {
+    result[name] = 'dependency';
+  });
+  return result;
+}
+
+function parseExternalDepsJson(raw: string | null | undefined): ExternalDepsByName {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const out: ExternalDepsByName = {};
+    for (const [name, scope] of Object.entries(parsed as Record<string, unknown>)) {
+      if (scope === 'dependency' || scope === 'devDependency' || scope === 'peerDependency') {
+        out[name] = scope as PackageJsonDepScope;
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
 
 export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO, IPackageUpdateDTO> {
   private dependencyRepository: DependencyRepository;
@@ -20,10 +58,12 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
   async create(dto: IPackageCreateDTO): Promise<Package> {
     try {
       const now = new Date().toISOString();
+      const externalDepsByName = buildExternalDepsByName(dto);
+      const externalDepsJson = JSON.stringify(externalDepsByName);
       const results = await this.executeQuery<IPackageRow>(
         'create',
-        'INSERT INTO packages (id, name, version, path, created_at) VALUES (?, ?, ?, ?, ?) RETURNING *',
-        [dto.id, dto.name, dto.version, dto.path, now]
+        'INSERT INTO packages (id, name, version, path, package_json_deps_json, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *',
+        [dto.id, dto.name, dto.version, dto.path, externalDepsJson, now]
       );
 
       if (results.length === 0) {
@@ -92,7 +132,8 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         new Map(),
         new Map(),
         new Map(),
-        new Map()
+        new Map(),
+        externalDepsByName
       );
     } catch (error) {
       if (error instanceof RepositoryError) {
@@ -141,6 +182,13 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
   }
 
   private async createPackageWithDependencies(pkg: IPackageRow): Promise<Package> {
+    // DuckDB rows come back with values typed as `DuckDBValue | undefined`.
+    // For a nullable TEXT column we coerce to string|null|undefined before parsing.
+    const rawDepsJson = pkg['package_json_deps_json'];
+    const externalDepsByName = parseExternalDepsJson(
+      typeof rawDepsJson === 'string' ? rawDepsJson : null
+    );
+
     // Gracefully degrade: return package with empty dependency maps if dependency retrieval fails
     try {
       const dependencyRows = await this.dependencyRepository.findBySourceId(pkg.id);
@@ -174,7 +222,8 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         dependencies,
         devDependencies,
         peerDependencies,
-        new Map()
+        new Map(),
+        externalDepsByName
       );
     } catch (error) {
       this.logger.error('Dependency hydration failed, returning package without dependencies', error as Error);
@@ -187,7 +236,8 @@ export class PackageRepository extends BaseRepository<Package, IPackageCreateDTO
         new Map(),
         new Map(),
         new Map(),
-        new Map()
+        new Map(),
+        externalDepsByName
       );
     }
   }

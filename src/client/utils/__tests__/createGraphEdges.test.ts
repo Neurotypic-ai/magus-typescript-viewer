@@ -295,7 +295,7 @@ describe('createGraphEdges class relationships', () => {
 
     const edges = createGraphEdges(graph, { includeClassEdges: false, liftClassEdgesToModuleLevel: true });
     const liftedEdge = edges.find(
-      (edge) => edge.data?.type === 'inheritance' && edge.source === 'module-a' && edge.target === 'module-b'
+      (edge) => edge.data?.type === 'extends' && edge.source === 'module-a' && edge.target === 'module-b'
     );
     expect(liftedEdge).toBeDefined();
   });
@@ -342,7 +342,7 @@ describe('createGraphEdges class relationships', () => {
 
     const edges = createGraphEdges(graph, { includeClassEdges: true, liftClassEdgesToModuleLevel: false });
     const classEdge = edges.find(
-      (edge) => edge.data?.type === 'inheritance' && edge.source === 'class-a' && edge.target === 'class-b'
+      (edge) => edge.data?.type === 'extends' && edge.source === 'class-a' && edge.target === 'class-b'
     );
     expect(classEdge).toBeDefined();
   });
@@ -397,9 +397,9 @@ describe('createGraphEdges class relationships', () => {
     } as unknown as PackageGraph;
 
     const edges = createGraphEdges(graph, { includeClassEdges: false, liftClassEdgesToModuleLevel: true });
-    const liftedInheritanceEdges = edges.filter(
-      (edge) => edge.data?.type === 'inheritance' && edge.source === 'module-a' && edge.target === 'module-b'
+    const liftedClassExtendsEdges = edges.filter(
+      (edge) => edge.data?.type === 'extends' && edge.source === 'module-a' && edge.target === 'module-b'
     );
-    expect(liftedInheritanceEdges).toHaveLength(1);
+    expect(liftedClassExtendsEdges).toHaveLength(1);
   });
 });

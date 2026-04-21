@@ -412,8 +412,8 @@ function firstImportAlias(specifier: IImportSpecifier): string | undefined {
 
 const imports = computed(() => labelsForOutgoingType('import'));
 const importedBy = computed(() => labelsForIncomingType('import'));
-const extendsTargets = computed(() => labelsForOutgoingType('inheritance'));
-const inheritedBy = computed(() => labelsForIncomingType('inheritance'));
+const extendsTargets = computed(() => labelsForOutgoingType('extends'));
+const inheritedBy = computed(() => labelsForIncomingType('extends'));
 const implementsTargets = computed(() => labelsForOutgoingType('implements'));
 const implementedBy = computed(() => labelsForIncomingType('implements'));
 

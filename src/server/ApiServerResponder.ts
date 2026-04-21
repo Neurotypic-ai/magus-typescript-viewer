@@ -24,7 +24,7 @@ import { VariableRepository } from './db/repositories/VariableRepository';
 import { InsightEngine } from './insights/InsightEngine';
 
 import type { Method } from '../shared/types/Method';
-import type { IPackage } from '../shared/types/Package';
+import type { ExternalDepsByName, IPackage } from '../shared/types/Package';
 import type { Property } from '../shared/types/Property';
 import type { TypeCollection } from '../shared/types/TypeCollection';
 import type { CodeIssueRef } from '../shared/types/api/CodeIssueRef';
@@ -45,6 +45,8 @@ interface PackagesResponseItem {
   dependencies: TypeCollection<IPackage>;
   devDependencies: TypeCollection<IPackage>;
   peerDependencies: TypeCollection<IPackage>;
+  /** Plain object mirror of the package's external-dep scope map. */
+  externalDepsByName: ExternalDepsByName;
   modules: string[];
 }
 
@@ -269,6 +271,7 @@ export class ApiServerResponder {
         dependencies: pkg.dependencies,
         devDependencies: pkg.devDependencies,
         peerDependencies: pkg.peerDependencies,
+        externalDepsByName: pkg.externalDepsByName ?? {},
         // Intentionally omitted to avoid a package-level N+1 module lookup.
         modules: [],
       }));
@@ -304,6 +307,7 @@ export class ApiServerResponder {
               dependencies: pkg.dependencies,
               devDependencies: pkg.devDependencies,
               peerDependencies: pkg.peerDependencies,
+              externalDepsByName: pkg.externalDepsByName ?? {},
               modules,
             });
           } catch (error) {
@@ -317,6 +321,7 @@ export class ApiServerResponder {
               dependencies: pkg.dependencies,
               devDependencies: pkg.devDependencies,
               peerDependencies: pkg.peerDependencies,
+              externalDepsByName: pkg.externalDepsByName ?? {},
               modules: [],
             });
           }
@@ -476,6 +481,7 @@ export class ApiServerResponder {
               dependencies: pkg.dependencies,
               devDependencies: pkg.devDependencies,
               peerDependencies: pkg.peerDependencies,
+              externalDepsByName: pkg.externalDepsByName ?? {},
               modules,
             });
           } catch (error) {
@@ -489,6 +495,7 @@ export class ApiServerResponder {
               dependencies: pkg.dependencies,
               devDependencies: pkg.devDependencies,
               peerDependencies: pkg.peerDependencies,
+              externalDepsByName: pkg.externalDepsByName ?? {},
               modules: [],
             });
           }

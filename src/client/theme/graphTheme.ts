@@ -58,7 +58,6 @@ interface NodeTheme {
 interface EdgeWidthSizes {
   default: number;
   selected: number;
-  inheritance: number;
   contains: number;
   extends: number;
   uses: number;
@@ -166,7 +165,6 @@ const edgeColors = Object.fromEntries(
 const rawEdgeWidths: {
   default: number;
   selected: number;
-  inheritance: number;
   contains: number;
   extends: number;
   uses: number;
@@ -178,7 +176,6 @@ const rawEdgeWidths: {
 const edgeWidths: EdgeWidthSizes = {
   default: rawEdgeWidths.default,
   selected: rawEdgeWidths.selected,
-  inheritance: rawEdgeWidths.inheritance,
   contains: rawEdgeWidths.contains,
   extends: rawEdgeWidths.extends,
   uses: rawEdgeWidths.uses,
@@ -258,13 +255,7 @@ export function getEdgeStyle(type: DependencyEdgeKind): CSSProperties {
   };
 
   switch (type) {
-    case 'inheritance':
     case 'implements':
-      return {
-        ...baseStyle,
-        stroke: edgeColors[type],
-        strokeWidth: graphTheme.edges.sizes.width.inheritance,
-      };
     case 'extends':
       return {
         ...baseStyle,

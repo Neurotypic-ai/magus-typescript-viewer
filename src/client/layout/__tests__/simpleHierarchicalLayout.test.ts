@@ -4,6 +4,7 @@ import { computeSimpleHierarchicalLayout } from '../simpleHierarchicalLayout';
 
 import type { DependencyData } from '../../../shared/types/graph/DependencyData';
 import type { DependencyNode } from '../../types/DependencyNode';
+import type { GraphEdge } from '../../types/GraphEdge';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -113,8 +114,15 @@ describe('computeSimpleHierarchicalLayout', () => {
         makeNode('mid', 'module', { label: 'mid.ts', layerIndex: 1, sortOrder: 0 }, 'folder'),
         makeNode('consumer', 'module', { label: 'consumer.ts', layerIndex: 2, sortOrder: 0 }, 'folder'),
       ];
+      // Intra-folder edges establish the internal dependency structure — without
+      // them the layout defaults to a single vertical column (see "stack
+      // vertically when no intra-folder edges" test below).
+      const edges: GraphEdge[] = [
+        { id: 'e1', source: 'consumer', target: 'mid', data: { type: 'import' } } as GraphEdge,
+        { id: 'e2', source: 'mid', target: 'foundation', data: { type: 'import' } } as GraphEdge,
+      ];
 
-      const { positions } = computeSimpleHierarchicalLayout(nodes, []);
+      const { positions } = computeSimpleHierarchicalLayout(nodes, edges);
 
       const xFoundation = positions.get('foundation')?.x ?? 0;
       const xMid = positions.get('mid')?.x ?? 0;
@@ -122,6 +130,22 @@ describe('computeSimpleHierarchicalLayout', () => {
       // Children sub-columns reversed: consumer (high layerIndex) leftmost, foundation (low) rightmost
       expect(xFoundation).toBeGreaterThan(xMid);
       expect(xMid).toBeGreaterThan(xConsumer);
+    });
+
+    it('stacks children vertically when there are no intra-folder edges', () => {
+      // When child modules don't depend on each other (just siblings importing
+      // different external things), fall back to a single vertical column — a
+      // more natural "file-tree-like" arrangement than splitting by layerIndex.
+      const nodes = [
+        makeNode('folder', 'group', { label: 'Folder', layerIndex: 0, sortOrder: 0 }),
+        makeNode('a', 'module', { label: 'a.ts', layerIndex: 1, sortOrder: 0 }, 'folder'),
+        makeNode('b', 'module', { label: 'b.ts', layerIndex: 2, sortOrder: 1 }, 'folder'),
+      ];
+
+      const { positions } = computeSimpleHierarchicalLayout(nodes, []);
+
+      expect(positions.get('a')?.x).toBe(positions.get('b')?.x);
+      expect((positions.get('a')?.y ?? 0)).toBeLessThan(positions.get('b')?.y ?? 0);
     });
 
     it('stacks same-layer children vertically by sortOrder within a folder', () => {

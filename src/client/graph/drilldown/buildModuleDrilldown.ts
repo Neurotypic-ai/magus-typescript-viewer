@@ -61,7 +61,7 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
         normalizeMethod(m)
       );
       detailedNodes.push(createDetailedSymbolNode(cls.id, 'class', cls.name, properties, methods, options.direction));
-      if (cls.extends_id) detailedEdges.push(createSymbolEdge(cls.id, cls.extends_id, 'inheritance'));
+      if (cls.extends_id) detailedEdges.push(createSymbolEdge(cls.id, cls.extends_id, 'extends'));
       if (cls.implemented_interfaces) {
         mapTypeCollection(cls.implemented_interfaces, (iface: IInterface) => {
           if (iface.id) detailedEdges.push(createSymbolEdge(cls.id, iface.id, 'implements'));
@@ -83,7 +83,7 @@ export function buildModuleDrilldownGraph(options: BuildModuleDrilldownGraphOpti
       );
       if (iface.extended_interfaces) {
         mapTypeCollection(iface.extended_interfaces, (extended: IInterface) => {
-          if (extended.id) detailedEdges.push(createSymbolEdge(iface.id, extended.id, 'inheritance'));
+          if (extended.id) detailedEdges.push(createSymbolEdge(iface.id, extended.id, 'extends'));
         });
       }
     });

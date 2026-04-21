@@ -52,6 +52,14 @@ export class Database {
    * to existing databases without requiring a full reset.
    */
   private async migrateSchemaIfNeeded(): Promise<void> {
+    // Packages table: JSON-encoded map of package.json dep names → scope.
+    // Added so module → externalPackage edges can be classified as
+    // dependency / devDependency / peerDependency, which the junction
+    // table can't hold (FK to packages fails for external npm packages).
+    await this.ensureColumns('packages', [
+      { name: 'package_json_deps_json', definition: 'package_json_deps_json TEXT' },
+    ]);
+
     // Methods table: ensure columns used by queries exist
     await this.ensureColumns('methods', [
       { name: 'parent_type', definition: "parent_type TEXT DEFAULT 'class'" },

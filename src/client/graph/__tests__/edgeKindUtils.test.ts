@@ -11,7 +11,6 @@ describe('edgeKindUtils', () => {
         'peerDependency',
         'import',
         'export',
-        'inheritance',
         'implements',
         'extends',
         'contains',

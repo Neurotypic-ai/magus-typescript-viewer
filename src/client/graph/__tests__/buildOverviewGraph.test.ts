@@ -231,7 +231,7 @@ describe('buildOverviewGraph', () => {
 
     it('hides import edges when import is not in enabledRelationshipTypes', () => {
       const result = buildOverviewGraph(
-        defaultOptions({ data: graphWithImportEdge(), enabledRelationshipTypes: ['inheritance'] })
+        defaultOptions({ data: graphWithImportEdge(), enabledRelationshipTypes: ['extends'] })
       );
 
       const importEdge = result.edges.find((e) => e.data?.type === 'import');
@@ -240,7 +240,7 @@ describe('buildOverviewGraph', () => {
 
     it('marks nodes as orphanCurrent when their edges are hidden', () => {
       const result = buildOverviewGraph(
-        defaultOptions({ data: graphWithImportEdge(), enabledRelationshipTypes: ['inheritance'] })
+        defaultOptions({ data: graphWithImportEdge(), enabledRelationshipTypes: ['extends'] })
       );
 
       // All edges are hidden, so nodes should be current-orphans but not global-orphans
@@ -719,7 +719,7 @@ describe('buildOverviewGraph', () => {
       });
       const data = makeGraph([makePackage('pkg-1', 'app', { base: modBase, derived: modDerived })]);
 
-      const result = buildOverviewGraph(defaultOptions({ data, enabledRelationshipTypes: ['inheritance'] }));
+      const result = buildOverviewGraph(defaultOptions({ data, enabledRelationshipTypes: ['extends'] }));
 
       expect(result.nodes.find((node) => node.id === 'mod-base')?.data?.layoutWeight).toBe(0);
       expect(result.nodes.find((node) => node.id === 'mod-derived')?.data?.layoutWeight).toBe(0);

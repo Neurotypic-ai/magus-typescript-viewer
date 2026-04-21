@@ -22,6 +22,7 @@ import CrossFolderEdge from './edges/CrossFolderEdge.vue';
 import FolderStubEdge from './edges/FolderStubEdge.vue';
 import IntraFolderEdge from './edges/IntraFolderEdge.vue';
 import NodePremeasureHost from './nodes/measure/NodePremeasureHost.vue';
+import ExternalPackageNode from './nodes/ExternalPackageNode.vue';
 import GroupNode from './nodes/GroupNode.vue';
 import ModuleNode from './nodes/ModuleNode.vue';
 import PackageNode from './nodes/PackageNode.vue';
@@ -147,7 +148,7 @@ const premeasureNodes = nodePremeasure.batchNodes as Ref<DependencyNode[]>;
 const nodeTypes: Record<string, Component> = Object.freeze({
   package: PackageNode,
   module: ModuleNode,
-  externalPackage: ModuleNode,
+  externalPackage: ExternalPackageNode,
   class: SymbolNode,
   interface: SymbolNode,
   enum: SymbolNode,

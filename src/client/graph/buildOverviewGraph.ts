@@ -20,11 +20,31 @@ import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from '
 
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyData } from '../../shared/types/graph/DependencyData';
+import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdgeKind';
 import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { LayoutRankTrace, RankContribution } from '../../shared/types/graph/LayoutRankTrace';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
 import type { GraphViewData } from './graphViewShared';
+
+/**
+ * Edge kinds that participate in Sugiyama layering: the module-level
+ * import graph plus the per-package.json-scope classifications used for
+ * module → externalPackage edges. Symbol-level edges (uses/contains) are
+ * excluded because they add noise to the layering without changing the
+ * module dependency structure.
+ */
+const LAYERING_EDGE_KINDS: ReadonlySet<DependencyEdgeKind> = new Set([
+  'import',
+  'dependency',
+  'devDependency',
+  'peerDependency',
+]);
+
+function isLayeringEdge(edge: GraphEdge): boolean {
+  const type = edge.data?.type;
+  return type !== undefined && LAYERING_EDGE_KINDS.has(type);
+}
 
 const EDGE_REGISTRY_DEBUG =
   import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
@@ -159,7 +179,7 @@ function detectBackEdges(nodes: DependencyNode[], edges: GraphEdge[]): Set<strin
   const adj = new Map<string, { target: string; edgeId: string }[]>();
   for (const id of nodeIds) adj.set(id, []);
   for (const edge of edges) {
-    if (edge.hidden || edge.data?.type !== 'import') continue;
+    if (edge.hidden || !isLayeringEdge(edge)) continue;
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
     adj.get(edge.source)?.push({ target: edge.target, edgeId: edge.id });
   }
@@ -222,7 +242,7 @@ function computeModuleLayoutWeights(
   for (const id of nodeIds) fanIn.set(id, 0);
 
   for (const edge of edges) {
-    if (edge.hidden || edge.data?.type !== 'import') continue;
+    if (edge.hidden || !isLayeringEdge(edge)) continue;
     if (backEdgeIds?.has(edge.id)) continue;
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
     importsOf.get(edge.source)?.add(edge.target);
@@ -331,7 +351,7 @@ function computeLayerAssignment(
     importsOf.set(node.id, new Set());
   }
   for (const edge of edges) {
-    if (edge.hidden || edge.data?.type !== 'import') continue;
+    if (edge.hidden || !isLayeringEdge(edge)) continue;
     if (backEdgeIds?.has(edge.id)) continue;
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
     importsOf.get(edge.source)?.add(edge.target);
@@ -386,7 +406,7 @@ function computeBarycenterSortOrder(
   const neighbors = new Map<string, Set<string>>();
   for (const id of nodeIds) neighbors.set(id, new Set());
   for (const edge of edges) {
-    if (edge.hidden || edge.data?.type !== 'import') continue;
+    if (edge.hidden || !isLayeringEdge(edge)) continue;
     if (backEdgeIds?.has(edge.id)) continue;
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
     neighbors.get(edge.source)?.add(edge.target);
@@ -470,6 +490,66 @@ function computeBarycenterSortOrder(
     }
     updatePositions();
   }
+
+  // ── Centrality-weighted pyramid re-order ────────────────────────────────
+  //
+  // Within each layer, bias high-degree nodes toward the vertical center
+  // ("trunk") and low-degree nodes toward the edges ("leaves"). This shortens
+  // average edge length because widely-used hubs end up near the mean Y of
+  // their many consumers — important for external packages like `vue` that
+  // are imported by ~everything.
+  //
+  // Guarded: we only re-order when there is a clear centrality gradient
+  // (the layer's max degree is materially higher than its mean). Otherwise
+  // we leave barycenter's output alone because the crossing-minimization it
+  // already performed is strictly better when all nodes have similar degree.
+  //
+  // Trade-off: when it fires, we sacrifice some crossing-minimization
+  // optimality in exchange for a layout closer to the user's mental model
+  // of a dependency graph (trunk in the middle, branches reaching outward).
+  const CENTRALITY_GATE = 2; // max degree must exceed mean by at least this factor
+  for (let l = 0; l <= maxLayer; l++) {
+    const bucket = layerBuckets[l];
+    if (!bucket || bucket.length <= 2) continue;
+
+    const degrees = bucket.map((id) => neighbors.get(id)?.size ?? 0);
+    const maxDeg = Math.max(...degrees);
+    const meanDeg = degrees.reduce((a, b) => a + b, 0) / degrees.length;
+    if (meanDeg === 0 || maxDeg < meanDeg * CENTRALITY_GATE) continue;
+
+    const byDegree = [...bucket].sort((a, b) => {
+      const da = neighbors.get(a)?.size ?? 0;
+      const db = neighbors.get(b)?.size ?? 0;
+      if (da !== db) return db - da; // descending by degree
+      // Tiebreak: preserve barycenter order for same-degree nodes
+      return (position.get(a) ?? 0) - (position.get(b) ?? 0);
+    });
+
+    const reordered = new Array<string>(bucket.length);
+    const mid = Math.floor((bucket.length - 1) / 2);
+    for (let i = 0; i < byDegree.length; i++) {
+      // Walk outward from the middle: 0 → mid, 1 → mid+1, 2 → mid-1, 3 → mid+2, ...
+      const offset = Math.ceil(i / 2);
+      const sign = i === 0 ? 0 : i % 2 === 1 ? 1 : -1;
+      const idx = mid + sign * offset;
+      const id = byDegree[i];
+      if (id !== undefined && idx >= 0 && idx < bucket.length) {
+        reordered[idx] = id;
+      }
+    }
+
+    // Fill any gaps with leftover items (defensive — edge cases around even
+    // bucket sizes can leave an untouched slot).
+    let writeIdx = 0;
+    for (const id of byDegree) {
+      if (reordered.includes(id)) continue;
+      while (writeIdx < reordered.length && reordered[writeIdx] !== undefined) writeIdx++;
+      if (writeIdx < reordered.length) reordered[writeIdx] = id;
+    }
+
+    layerBuckets[l] = reordered;
+  }
+  updatePositions();
 
   // Return final positions as sortOrder
   const sortOrder = new Map<string, number>();
@@ -663,7 +743,10 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     includeClassEdges: false,
     liftClassEdgesToModuleLevel: true,
     importDirection: 'importer-to-imported',
-    includeUsesEdges: true,
+    // Symbol-level uses edges are pruned from the overview — they duplicate
+    // import edges at module granularity and add clutter. Drill-down views
+    // still opt in.
+    includeUsesEdges: false,
     includeExternalPackageEdges: true,
   });
 

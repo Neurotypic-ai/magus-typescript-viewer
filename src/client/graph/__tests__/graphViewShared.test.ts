@@ -144,7 +144,7 @@ describe('bundleParallelEdges', () => {
     // Priority: contains=5, inheritance=4, implements=3, import=1
     const parallelEdges = [
       makeEdge('e1', 'a', 'b', 'import'), // priority 1
-      makeEdge('e2', 'a', 'b', 'inheritance'), // priority 4
+      makeEdge('e2', 'a', 'b', 'extends'), // priority 4
       makeEdge('e3', 'a', 'b', 'implements'), // priority 3
     ];
     const edges = [...parallelEdges, ...makeFiller(47)];
@@ -152,8 +152,8 @@ describe('bundleParallelEdges', () => {
     const result = bundleParallelEdges(edges);
     const bundled = result.find((e) => e.source === 'a' && e.target === 'b');
 
-    // Representative should be the highest-priority: 'inheritance'
-    expect(bundled?.data?.type).toBe('inheritance');
+    // Representative should be the highest-priority: 'extends'
+    expect(bundled?.data?.type).toBe('extends');
   });
 
   it('leaves single edges in a group untouched', () => {
@@ -229,7 +229,7 @@ describe('bundleParallelEdges', () => {
       makeEdge('e1', 'a', 'b', 'import'),
       makeEdge('e2', 'a', 'b', 'extends'),
       makeEdge('e3', 'c', 'd', 'implements'),
-      makeEdge('e4', 'c', 'd', 'inheritance'),
+      makeEdge('e4', 'c', 'd', 'extends'),
       ...makeFiller(46),
     ];
 

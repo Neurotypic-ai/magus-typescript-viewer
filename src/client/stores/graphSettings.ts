@@ -5,17 +5,22 @@ import { defineStore } from 'pinia';
 import type { SetupStoreDefinition } from 'pinia';
 import type { ComputedRef, Ref } from 'vue';
 
+/**
+ * Relationship types surfaced in the overview-level filter UI.
+ *
+ * The full `DependencyEdgeKind` taxonomy includes `export`, `uses`, and
+ * `contains`, but those are symbol-level edges that only make sense in a
+ * drill-down view; at module-overview scale they duplicate `import` or
+ * produce noise. They stay in the enum and registry (still emitted for
+ * drill-down graphs and tests) but are not user-toggleable here.
+ */
 export const DEFAULT_RELATIONSHIP_TYPES = [
-  'import',
-  'inheritance',
-  'implements',
-  'extends',
-  'export',
   'dependency',
   'devDependency',
   'peerDependency',
-  'uses',
-  'contains',
+  'import',
+  'extends',
+  'implements',
 ] as const;
 
 const GRAPH_SETTINGS_CACHE_KEY = 'v2:typescript-viewer-graph-settings';
@@ -72,16 +77,12 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     return {
-      import: { available: true },
-      inheritance: { available: true },
-      implements: { available: true },
-      extends: { available: true },
-      export: { available: true },
       dependency: { available: true },
       devDependency: { available: true },
       peerDependency: { available: true },
-      uses: { available: true },
-      contains: { available: true },
+      import: { available: true },
+      extends: { available: true },
+      implements: { available: true },
     };
   });
 

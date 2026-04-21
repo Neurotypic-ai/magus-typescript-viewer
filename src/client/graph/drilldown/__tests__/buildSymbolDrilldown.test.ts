@@ -52,7 +52,7 @@ function defaultOptions(overrides: Partial<BuildSymbolDrilldownGraphOptions> = {
     data: makeGraph({}),
     selectedNode: makeNode('mod-1'),
     direction: 'LR',
-    enabledRelationshipTypes: ['import', 'inheritance', 'implements', 'contains', 'uses'],
+    enabledRelationshipTypes: ['import', 'extends', 'implements', 'contains', 'uses'],
     ...overrides,
   };
 }

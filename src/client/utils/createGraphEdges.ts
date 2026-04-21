@@ -53,6 +53,41 @@ interface NodeIndex {
   symbolToModule: Map<string, string>;
 }
 
+type ExternalPackageKind = 'dependency' | 'devDependency' | 'peerDependency' | 'import';
+
+/**
+ * Build a lookup from package id to a map of external-package-name → dep classification.
+ *
+ * Reads from `pkg.externalDepsByName` — a plain `{name: scope}` object populated from
+ * the package.json scope metadata stored on the `packages` row in the DB. The older
+ * `pkg.dependencies` / `pkg.devDependencies` / `pkg.peerDependencies` Maps are not used
+ * here because they only contain workspace-internal packages (external npm packages
+ * aren't rows in the `packages` table, so the junction table stays empty for them).
+ *
+ * Scope precedence when a name appears in multiple lists is resolved on the server
+ * side (see buildExternalDepsByName in PackageRepository.ts) as:
+ *   dependency > peerDependency > devDependency (matches package-manager resolution).
+ */
+function buildExternalPackageKindLookup(
+  data: PackageGraph
+): Map<string, Map<string, ExternalPackageKind>> {
+  const lookup = new Map<string, Map<string, ExternalPackageKind>>();
+  for (const pkg of data.packages) {
+    const nameToKind = new Map<string, ExternalPackageKind>();
+    const externalDepsByName = (pkg as { externalDepsByName?: Record<string, ExternalPackageKind> })
+      .externalDepsByName;
+    if (externalDepsByName) {
+      for (const [name, scope] of Object.entries(externalDepsByName)) {
+        if (scope === 'dependency' || scope === 'devDependency' || scope === 'peerDependency') {
+          nameToKind.set(name, scope);
+        }
+      }
+    }
+    lookup.set(pkg.id, nameToKind);
+  }
+  return lookup;
+}
+
 function registerMembers(entity: IClass | IInterface, index: NodeIndex): void {
   typeCollectionToArray(entity.properties as Record<string, Property> | Property[]).forEach(
     (property: Property) => {
@@ -226,6 +261,7 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
   };
 
   const lookup = buildModulePathLookup(data);
+  const externalPackageKindByPackageId = buildExternalPackageKindLookup(data);
   const { nodeIds: validNodeIds, nodeKinds: nodeKindsById, symbolToModule: symbolToModuleMap } =
     buildNodeIndex(data, resolvedOptions);
   const edgeMap = new Map<string, GraphEdge>();
@@ -316,7 +352,12 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
                 const pkgName =
                   imp.packageName ?? (path.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? ''));
                 if (pkgName) {
-                  addEdge(createEdge(moduleId, `external:${pkgName}`, 'import'), `${moduleId}|external:${pkgName}|import`);
+                  const externalKind =
+                    externalPackageKindByPackageId.get(packageId)?.get(pkgName) ?? 'import';
+                  addEdge(
+                    createEdge(moduleId, `external:${pkgName}`, externalKind),
+                    `${moduleId}|external:${pkgName}|${externalKind}`
+                  );
                 }
               }
               return;
@@ -346,10 +387,10 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
           }
 
           if (cls.extends_id) {
-            const inheritanceEdge = createEdge(cls.id, cls.extends_id, 'inheritance');
-            classRelationshipEdges.push(inheritanceEdge);
+            const classExtendsEdge = createEdge(cls.id, cls.extends_id, 'extends');
+            classRelationshipEdges.push(classExtendsEdge);
             if (resolvedOptions.includeClassEdges) {
-              addEdge(inheritanceEdge);
+              addEdge(classExtendsEdge);
             }
           }
 

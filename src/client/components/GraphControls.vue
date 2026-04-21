@@ -36,6 +36,35 @@ const graphSettings = useGraphSettings();
 
 const relationshipTypes = [...DEFAULT_RELATIONSHIP_TYPES];
 
+// Swatch CSS var per relationship type. Must match the CSS custom properties
+// declared in src/index.css. Kept in the component rather than imported from
+// graphTokens so the panel renders even if the theme module fails to load.
+const RELATIONSHIP_SWATCH_CSS_VARS: Record<(typeof DEFAULT_RELATIONSHIP_TYPES)[number], string> = {
+  dependency: '--graph-edge-dependency',
+  devDependency: '--graph-edge-dev-dependency',
+  peerDependency: '--graph-edge-peer-dependency',
+  import: '--graph-edge-import',
+  extends: '--graph-edge-extends',
+  implements: '--graph-edge-implements',
+};
+
+const swatchStyle = (type: string): Record<string, string> => {
+  const cssVar = RELATIONSHIP_SWATCH_CSS_VARS[type as (typeof DEFAULT_RELATIONSHIP_TYPES)[number]];
+  return cssVar ? { backgroundColor: `var(${cssVar})` } : {};
+};
+
+const RELATIONSHIP_LABELS: Record<(typeof DEFAULT_RELATIONSHIP_TYPES)[number], string> = {
+  dependency: 'Dependency',
+  devDependency: 'Dev dependency',
+  peerDependency: 'Peer dependency',
+  import: 'Import',
+  extends: 'Extends',
+  implements: 'Implements',
+};
+
+const relationshipLabel = (type: string): string =>
+  RELATIONSHIP_LABELS[type as (typeof DEFAULT_RELATIONSHIP_TYPES)[number]] ?? type;
+
 const getRelationshipAvailability = (type: string) => props.relationshipAvailability[type] ?? { available: true };
 const isRelationshipDisabled = (type: string) => !getRelationshipAvailability(type).available;
 const relationshipReason = (type: string) => getRelationshipAvailability(type).reason ?? 'Unavailable';
@@ -145,7 +174,8 @@ const searchQueryModel = computed({
                     :aria-describedby="isRelationshipDisabled(type) ? relationshipReasonId(type) : undefined"
                     @change="(e) => handleRelationshipFilterChange(type, (e.target as HTMLInputElement).checked)"
                   />
-                  <span class="control-label capitalize">{{ type }}</span>
+                  <span class="control-swatch" :style="swatchStyle(type)" aria-hidden="true"></span>
+                  <span class="control-label">{{ relationshipLabel(type) }}</span>
                 </label>
                 <p v-if="isRelationshipDisabled(type)" :id="relationshipReasonId(type)" class="section-helper ml-6">
                   {{ relationshipReason(type) }}
@@ -331,6 +361,19 @@ const searchQueryModel = computed({
   flex-shrink: 0;
   cursor: pointer;
   accent-color: var(--color-primary-main);
+}
+
+.control-swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  flex-shrink: 0;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.control-row-disabled .control-swatch {
+  opacity: 0.3;
 }
 
 .control-checkbox:disabled {

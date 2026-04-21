@@ -91,19 +91,64 @@ function getLayerIndex(node: DependencyNode): number {
 // ── Child layout ─────────────────────────────────────────────────────────────
 
 /**
- * Lay out child nodes within their parent using Sugiyama layer columns.
+ * Lay out child nodes within their parent.
  *
- * Children are grouped by layerIndex into sub-columns (foundations left,
- * consumers right), sorted by sortOrder within each column, and stacked
- * vertically. This mirrors the root-level layout within each folder.
+ * Two modes, chosen automatically:
+ *
+ * 1. **Single-column vertical stack** (default when children have no internal
+ *    edges between each other). Each child's x is the same; they are
+ *    stacked vertically by sortOrder. This matches how most folders read
+ *    — siblings are "peers," not a dependency chain.
+ *
+ * 2. **Layer columns** (when there are intra-folder edges between children).
+ *    Children are grouped by layerIndex into sub-columns (foundations left,
+ *    consumers right) and sorted by sortOrder within each column. This
+ *    shows the internal dependency flow for folders that are structured
+ *    as a layered subsystem.
+ *
+ * `hasIntraFolderEdges` is a hint computed once per folder in the caller —
+ * we don't need the full edge list here, just whether any edge connects two
+ * children in this folder.
  */
-function computeChildLayout(children: DependencyNode[]): {
+function computeChildLayout(
+  children: DependencyNode[],
+  hasIntraFolderEdges: boolean
+): {
   childPositions: Map<string, { x: number; y: number }>;
   parentSize: { width: number; height: number };
 } {
   const childPositions = new Map<string, { x: number; y: number }>();
 
-  // Group children by layer index
+  if (!hasIntraFolderEdges) {
+    // Single-column vertical stack: stable, predictable, and avoids artificial
+    // horizontal spread caused by differing external-import depths.
+    const sorted = [...children].sort(
+      (a, b) => getSortOrder(a) - getSortOrder(b) || a.id.localeCompare(b.id)
+    );
+
+    const columnX = CHILD_VISUAL_INSET_LEFT;
+    let columnY = CHILD_VISUAL_INSET_TOP;
+    let columnWidth = 0;
+
+    for (const child of sorted) {
+      const dims = resolveNodeDimensions(child, DEFAULT_NODE_DIMENSIONS);
+      columnWidth = Math.max(columnWidth, dims.width);
+      childPositions.set(child.id, { x: columnX, y: columnY });
+      columnY += dims.height + CHILD_GAP;
+    }
+
+    const contentHeight = Math.max(0, columnY - CHILD_GAP - CHILD_VISUAL_INSET_TOP);
+
+    return {
+      childPositions,
+      parentSize: {
+        width: Math.max(220, columnWidth + CHILD_PADDING_LEFT + CHILD_PADDING_RIGHT),
+        height: Math.max(80, CHILD_PADDING_TOP + contentHeight + CHILD_PADDING_BOTTOM),
+      },
+    };
+  }
+
+  // Layer-column layout for folders with internal structure.
   const byLayer = new Map<number, DependencyNode[]>();
   for (const child of children) {
     const layer = getLayerIndex(child);
@@ -166,7 +211,7 @@ function computeChildLayout(children: DependencyNode[]): {
  */
 export function computeSimpleHierarchicalLayout(
   nodes: DependencyNode[],
-  _edges: GraphEdge[]
+  edges: GraphEdge[]
 ): HierarchicalLayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   const sizes = new Map<string, { width: number; height: number }>();
@@ -174,16 +219,33 @@ export function computeSimpleHierarchicalLayout(
   // ── Step 1: lay out children within each parent ──────────────────────────
 
   const childrenByParent = new Map<string, DependencyNode[]>();
+  const parentByChild = new Map<string, string>();
   for (const node of nodes) {
     if (node.parentNode) {
       const siblings = childrenByParent.get(node.parentNode) ?? [];
       siblings.push(node);
       childrenByParent.set(node.parentNode, siblings);
+      parentByChild.set(node.id, node.parentNode);
+    }
+  }
+
+  // Detect intra-folder edges (both endpoints share a parent).
+  // Cross-folder edges have already been lifted to folder→folder trunks by
+  // `liftCrossfolderEdgesToFolderLevel`, but source/target stubs still connect
+  // a module to its parent folder — those aren't "between siblings" and are
+  // filtered out by requiring parentByChild on BOTH ends.
+  const foldersWithIntraEdges = new Set<string>();
+  for (const edge of edges) {
+    const srcParent = parentByChild.get(edge.source);
+    const tgtParent = parentByChild.get(edge.target);
+    if (srcParent !== undefined && srcParent === tgtParent) {
+      foldersWithIntraEdges.add(srcParent);
     }
   }
 
   for (const [parentId, children] of childrenByParent) {
-    const { childPositions, parentSize } = computeChildLayout(children);
+    const hasIntraEdges = foldersWithIntraEdges.has(parentId);
+    const { childPositions, parentSize } = computeChildLayout(children, hasIntraEdges);
     for (const [id, pos] of childPositions) {
       positions.set(id, pos);
     }

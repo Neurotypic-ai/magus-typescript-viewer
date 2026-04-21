@@ -24,11 +24,11 @@ describe('applyEdgeVisibility', () => {
         data: { type: 'import' },
       } as GraphEdge,
       {
-        id: 'inheritance-edge',
+        id: 'extends-edge',
         source: 'b',
         target: 'c',
         hidden: false,
-        data: { type: 'inheritance' },
+        data: { type: 'extends' },
       } as GraphEdge,
       {
         id: 'uses-edge',
@@ -42,7 +42,7 @@ describe('applyEdgeVisibility', () => {
     const result = applyEdgeVisibility(edges, ['import']);
 
     expect(result.find((edge) => edge.id === 'import-edge')?.hidden).toBe(false);
-    expect(result.find((edge) => edge.id === 'inheritance-edge')?.hidden).toBe(true);
+    expect(result.find((edge) => edge.id === 'extends-edge')?.hidden).toBe(true);
     expect(result.find((edge) => edge.id === 'uses-edge')?.hidden).toBe(false);
   });
 

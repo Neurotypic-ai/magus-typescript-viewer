@@ -283,8 +283,8 @@ describe('createSymbolEdge', () => {
   });
 
   it('stores the edge type in data', () => {
-    const edge = createSymbolEdge('a', 'b', 'inheritance');
-    expect(edge.data?.type).toBe('inheritance');
+    const edge = createSymbolEdge('a', 'b', 'extends');
+    expect(edge.data?.type).toBe('extends');
   });
 
   it('has a strokeWidth of 3 in the style', () => {
@@ -311,7 +311,7 @@ describe('createSymbolEdge', () => {
       'peerDependency',
       'import',
       'export',
-      'inheritance',
+      'extends',
       'implements',
       'extends',
       'contains',

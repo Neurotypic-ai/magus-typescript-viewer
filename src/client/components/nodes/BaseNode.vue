@@ -372,6 +372,11 @@ const containerStyle = computed(() => {
   color: var(--graph-badge-module-text);
 }
 
+.base-node-badge.type-external-package {
+  background-color: var(--graph-badge-external-package-bg);
+  color: var(--graph-badge-external-package-text);
+}
+
 .base-node-badge.type-class {
   background-color: var(--graph-badge-class-bg);
   color: var(--graph-badge-class-text);

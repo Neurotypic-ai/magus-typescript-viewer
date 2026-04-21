@@ -248,7 +248,7 @@ describe('collapseFolders', () => {
 
     it('keeps edges with different types as separate after remapping', () => {
       const nodes = [makeNode('folder-a', 'group'), makeNode('m1', 'module', 'folder-a'), makeNode('m3', 'module')];
-      const edges = [makeEdge('e1', 'm1', 'm3', 'import'), makeEdge('e2', 'm1', 'm3', 'inheritance')];
+      const edges = [makeEdge('e1', 'm1', 'm3', 'import'), makeEdge('e2', 'm1', 'm3', 'extends')];
       const collapsed = new Set(['folder-a']);
 
       const result = collapseFolders(nodes, edges, collapsed);
@@ -256,7 +256,7 @@ describe('collapseFolders', () => {
       expect(result.edges).toHaveLength(2);
       const types = result.edges.map((e) => e.data?.type);
       expect(types).toContain('import');
-      expect(types).toContain('inheritance');
+      expect(types).toContain('extends');
     });
 
     it('routes remapped collapsed-folder edges through the folder outer handles', () => {

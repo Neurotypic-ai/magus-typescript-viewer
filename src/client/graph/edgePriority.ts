@@ -5,9 +5,8 @@ import type { DependencyEdgeKind } from '../../shared/types/graph/DependencyEdge
 export const EDGE_KIND_PRIORITY: Record<DependencyEdgeKind, number> = {
   contains: 5,
   uses: 5,
-  inheritance: 4,
+  extends: 4,
   implements: 3,
-  extends: 3,
   dependency: 2,
   import: 1,
   devDependency: 0,
