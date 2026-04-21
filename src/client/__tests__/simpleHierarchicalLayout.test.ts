@@ -94,8 +94,15 @@ describe('computeSimpleHierarchicalLayout', () => {
     const parent = makeNode({ id: 'folder', type: 'group' });
     const foundation = makeNode({ id: 'child-foundation', parentNode: 'folder', data: { label: 'foundation', layerIndex: 0 } });
     const consumer = makeNode({ id: 'child-consumer', parentNode: 'folder', data: { label: 'consumer', layerIndex: 2 } });
+    // Intra-folder edge forces layer-column layout. Without an edge between
+    // siblings the layout falls back to a single vertical column (file-tree-
+    // like), which is the right default for unrelated peer modules but not
+    // what this test is asserting.
+    const edges: GraphEdge[] = [
+      { id: 'e1', source: 'child-consumer', target: 'child-foundation', data: { type: 'import' } } as GraphEdge,
+    ];
 
-    const layout = computeSimpleHierarchicalLayout([parent, foundation, consumer], EMPTY_EDGES);
+    const layout = computeSimpleHierarchicalLayout([parent, foundation, consumer], edges);
 
     const xFoundation = layout.positions.get('child-foundation')?.x ?? Infinity;
     const xConsumer = layout.positions.get('child-consumer')?.x ?? Infinity;

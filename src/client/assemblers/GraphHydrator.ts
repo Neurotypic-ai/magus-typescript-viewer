@@ -21,7 +21,7 @@ import type { IParameter } from '../../shared/types/Parameter';
 import type { ISymbolReference } from '../../shared/types/SymbolReference';
 import type { ITypeAlias } from '../../shared/types/TypeAlias';
 import type { IVariable } from '../../shared/types/Variable';
-import type { PackageGraph } from '../../shared/types/Package';
+import type { ExternalDepsByName, PackageGraph, PackageJsonDepScope } from '../../shared/types/Package';
 
 interface GraphApiPackagePayload {
   id: string;
@@ -32,7 +32,25 @@ interface GraphApiPackagePayload {
   dependencies?: unknown;
   devDependencies?: unknown;
   peerDependencies?: unknown;
+  /**
+   * Plain object mirror of the workspace package's external-dep scope map.
+   * Keyed by package name; value is the package.json scope. Populated by the
+   * server from `packages.package_json_deps_json`. When absent we treat every
+   * external import as a generic 'import' in the client edge lookup.
+   */
+  externalDepsByName?: unknown;
   modules?: unknown;
+}
+
+function hydrateExternalDepsByName(raw: unknown): ExternalDepsByName {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: ExternalDepsByName = {};
+  for (const [name, scope] of Object.entries(raw as Record<string, unknown>)) {
+    if (scope === 'dependency' || scope === 'devDependency' || scope === 'peerDependency') {
+      out[name] = scope as PackageJsonDepScope;
+    }
+  }
+  return out;
 }
 
 function collectionValues<T>(collection: unknown): T[] {
@@ -58,7 +76,10 @@ function collectionRecords(collection: unknown): Record<string, unknown>[] {
 }
 
 export class GraphHydrator {
-  private static readonly CACHE_VERSION = 'v4-class-hydration';
+  // Bumped from v4 to v5 when Package gained `externalDepsByName`. Stale v4
+  // caches lack the field and would render every external import as a generic
+  // 'import' edge, hiding dependency/devDependency/peerDependency classification.
+  private static readonly CACHE_VERSION = 'v5-external-deps-by-name';
   private readonly baseUrl: string;
   private readonly cache: GraphDataCache;
   private readonly moduleDetailsCache = new Map<string, Module | null>();
@@ -137,6 +158,7 @@ export class GraphHydrator {
 
     for (const raw of items) {
       const modules = this.hydrateModules(raw.modules, registry);
+      const externalDepsByName = hydrateExternalDepsByName(raw.externalDepsByName);
       const pkg = new Package(
         raw.id,
         raw.name,
@@ -146,7 +168,8 @@ export class GraphHydrator {
         new Map(),
         new Map(),
         new Map(),
-        modules
+        modules,
+        externalDepsByName
       );
       byId.set(pkg.id, registry.register(pkg.id, pkg));
       graphPackages.push(pkg);

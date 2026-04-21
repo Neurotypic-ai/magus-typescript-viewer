@@ -23,7 +23,13 @@ export const DEFAULT_RELATIONSHIP_TYPES = [
   'implements',
 ] as const;
 
-const GRAPH_SETTINGS_CACHE_KEY = 'v2:typescript-viewer-graph-settings';
+// Bumped from v2 to v3 when DEFAULT_RELATIONSHIP_TYPES changed shape:
+// - Removed: inheritance, export, uses, contains
+// - Promoted to overview-level: dependency, devDependency, peerDependency
+// Without bumping the key, users with saved v2 prefs would never see the new
+// dependency-scope edges because their persisted enabledRelationshipTypes
+// would silently filter them out.
+const GRAPH_SETTINGS_CACHE_KEY = 'v3:typescript-viewer-graph-settings';
 
 type RelationshipType = (typeof DEFAULT_RELATIONSHIP_TYPES)[number];
 
