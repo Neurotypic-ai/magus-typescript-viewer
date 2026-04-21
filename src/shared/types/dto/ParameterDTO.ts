@@ -11,4 +11,6 @@ export interface IParameterCreateDTO {
   is_optional: boolean;
   is_rest: boolean;
   default_value?: string;
+  type_is_any?: boolean;
+  is_implicit_any?: boolean;
 }

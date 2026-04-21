@@ -284,25 +284,60 @@ describe('Database', () => {
     });
 
     it('skips columns that already exist', async () => {
+      // Map each PRAGMA table_info call to the complete list of columns the
+      // migration tries to add. When every expected column already exists,
+      // no ALTER TABLE should be issued.
+      const columnsByTable: Record<string, string[]> = {
+        packages: ['id', 'package_json_deps_json'],
+        methods: [
+          'id',
+          'parent_type',
+          'is_abstract',
+          'created_at',
+          'start_line',
+          'end_line',
+          'logical_lines',
+          'cyclomatic',
+          'cognitive',
+          'max_nesting',
+          'parameter_count',
+          'has_jsdoc',
+          'return_type_is_any',
+        ],
+        properties: ['id', 'parent_type', 'created_at'],
+        interfaces: ['id', 'created_at', 'start_line', 'end_line', 'has_jsdoc'],
+        classes: ['id', 'created_at', 'start_line', 'end_line', 'has_jsdoc'],
+        parameters: ['id', 'created_at', 'type_is_any', 'is_implicit_any'],
+        functions: [
+          'id',
+          'start_line',
+          'end_line',
+          'logical_lines',
+          'cyclomatic',
+          'cognitive',
+          'max_nesting',
+          'parameter_count',
+          'has_jsdoc',
+          'return_type_is_any',
+        ],
+        modules: ['id', 'physical_lines', 'logical_lines', 'comment_lines', 'halstead_volume'],
+        imports: ['id', 'specifiers_json'],
+      };
+
+      const parsePragmaTable = (sql: string): string | undefined => {
+        const match = /PRAGMA table_info\('([^']+)'\)/.exec(sql);
+        return match?.[1];
+      };
+
       vi.mocked(mockAdapter.query).mockImplementation((sql: string) => {
-        if (sql === "PRAGMA table_info('methods')") {
-          return Promise.resolve([
-            { id: '0', name: 'id' },
-            { id: '1', name: 'parent_type' },
-            { id: '2', name: 'is_abstract' },
-            { id: '3', name: 'created_at' },
-          ] as QueryResult);
+        const table = parsePragmaTable(sql);
+        if (table !== undefined) {
+          const cols = columnsByTable[table] ?? ['id', 'parent_type', 'created_at', 'specifiers_json'];
+          return Promise.resolve(cols.map((name, idx) => ({ id: String(idx), name })) as QueryResult);
         }
-        if (sql.startsWith('PRAGMA table_info')) {
-          // Other tables: return columns that include created_at and specifiers_json
-          return Promise.resolve([
-            { id: '0', name: 'id' },
-            { id: '1', name: 'parent_type' },
-            { id: '2', name: 'created_at' },
-            { id: '3', name: 'specifiers_json' },
-          ] as QueryResult);
-        }
-        if (sql.startsWith('SELECT 1 FROM code_issues')) {
+        // Existing tables for legacy/optional checks — code_issues and the
+        // 6 analysis tables all need to "exist" so no CREATE runs.
+        if (sql.startsWith('SELECT 1 FROM')) {
           return Promise.resolve([{ id: '1' }] as QueryResult);
         }
         return Promise.resolve([] as QueryResult);

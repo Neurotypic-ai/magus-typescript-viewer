@@ -1,3 +1,4 @@
+import { cpus } from 'os';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -7,10 +8,29 @@ import { consola } from 'consola';
 import ora from 'ora';
 import { readPackage } from 'read-pkg';
 
+import { AnalyzerPipeline, loadAnalysisConfig } from '../analysis';
+import { CallGraphAnalyzer } from '../analysis/analyzers/CallGraphAnalyzer';
+import { ComplexityAnalyzer } from '../analysis/analyzers/ComplexityAnalyzer';
+import { CouplingAnalyzer } from '../analysis/analyzers/CouplingAnalyzer';
+import { DependencyCruiserAnalyzer } from '../analysis/analyzers/DependencyCruiserAnalyzer';
+import { DocumentationAnalyzer } from '../analysis/analyzers/DocumentationAnalyzer';
+import { DuplicationAnalyzer } from '../analysis/analyzers/DuplicationAnalyzer';
+import { EslintAnalyzer } from '../analysis/analyzers/EslintAnalyzer';
+import { KnipAnalyzer } from '../analysis/analyzers/KnipAnalyzer';
+import { MaintainabilityIndexAnalyzer } from '../analysis/analyzers/MaintainabilityIndexAnalyzer';
+import { RulesEngineAdapter } from '../analysis/analyzers/RulesEngineAdapter';
+import { SizeAnalyzer } from '../analysis/analyzers/SizeAnalyzer';
+import { TypeSafetyAnalyzer } from '../analysis/analyzers/TypeSafetyAnalyzer';
 import { Database } from '../db/Database';
 import { DuckDBAdapter } from '../db/adapter/DuckDBAdapter';
+import { AnalysisSnapshotRepository } from '../db/repositories/AnalysisSnapshotRepository';
+import { ArchitecturalViolationRepository } from '../db/repositories/ArchitecturalViolationRepository';
+import { CallEdgeRepository } from '../db/repositories/CallEdgeRepository';
 import { ClassRepository } from '../db/repositories/ClassRepository';
 import { CodeIssueRepository } from '../db/repositories/CodeIssueRepository';
+import { DependencyCycleRepository } from '../db/repositories/DependencyCycleRepository';
+import { DuplicationClusterRepository } from '../db/repositories/DuplicationClusterRepository';
+import { EntityMetricRepository } from '../db/repositories/EntityMetricRepository';
 import { EnumRepository } from '../db/repositories/EnumRepository';
 import { ExportRepository } from '../db/repositories/ExportRepository';
 import { FunctionRepository } from '../db/repositories/FunctionRepository';
@@ -26,10 +46,12 @@ import { TypeAliasRepository } from '../db/repositories/TypeAliasRepository';
 import { VariableRepository } from '../db/repositories/VariableRepository';
 import { InsightEngine } from '../insights/InsightEngine';
 import { PackageParser } from '../parsers/PackageParser';
-import { RulesEngine } from '../rules/RulesEngine';
-import { generateRelationshipUUID } from '../utils/uuid';
+import { generateAnalysisSnapshotUUID, generateRelationshipUUID } from '../utils/uuid';
 
+import type { EntityStatsPatch } from '../analysis';
 import type { IDatabaseAdapter } from '../db/adapter/IDatabaseAdapter';
+
+type EntityStatsPatchEntityType = EntityStatsPatch['entity_type'];
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -198,13 +220,162 @@ const program = new Command();
 
 program.name('typescript-viewer').description('TypeScript codebase visualization tool').version('1.0.0');
 
+interface AnalyzeCommandOptions {
+  output: string;
+  reset?: boolean;
+  readOnly?: boolean;
+  analyzers?: string;
+  deep?: boolean;
+  knip?: boolean;
+  eslint?: boolean;
+  duplication?: boolean;
+  depCruiser?: boolean;
+  size?: boolean;
+  config?: string;
+  maxWorkers?: string;
+  baseline?: string;
+}
+
+interface MetricDeltaRow {
+  metricKey: string;
+  entityType: string;
+  entityId: string;
+  currentValue: number;
+  baselineValue: number;
+  delta: number;
+}
+
+async function reportBaselineDelta(
+  adapter: IDatabaseAdapter,
+  baseline: string,
+  currentSnapshotId: string,
+  currentMetrics: readonly {
+    entity_id: string;
+    entity_type: string;
+    metric_key: string;
+    metric_value: number;
+  }[]
+): Promise<void> {
+  const snapshotRepository = new AnalysisSnapshotRepository(adapter);
+  const entityMetricRepository = new EntityMetricRepository(adapter);
+
+  let baselineId: string | undefined;
+  let baselineCreatedAt: string | undefined;
+
+  if (baseline === 'latest') {
+    const snapshots = await snapshotRepository.retrieve();
+    const sorted = snapshots.slice().sort((a, b) => {
+      if (a.created_at === b.created_at) return 0;
+      return a.created_at < b.created_at ? 1 : -1;
+    });
+    // The most-recent is the current run; pick the next one.
+    const candidate = sorted.find((snap) => snap.id !== currentSnapshotId);
+    if (candidate) {
+      baselineId = candidate.id;
+      baselineCreatedAt = candidate.created_at;
+    }
+  } else {
+    const snapshot = await snapshotRepository.retrieveById(baseline);
+    if (snapshot) {
+      baselineId = snapshot.id;
+      baselineCreatedAt = snapshot.created_at;
+    }
+  }
+
+  if (!baselineId) {
+    cliLogger.warn(chalk.yellow(`Baseline snapshot '${baseline}' not found; skipping delta report.`));
+    return;
+  }
+
+  const baselineMetrics = await entityMetricRepository.retrieveBySnapshotId(baselineId);
+
+  const baselineIndex = new Map<string, number>();
+  for (const metric of baselineMetrics) {
+    const key = `${metric.metric_key}::${metric.entity_type}::${metric.entity_id}`;
+    baselineIndex.set(key, metric.metric_value);
+  }
+
+  const deltaRows: MetricDeltaRow[] = [];
+  const seen = new Set<string>();
+
+  for (const metric of currentMetrics) {
+    const key = `${metric.metric_key}::${metric.entity_type}::${metric.entity_id}`;
+    seen.add(key);
+    const baselineValue = baselineIndex.get(key) ?? 0;
+    const delta = metric.metric_value - baselineValue;
+    if (delta === 0) continue;
+    deltaRows.push({
+      metricKey: metric.metric_key,
+      entityType: metric.entity_type,
+      entityId: metric.entity_id,
+      currentValue: metric.metric_value,
+      baselineValue: baselineValue,
+      delta: delta,
+    });
+  }
+
+  for (const metric of baselineMetrics) {
+    const key = `${metric.metric_key}::${metric.entity_type}::${metric.entity_id}`;
+    if (seen.has(key)) continue;
+    if (metric.metric_value === 0) continue;
+    deltaRows.push({
+      metricKey: metric.metric_key,
+      entityType: metric.entity_type,
+      entityId: metric.entity_id,
+      currentValue: 0,
+      baselineValue: metric.metric_value,
+      delta: -metric.metric_value,
+    });
+  }
+
+  deltaRows.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  cliLogger.log('');
+  cliLogger.info(chalk.blue('Baseline comparison:'));
+  cliLogger.info(chalk.gray('- Baseline snapshot:'), baselineId);
+  if (baselineCreatedAt) {
+    cliLogger.info(chalk.gray('- Baseline created_at:'), baselineCreatedAt);
+  }
+  cliLogger.info(chalk.gray('- Changed metric rows:'), deltaRows.length);
+
+  if (deltaRows.length === 0) {
+    cliLogger.info(chalk.gray('  No metric deltas vs baseline.'));
+    return;
+  }
+
+  const top = deltaRows.slice(0, 10);
+  cliLogger.info(chalk.blue('Top 10 metric deltas (by |delta|):'));
+  for (const row of top) {
+    const sign = row.delta > 0 ? '+' : '';
+    const color = row.delta > 0 ? chalk.red : chalk.green;
+    const formatted = `${row.metricKey} [${row.entityType} ${row.entityId}] ${row.baselineValue.toString()} -> ${row.currentValue.toString()} (${sign}${row.delta.toString()})`;
+    cliLogger.info(`  ${color(formatted)}`);
+  }
+}
+
 program
   .command('analyze')
   .description('Analyze a TypeScript project')
   .argument('<dir>', 'Directory containing the TypeScript project')
   .option('-o, --output <file>', 'Output database file', 'typescript-viewer.duckdb')
   .option('--no-reset', 'Do not reset the database before analyzing (append mode)')
-  .action(async (dir: string, options: { output: string; reset?: boolean; readOnly?: boolean }) => {
+  .option(
+    '--analyzers <csv>',
+    'Comma-separated list of analyzer IDs to run (allowlist). Overrides enabledAnalyzers from config.'
+  )
+  .option('--deep', 'Enable analyzers that require ts-morph (Phase 2)')
+  .option('--no-knip', 'Disable the knip analyzer')
+  .option('--no-eslint', 'Disable the eslint analyzer')
+  .option('--no-duplication', 'Disable the duplication (jscpd) analyzer')
+  .option('--no-dep-cruiser', 'Disable the dependency-cruiser analyzer')
+  .option('--no-size', 'Disable the size analyzer')
+  .option('--config <path>', 'Explicit analysis config file path')
+  .option('--max-workers <n>', 'Maximum concurrent per-file workers', String(Math.max(1, cpus().length - 1)))
+  .option(
+    '--baseline <id|latest>',
+    'Compare metrics against a prior snapshot (UUID or "latest" for second-most-recent)'
+  )
+  .action(async (dir: string, options: AnalyzeCommandOptions) => {
     const spinner = ora('Analyzing TypeScript project...').start();
 
     try {
@@ -245,11 +416,6 @@ program
       spinner.text = 'Analyzing TypeScript files...';
       const packageParser = new PackageParser(dir, pkgJson.name, pkgJson.version);
       const parseResult = await packageParser.parse();
-
-      // Run code analysis rules
-      spinner.text = 'Running code analysis rules...';
-      const rulesEngine = new RulesEngine();
-      const codeIssues = await rulesEngine.analyze(parseResult);
 
       // Save all entities using batch inserts within a transaction
       spinner.text = 'Saving to database...';
@@ -326,32 +492,6 @@ program
 
         // Batch-insert symbol references
         await repositories.symbolReference.createBatch(dedupeById(parseResult.symbolReferences));
-
-        // Persist code analysis issues
-        const codeIssueRepository = new CodeIssueRepository(adapter);
-        await codeIssueRepository.deleteByPackageId(parseResult.package?.id ?? '');
-        const issueDTOs = codeIssues.map((issue) => ({
-          id: issue.id,
-          rule_code: issue.rule_code,
-          severity: issue.severity,
-          message: issue.message,
-          suggestion: issue.suggestion,
-          package_id: issue.package_id,
-          module_id: issue.module_id,
-          file_path: issue.file_path,
-          entity_id: issue.entity_id,
-          entity_type: issue.entity_type,
-          entity_name: issue.entity_name,
-          parent_entity_id: issue.parent_entity_id,
-          parent_entity_type: issue.parent_entity_type,
-          parent_entity_name: issue.parent_entity_name,
-          property_name: issue.property_name,
-          line: issue.line,
-          column: issue.column,
-          refactor_action: issue.refactor_action,
-          refactor_context_json: issue.refactor_context ? JSON.stringify(issue.refactor_context) : undefined,
-        }));
-        await codeIssueRepository.createBatch(issueDTOs);
       });
 
       // Save relationship records to junction tables
@@ -525,6 +665,172 @@ program
         }
       });
 
+      // ---------------------------------------------------------------
+      // Phase 1 analyzer pipeline: run size/knip/eslint/dep-cruiser/
+      // duplication + legacy rules via the AnalyzerPipeline, then persist
+      // snapshot + all result buckets in a single transaction.
+      // ---------------------------------------------------------------
+      spinner.text = 'Running analyzer pipeline...';
+
+      const packageRoot = dir;
+      const packageId = parseResult.package?.id ?? '';
+
+      const config = await loadAnalysisConfig(packageRoot, options.config);
+
+      // Apply CLI flag overrides on top of the loaded config.
+      const disabled = new Set<string>(config.disabledAnalyzers ?? []);
+      if (options.size === false) disabled.add('size');
+      if (options.knip === false) disabled.add('knip');
+      if (options.eslint === false) disabled.add('eslint');
+      if (options.depCruiser === false) disabled.add('dep-cruiser');
+      if (options.duplication === false) disabled.add('duplication');
+      config.disabledAnalyzers = Array.from(disabled);
+
+      if (options.analyzers !== undefined) {
+        const allowlist = options.analyzers
+          .split(',')
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+        if (allowlist.length > 0) {
+          config.enabledAnalyzers = allowlist;
+        }
+      }
+
+      if (options.deep === true) {
+        config.deep = true;
+      }
+
+      if (options.maxWorkers !== undefined) {
+        const parsedWorkers = Number.parseInt(options.maxWorkers, 10);
+        if (Number.isFinite(parsedWorkers) && parsedWorkers > 0) {
+          config.maxWorkers = parsedWorkers;
+        }
+      }
+
+      const snapshotId = generateAnalysisSnapshotUUID(packageId, new Date().toISOString());
+
+      const sizeAnalyzer = new SizeAnalyzer();
+      const knipAnalyzer = new KnipAnalyzer();
+      const eslintAnalyzer = new EslintAnalyzer();
+      const depCruiserAnalyzer = new DependencyCruiserAnalyzer();
+      const duplicationAnalyzer = new DuplicationAnalyzer();
+      const rulesEngineAdapter = new RulesEngineAdapter();
+      const complexityAnalyzer = new ComplexityAnalyzer();
+      const typeSafetyAnalyzer = new TypeSafetyAnalyzer();
+      const callGraphAnalyzer = new CallGraphAnalyzer();
+      const documentationAnalyzer = new DocumentationAnalyzer();
+      const couplingAnalyzer = new CouplingAnalyzer();
+      const maintainabilityAnalyzer = new MaintainabilityIndexAnalyzer();
+      const pipeline = new AnalyzerPipeline([
+        sizeAnalyzer,
+        knipAnalyzer,
+        eslintAnalyzer,
+        depCruiserAnalyzer,
+        duplicationAnalyzer,
+        rulesEngineAdapter,
+        complexityAnalyzer,
+        typeSafetyAnalyzer,
+        callGraphAnalyzer,
+        documentationAnalyzer,
+        couplingAnalyzer,
+        maintainabilityAnalyzer,
+      ]);
+
+      const pipelineStart = Date.now();
+      const analyzerResult = await pipeline.run({
+        parseResult,
+        packageRoot,
+        packageId,
+        snapshotId,
+        repositories: {},
+        config,
+        logger: consola.withTag('CLI.Analyze'),
+      });
+      const pipelineDurationMs = Date.now() - pipelineStart;
+
+      // Persist snapshot row + analyzer results in a single transaction.
+      spinner.text = 'Persisting analyzer results...';
+      const snapshotRepository = new AnalysisSnapshotRepository(adapter);
+      const entityMetricRepository = new EntityMetricRepository(adapter);
+      const codeIssueRepository = new CodeIssueRepository(adapter);
+      const callEdgeRepository = new CallEdgeRepository(adapter);
+      const depCycleRepository = new DependencyCycleRepository(adapter);
+      const dupClusterRepository = new DuplicationClusterRepository(adapter);
+      const archViolationRepository = new ArchitecturalViolationRepository(adapter);
+
+      await adapter.transaction(async () => {
+        // Remove prior snapshot-scoped rows for this package so re-runs stay idempotent.
+        await snapshotRepository.deleteByPackageId(packageId);
+        await codeIssueRepository.deleteByPackageId(packageId);
+        await callEdgeRepository.deleteByPackageId(packageId);
+        await depCycleRepository.deleteByPackageId(packageId);
+        await dupClusterRepository.deleteByPackageId(packageId);
+
+        await snapshotRepository.create({
+          id: snapshotId,
+          package_id: packageId,
+          created_at: new Date().toISOString(),
+          duration_ms: pipelineDurationMs,
+        });
+
+        const metrics = analyzerResult.metrics ?? [];
+        if (metrics.length > 0) {
+          await entityMetricRepository.createBatch(metrics);
+        }
+
+        const findings = analyzerResult.findings ?? [];
+        if (findings.length > 0) {
+          await codeIssueRepository.createBatch(findings);
+        }
+
+        const callEdges = analyzerResult.callEdges ?? [];
+        if (callEdges.length > 0) {
+          await callEdgeRepository.createBatch(callEdges);
+        }
+
+        const cycles = analyzerResult.cycles ?? [];
+        if (cycles.length > 0) {
+          await depCycleRepository.createBatch(cycles);
+        }
+
+        const duplications = analyzerResult.duplications ?? [];
+        if (duplications.length > 0) {
+          await dupClusterRepository.createBatch(duplications);
+        }
+
+        const archViolations = analyzerResult.architecturalViolations ?? [];
+        if (archViolations.length > 0) {
+          await archViolationRepository.createBatch(archViolations);
+        }
+
+        // Apply per-module column patches emitted by analyzers (e.g. SizeAnalyzer).
+        for (const patch of analyzerResult.moduleStats ?? []) {
+          const entries = Object.entries(patch.columns);
+          if (entries.length === 0) continue;
+          const setClause = entries.map(([column]) => `${column} = ?`).join(', ');
+          const values = entries.map(([, value]) => value);
+          await adapter.query(`UPDATE modules SET ${setClause} WHERE id = ?`, [...values, patch.module_id]);
+        }
+
+        // Apply per-entity column patches, routed by entity_type to the correct table.
+        const entityTypeToTable: Record<EntityStatsPatchEntityType, string> = {
+          method: 'methods',
+          function: 'functions',
+          class: 'classes',
+          interface: 'interfaces',
+          parameter: 'parameters',
+        };
+        for (const patch of analyzerResult.entityStats ?? []) {
+          const table = entityTypeToTable[patch.entity_type];
+          if (!table) continue;
+          const entries = Object.entries(patch.columns);
+          if (entries.length === 0) continue;
+          const setClause = entries.map(([column]) => `${column} = ?`).join(', ');
+          const values = entries.map(([, value]) => value);
+          await adapter.query(`UPDATE ${table} SET ${setClause} WHERE id = ?`, [...values, patch.entity_id]);
+        }
+      });
+
       spinner.succeed(chalk.green('Analysis complete!'));
       cliLogger.log('');
       cliLogger.info(chalk.blue('Statistics:'));
@@ -541,7 +847,6 @@ program
       cliLogger.info(chalk.gray('- Parameters found:'), parseResult.parameters.length);
       cliLogger.info(chalk.gray('- Imports found:'), parseResult.importsWithModules?.length ?? 0);
       cliLogger.info(chalk.gray('- Exports found:'), parseResult.exports.length);
-      cliLogger.info(chalk.gray('- Code issues found:'), codeIssues.length);
       cliLogger.info(chalk.gray('- Relationships found:'), relationshipCount);
       cliLogger.info(
         chalk.gray('- class_extends resolution:'),
@@ -570,6 +875,69 @@ program
         'unresolved=',
         relationStats.interfaceExtends.unresolved
       );
+
+      // Analyzer pipeline summary
+      cliLogger.log('');
+      cliLogger.info(chalk.blue('Analyzer pipeline:'));
+      cliLogger.info(chalk.gray('- Snapshot id:'), snapshotId);
+      cliLogger.info(chalk.gray('- Duration (ms):'), pipelineDurationMs);
+      cliLogger.info(chalk.gray('- Metrics:'), analyzerResult.metrics?.length ?? 0);
+      cliLogger.info(chalk.gray('- Findings:'), analyzerResult.findings?.length ?? 0);
+      cliLogger.info(chalk.gray('- Call edges:'), analyzerResult.callEdges?.length ?? 0);
+      cliLogger.info(chalk.gray('- Cycles:'), analyzerResult.cycles?.length ?? 0);
+      cliLogger.info(chalk.gray('- Duplications:'), analyzerResult.duplications?.length ?? 0);
+      cliLogger.info(
+        chalk.gray('- Architectural violations:'),
+        analyzerResult.architecturalViolations?.length ?? 0
+      );
+      cliLogger.info(chalk.gray('- Module patches:'), analyzerResult.moduleStats?.length ?? 0);
+      cliLogger.info(chalk.gray('- Entity patches:'), analyzerResult.entityStats?.length ?? 0);
+
+      // Per-analyzer timing table
+      if (pipeline.lastRunTimings.size > 0) {
+        const rows = Array.from(pipeline.lastRunTimings.entries()).map(([id, ms]) => ({
+          id,
+          ms,
+          status: pipeline.lastRunStatus.get(id) ?? 'ok',
+        }));
+        const idWidth = Math.max(8, ...rows.map((row) => row.id.length));
+        const statusWidth = 8;
+        const durationHeader = 'Duration';
+        const durationWidth = Math.max(
+          durationHeader.length,
+          ...rows.map((row) => `${row.ms.toString()}ms`.length)
+        );
+
+        cliLogger.log('');
+        cliLogger.info(chalk.blue('Analyzer timings:'));
+        const header = `${'Analyzer'.padEnd(idWidth)}  ${'Status'.padEnd(statusWidth)}  ${durationHeader.padStart(durationWidth)}`;
+        const rule = '─'.repeat(idWidth + statusWidth + durationWidth + 4);
+        cliLogger.log(chalk.gray(header));
+        cliLogger.log(chalk.gray(rule));
+        for (const row of rows) {
+          const statusLabel = row.status.padEnd(statusWidth);
+          const statusColored =
+            row.status === 'ok'
+              ? chalk.green(statusLabel)
+              : row.status === 'skipped'
+                ? chalk.yellow(statusLabel)
+                : chalk.red(statusLabel);
+          const durationCell = `${row.ms.toString()}ms`.padStart(durationWidth);
+          cliLogger.log(`${row.id.padEnd(idWidth)}  ${statusColored}  ${chalk.cyan(durationCell)}`);
+        }
+      }
+
+      // Baseline comparison (only when --baseline is provided)
+      if (options.baseline !== undefined && options.baseline.length > 0) {
+        try {
+          await reportBaselineDelta(adapter, options.baseline, snapshotId, analyzerResult.metrics ?? []);
+        } catch (baselineError) {
+          cliLogger.warn(
+            chalk.yellow('Baseline comparison failed:'),
+            baselineError instanceof Error ? baselineError.message : 'Unknown error'
+          );
+        }
+      }
 
       // Compute codebase insights
       cliLogger.log('');

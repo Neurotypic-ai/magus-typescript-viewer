@@ -590,8 +590,11 @@ describe('ClassRepository', () => {
       if (firstCall === undefined) throw new Error('First call is undefined');
       const sql = firstCall[0];
       expect(sql).toContain('INSERT INTO classes');
-      expect(sql).toContain('(id, package_id, module_id, name, extends_id)');
-      expect(sql).toContain('(?, ?, ?, ?, ?), (?, ?, ?, ?, ?)');
+      expect(sql).toContain('(id, package_id, module_id, name, extends_id, start_line, end_line, has_jsdoc)');
+      expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?)');
+      const params = firstCall[1] as unknown[];
+      // 2 items × 8 columns = 16 params
+      expect(params).toHaveLength(16);
     });
 
     it('should pass null for missing extends_id in batch items', async () => {
@@ -604,7 +607,7 @@ describe('ClassRepository', () => {
       const firstCall = vi.mocked(mockAdapter.query).mock.calls[0];
       if (firstCall === undefined) throw new Error('First call is undefined');
       const params = firstCall[1] as unknown[];
-      // extends_id should be null (last param for the single item)
+      // extends_id is the 5th param (index 4) - should be null when not provided
       expect(params[4]).toBeNull();
     });
 

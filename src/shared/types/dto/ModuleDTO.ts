@@ -9,6 +9,10 @@ export interface IModuleCreateDTO {
   name: string;
   source: FileLocation;
   line_count?: number;
+  physical_lines?: number;
+  logical_lines?: number;
+  comment_lines?: number;
+  halstead_volume?: number;
 }
 
 export interface IModuleUpdateDTO {

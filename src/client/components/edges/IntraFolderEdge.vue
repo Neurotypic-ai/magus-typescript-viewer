@@ -3,6 +3,8 @@ import { computed } from 'vue';
 
 import { BaseEdge, getSmoothStepPath } from '@vue-flow/core';
 
+import { useCycleEdgeStyle } from './useCycleEdgeStyle';
+
 import type { EdgeProps } from '@vue-flow/core';
 
 const props = defineProps<EdgeProps>();
@@ -20,6 +22,12 @@ const routeResult = computed(() => {
   });
   return { path, labelX, labelY };
 });
+
+const cycleStyle = useCycleEdgeStyle(
+  computed(() => props.source),
+  computed(() => props.target),
+  computed(() => (props.style ?? undefined) as Record<string, string | number> | undefined)
+);
 </script>
 
 <template>
@@ -31,7 +39,7 @@ const routeResult = computed(() => {
       labelY: routeResult.labelY,
       ...(markerStart === undefined ? {} : { markerStart }),
       ...(markerEnd === undefined ? {} : { markerEnd }),
-      ...(style === undefined ? {} : { style }),
+      ...(cycleStyle.style.value === undefined ? {} : { style: cycleStyle.style.value }),
       ...(interactionWidth === undefined ? {} : { interactionWidth }),
     }"
   />

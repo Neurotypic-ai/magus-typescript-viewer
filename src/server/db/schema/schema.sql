@@ -42,6 +42,10 @@ CREATE TABLE modules (
   relative_path TEXT NOT NULL,
   is_barrel BOOLEAN NOT NULL DEFAULT FALSE,
   line_count INTEGER NOT NULL DEFAULT 0,
+  physical_lines INTEGER,
+  logical_lines INTEGER,
+  comment_lines INTEGER,
+  halstead_volume DOUBLE,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -64,6 +68,9 @@ CREATE TABLE classes (
   module_id CHAR(36) NOT NULL REFERENCES modules (id),
   name TEXT NOT NULL,
   extends_id CHAR(36),
+  start_line INTEGER,
+  end_line INTEGER,
+  has_jsdoc BOOLEAN,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -74,6 +81,9 @@ CREATE TABLE interfaces (
   module_id CHAR(36) NOT NULL REFERENCES modules (id),
   name TEXT NOT NULL,
   extends_id CHAR(36),
+  start_line INTEGER,
+  end_line INTEGER,
+  has_jsdoc BOOLEAN,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -91,6 +101,15 @@ CREATE TABLE methods (
   is_async BOOLEAN NOT NULL DEFAULT FALSE,
   visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'private', 'protected')),
   has_explicit_return_type BOOLEAN NOT NULL DEFAULT FALSE,
+  start_line INTEGER,
+  end_line INTEGER,
+  logical_lines INTEGER,
+  cyclomatic INTEGER,
+  cognitive INTEGER,
+  max_nesting INTEGER,
+  parameter_count INTEGER,
+  has_jsdoc BOOLEAN,
+  return_type_is_any BOOLEAN,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -105,6 +124,8 @@ CREATE TABLE parameters (
   is_optional INTEGER NOT NULL DEFAULT 0,
   is_rest INTEGER NOT NULL DEFAULT 0,
   default_value TEXT,
+  type_is_any BOOLEAN,
+  is_implicit_any BOOLEAN,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -185,6 +206,15 @@ CREATE TABLE functions (
   is_async BOOLEAN NOT NULL DEFAULT FALSE,
   is_exported BOOLEAN NOT NULL DEFAULT FALSE,
   has_explicit_return_type BOOLEAN NOT NULL DEFAULT FALSE,
+  start_line INTEGER,
+  end_line INTEGER,
+  logical_lines INTEGER,
+  cyclomatic INTEGER,
+  cognitive INTEGER,
+  max_nesting INTEGER,
+  parameter_count INTEGER,
+  has_jsdoc BOOLEAN,
+  return_type_is_any BOOLEAN,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
@@ -298,3 +328,102 @@ CREATE INDEX idx_code_issues_module_id ON code_issues (module_id);
 CREATE INDEX idx_code_issues_package_id ON code_issues (package_id);
 CREATE INDEX idx_code_issues_entity_id ON code_issues (entity_id);
 CREATE INDEX idx_code_issues_rule_code ON code_issues (rule_code);
+
+-- Analysis snapshots table (run-level metadata for baseline comparison)
+CREATE TABLE analysis_snapshots (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  analyzer_versions_json TEXT,
+  config_json TEXT,
+  duration_ms INTEGER
+);
+
+CREATE INDEX idx_analysis_snapshots_package_id ON analysis_snapshots (package_id);
+
+-- Entity metrics (wide-format, keyed by entity + metric name)
+CREATE TABLE entity_metrics (
+  id CHAR(36) PRIMARY KEY,
+  snapshot_id CHAR(36) NOT NULL REFERENCES analysis_snapshots (id),
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36),
+  entity_id CHAR(36) NOT NULL,
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('package', 'module', 'class', 'interface', 'method', 'function', 'property', 'typeAlias', 'variable', 'enum')),
+  metric_key TEXT NOT NULL,
+  metric_value DOUBLE NOT NULL,
+  metric_category TEXT NOT NULL CHECK (metric_category IN ('complexity', 'coupling', 'typeSafety', 'size', 'documentation', 'deadCode', 'duplication', 'testing', 'composite')),
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  UNIQUE (snapshot_id, entity_id, entity_type, metric_key)
+);
+
+CREATE INDEX idx_entity_metrics_entity ON entity_metrics (entity_id, entity_type);
+CREATE INDEX idx_entity_metrics_module_id ON entity_metrics (module_id);
+CREATE INDEX idx_entity_metrics_key ON entity_metrics (metric_key);
+CREATE INDEX idx_entity_metrics_snapshot ON entity_metrics (snapshot_id);
+
+-- Call graph edges (function/method → function/method)
+CREATE TABLE call_edges (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  module_id CHAR(36) NOT NULL REFERENCES modules (id),
+  source_entity_id CHAR(36) NOT NULL,
+  source_entity_type TEXT NOT NULL CHECK (source_entity_type IN ('method', 'function')),
+  target_entity_id CHAR(36),
+  target_entity_type TEXT CHECK (target_entity_type IN ('method', 'function')),
+  target_name TEXT,
+  target_qualifier TEXT,
+  call_expression_line INTEGER,
+  is_async_call BOOLEAN NOT NULL DEFAULT FALSE,
+  is_awaited BOOLEAN NOT NULL DEFAULT FALSE,
+  resolution_status TEXT NOT NULL CHECK (resolution_status IN ('resolved', 'ambiguous', 'unresolved', 'external')),
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+CREATE INDEX idx_call_edges_source ON call_edges (source_entity_id);
+CREATE INDEX idx_call_edges_target ON call_edges (target_entity_id);
+CREATE INDEX idx_call_edges_module_id ON call_edges (module_id);
+
+-- Dependency cycles (from dependency-cruiser / import graph)
+CREATE TABLE dependency_cycles (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  length INTEGER NOT NULL,
+  participants_json TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'error')),
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+CREATE INDEX idx_dependency_cycles_package ON dependency_cycles (package_id);
+
+-- Copy-paste clusters (from jscpd)
+CREATE TABLE duplication_clusters (
+  id CHAR(36) PRIMARY KEY,
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  token_count INTEGER NOT NULL,
+  line_count INTEGER NOT NULL,
+  fragment_count INTEGER NOT NULL,
+  fingerprint TEXT NOT NULL,
+  fragments_json TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+CREATE INDEX idx_duplication_clusters_package ON duplication_clusters (package_id);
+
+-- Architectural rule violations (layered rules from dep-cruiser or custom)
+CREATE TABLE architectural_violations (
+  id CHAR(36) PRIMARY KEY,
+  snapshot_id CHAR(36) NOT NULL REFERENCES analysis_snapshots (id),
+  package_id CHAR(36) NOT NULL REFERENCES packages (id),
+  rule_name TEXT NOT NULL,
+  source_module_id CHAR(36),
+  target_module_id CHAR(36),
+  source_layer TEXT,
+  target_layer TEXT,
+  severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'error')),
+  message TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+CREATE INDEX idx_arch_violations_package ON architectural_violations (package_id);
+CREATE INDEX idx_arch_violations_snapshot ON architectural_violations (snapshot_id);
+CREATE INDEX idx_arch_violations_source ON architectural_violations (source_module_id);

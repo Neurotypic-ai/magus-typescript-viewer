@@ -224,6 +224,58 @@ const server = http.createServer((req, res) => {
           sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Insight computation failed');
           return;
         }
+      } else if (req.url === '/metrics/latest' && req.method === 'GET') {
+        try {
+          const payload = await apiServerResponder.getLatestMetrics();
+          if (!payload) {
+            sendError(res, 404, 'No analysis snapshots yet');
+            return;
+          }
+          resource = payload;
+        } catch (routeErr) {
+          logger.error('Error in /metrics/latest route', routeErr);
+          sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Failed to load metrics');
+          return;
+        }
+      } else if (req.url?.startsWith('/metrics/snapshot/') && req.method === 'GET') {
+        try {
+          const snapshotId = decodeURIComponent(req.url.slice('/metrics/snapshot/'.length).split('?')[0] ?? '');
+          if (!snapshotId) {
+            sendError(res, 400, 'Missing snapshotId');
+            return;
+          }
+          const payload = await apiServerResponder.getMetricsBySnapshotId(snapshotId);
+          if (!payload) {
+            sendError(res, 404, 'Snapshot not found');
+            return;
+          }
+          resource = payload;
+        } catch (routeErr) {
+          logger.error('Error in /metrics/snapshot route', routeErr);
+          sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Failed to load metrics snapshot');
+          return;
+        }
+      } else if (req.url?.startsWith('/metrics/diff/') && req.method === 'GET') {
+        try {
+          const rest = req.url.slice('/metrics/diff/'.length).split('?')[0] ?? '';
+          const [rawA, rawB] = rest.split('/');
+          const aId = rawA ? decodeURIComponent(rawA) : '';
+          const bId = rawB ? decodeURIComponent(rawB) : '';
+          if (!aId || !bId) {
+            sendError(res, 400, 'Missing snapshot ids');
+            return;
+          }
+          const payload = await apiServerResponder.getMetricsDiff(aId, bId);
+          if (!payload) {
+            sendError(res, 404, 'Snapshot not found');
+            return;
+          }
+          resource = payload;
+        } catch (routeErr) {
+          logger.error('Error in /metrics/diff route', routeErr);
+          sendError(res, 500, routeErr instanceof Error ? routeErr.message : 'Failed to load metrics diff');
+          return;
+        }
       } else if (req.url === '/refactor' && req.method === 'POST') {
         try {
           const body = await readRequestBody(req);

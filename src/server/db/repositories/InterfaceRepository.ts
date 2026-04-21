@@ -27,13 +27,21 @@ export class InterfaceRepository extends BaseRepository<Interface, IInterfaceCre
    */
   async createBatch(items: IInterfaceCreateDTO[]): Promise<void> {
     const now = new Date().toISOString();
-    await this.executeBatchInsert('(id, package_id, module_id, name, created_at)', 5, items, (dto) => [
-      dto.id,
-      dto.package_id,
-      dto.module_id,
-      dto.name,
-      now,
-    ]);
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, name, start_line, end_line, has_jsdoc, created_at)',
+      8,
+      items,
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.name,
+        dto.start_line ?? null,
+        dto.end_line ?? null,
+        dto.has_jsdoc ?? null,
+        now,
+      ]
+    );
   }
 
   async create(dto: IInterfaceCreateDTO): Promise<Interface> {

@@ -7,6 +7,9 @@ export interface IClassCreateDTO {
   module_id: string;
   name: string;
   extends_id?: string | undefined;
+  start_line?: number;
+  end_line?: number;
+  has_jsdoc?: boolean;
 }
 
 export interface IClassUpdateDTO {

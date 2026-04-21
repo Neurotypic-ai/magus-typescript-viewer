@@ -1,5 +1,5 @@
 import { generateClassUUID } from '../../utils/uuid';
-import { getHeritageClauseName, getIdentifierName } from './astUtils';
+import { getHeritageClauseName, getIdentifierName, getNodeLineRange, hasJsDocComment } from './astUtils';
 import { parseMethods, parseProperties } from './parseMembersShared';
 
 import type { ASTNode } from 'jscodeshift';
@@ -21,11 +21,15 @@ export function parseClasses(ctx: ModuleParserContext, result: ParseResult): voi
     if (node.id.type !== 'Identifier') {
       throw new Error('Invalid class declaration: missing identifier');
     }
+    const { start_line, end_line } = getNodeLineRange(node);
     result.classes.push({
       id: classId,
       package_id: ctx.packageId,
       module_id: ctx.moduleId,
       name: node.id.name,
+      ...(start_line !== undefined ? { start_line } : {}),
+      ...(end_line !== undefined ? { end_line } : {}),
+      has_jsdoc: hasJsDocComment(node),
     });
 
     // Extract extends relationship (deferred name-based resolution)

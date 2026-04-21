@@ -10,6 +10,15 @@ export interface IFunctionCreateDTO {
   is_async?: boolean;
   is_exported?: boolean;
   has_explicit_return_type?: boolean;
+  start_line?: number;
+  end_line?: number;
+  logical_lines?: number;
+  cyclomatic?: number;
+  cognitive?: number;
+  max_nesting?: number;
+  parameter_count?: number;
+  has_jsdoc?: boolean;
+  return_type_is_any?: boolean;
 }
 
 export interface IFunctionUpdateDTO {

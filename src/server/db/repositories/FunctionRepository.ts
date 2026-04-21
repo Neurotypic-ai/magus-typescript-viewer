@@ -19,8 +19,8 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
    */
   async createBatch(items: IFunctionCreateDTO[]): Promise<void> {
     await this.executeBatchInsert(
-      '(id, package_id, module_id, name, return_type, is_async, is_exported, has_explicit_return_type)',
-      8,
+      '(id, package_id, module_id, name, return_type, is_async, is_exported, has_explicit_return_type, start_line, end_line, logical_lines, cyclomatic, cognitive, max_nesting, parameter_count, has_jsdoc, return_type_is_any)',
+      17,
       items,
       (dto) => [
         dto.id,
@@ -31,6 +31,15 @@ export class FunctionRepository extends BaseRepository<ModuleFunction, IFunction
         dto.is_async ?? false,
         dto.is_exported ?? false,
         dto.has_explicit_return_type ?? false,
+        dto.start_line ?? null,
+        dto.end_line ?? null,
+        dto.logical_lines ?? null,
+        dto.cyclomatic ?? null,
+        dto.cognitive ?? null,
+        dto.max_nesting ?? null,
+        dto.parameter_count ?? null,
+        dto.has_jsdoc ?? null,
+        dto.return_type_is_any ?? null,
       ]
     );
   }

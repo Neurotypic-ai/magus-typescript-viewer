@@ -3,10 +3,12 @@ import { computed } from 'vue';
 
 import { Panel } from '@vue-flow/core';
 
-import { DEFAULT_RELATIONSHIP_TYPES, useGraphSettings } from '../stores/graphSettings';
+import { DEFAULT_RELATIONSHIP_TYPES, OVERLAY_MODES, useGraphSettings } from '../stores/graphSettings';
 import GraphSearch from './GraphSearch.vue';
 
 import type { Ref } from 'vue';
+
+import type { OverlayMode } from '../stores/graphSettings';
 
 interface GraphSearchContext {
   searchQuery: Ref<string>;
@@ -90,6 +92,31 @@ const handleShowFpsToggle = (checked: boolean) => {
 };
 const handleFpsAdvancedToggle = (checked: boolean) => {
   emit('toggle-fps-advanced', checked);
+};
+
+const OVERLAY_MODE_LABELS: Record<OverlayMode, string> = {
+  none: 'None',
+  complexity: 'Complexity',
+  coupling: 'Coupling',
+  typeSafety: 'Type Safety',
+};
+
+const overlayModeOptions = OVERLAY_MODES.map((mode) => ({ value: mode, label: OVERLAY_MODE_LABELS[mode] }));
+
+const handleOverlayModeChange = (event: Event) => {
+  const target = event.target as HTMLSelectElement;
+  const value = target.value;
+  if ((OVERLAY_MODES as readonly string[]).includes(value)) {
+    graphSettings.setOverlayMode(value as OverlayMode);
+  }
+};
+
+const handleHighlightCyclesToggle = (checked: boolean) => {
+  graphSettings.setHighlightCycles(checked);
+};
+
+const handleDimDeadCodeToggle = (checked: boolean) => {
+  graphSettings.setDimDeadCode(checked);
 };
 
 const searchQueryModel = computed({
@@ -181,6 +208,50 @@ const searchQueryModel = computed({
                   {{ relationshipReason(type) }}
                 </p>
               </div>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+
+      <div class="section section-divider">
+        <div class="section-header-static">
+          <span class="section-label">Metrics Overlays</span>
+        </div>
+        <div class="section-content">
+          <fieldset class="control-fieldset">
+            <legend class="sr-only">Metrics overlay options</legend>
+            <div class="control-group">
+              <label class="control-row control-row-interactive overlay-row-select">
+                <span class="control-label">Overlay mode</span>
+                <select
+                  class="control-select"
+                  :value="graphSettings.overlayMode"
+                  aria-label="Metric overlay mode"
+                  @change="handleOverlayModeChange"
+                >
+                  <option v-for="option in overlayModeOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.highlightCycles"
+                  @change="(e) => handleHighlightCyclesToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Highlight Cycles</span>
+              </label>
+              <label class="control-row control-row-interactive">
+                <input
+                  type="checkbox"
+                  class="control-checkbox"
+                  :checked="graphSettings.dimDeadCode"
+                  @change="(e) => handleDimDeadCodeToggle((e.target as HTMLInputElement).checked)"
+                />
+                <span class="control-label">Dim Dead Code</span>
+              </label>
             </div>
           </fieldset>
         </div>
@@ -383,6 +454,29 @@ const searchQueryModel = computed({
 .control-checkbox:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+.overlay-row-select {
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.control-select {
+  flex: 1;
+  max-width: 10rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background-color: var(--color-background-paper);
+  color: var(--color-text-primary);
+  font-size: 0.72rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.control-select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .sr-only {

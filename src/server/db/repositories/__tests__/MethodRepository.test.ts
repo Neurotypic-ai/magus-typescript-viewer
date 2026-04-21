@@ -176,10 +176,15 @@ describe('MethodRepository', () => {
       await repo.createBatch(dtos);
 
       expect(adapter.query).toHaveBeenCalledTimes(1);
-      const [sql] = getQueryCall(adapter, 0);
+      const [sql, params] = getQueryCall(adapter, 0);
       expect(sql).toContain('INSERT INTO methods');
-      // Should have two sets of placeholders
-      expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      expect(sql).toContain(
+        '(id, package_id, module_id, parent_id, parent_type, name, return_type, is_static, is_async, visibility, has_explicit_return_type, start_line, end_line, logical_lines, cyclomatic, cognitive, max_nesting, parameter_count, has_jsdoc, return_type_is_any)'
+      );
+      // Each row has 20 placeholders
+      expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      // 2 items x 20 columns = 40 params
+      expect(params).toHaveLength(40);
     });
 
     it('falls back to individual inserts on duplicate key error', async () => {

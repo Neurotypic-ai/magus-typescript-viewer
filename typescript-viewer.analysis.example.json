@@ -1,0 +1,30 @@
+{
+  "thresholds": {
+    "cyclomatic": { "warning": 10, "error": 20 },
+    "cognitive": { "warning": 15, "error": 30 },
+    "methodLines": { "warning": 50, "error": 100 },
+    "parameters": { "warning": 5, "error": 8 },
+    "anyDensity": { "warning": 0.1, "error": 0.3 }
+  },
+  "eslint": {
+    "extendsBuiltin": true,
+    "extraRules": {}
+  },
+  "architecture": {
+    "layers": [
+      { "name": "client", "paths": ["src/client/**"] },
+      { "name": "server", "paths": ["src/server/**"] },
+      { "name": "shared", "paths": ["src/shared/**"] }
+    ],
+    "rules": [
+      { "forbidden": { "from": "server", "to": "client", "severity": "error" } },
+      { "forbidden": { "from": "shared", "to": "client", "severity": "warning" } },
+      { "forbidden": { "from": "shared", "to": "server", "severity": "warning" } }
+    ]
+  },
+  "exclusions": {
+    "paths": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
+  },
+  "disabledAnalyzers": [],
+  "enabledAnalyzers": []
+}

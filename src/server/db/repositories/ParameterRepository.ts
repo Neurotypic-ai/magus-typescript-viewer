@@ -22,8 +22,8 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
   async createBatch(items: IParameterCreateDTO[]): Promise<void> {
     const now = new Date().toISOString();
     await this.executeBatchInsert(
-      '(id, package_id, module_id, method_id, name, type, is_optional, is_rest, default_value, created_at)',
-      10,
+      '(id, package_id, module_id, method_id, name, type, is_optional, is_rest, default_value, type_is_any, is_implicit_any, created_at)',
+      12,
       items,
       (dto) => [
         dto.id,
@@ -35,6 +35,8 @@ export class ParameterRepository extends BaseRepository<Parameter, IParameterCre
         dto.is_optional ? 1 : 0,
         dto.is_rest ? 1 : 0,
         dto.default_value ?? '',
+        dto.type_is_any ?? null,
+        dto.is_implicit_any ?? null,
         now,
       ]
     );

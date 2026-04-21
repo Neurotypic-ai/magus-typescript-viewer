@@ -8,8 +8,13 @@ import { isProperty } from '../shared/types/Property';
 import { Database } from './db/Database';
 import { DuckDBAdapter } from './db/adapter/DuckDBAdapter';
 import { RepositoryError } from './db/errors/RepositoryError';
+import { AnalysisSnapshotRepository } from './db/repositories/AnalysisSnapshotRepository';
+import { ArchitecturalViolationRepository } from './db/repositories/ArchitecturalViolationRepository';
 import { ClassRepository } from './db/repositories/ClassRepository';
 import { CodeIssueRepository } from './db/repositories/CodeIssueRepository';
+import { DependencyCycleRepository } from './db/repositories/DependencyCycleRepository';
+import { DuplicationClusterRepository } from './db/repositories/DuplicationClusterRepository';
+import { EntityMetricRepository } from './db/repositories/EntityMetricRepository';
 import { EnumRepository } from './db/repositories/EnumRepository';
 import { FunctionRepository } from './db/repositories/FunctionRepository';
 import { ImportRepository } from './db/repositories/ImportRepository';
@@ -29,7 +34,13 @@ import type { Property } from '../shared/types/Property';
 import type { TypeCollection } from '../shared/types/TypeCollection';
 import type { CodeIssueRef } from '../shared/types/api/CodeIssueRef';
 import type { InsightReport } from '../shared/types/api/Insight';
+import type { AnalysisSnapshot } from './db/repositories/AnalysisSnapshotRepository';
+import type { ArchitecturalViolation } from './db/repositories/ArchitecturalViolationRepository';
+import type { DependencyCycle } from './db/repositories/DependencyCycleRepository';
+import type { DuplicationCluster } from './db/repositories/DuplicationClusterRepository';
+import type { EntityMetric } from './db/repositories/EntityMetricRepository';
 import type { CodeIssueEntity } from './db/types/CodeIssueEntity';
+import type { ICodeIssueRow } from './db/types/DatabaseResults';
 
 interface ApiServerResponderOptions {
   dbPath?: string;
@@ -178,6 +189,60 @@ function codeIssueSeverityToPublic(severity: string): 'info' | 'warning' | 'erro
   return 'info';
 }
 
+function codeIssueRowToEntity(row: ICodeIssueRow): CodeIssueEntity {
+  let refactorContext: Record<string, unknown> | undefined;
+  if (row.refactor_context_json) {
+    try {
+      refactorContext = JSON.parse(row.refactor_context_json) as Record<string, unknown>;
+    } catch {
+      // Invalid JSON — leave as undefined
+    }
+  }
+
+  return {
+    id: row.id,
+    rule_code: row.rule_code,
+    severity: row.severity,
+    message: row.message,
+    ...(row.suggestion ? { suggestion: row.suggestion } : {}),
+    package_id: row.package_id,
+    module_id: row.module_id,
+    file_path: row.file_path,
+    ...(row.entity_id ? { entity_id: row.entity_id } : {}),
+    ...(row.entity_type ? { entity_type: row.entity_type } : {}),
+    ...(row.entity_name ? { entity_name: row.entity_name } : {}),
+    ...(row.parent_entity_id ? { parent_entity_id: row.parent_entity_id } : {}),
+    ...(row.parent_entity_type ? { parent_entity_type: row.parent_entity_type } : {}),
+    ...(row.parent_entity_name ? { parent_entity_name: row.parent_entity_name } : {}),
+    ...(row.property_name ? { property_name: row.property_name } : {}),
+    ...(row.line !== null ? { line: row.line } : {}),
+    ...(row.column !== null ? { column: row.column } : {}),
+    ...(row.refactor_action ? { refactor_action: row.refactor_action } : {}),
+    ...(refactorContext ? { refactor_context: refactorContext } : {}),
+  };
+}
+
+export interface MetricsSnapshotPayload {
+  snapshot: {
+    id: string;
+    package_id: string;
+    created_at: string;
+    analyzer_versions_json: string | null;
+    config_json: string | null;
+    duration_ms: number | null;
+  };
+  metrics: EntityMetric[];
+  findings: CodeIssueEntity[];
+  cycles: DependencyCycle[];
+  duplications: DuplicationCluster[];
+  violations: ArchitecturalViolation[];
+}
+
+export interface MetricsDiffPayload {
+  a: MetricsSnapshotPayload;
+  b: MetricsSnapshotPayload;
+}
+
 function codeIssueEntityToRef(entity: CodeIssueEntity): CodeIssueRef {
   return {
     id: entity.id,
@@ -218,6 +283,11 @@ export class ApiServerResponder {
   private readonly typeAliasRepository: TypeAliasRepository;
   private readonly variableRepository: VariableRepository;
   private readonly codeIssueRepository: CodeIssueRepository;
+  private readonly analysisSnapshotRepository: AnalysisSnapshotRepository;
+  private readonly entityMetricRepository: EntityMetricRepository;
+  private readonly dependencyCycleRepository: DependencyCycleRepository;
+  private readonly duplicationClusterRepository: DuplicationClusterRepository;
+  private readonly architecturalViolationRepository: ArchitecturalViolationRepository;
 
   constructor(options: ApiServerResponderOptions = {}) {
     const dbPath = options.dbPath ?? 'typescript-viewer.duckdb';
@@ -239,6 +309,11 @@ export class ApiServerResponder {
     this.typeAliasRepository = new TypeAliasRepository(this.dbAdapter);
     this.variableRepository = new VariableRepository(this.dbAdapter);
     this.codeIssueRepository = new CodeIssueRepository(this.dbAdapter);
+    this.analysisSnapshotRepository = new AnalysisSnapshotRepository(this.dbAdapter);
+    this.entityMetricRepository = new EntityMetricRepository(this.dbAdapter);
+    this.dependencyCycleRepository = new DependencyCycleRepository(this.dbAdapter);
+    this.duplicationClusterRepository = new DuplicationClusterRepository(this.dbAdapter);
+    this.architecturalViolationRepository = new ArchitecturalViolationRepository(this.dbAdapter);
   }
 
   async initialize(): Promise<void> {
@@ -827,5 +902,126 @@ export class ApiServerResponder {
   async getInsights(packageId?: string): Promise<InsightReport> {
     const engine = new InsightEngine(this.dbAdapter);
     return engine.compute(packageId);
+  }
+
+  private async loadCodeIssuesByPackageId(packageId: string): Promise<CodeIssueEntity[]> {
+    // CodeIssueRepository does not expose retrieveByPackageId — fall back to inline SQL.
+    // Return empty list if the code_issues table is missing (analysis hasn't run yet).
+    try {
+      const rows = await this.dbAdapter.query<ICodeIssueRow>(
+        'SELECT * FROM code_issues WHERE package_id = ? ORDER BY rule_code, file_path',
+        [packageId]
+      );
+      return rows.map((row) => codeIssueRowToEntity(row));
+    } catch (error) {
+      this.logger.debug('Failed to load code_issues by package_id (table may not exist)', error);
+      return [];
+    }
+  }
+
+  private snapshotToPayload(snapshot: AnalysisSnapshot): MetricsSnapshotPayload['snapshot'] {
+    return {
+      id: snapshot.id,
+      package_id: snapshot.package_id,
+      created_at: snapshot.created_at,
+      analyzer_versions_json: snapshot.analyzer_versions_json,
+      config_json: snapshot.config_json,
+      duration_ms: snapshot.duration_ms,
+    };
+  }
+
+  private async assembleMetricsPayload(snapshot: AnalysisSnapshot): Promise<MetricsSnapshotPayload> {
+    // Each repo call is wrapped so that a missing Phase-2 table does not blow up the whole response.
+    const safe = async <T>(label: string, fn: () => Promise<T[]>): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (error) {
+        this.logger.debug(`Failed to load ${label} for snapshot ${snapshot.id} (table may not exist)`, error);
+        return [];
+      }
+    };
+
+    const [metrics, findings, cycles, duplications, violations] = await Promise.all([
+      safe('entity_metrics', () => this.entityMetricRepository.retrieveBySnapshotId(snapshot.id)),
+      this.loadCodeIssuesByPackageId(snapshot.package_id),
+      safe('dependency_cycles', () => this.dependencyCycleRepository.retrieveByPackageId(snapshot.package_id)),
+      safe('duplication_clusters', () =>
+        this.duplicationClusterRepository.retrieveByPackageId(snapshot.package_id)
+      ),
+      safe('architectural_violations', () =>
+        this.architecturalViolationRepository.retrieveBySnapshotId(snapshot.id)
+      ),
+    ]);
+
+    return {
+      snapshot: this.snapshotToPayload(snapshot),
+      metrics,
+      findings,
+      cycles,
+      duplications,
+      violations,
+    };
+  }
+
+  /**
+   * Return the latest analysis snapshot's metrics payload, or null if no snapshots exist.
+   * Caller is responsible for turning null into a 404 response.
+   * If the analysis_* tables do not exist yet (analysis pipeline never ran), also returns null.
+   */
+  async getLatestMetrics(): Promise<MetricsSnapshotPayload | null> {
+    let snapshots: AnalysisSnapshot[];
+    try {
+      snapshots = await this.analysisSnapshotRepository.retrieve();
+    } catch (error) {
+      this.logger.debug('Failed to load analysis snapshots (table may not exist)', error);
+      return null;
+    }
+
+    // retrieve() already orders by created_at DESC, but sort defensively in case that changes.
+    const latest = snapshots
+      .slice()
+      .sort((a, b) => {
+        if (a.created_at === b.created_at) return 0;
+        return a.created_at < b.created_at ? 1 : -1;
+      })[0];
+
+    if (!latest) {
+      return null;
+    }
+
+    return this.assembleMetricsPayload(latest);
+  }
+
+  /**
+   * Return a specific snapshot's metrics payload, or null if not found
+   * (or if the analysis tables do not exist yet).
+   */
+  async getMetricsBySnapshotId(snapshotId: string): Promise<MetricsSnapshotPayload | null> {
+    let snapshot: AnalysisSnapshot | undefined;
+    try {
+      snapshot = await this.analysisSnapshotRepository.retrieveById(snapshotId);
+    } catch (error) {
+      this.logger.debug('Failed to load analysis snapshot by id (table may not exist)', error);
+      return null;
+    }
+    if (!snapshot) {
+      return null;
+    }
+    return this.assembleMetricsPayload(snapshot);
+  }
+
+  /**
+   * Return metrics payloads for two snapshots for client-side diffing.
+   * Returns null if either snapshot is missing.
+   */
+  async getMetricsDiff(aId: string, bId: string): Promise<MetricsDiffPayload | null> {
+    const [a, b] = await Promise.all([
+      this.getMetricsBySnapshotId(aId),
+      this.getMetricsBySnapshotId(bId),
+    ]);
+    if (!a || !b) {
+      return null;
+    }
+    return { a, b };
   }
 }

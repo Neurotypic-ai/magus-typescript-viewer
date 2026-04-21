@@ -2,6 +2,48 @@ import type { ConsolaInstance } from 'consola';
 import type { ASTNode, Identifier, JSCodeshift, JSXIdentifier, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
 
 /**
+ * Line range (1-indexed) extracted from a jscodeshift AST node's `.loc` property.
+ * Both fields are undefined when the node has no source location (e.g., synthesized nodes).
+ */
+export interface AstLineRange {
+  start_line?: number;
+  end_line?: number;
+}
+
+/**
+ * Extract 1-indexed start/end lines from any AST node's `loc` property. Safe on
+ * nodes without locations (returns empty object); never throws.
+ */
+export function getNodeLineRange(node: ASTNode | null | undefined): AstLineRange {
+  if (!node) return {};
+  // jscodeshift nodes carry `loc: {start: {line, column}, end: {line, column}}`
+  // when parsed from source. Some synthesized nodes lack it.
+  const loc = (node as { loc?: { start?: { line?: number }; end?: { line?: number } } }).loc;
+  if (!loc) return {};
+  const range: AstLineRange = {};
+  if (typeof loc.start?.line === 'number') range.start_line = loc.start.line;
+  if (typeof loc.end?.line === 'number') range.end_line = loc.end.line;
+  return range;
+}
+
+/**
+ * Detect whether a node has a leading JSDoc-style block comment (starts with `*`).
+ * JSDoc identification without a full parser: block comment whose text begins with
+ * an asterisk (i.e., `/** ... *​/`). Returns false on any access failure.
+ */
+export function hasJsDocComment(node: ASTNode | null | undefined): boolean {
+  if (!node) return false;
+  const comments = (node as { leadingComments?: { type?: string; value?: string }[] }).leadingComments;
+  if (!Array.isArray(comments)) return false;
+  return comments.some((c) => {
+    if (!c) return false;
+    const type = c.type ?? '';
+    const value = c.value ?? '';
+    return (type === 'CommentBlock' || type === 'Block') && value.startsWith('*');
+  });
+}
+
+/**
  * Safely get identifier name to work around type issues.
  */
 export function getIdentifierName(id: string | Identifier | JSXIdentifier | TSTypeParameter): string | null {

@@ -193,9 +193,12 @@ describe('ModuleRepository', () => {
       const [sql, params] = getQueryCall(adapter, 0);
 
       expect(sql).toContain('INSERT INTO modules');
-      expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      // Two rows => 18 parameters (9 columns x 2 rows)
-      expect(params).toHaveLength(18);
+      expect(sql).toContain(
+        '(id, package_id, name, source, directory, filename, relative_path, is_barrel, line_count, physical_lines, logical_lines, comment_lines, halstead_volume)'
+      );
+      expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      // Two rows => 26 parameters (13 columns x 2 rows)
+      expect(params).toHaveLength(26);
     });
 
     it('should serialize source as JSON for each item', async () => {

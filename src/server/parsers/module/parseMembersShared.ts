@@ -1,5 +1,5 @@
 import { generateMethodUUID, generateParameterUUID, generatePropertyUUID } from '../../utils/uuid';
-import { getTypeFromAnnotation } from './astUtils';
+import { getNodeLineRange, getTypeFromAnnotation, hasJsDocComment } from './astUtils';
 
 import type { ConsolaInstance } from 'consola';
 import type {
@@ -109,6 +109,9 @@ export function parseMethods(
           node.value.type === 'FunctionExpression' &&
           node.value.async === true;
 
+        const { start_line, end_line } = getNodeLineRange(node);
+        const paramCount = getParametersList(node).length;
+
         methods.push({
           id: methodId,
           name: methodName,
@@ -121,6 +124,11 @@ export function parseMethods(
           is_async: isAsync,
           visibility: 'public', // Default visibility
           has_explicit_return_type: hasExplicitReturnType,
+          ...(start_line !== undefined ? { start_line } : {}),
+          ...(end_line !== undefined ? { end_line } : {}),
+          parameter_count: paramCount,
+          has_jsdoc: hasJsDocComment(node),
+          return_type_is_any: returnType === 'any',
         });
 
         const usages = extractSymbolUsages(ctx.j, node, {

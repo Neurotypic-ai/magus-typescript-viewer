@@ -19,8 +19,8 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
    */
   async createBatch(items: IModuleCreateDTO[]): Promise<void> {
     await this.executeBatchInsert(
-      '(id, package_id, name, source, directory, filename, relative_path, is_barrel, line_count)',
-      9,
+      '(id, package_id, name, source, directory, filename, relative_path, is_barrel, line_count, physical_lines, logical_lines, comment_lines, halstead_volume)',
+      13,
       items,
       (dto) => [
         dto.id,
@@ -32,6 +32,10 @@ export class ModuleRepository extends BaseRepository<Module, IModuleCreateDTO, I
         dto.source.relativePath,
         (dto.source.isBarrel ?? false) ? 1 : 0,
         dto.line_count ?? 0,
+        dto.physical_lines ?? null,
+        dto.logical_lines ?? null,
+        dto.comment_lines ?? null,
+        dto.halstead_volume ?? null,
       ]
     );
   }

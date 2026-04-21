@@ -65,6 +65,15 @@ export class Database {
       { name: 'parent_type', definition: "parent_type TEXT DEFAULT 'class'" },
       { name: 'is_abstract', definition: 'is_abstract BOOLEAN DEFAULT FALSE' },
       { name: 'created_at', definition: 'created_at TIMESTAMP DEFAULT current_timestamp' },
+      { name: 'start_line', definition: 'start_line INTEGER' },
+      { name: 'end_line', definition: 'end_line INTEGER' },
+      { name: 'logical_lines', definition: 'logical_lines INTEGER' },
+      { name: 'cyclomatic', definition: 'cyclomatic INTEGER' },
+      { name: 'cognitive', definition: 'cognitive INTEGER' },
+      { name: 'max_nesting', definition: 'max_nesting INTEGER' },
+      { name: 'parameter_count', definition: 'parameter_count INTEGER' },
+      { name: 'has_jsdoc', definition: 'has_jsdoc BOOLEAN' },
+      { name: 'return_type_is_any', definition: 'return_type_is_any BOOLEAN' },
     ]);
 
     // Properties table
@@ -76,16 +85,45 @@ export class Database {
     // Interfaces table
     await this.ensureColumns('interfaces', [
       { name: 'created_at', definition: 'created_at TIMESTAMP DEFAULT current_timestamp' },
+      { name: 'start_line', definition: 'start_line INTEGER' },
+      { name: 'end_line', definition: 'end_line INTEGER' },
+      { name: 'has_jsdoc', definition: 'has_jsdoc BOOLEAN' },
     ]);
 
     // Classes table
     await this.ensureColumns('classes', [
       { name: 'created_at', definition: 'created_at TIMESTAMP DEFAULT current_timestamp' },
+      { name: 'start_line', definition: 'start_line INTEGER' },
+      { name: 'end_line', definition: 'end_line INTEGER' },
+      { name: 'has_jsdoc', definition: 'has_jsdoc BOOLEAN' },
     ]);
 
     // Parameters table
     await this.ensureColumns('parameters', [
       { name: 'created_at', definition: 'created_at TIMESTAMP DEFAULT current_timestamp' },
+      { name: 'type_is_any', definition: 'type_is_any BOOLEAN' },
+      { name: 'is_implicit_any', definition: 'is_implicit_any BOOLEAN' },
+    ]);
+
+    // Functions table: mirror methods additions
+    await this.ensureColumns('functions', [
+      { name: 'start_line', definition: 'start_line INTEGER' },
+      { name: 'end_line', definition: 'end_line INTEGER' },
+      { name: 'logical_lines', definition: 'logical_lines INTEGER' },
+      { name: 'cyclomatic', definition: 'cyclomatic INTEGER' },
+      { name: 'cognitive', definition: 'cognitive INTEGER' },
+      { name: 'max_nesting', definition: 'max_nesting INTEGER' },
+      { name: 'parameter_count', definition: 'parameter_count INTEGER' },
+      { name: 'has_jsdoc', definition: 'has_jsdoc BOOLEAN' },
+      { name: 'return_type_is_any', definition: 'return_type_is_any BOOLEAN' },
+    ]);
+
+    // Modules table: size/complexity aggregates
+    await this.ensureColumns('modules', [
+      { name: 'physical_lines', definition: 'physical_lines INTEGER' },
+      { name: 'logical_lines', definition: 'logical_lines INTEGER' },
+      { name: 'comment_lines', definition: 'comment_lines INTEGER' },
+      { name: 'halstead_volume', definition: 'halstead_volume DOUBLE' },
     ]);
 
     // Imports table
@@ -121,6 +159,144 @@ export class Database {
       await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_code_issues_package_id ON code_issues (package_id)');
       await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_code_issues_entity_id ON code_issues (entity_id)');
       await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_code_issues_rule_code ON code_issues (rule_code)');
+    }
+
+    // Ensure analysis tables exist (added by advanced-analysis integration).
+    await this.ensureAnalysisTables();
+  }
+
+  /**
+   * Creates analysis tables (snapshots, entity_metrics, call_edges, dependency_cycles,
+   * duplication_clusters, architectural_violations) if they are missing. Idempotent.
+   */
+  private async ensureAnalysisTables(): Promise<void> {
+    try {
+      await this.adapter.query('SELECT 1 FROM analysis_snapshots LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE analysis_snapshots (
+        id CHAR(36) PRIMARY KEY,
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+        analyzer_versions_json TEXT,
+        config_json TEXT,
+        duration_ms INTEGER
+      )`);
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_analysis_snapshots_package_id ON analysis_snapshots (package_id)'
+      );
+    }
+
+    try {
+      await this.adapter.query('SELECT 1 FROM entity_metrics LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE entity_metrics (
+        id CHAR(36) PRIMARY KEY,
+        snapshot_id CHAR(36) NOT NULL REFERENCES analysis_snapshots (id),
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        module_id CHAR(36),
+        entity_id CHAR(36) NOT NULL,
+        entity_type TEXT NOT NULL CHECK (entity_type IN ('package', 'module', 'class', 'interface', 'method', 'function', 'property', 'typeAlias', 'variable', 'enum')),
+        metric_key TEXT NOT NULL,
+        metric_value DOUBLE NOT NULL,
+        metric_category TEXT NOT NULL CHECK (metric_category IN ('complexity', 'coupling', 'typeSafety', 'size', 'documentation', 'deadCode', 'duplication', 'testing', 'composite')),
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+        UNIQUE (snapshot_id, entity_id, entity_type, metric_key)
+      )`);
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_entity_metrics_entity ON entity_metrics (entity_id, entity_type)'
+      );
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_entity_metrics_module_id ON entity_metrics (module_id)'
+      );
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_entity_metrics_key ON entity_metrics (metric_key)');
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_entity_metrics_snapshot ON entity_metrics (snapshot_id)'
+      );
+    }
+
+    try {
+      await this.adapter.query('SELECT 1 FROM call_edges LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE call_edges (
+        id CHAR(36) PRIMARY KEY,
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        module_id CHAR(36) NOT NULL REFERENCES modules (id),
+        source_entity_id CHAR(36) NOT NULL,
+        source_entity_type TEXT NOT NULL CHECK (source_entity_type IN ('method', 'function')),
+        target_entity_id CHAR(36),
+        target_entity_type TEXT CHECK (target_entity_type IN ('method', 'function')),
+        target_name TEXT,
+        target_qualifier TEXT,
+        call_expression_line INTEGER,
+        is_async_call BOOLEAN NOT NULL DEFAULT FALSE,
+        is_awaited BOOLEAN NOT NULL DEFAULT FALSE,
+        resolution_status TEXT NOT NULL CHECK (resolution_status IN ('resolved', 'ambiguous', 'unresolved', 'external')),
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+      )`);
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_call_edges_source ON call_edges (source_entity_id)');
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_call_edges_target ON call_edges (target_entity_id)');
+      await this.adapter.query('CREATE INDEX IF NOT EXISTS idx_call_edges_module_id ON call_edges (module_id)');
+    }
+
+    try {
+      await this.adapter.query('SELECT 1 FROM dependency_cycles LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE dependency_cycles (
+        id CHAR(36) PRIMARY KEY,
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        length INTEGER NOT NULL,
+        participants_json TEXT NOT NULL,
+        severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'error')),
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+      )`);
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_dependency_cycles_package ON dependency_cycles (package_id)'
+      );
+    }
+
+    try {
+      await this.adapter.query('SELECT 1 FROM duplication_clusters LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE duplication_clusters (
+        id CHAR(36) PRIMARY KEY,
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        token_count INTEGER NOT NULL,
+        line_count INTEGER NOT NULL,
+        fragment_count INTEGER NOT NULL,
+        fingerprint TEXT NOT NULL,
+        fragments_json TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+      )`);
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_duplication_clusters_package ON duplication_clusters (package_id)'
+      );
+    }
+
+    try {
+      await this.adapter.query('SELECT 1 FROM architectural_violations LIMIT 1');
+    } catch {
+      await this.adapter.query(`CREATE TABLE architectural_violations (
+        id CHAR(36) PRIMARY KEY,
+        snapshot_id CHAR(36) NOT NULL REFERENCES analysis_snapshots (id),
+        package_id CHAR(36) NOT NULL REFERENCES packages (id),
+        rule_name TEXT NOT NULL,
+        source_module_id CHAR(36),
+        target_module_id CHAR(36),
+        source_layer TEXT,
+        target_layer TEXT,
+        severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'error')),
+        message TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+      )`);
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_arch_violations_package ON architectural_violations (package_id)'
+      );
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_arch_violations_snapshot ON architectural_violations (snapshot_id)'
+      );
+      await this.adapter.query(
+        'CREATE INDEX IF NOT EXISTS idx_arch_violations_source ON architectural_violations (source_module_id)'
+      );
     }
   }
 

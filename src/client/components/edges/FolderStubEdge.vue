@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { BaseEdge, Position, getSmoothStepPath } from '@vue-flow/core';
 
 import { getEdgeStyle } from '../../theme/graphTheme';
+import { useCycleEdgeStyle } from './useCycleEdgeStyle';
 
 import type { EdgeProps } from '@vue-flow/core';
 import type { DependencyEdgeKind } from '../../../shared/types/graph/DependencyEdgeKind';
@@ -28,22 +29,31 @@ const routeResult = computed(() => {
   return { path, labelX, labelY };
 });
 
-const edgeStyle = computed(() => {
+const edgeStyle = computed<Record<string, string | number> | undefined>(() => {
   const edgeData = props.data as { type?: DependencyEdgeKind } | undefined;
   const type = edgeData?.type;
-  const baseStyle = type ? getEdgeStyle(type) : {};
+  const baseStyle = (type ? getEdgeStyle(type) : {}) as Record<string, string | number>;
   // Merge props.style so CSS variables (e.g. --edge-hover-base-stroke) set by the
   // hover system are applied to the path element. baseStyle goes first so that
   // explicit type-specific values are the baseline; props.style adds variables on top.
-  return props.style ? { ...baseStyle, ...props.style } : baseStyle;
+  const merged = props.style
+    ? { ...baseStyle, ...(props.style as Record<string, string | number>) }
+    : baseStyle;
+  return Object.keys(merged).length === 0 ? undefined : merged;
 });
+
+const cycleStyle = useCycleEdgeStyle(
+  computed(() => props.source),
+  computed(() => props.target),
+  edgeStyle
+);
 </script>
 
 <template>
   <BaseEdge
     :id="id"
     :path="routeResult.path"
-    :style="edgeStyle"
+    :style="cycleStyle.style.value"
     v-bind="{
       ...(markerEnd === undefined ? {} : { markerEnd }),
       ...(interactionWidth === undefined ? {} : { interactionWidth }),

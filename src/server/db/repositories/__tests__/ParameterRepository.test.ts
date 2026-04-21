@@ -420,9 +420,12 @@ describe('ParameterRepository', () => {
       expect(adapter.query).toHaveBeenCalledTimes(1);
       const [sql, params] = (adapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('INSERT INTO parameters');
+      expect(sql).toContain(
+        '(id, package_id, module_id, method_id, name, type, is_optional, is_rest, default_value, type_is_any, is_implicit_any, created_at)'
+      );
       expect(sql).toContain('VALUES');
-      // Should have two sets of placeholders (10 columns each)
-      expect(params).toHaveLength(20);
+      // Should have two sets of placeholders (12 columns each) = 24 params
+      expect(params).toHaveLength(24);
     });
 
     it('falls back to individual inserts on duplicate key error', async () => {

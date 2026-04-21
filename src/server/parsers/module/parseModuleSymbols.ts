@@ -1,5 +1,11 @@
 import { generateEnumUUID, generateFunctionUUID, generateTypeAliasUUID, generateVariableUUID } from '../../utils/uuid';
-import { getIdentifierName, getReturnTypeFromNode, getTypeFromAnnotation } from './astUtils';
+import {
+  getIdentifierName,
+  getNodeLineRange,
+  getReturnTypeFromNode,
+  getTypeFromAnnotation,
+  hasJsDocComment,
+} from './astUtils';
 
 import type { ASTNode, ASTPath, Identifier, JSCodeshift, TSTypeAnnotation, TSTypeParameter } from 'jscodeshift';
 
@@ -105,6 +111,11 @@ export function parseFunctions(ctx: ModuleParserContext, exports: Set<string>, r
 
     const hasExplicitReturnType = 'returnType' in node && node.returnType != null;
     const returnType = getReturnTypeFromNode(ctx.j, node, ctx.logger);
+    const { start_line, end_line } = getNodeLineRange(node);
+    const paramCount =
+      'params' in node && Array.isArray((node as { params?: unknown[] }).params)
+        ? (node as { params: unknown[] }).params.length
+        : 0;
 
     const functionDTO: IFunctionCreateDTO = {
       id: functionId,
@@ -115,6 +126,11 @@ export function parseFunctions(ctx: ModuleParserContext, exports: Set<string>, r
       is_async: node.async ?? false,
       is_exported: true,
       has_explicit_return_type: hasExplicitReturnType,
+      ...(start_line !== undefined ? { start_line } : {}),
+      ...(end_line !== undefined ? { end_line } : {}),
+      parameter_count: paramCount,
+      has_jsdoc: hasJsDocComment(node),
+      return_type_is_any: returnType === 'any',
     };
 
     result.functions.push(functionDTO);

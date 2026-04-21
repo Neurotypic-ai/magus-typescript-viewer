@@ -4,8 +4,11 @@ import { computed, inject, toRef } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
 import { NodeToolbar } from '@vue-flow/node-toolbar';
 
+import { useNodeMetricColor } from '../../composables/useNodeMetricColor';
+import { useGraphSettings } from '../../stores/graphSettings';
 import { useInsightsStore } from '../../stores/insightsStore';
 import { useIssuesStore } from '../../stores/issuesStore';
+import { useMetricsStore } from '../../stores/metricsStore';
 import InsightBadgeStrip from './InsightBadgeStrip.vue';
 import { HIGHLIGHT_ORPHAN_GLOBAL_KEY, NODE_ACTIONS_KEY, resolveSubnodesCount } from './utils';
 
@@ -32,8 +35,16 @@ const highlightOrphanGlobal = inject(HIGHLIGHT_ORPHAN_GLOBAL_KEY, undefined);
 
 const issuesStore = useIssuesStore();
 const insightsStore = useInsightsStore();
+const metricsStore = useMetricsStore();
+const graphSettings = useGraphSettings();
 
 const nodeData = toRef(props, 'data');
+const nodeIdRef = toRef(props, 'id');
+const overlayModeRef = toRef(graphSettings, 'overlayMode');
+const overlayColor = useNodeMetricColor(nodeIdRef, overlayModeRef);
+const isDeadCodeDimmed = computed(
+  () => graphSettings.dimDeadCode && metricsStore.deadCodeModuleIds.has(props.id)
+);
 const isSelected = computed(() => props.selected);
 
 const issueCount = computed(() => issuesStore.issueCountByNodeId.get(props.id) ?? 0);
@@ -148,6 +159,20 @@ const containerClasses = computed(() => ({
   'base-node-insight-dimmed': isInsightDimmed.value,
 }));
 
+const overlayStyle = computed<Record<string, string | number>>(() => {
+  const extras: Record<string, string | number> = {};
+  // Background color from metrics overlay — applied only when a mode is
+  // active and the node has data. Selection/orphan outlines rely on border
+  // and outline rules, so the overlay color does not interfere with them.
+  if (overlayColor.value !== undefined) {
+    extras['backgroundColor'] = overlayColor.value;
+  }
+  if (isDeadCodeDimmed.value) {
+    extras['opacity'] = 0.3;
+  }
+  return extras;
+});
+
 const containerStyle = computed(() => {
   if (inferredContainer.value) {
     return {
@@ -156,12 +181,14 @@ const containerStyle = computed(() => {
       minWidth: '100%',
       minHeight: '100%',
       zIndex: props.zIndex,
+      ...overlayStyle.value,
     };
   }
 
   return {
     minWidth: props.minWidth,
     zIndex: props.zIndex,
+    ...overlayStyle.value,
   };
 });
 </script>

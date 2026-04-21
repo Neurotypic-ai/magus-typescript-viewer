@@ -419,9 +419,14 @@ describe('FunctionRepository', () => {
       expect(adapter.query).toHaveBeenCalledOnce();
       const [sql, params] = firstQueryCall(adapter);
       expect(sql).toContain('INSERT INTO functions');
-      expect(sql).toContain('(?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?)');
-      // 2 items x 8 columns = 16 params
-      expect(params).toHaveLength(16);
+      expect(sql).toContain(
+        '(id, package_id, module_id, name, return_type, is_async, is_exported, has_explicit_return_type, start_line, end_line, logical_lines, cyclomatic, cognitive, max_nesting, parameter_count, has_jsdoc, return_type_is_any)'
+      );
+      expect(sql).toContain(
+        '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      );
+      // 2 items x 17 columns = 34 params
+      expect(params).toHaveLength(34);
     });
 
     it('should do nothing when given an empty array', async () => {

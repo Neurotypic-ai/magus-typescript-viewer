@@ -502,11 +502,12 @@ describe('InterfaceRepository', () => {
       expect(mockAdapter.query).toHaveBeenCalledTimes(1);
       const [sql, params] = (mockAdapter.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
       expect(sql).toContain('INSERT INTO interfaces');
-      expect(sql).toContain('(id, package_id, module_id, name, created_at)');
-      // Two rows, 5 columns each = 10 params
-      expect(params).toHaveLength(10);
+      expect(sql).toContain('(id, package_id, module_id, name, start_line, end_line, has_jsdoc, created_at)');
+      // Two rows, 8 columns each = 16 params
+      expect(params).toHaveLength(16);
       expect(params[0]).toBe('id-1');
-      expect(params[5]).toBe('id-2');
+      // Second row's id is at index 8
+      expect(params[8]).toBe('id-2');
     });
 
     it('should do nothing for an empty array', async () => {

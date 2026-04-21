@@ -33,6 +33,18 @@ const GRAPH_SETTINGS_CACHE_KEY = 'v3:typescript-viewer-graph-settings';
 
 type RelationshipType = (typeof DEFAULT_RELATIONSHIP_TYPES)[number];
 
+/**
+ * Overlay mode for metric-driven visual treatments applied on top of existing
+ * node styling. `'none'` leaves the graph unchanged; the other modes recolor
+ * nodes based on per-entity metrics emitted by the analysis pipeline.
+ */
+export const OVERLAY_MODES = ['none', 'complexity', 'coupling', 'typeSafety'] as const;
+export type OverlayMode = (typeof OVERLAY_MODES)[number];
+
+function isOverlayMode(value: unknown): value is OverlayMode {
+  return typeof value === 'string' && (OVERLAY_MODES as readonly string[]).includes(value);
+}
+
 interface RelationshipAvailability {
   available: boolean;
   reason?: string;
@@ -50,6 +62,9 @@ interface PersistedGraphSettings {
   showFpsAdvanced?: boolean;
   collapsedFolderIds?: string[];
   showDebugNodeIds?: boolean;
+  overlayMode?: string;
+  highlightCycles?: boolean;
+  dimDeadCode?: boolean;
 }
 
 interface GraphSettingsStore {
@@ -70,6 +85,12 @@ interface GraphSettingsStore {
   toggleFolderCollapsed: (folderId: string) => void;
   showDebugNodeIds: Ref<boolean>;
   setShowDebugNodeIds: (value: boolean) => void;
+  overlayMode: Ref<OverlayMode>;
+  highlightCycles: Ref<boolean>;
+  dimDeadCode: Ref<boolean>;
+  setOverlayMode: (mode: OverlayMode) => void;
+  setHighlightCycles: (value: boolean) => void;
+  setDimDeadCode: (value: boolean) => void;
 }
 
 const createGraphSettingsStore = (): GraphSettingsStore => {
@@ -80,6 +101,9 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
   const showFpsAdvanced = ref<boolean>(false);
   const collapsedFolderIds = ref<Set<string>>(new Set());
   const showDebugNodeIds = ref<boolean>(false);
+  const overlayMode = ref<OverlayMode>('none');
+  const highlightCycles = ref<boolean>(false);
+  const dimDeadCode = ref<boolean>(false);
 
   const relationshipAvailability = computed<Record<RelationshipType, RelationshipAvailability>>(() => {
     return {
@@ -133,6 +157,15 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
       if (typeof parsed.showDebugNodeIds === 'boolean') {
         showDebugNodeIds.value = parsed.showDebugNodeIds;
       }
+      if (isOverlayMode(parsed.overlayMode)) {
+        overlayMode.value = parsed.overlayMode;
+      }
+      if (typeof parsed.highlightCycles === 'boolean') {
+        highlightCycles.value = parsed.highlightCycles;
+      }
+      if (typeof parsed.dimDeadCode === 'boolean') {
+        dimDeadCode.value = parsed.dimDeadCode;
+      }
     } catch {
       // Ignore persisted settings parse failures.
     }
@@ -152,6 +185,9 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
         showFpsAdvanced: showFpsAdvanced.value,
         collapsedFolderIds: Array.from(collapsedFolderIds.value),
         showDebugNodeIds: showDebugNodeIds.value,
+        overlayMode: overlayMode.value,
+        highlightCycles: highlightCycles.value,
+        dimDeadCode: dimDeadCode.value,
       };
       localStorage.setItem(GRAPH_SETTINGS_CACHE_KEY, JSON.stringify(payload));
     } catch {
@@ -210,6 +246,21 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
     persistSettings();
   }
 
+  function setOverlayMode(mode: OverlayMode): void {
+    overlayMode.value = mode;
+    persistSettings();
+  }
+
+  function setHighlightCycles(value: boolean): void {
+    highlightCycles.value = value;
+    persistSettings();
+  }
+
+  function setDimDeadCode(value: boolean): void {
+    dimDeadCode.value = value;
+    persistSettings();
+  }
+
   loadSettings();
 
   return {
@@ -230,6 +281,12 @@ const createGraphSettingsStore = (): GraphSettingsStore => {
     toggleFolderCollapsed,
     showDebugNodeIds,
     setShowDebugNodeIds,
+    overlayMode,
+    highlightCycles,
+    dimDeadCode,
+    setOverlayMode,
+    setHighlightCycles,
+    setDimDeadCode,
   };
 };
 

@@ -1,5 +1,5 @@
 import { generateInterfaceUUID } from '../../utils/uuid';
-import { getHeritageClauseName } from './astUtils';
+import { getHeritageClauseName, getNodeLineRange, hasJsDocComment } from './astUtils';
 import { parseMethods, parseProperties } from './parseMembersShared';
 
 import type { ASTNode } from 'jscodeshift';
@@ -14,11 +14,15 @@ export function parseInterfaces(ctx: ModuleParserContext, result: ParseResult): 
 
     const interfaceId = generateInterfaceUUID(ctx.packageId, ctx.moduleId, node.id.name);
 
+    const { start_line, end_line } = getNodeLineRange(node);
     result.interfaces.push({
       id: interfaceId,
       package_id: ctx.packageId,
       module_id: ctx.moduleId,
       name: node.id.name,
+      ...(start_line !== undefined ? { start_line } : {}),
+      ...(end_line !== undefined ? { end_line } : {}),
+      has_jsdoc: hasJsDocComment(node),
     });
 
     // Extract extends relationships (deferred name-based resolution)

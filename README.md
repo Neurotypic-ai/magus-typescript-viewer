@@ -9,6 +9,71 @@ powered by ELKJS to provide a clear, hierarchical view of package, module, and c
 features include automated AST transformations with jscodeshift, a command-line interface built with commander, and
 styling provided by Tailwind CSS and Material-UI.
 
+## Advanced Static Analysis
+
+The analyzer runs 10 pluggable passes producing complexity, coupling, type-safety, dead-code,
+duplication, architectural, documentation, and call-graph metrics. Results persist into the
+DuckDB snapshot alongside the parsed graph so the UI can render them as heatmaps, panels, and
+historical trend charts.
+
+### Running the analyzer
+
+```bash
+# Fast tier (size + knip + eslint + dep-cruiser + duplication + rules + legacy passes)
+pnpm analyze .
+
+# Full ts-morph-powered analysis (adds complexity, type-safety, call-graph, coupling,
+# documentation, and maintainability-index analyzers)
+pnpm analyze --deep .
+```
+
+### Flags reference
+
+| Flag | Purpose |
+| --- | --- |
+| `--deep` | Enable analyzers that require a shared ts-morph `Project`. |
+| `--analyzers <csv>` | Allowlist by analyzer id (e.g. `--analyzers size,knip`). |
+| `--no-size` / `--no-knip` / `--no-eslint` / `--no-dep-cruiser` / `--no-duplication` | Disable a specific analyzer. |
+| `--config <path>` | Explicit path to a `typescript-viewer.analysis.json` file. |
+| `--baseline <id\|latest>` | Compare metric deltas against a prior snapshot. |
+| `--max-workers <n>` | Bound on concurrent per-file work (defaults to `cpu-count - 1`). |
+
+### Config file
+
+Drop a `typescript-viewer.analysis.json` at the project root to override thresholds,
+architecture rules, analyzer allowlists, and ESLint extras. A template ships at
+[`typescript-viewer.analysis.example.json`](./typescript-viewer.analysis.example.json) - copy
+it and tweak.
+
+### Tuning
+
+- **Per-analyzer policy stubs** live at [`src/server/analysis/policies/`](./src/server/analysis/policies/).
+  They hold the risk-appetite knobs (complexity classification, maintainability-index
+  formula) that are most productively customized per codebase.
+- **Built-in ESLint rules** for the analyzer run are assembled in
+  [`src/server/analysis/eslint/analysis.config.ts`](./src/server/analysis/eslint/analysis.config.ts).
+  Extend them from the `eslint.extraRules` block in the config file.
+
+### Dashboard
+
+Run `pnpm dev` to boot the visualization server. The **Metrics** panel in the graph UI exposes
+seven tabs that read directly from the persisted snapshot:
+
+- **Summary** - health score, counts of critical/warning/info insights.
+- **Complexity** - cyclomatic/cognitive heatmaps + top offenders.
+- **Type Safety** - `any` density, unchecked casts, implicit-any drift.
+- **Dead Code** - knip + unreferenced exports.
+- **Duplication** - jscpd clusters with jump-to-source.
+- **Architecture** - layered-architecture forbidden-rule violations.
+- **Trends** - baseline delta tables for each metric family.
+
+### Graph overlays
+
+The main graph view accepts analyzer-driven overlays: **Complexity**, **Coupling**, and
+**TypeSafety** heatmaps tint nodes; **Cycle** highlights decorate edges inside a detected
+dependency cycle; the **Dead-code** overlay dims unreferenced modules so you can spot them at
+a glance.
+
 ## Installation
 
 ### Prerequisites

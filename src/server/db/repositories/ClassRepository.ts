@@ -27,13 +27,21 @@ export class ClassRepository extends BaseRepository<Class, IClassCreateDTO, ICla
    * Batch-insert multiple classes at once. Ignores duplicates.
    */
   async createBatch(items: IClassCreateDTO[]): Promise<void> {
-    await this.executeBatchInsert('(id, package_id, module_id, name, extends_id)', 5, items, (dto) => [
-      dto.id,
-      dto.package_id,
-      dto.module_id,
-      dto.name,
-      dto.extends_id ?? null,
-    ]);
+    await this.executeBatchInsert(
+      '(id, package_id, module_id, name, extends_id, start_line, end_line, has_jsdoc)',
+      8,
+      items,
+      (dto) => [
+        dto.id,
+        dto.package_id,
+        dto.module_id,
+        dto.name,
+        dto.extends_id ?? null,
+        dto.start_line ?? null,
+        dto.end_line ?? null,
+        dto.has_jsdoc ?? null,
+      ]
+    );
   }
 
   async create(dto: IClassCreateDTO): Promise<Class> {

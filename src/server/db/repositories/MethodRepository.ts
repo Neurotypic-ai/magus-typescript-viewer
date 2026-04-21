@@ -33,8 +33,8 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
    */
   async createBatch(items: IMethodCreateDTO[]): Promise<void> {
     await this.executeBatchInsert(
-      '(id, package_id, module_id, parent_id, parent_type, name, return_type, is_static, is_async, visibility, has_explicit_return_type)',
-      11,
+      '(id, package_id, module_id, parent_id, parent_type, name, return_type, is_static, is_async, visibility, has_explicit_return_type, start_line, end_line, logical_lines, cyclomatic, cognitive, max_nesting, parameter_count, has_jsdoc, return_type_is_any)',
+      20,
       items,
       (dto) => [
         dto.id,
@@ -48,6 +48,15 @@ export class MethodRepository extends BaseRepository<Method, IMethodCreateDTO, I
         dto.is_async,
         dto.visibility,
         dto.has_explicit_return_type ?? false,
+        dto.start_line ?? null,
+        dto.end_line ?? null,
+        dto.logical_lines ?? null,
+        dto.cyclomatic ?? null,
+        dto.cognitive ?? null,
+        dto.max_nesting ?? null,
+        dto.parameter_count ?? null,
+        dto.has_jsdoc ?? null,
+        dto.return_type_is_any ?? null,
       ]
     );
   }

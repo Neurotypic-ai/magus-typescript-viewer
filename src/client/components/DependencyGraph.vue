@@ -8,12 +8,14 @@ import { MiniMap } from '@vue-flow/minimap';
 
 import { DEFAULT_VIEWPORT, useDependencyGraphCore } from '../composables/useDependencyGraphCore';
 import { useGraphSearch } from '../composables/useGraphSearch';
+import { useMetricsStore } from '../stores/metricsStore';
 import { parseEnvBoolean, parseEnvFloat, parseEnvInt } from '../utils/env';
 import DebugBoundsOverlay from './DebugBoundsOverlay.vue';
 import FpsPanel from './FpsPanel.vue';
 import GraphControls from './GraphControls.vue';
 import GraphStatsPanel from './GraphStatsPanel.vue';
 import InsightsPanel from './InsightsPanel.vue';
+import MetricsDashboard from './MetricsDashboard.vue';
 import RankDebugPanel from './RankDebugPanel.vue';
 import IssuesPanel from './IssuesPanel.vue';
 import NodeContextMenu from './NodeContextMenu.vue';
@@ -67,6 +69,8 @@ const core = useDependencyGraphCore({
   graphRootRef,
   env,
 });
+
+const metricsStore = useMetricsStore();
 
 const graphSearchContext = useGraphSearch({
   nodes: core.nodes,
@@ -201,6 +205,7 @@ onMounted(() => {
   syncViewportState();
   void issuesStore.fetchIssues();
   void core.insightsStore.fetchInsights();
+  void metricsStore.fetchMetricsBundle();
 });
 
 onUnmounted(() => {
@@ -293,6 +298,17 @@ onUnmounted(() => {
             :selected-node="selectedNode"
           />
           <InsightsPanel />
+          <button
+            type="button"
+            class="metrics-dashboard-toggle nodrag"
+            :aria-pressed="metricsStore.dashboardOpen"
+            aria-label="Toggle metrics dashboard"
+            @click="metricsStore.toggleDashboard()"
+          >
+            <span>Metrics</span>
+            <span class="metrics-dashboard-toggle-chevron">{{ metricsStore.dashboardOpen ? '▾' : '▸' }}</span>
+          </button>
+          <MetricsDashboard v-if="metricsStore.dashboardOpen" />
         </div>
       </Panel>
       <MiniMap
@@ -603,5 +619,38 @@ onUnmounted(() => {
 
 .right-panels-column::-webkit-scrollbar {
   display: none;
+}
+
+.metrics-dashboard-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: min(22rem, calc(100vw - 1.5rem));
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border-default);
+  border-radius: 0.5rem;
+  background-color: var(--color-background-paper);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition:
+    background-color 140ms ease-out,
+    color 140ms ease-out;
+}
+
+.metrics-dashboard-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.metrics-dashboard-toggle[aria-pressed='true'] {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.metrics-dashboard-toggle-chevron {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
 }
 </style>

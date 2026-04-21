@@ -21,6 +21,12 @@ const NAMESPACES = {
   variable: 'c8f3a1e7-5b2d-4a9c-b6e1-d4f7c2a8e3b5',
   moduleDefinition: 'e481a0e5-fac9-4ec1-bd87-7f871c807db5',
   codeIssue: 'a3b2c1d0-e4f5-6789-abcd-ef0123456789',
+  analysisSnapshot: '2a5e91b6-8c7d-4f3e-a012-345678901234',
+  entityMetric: '3b6f82c7-9d8e-5a4f-b123-456789012345',
+  callEdge: '4c7f93d8-ae9f-6b5a-8234-567890123456',
+  dependencyCycle: '5d80a4e9-bfa0-7c6b-9345-678901234567',
+  duplicationCluster: '6e91b5fa-c0b1-5d7c-a456-789012345678',
+  architecturalViolation: '7fa2c60b-d1c2-8e8d-b567-890123456789',
 } as const;
 
 /**
@@ -90,3 +96,39 @@ export const generateCodeIssueUUID = (moduleId: string, ruleCode: string, entity
 /** Generate a deterministic UUID for a relationship record (junction table row) */
 export const generateRelationshipUUID = (sourceId: string, targetId: string, type: string): string =>
   generateUUID('class', `rel:${type}:${sourceId}:${targetId}`);
+
+/** Generate a deterministic UUID for an analysis snapshot. */
+export const generateAnalysisSnapshotUUID = (packageId: string, createdAt: string): string =>
+  generateUUID('analysisSnapshot', `${packageId}:${createdAt}`);
+
+/** Generate a deterministic UUID for an entity metric row. */
+export const generateEntityMetricUUID = (
+  snapshotId: string,
+  entityId: string,
+  entityType: string,
+  metricKey: string
+): string => generateUUID('entityMetric', `${snapshotId}:${entityType}:${entityId}:${metricKey}`);
+
+/** Generate a deterministic UUID for a call-graph edge. */
+export const generateCallEdgeUUID = (
+  sourceEntityId: string,
+  targetName: string,
+  callExpressionLine: number
+): string => generateUUID('callEdge', `${sourceEntityId}:${targetName}:${String(callExpressionLine)}`);
+
+/** Generate a deterministic UUID for a dependency cycle. */
+export const generateDependencyCycleUUID = (packageId: string, participantsKey: string): string =>
+  generateUUID('dependencyCycle', `${packageId}:${participantsKey}`);
+
+/** Generate a deterministic UUID for a duplication cluster, keyed on its fingerprint. */
+export const generateDuplicationClusterUUID = (packageId: string, fingerprint: string): string =>
+  generateUUID('duplicationCluster', `${packageId}:${fingerprint}`);
+
+/** Generate a deterministic UUID for an architectural violation record. */
+export const generateArchitecturalViolationUUID = (
+  snapshotId: string,
+  ruleName: string,
+  sourceModuleId: string,
+  targetModuleId: string
+): string =>
+  generateUUID('architecturalViolation', `${snapshotId}:${ruleName}:${sourceModuleId}:${targetModuleId}`);
