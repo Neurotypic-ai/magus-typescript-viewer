@@ -1523,4 +1523,98 @@ describe('buildOverviewGraph', () => {
       expect(summarize(resultOn.nodes)).toEqual(summarize(resultOff.nodes));
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Phase 3 — fan-in trunk bundling
+  // -----------------------------------------------------------------------
+
+  describe('fan-in trunk bundling (Phase 3)', () => {
+    /**
+     * Build a package where six modules all import a single hub module. At the
+     * overview level `bundleParallelEdges` has no effect (distinct sources),
+     * so `bundleFanInTrunks` is the only pass that can produce a trunk.
+     */
+    function hubGraph(): PackageGraph {
+      const consumers = Array.from({ length: 6 }, (_, i) => {
+        const id = `mod-consumer-${String(i)}`;
+        return makeModule(id, `${id}.ts`, 'pkg-1', `src/${id}.ts`, {
+          imports: {
+            [`i-${String(i)}`]: {
+              uuid: `i-${String(i)}`,
+              name: 'hub',
+              fullPath: './hub',
+              relativePath: './hub',
+              specifiers: new Map(),
+              depth: 0,
+            },
+          },
+        });
+      });
+      const hub = makeModule('mod-hub', 'hub.ts', 'pkg-1', 'src/hub.ts');
+      const modules: Record<string, Module> = { hub };
+      for (const c of consumers) modules[c.id] = c;
+      return makeGraph([makePackage('pkg-1', 'app', modules)]);
+    }
+
+    it('produces a fanInTrunk edge and fanInStub edges when 6 imports converge on one module', () => {
+      const result = buildOverviewGraph(
+        defaultOptions({
+          data: hubGraph(),
+          enabledRelationshipTypes: ['import'],
+        })
+      );
+
+      // Hub's parent folder is `dir:app:src`, so the lift pass may collapse
+      // module-level edges to folder-level crossFolder edges; the fan-in
+      // pass still operates on the *module-level* edges that are NOT lifted
+      // (same-folder imports). All six consumers share the src folder with
+      // the hub, so intra-folder edges survive — that's what the bundler
+      // sees.
+      const trunks = result.edges.filter((e) => e.data?.type === 'fanInTrunk');
+      const stubs = result.edges.filter((e) => e.data?.type === 'fanInStub');
+      expect(trunks).toHaveLength(1);
+      expect(stubs).toHaveLength(6);
+    });
+
+    it('leaves edges unchanged when the hub receives fewer than the threshold (default 6)', () => {
+      // Only 5 consumers → below threshold.
+      const consumers = Array.from({ length: 5 }, (_, i) => {
+        const id = `mod-consumer-${String(i)}`;
+        return makeModule(id, `${id}.ts`, 'pkg-1', `src/${id}.ts`, {
+          imports: {
+            [`i-${String(i)}`]: {
+              uuid: `i-${String(i)}`,
+              name: 'hub',
+              fullPath: './hub',
+              relativePath: './hub',
+              specifiers: new Map(),
+              depth: 0,
+            },
+          },
+        });
+      });
+      const hub = makeModule('mod-hub', 'hub.ts', 'pkg-1', 'src/hub.ts');
+      const modules: Record<string, Module> = { hub };
+      for (const c of consumers) modules[c.id] = c;
+      const data = makeGraph([makePackage('pkg-1', 'app', modules)]);
+
+      const result = buildOverviewGraph(defaultOptions({ data, enabledRelationshipTypes: ['import'] }));
+
+      expect(result.edges.filter((e) => e.data?.type === 'fanInTrunk')).toHaveLength(0);
+      expect(result.edges.filter((e) => e.data?.type === 'fanInStub')).toHaveLength(0);
+    });
+
+    it('skips trunk bundling entirely when useFanInTrunks is false', () => {
+      const result = buildOverviewGraph(
+        defaultOptions({
+          data: hubGraph(),
+          enabledRelationshipTypes: ['import'],
+          useFanInTrunks: false,
+        })
+      );
+
+      expect(result.edges.filter((e) => e.data?.type === 'fanInTrunk')).toHaveLength(0);
+      expect(result.edges.filter((e) => e.data?.type === 'fanInStub')).toHaveLength(0);
+    });
+  });
 });

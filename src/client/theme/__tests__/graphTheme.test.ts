@@ -29,6 +29,8 @@ const EDGE_KINDS: DependencyEdgeKind[] = [
   'extends',
   'contains',
   'uses',
+  'fanInTrunk',
+  'fanInStub',
 ];
 
 describe('graphTheme contract', () => {

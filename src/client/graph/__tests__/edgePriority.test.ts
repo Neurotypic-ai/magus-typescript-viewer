@@ -16,6 +16,8 @@ describe('EDGE_KIND_PRIORITY', () => {
       'devDependency',
       'peerDependency',
       'export',
+      'fanInTrunk',
+      'fanInStub',
     ];
 
     for (const kind of allKinds) {
@@ -24,8 +26,8 @@ describe('EDGE_KIND_PRIORITY', () => {
     }
   });
 
-  it('has exactly 9 entries matching all DependencyEdgeKind values', () => {
-    expect(Object.keys(EDGE_KIND_PRIORITY)).toHaveLength(9);
+  it('has exactly 11 entries matching all DependencyEdgeKind values', () => {
+    expect(Object.keys(EDGE_KIND_PRIORITY)).toHaveLength(11);
   });
 
   // ── Tier verification ─────────────────────────────────────────────────

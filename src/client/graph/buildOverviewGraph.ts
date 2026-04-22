@@ -21,6 +21,7 @@ import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS } from './handleRouting';
 import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
+import { bundleFanInTrunks } from './layout/bundleFanInTrunks';
 import { computeStronglyConnectedComponents, condenseBySCC } from './layout/condenseBySCC';
 import { partitionForLayout } from './layout/partitionForLayout';
 import { layoutSCCInternal } from './layout/sccInternalLayout';
@@ -89,9 +90,14 @@ export interface BuildOverviewGraphOptions {
    * `assignEdgeSides` after positioning so each edge gets a cardinal side
    * at both endpoints based on geometry. When `false`, the pre-Phase-2
    * hardcoded right-out / left-in attachment is preserved.
-   * `buildOverviewGraph` only carries this through; the caller decides.
    */
   useFourSidedHandles?: boolean;
+  /**
+   * Phase 3 feature flag. When `true` (default), `bundleFanInTrunks` runs
+   * after parallel-edge bundling to collapse N-into-1 fan-in edges into a
+   * single trunk plus per-source stubs. `false` renders every edge.
+   */
+  useFanInTrunks?: boolean;
 }
 
 function applyGraphTransforms(graphData: GraphViewData): GraphViewData {
@@ -1139,13 +1145,17 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
 
   const visibleEdges = applyEdgeVisibility(projectedGraph.edges, options.enabledRelationshipTypes);
   const bundledEdges = bundleParallelEdges(visibleEdges);
-  const currentDegreeMap = buildDegreeMap(projectedGraph.nodes, bundledEdges, false);
+  const useFanInTrunks = options.useFanInTrunks ?? true;
+  const trunkBundledEdges = useFanInTrunks
+    ? bundleFanInTrunks(bundledEdges, projectedGraph.nodes)
+    : bundledEdges;
+  const currentDegreeMap = buildDegreeMap(projectedGraph.nodes, trunkBundledEdges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
   const nodesWithDiagnostics = annotateOrphanDiagnostics(projectedGraph.nodes, currentDegreeMap, globalDegreeMap);
 
   return {
     nodes: nodesWithDiagnostics,
-    edges: bundledEdges,
+    edges: trunkBundledEdges,
     semanticSnapshot,
   };
 }

@@ -12,4 +12,8 @@ export const EDGE_KIND_PRIORITY: Record<DependencyEdgeKind, number> = {
   devDependency: 0,
   peerDependency: 0,
   export: 0,
+  // Fan-in trunk synthetics are not semantic relationships; they should never
+  // win a priority tiebreak against the underlying `import` edges they group.
+  fanInTrunk: 0,
+  fanInStub: 0,
 };

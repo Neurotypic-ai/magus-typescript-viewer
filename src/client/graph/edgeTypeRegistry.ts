@@ -95,6 +95,27 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
     directed: true,
     handleCategory: 'relational',
   },
+  // Fan-in trunk bundling (Phase 3). A `fanInTrunk` edge runs from a synthetic
+  // junction point toward the shared target; `fanInStub` edges run from each
+  // source to the junction. Valid source/target kinds mirror every module-level
+  // node kind that can appear as an edge endpoint at the overview level. (SCC
+  // supernodes ship in Phase 5 and will be added to this list then.)
+  fanInTrunk: {
+    kind: 'fanInTrunk',
+    label: 'Fan-in Trunk',
+    validSources: ['module', 'class', 'interface', 'externalPackage', 'group'],
+    validTargets: ['module', 'class', 'interface', 'externalPackage', 'group'],
+    directed: true,
+    handleCategory: 'relational',
+  },
+  fanInStub: {
+    kind: 'fanInStub',
+    label: 'Fan-in Stub',
+    validSources: ['module', 'class', 'interface', 'externalPackage', 'group'],
+    validTargets: ['module', 'class', 'interface', 'externalPackage', 'group'],
+    directed: true,
+    handleCategory: 'relational',
+  },
 };
 
 export function isValidEdgeConnection(

@@ -21,6 +21,8 @@ import IssuesPanel from './IssuesPanel.vue';
 import NodeContextMenu from './NodeContextMenu.vue';
 import NodeDetails from './NodeDetails.vue';
 import CrossFolderEdge from './edges/CrossFolderEdge.vue';
+import FanInStubEdge from './edges/FanInStubEdge.vue';
+import FanInTrunkEdge from './edges/FanInTrunkEdge.vue';
 import FolderStubEdge from './edges/FolderStubEdge.vue';
 import IntraFolderEdge from './edges/IntraFolderEdge.vue';
 import NodePremeasureHost from './nodes/measure/NodePremeasureHost.vue';
@@ -169,6 +171,8 @@ const edgeTypes: Record<string, Component> = Object.freeze({
   crossFolder: CrossFolderEdge,
   folderStub: FolderStubEdge,
   intraFolder: IntraFolderEdge,
+  fanInTrunk: FanInTrunkEdge,
+  fanInStub: FanInStubEdge,
 });
 
 provide(NODE_ACTIONS_KEY, nodeActions);
