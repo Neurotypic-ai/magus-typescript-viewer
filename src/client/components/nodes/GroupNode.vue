@@ -3,6 +3,7 @@ import { computed, inject } from 'vue';
 
 import { Handle, Position } from '@vue-flow/core';
 
+import { MODULE_HANDLE_IDS } from '../../graph/handleRouting';
 import { FOLDER_COLLAPSE_ACTIONS_KEY } from './utils';
 
 import type { DependencyProps } from '../../types/DependencyProps';
@@ -58,6 +59,23 @@ const folderHandles: FolderHandleConfig[] = [
     class: 'folder-handle',
   },
 ];
+
+/**
+ * Phase 2 four-sided module handles. Group (folder) nodes rarely attach to
+ * module-level edges directly, but the eight canonical handles must be
+ * present on every node component so `assignEdgeSides` can route to any
+ * cardinal side without Vue Flow logging missing-handle warnings.
+ */
+const moduleSideHandles: { id: string; type: HandleType; position: Position }[] = [
+  { id: MODULE_HANDLE_IDS.topIn, type: 'target', position: Position.Top },
+  { id: MODULE_HANDLE_IDS.topOut, type: 'source', position: Position.Top },
+  { id: MODULE_HANDLE_IDS.rightIn, type: 'target', position: Position.Right },
+  { id: MODULE_HANDLE_IDS.rightOut, type: 'source', position: Position.Right },
+  { id: MODULE_HANDLE_IDS.bottomIn, type: 'target', position: Position.Bottom },
+  { id: MODULE_HANDLE_IDS.bottomOut, type: 'source', position: Position.Bottom },
+  { id: MODULE_HANDLE_IDS.leftIn, type: 'target', position: Position.Left },
+  { id: MODULE_HANDLE_IDS.leftOut, type: 'source', position: Position.Left },
+];
 </script>
 
 <template>
@@ -87,6 +105,16 @@ const folderHandles: FolderHandleConfig[] = [
       :position="h.position"
       :style="h.style"
       :class="h.class"
+      :tabindex="-1"
+      aria-hidden="true"
+    />
+    <Handle
+      v-for="h in moduleSideHandles"
+      :id="h.id"
+      :key="h.id"
+      :type="h.type"
+      :position="h.position"
+      class="group-module-handle"
       :tabindex="-1"
       aria-hidden="true"
     />
@@ -226,6 +254,23 @@ const folderHandles: FolderHandleConfig[] = [
   height: 1px !important;
   opacity: 0;
   pointer-events: none;
+}
+
+/*
+ * Phase 2 side handles on group nodes — kept 1px invisible so Vue Flow can
+ * route edges to any cardinal side when a module-level edge happens to
+ * attach directly to the folder container.
+ */
+.group-module-handle {
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 1px;
+  min-height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 </style>

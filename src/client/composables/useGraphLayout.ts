@@ -4,6 +4,7 @@ import { consola } from 'consola';
 
 import { buildOverviewGraph } from '../graph/buildGraphView';
 import { getHandlePositions } from '../graph/handleRouting';
+import { assignEdgeSides } from '../graph/layout/assignEdgeSides';
 import { layoutExternalBand } from '../graph/layout/layoutExternalBand';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { parseDimension, resolveNodeDimensions } from '../layout/geometryBounds';
@@ -89,6 +90,12 @@ export interface GraphSettings {
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
+  /**
+   * Feature flag for Phase 2 four-sided handle routing. Defaults to `true`.
+   * When `false`, edges keep the pre-Phase-2 hardcoded right-out / left-in
+   * attachment and `assignEdgeSides` is skipped entirely.
+   */
+  useFourSidedHandles?: boolean;
 }
 
 /** Options passed to fitView (duration, padding, node ids to fit). */
@@ -392,6 +399,15 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   const normalizeLayoutResult = (resultNodes: DependencyNode[], resultEdges: GraphEdge[]): GraphSnapshot => {
     const { sourcePosition, targetPosition } = getHandlePositions(layoutConfig.direction);
 
+    // Phase 2: edges carry per-edge source/target sides via explicit
+    // `sourceHandle` / `targetHandle` assignments produced by
+    // `assignEdgeSides` (with `data.edgeSourceSide` / `data.edgeSide` kept
+    // for downstream phases). Vue Flow routes each edge through the named
+    // handle — no per-edge position override needed. We still stamp the
+    // legacy `sourcePosition` / `targetPosition` node-level defaults so
+    // edges lacking explicit handles (e.g. on the rare back-edge or
+    // pre-layout stub) still fall back to the historical right/left
+    // attachment.
     const nodesWithHandles = resultNodes.map((node) => ({
       ...node,
       sourcePosition,
@@ -508,7 +524,27 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         };
       });
 
-      const normalized = normalizeLayoutResult(positionedNodes, graphData.edges);
+      // Phase 2: assign cardinal sides to edges. We need *absolute* node
+      // positions for direction math — children of a folder have parent-
+      // relative positions, but the layout result's `positions` map tracks
+      // each node's own frame, which for root nodes is absolute. For edges
+      // crossing folder boundaries we rely on the cross-folder trunk
+      // structure carrying its own handles (folder-*-stub / folder-*-out),
+      // which `assignEdgeSides` leaves untouched via the folder-handle
+      // guard.
+      const useFourSidedHandles = graphSettings.useFourSidedHandles !== false;
+      const sizeLookup = new Map<string, { width: number; height: number }>();
+      for (const node of positionedNodes) {
+        const rawSize = layoutResult.sizes.get(node.id);
+        if (rawSize && typeof rawSize.width === 'number' && typeof rawSize.height === 'number') {
+          sizeLookup.set(node.id, rawSize);
+        }
+      }
+      const edgesWithSides = useFourSidedHandles
+        ? assignEdgeSides(graphData.edges, positionedNodes, layoutResult.positions, 10, { sizes: sizeLookup })
+        : graphData.edges;
+
+      const normalized = normalizeLayoutResult(positionedNodes, edgesWithSides);
 
       const previousNodes = graphStore.nodes;
 
@@ -567,6 +603,7 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         collapsedFolderIds: graphSettings.collapsedFolderIds,
         hideTestFiles: graphSettings.hideTestFiles,
         highlightOrphanGlobal: graphSettings.highlightOrphanGlobal,
+        useFourSidedHandles: graphSettings.useFourSidedHandles !== false,
       });
       graphStore.setSemanticSnapshot(overviewGraph.semanticSnapshot ?? null);
 

@@ -72,24 +72,26 @@ export interface BuildOverviewGraphOptions {
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
   /**
-   * Phase 1 feature flag (plan §4.1 / §6 / §8.1).
-   *
-   * When `true` (default), external packages are removed from the Sugiyama
-   * input before layering and re-joined as root-level nodes. The caller
-   * (`useGraphLayout`) positions them in the peripheral band via
-   * `layoutExternalBand`. When `false`, externals participate in layering
-   * like any other node (legacy behaviour). A/B toggle.
+   * Phase 1 feature flag. Partition externals out of the Sugiyama input and
+   * re-join as root-level nodes; `useGraphLayout` positions them in the
+   * peripheral band via `layoutExternalBand`. When `false`, externals
+   * participate in layering like any other node (legacy behaviour).
    */
   useExternalBand?: boolean;
   /**
-   * Phase 5 feature flag. When `true` (default), Tarjan SCC condensation
-   * replaces ad-hoc DFS back-edge classification: the layering pipeline
-   * operates on a canonical DAG (supernodes + inter-SCC edges) and cycle
-   * members are packaged into synthetic SCC nodes. When `false`, the legacy
-   * `detectBackEdges`/`markBackEdges` path runs — preserving byte-identical
-   * output for any graph that has no cycles.
+   * Phase 5 feature flag. Tarjan SCC condensation on the layering subgraph
+   * instead of ad-hoc DFS back-edge classification. Cycle-free input produces
+   * byte-identical output regardless of this flag.
    */
   useSccCondensation?: boolean;
+  /**
+   * Phase 2 feature flag. When `true` (default), `useGraphLayout` calls
+   * `assignEdgeSides` after positioning so each edge gets a cardinal side
+   * at both endpoints based on geometry. When `false`, the pre-Phase-2
+   * hardcoded right-out / left-in attachment is preserved.
+   * `buildOverviewGraph` only carries this through; the caller decides.
+   */
+  useFourSidedHandles?: boolean;
 }
 
 function applyGraphTransforms(graphData: GraphViewData): GraphViewData {
