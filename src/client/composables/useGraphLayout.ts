@@ -424,14 +424,11 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
       };
 
       // Phase 1: overlay external-package positions into the peripheral band
-      // below the internal graph.  `buildOverviewGraph` has already tagged
-      // externals with `data.layoutBand === 'external'` and re-added them as
-      // root-level nodes, so we simply pick them out of `graphData.nodes` and
-      // run the external-band layout over them using the just-computed
-      // internal positions as input.
-      //
-      // Plan §6 Phase 1 / §10: band orientation is bottom; gap = 240px;
-      // tier height = 320px; 3 tiers.
+      // below the internal graph. `buildOverviewGraph` has already tagged
+      // externals with `data.layoutBand === 'external'`; we pick them out and
+      // run the band layout over them using the just-computed internal
+      // positions as input. Band orientation: bottom, 240px gap, 320px tiers,
+      // 3 tiers (plan §6 Phase 1 / §10).
       const externals = graphData.nodes.filter(
         (node) => node.data?.layoutBand === 'external' || node.type === 'externalPackage'
       );
@@ -452,14 +449,44 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         }
       }
 
+      // Phase 5: SCC supernodes carry their members' relative positions and
+      // the supernode's bounding-box size on node.data. Override the simple
+      // hierarchical layout for both members (relative positions) and the
+      // supernode (explicit size), mirroring how folder sizes work but kept
+      // out of computeSimpleHierarchicalLayout (Phase 1 owns that).
+      const sccMemberPositionOverrides = new Map<string, { x: number; y: number }>();
+      const sccParentSizeOverrides = new Map<string, { width: number; height: number }>();
+      for (const node of graphData.nodes) {
+        if (node.type !== 'scc') continue;
+        const rawPositions = node.data?.sccMemberPositions;
+        const size = node.data?.sccSize;
+        if (size) sccParentSizeOverrides.set(node.id, size);
+        if (rawPositions && typeof rawPositions === 'object') {
+          for (const [memberId, pos] of Object.entries(rawPositions)) {
+            if (
+              pos &&
+              typeof pos === 'object' &&
+              typeof (pos as { x?: unknown }).x === 'number' &&
+              typeof (pos as { y?: unknown }).y === 'number'
+            ) {
+              const typed = pos as { x: number; y: number };
+              sccMemberPositionOverrides.set(memberId, { x: typed.x, y: typed.y });
+            }
+          }
+        }
+      }
+
       // Apply computed positions and explicit sizes to nodes.
       // Children get relative positions within their parent; parents get explicit
       // CSS width/height strings so Vue Flow renders them large enough to enclose
       // children. Using CSS strings in node.style is the same format Vue Flow's
       // own handleParentExpand uses, ensuring consistent dimension tracking.
       const positionedNodes = graphData.nodes.map((node) => {
-        const pos = layoutResult.positions.get(node.id);
-        const rawSize = layoutResult.sizes.get(node.id);
+        // SCC overrides take priority over simpleHierarchicalLayout's decisions.
+        const overridePos = sccMemberPositionOverrides.get(node.id);
+        const overrideSize = sccParentSizeOverrides.get(node.id);
+        const pos = overridePos ?? layoutResult.positions.get(node.id);
+        const rawSize = overrideSize ?? layoutResult.sizes.get(node.id);
         const sz =
           rawSize && typeof rawSize.width === 'number' && typeof rawSize.height === 'number' ? rawSize : undefined;
         const styleBase =
