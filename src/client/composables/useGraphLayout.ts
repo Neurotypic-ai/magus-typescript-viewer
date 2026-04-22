@@ -357,14 +357,45 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         sizes: Map<string, { width: number; height: number }>;
       };
 
+      // Phase 5: SCC supernodes carry their members' relative positions and
+      // the supernode's bounding-box size on node.data. If present, override
+      // the simple hierarchical layout's decisions for both the members and
+      // the supernode itself. This mirrors how folders get their sizes
+      // computed separately but keeps the code out of
+      // computeSimpleHierarchicalLayout (which Phase 1 owns).
+      const sccMemberPositionOverrides = new Map<string, { x: number; y: number }>();
+      const sccParentSizeOverrides = new Map<string, { width: number; height: number }>();
+      for (const node of graphData.nodes) {
+        if (node.type !== 'scc') continue;
+        const rawPositions = node.data?.sccMemberPositions;
+        const size = node.data?.sccSize;
+        if (size) sccParentSizeOverrides.set(node.id, size);
+        if (rawPositions && typeof rawPositions === 'object') {
+          for (const [memberId, pos] of Object.entries(rawPositions)) {
+            if (
+              pos &&
+              typeof pos === 'object' &&
+              typeof (pos as { x?: unknown }).x === 'number' &&
+              typeof (pos as { y?: unknown }).y === 'number'
+            ) {
+              const typed = pos as { x: number; y: number };
+              sccMemberPositionOverrides.set(memberId, { x: typed.x, y: typed.y });
+            }
+          }
+        }
+      }
+
       // Apply computed positions and explicit sizes to nodes.
       // Children get relative positions within their parent; parents get explicit
       // CSS width/height strings so Vue Flow renders them large enough to enclose
       // children. Using CSS strings in node.style is the same format Vue Flow's
       // own handleParentExpand uses, ensuring consistent dimension tracking.
       const positionedNodes = graphData.nodes.map((node) => {
-        const pos = layoutResult.positions.get(node.id);
-        const rawSize = layoutResult.sizes.get(node.id);
+        // SCC overrides take priority over simpleHierarchicalLayout's decisions.
+        const overridePos = sccMemberPositionOverrides.get(node.id);
+        const overrideSize = sccParentSizeOverrides.get(node.id);
+        const pos = overridePos ?? layoutResult.positions.get(node.id);
+        const rawSize = overrideSize ?? layoutResult.sizes.get(node.id);
         const sz =
           rawSize && typeof rawSize.width === 'number' && typeof rawSize.height === 'number' ? rawSize : undefined;
         const styleBase =
