@@ -6,6 +6,10 @@
  *   2. Longest-path layering (integer layers + fan-in weighted depth)
  *   3. Barycenter heuristic (distance-weighted, multi-pass crossing minimization)
  *   4. Folder aggregation (min-rank weight, mean layer, mean sortOrder)
+ *   5. Folder-level second pass: re-runs (1–3) on the folder subgraph so that
+ *      folders connected by `crossFolder` edges are ranked by their folder-level
+ *      dependency direction, not by whichever child module happens to be the
+ *      shallowest.
  */
 
 import { consola } from 'consola';
@@ -679,12 +683,70 @@ function liftCrossfolderEdgesToFolderLevel(nodes: DependencyNode[], edges: Graph
   return [...result, ...sourceStubs.values(), ...targetStubs.values()];
 }
 
+/**
+ * Second-pass Sugiyama on the folder subgraph.
+ *
+ * `aggregateFolderWeights` gives each folder the min-rank of its direct module
+ * children — a reasonable default for folders with no cross-folder edges, but
+ * it can invert the folder-level import direction when a parent folder happens
+ * to contain a shallow "foundation-like" module alongside a deep consumer.
+ * Example: `src/` contains both `main.ts` (very deep) and `server.ts` (very
+ * shallow); max-aggregation picks `server.ts` and places `src/` at a shallow
+ * position, even though `src/main.ts → src/client/App.vue` means the `src/`
+ * folder must sit to the right of `src/client/`.
+ *
+ * This pass re-runs the module-level Sugiyama pipeline on just the folder
+ * nodes + lifted `crossFolder` trunks and overwrites the three layout fields
+ * for any folder that participates in a folder-level edge.  Folders that are
+ * isolated at the folder level keep their aggregated values (handled
+ * implicitly: isolated folders compute to weight=0, layer=0, sort=0 under
+ * folder-level Sugiyama, which equals the aggregated values only when no
+ * module has depth — so we skip them explicitly to preserve the intra-folder
+ * signal).
+ */
+function applyFolderLevelSugiyama(nodes: DependencyNode[], edges: GraphEdge[]): DependencyNode[] {
+  const folderNodes = nodes.filter((n) => n.type === 'group');
+  if (folderNodes.length === 0) return nodes;
+
+  const folderEdges = edges.filter((e) => e.type === 'crossFolder');
+  if (folderEdges.length === 0) return nodes;
+
+  const connectedFolders = new Set<string>();
+  for (const edge of folderEdges) {
+    connectedFolders.add(edge.source);
+    connectedFolders.add(edge.target);
+  }
+
+  const folderBackEdges = detectBackEdges(folderNodes, folderEdges);
+  const { weights, traces } = computeModuleLayoutWeights(folderNodes, folderEdges, folderBackEdges);
+  const layers = computeLayerAssignment(folderNodes, folderEdges, folderBackEdges);
+  const sortMap = computeBarycenterSortOrder(folderNodes, folderEdges, layers, folderBackEdges);
+
+  return nodes.map((node) => {
+    if (node.type !== 'group' || !connectedFolders.has(node.id)) return node;
+    const weight = weights.get(node.id);
+    if (weight === undefined) return node;
+    const existingData: DependencyData = node.data ?? { label: node.id };
+    const data: DependencyData = { ...existingData, layoutWeight: weight };
+    const layer = layers.get(node.id);
+    if (layer !== undefined) data.layerIndex = layer;
+    const sortOrder = sortMap.get(node.id);
+    if (sortOrder !== undefined) data.sortOrder = sortOrder;
+    const trace = traces.get(node.id);
+    if (trace !== undefined) data.layoutRankTrace = trace;
+    return { ...node, data };
+  });
+}
+
 function aggregateFolderWeights(nodes: DependencyNode[]): DependencyNode[] {
   // Sugiyama: folderRank = min(rank(child)) — place folder flush-left with its
   // earliest child.  Since weight = -rank, min(rank) = max(weight).
   // Folder layerIndex = mean(child layerIndices) — center folder among its children's layers.
   // Using mean distributes folders evenly; min would cluster all foundation-containing folders at layer 0.
   // Folder sortOrder = mean(child sortOrders) — center folder vertically on children.
+  // Folders participating in cross-folder edges are re-ranked by
+  // `applyFolderLevelSugiyama` downstream so their layout respects the
+  // folder-level import direction rather than the statistical summary here.
   const folderMaxWeight = new Map<string, number>();
   const folderLayerSums = new Map<string, { sum: number; count: number }>();
   const folderSortSums = new Map<string, { sum: number; count: number }>();
@@ -772,9 +834,10 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
 
   const nodesWithFolderWeights = aggregateFolderWeights(transformedGraph.nodes);
   const edgesWithCrossfolderTypes = liftCrossfolderEdgesToFolderLevel(nodesWithFolderWeights, transformedGraph.edges);
+  const nodesWithFolderLevelLayout = applyFolderLevelSugiyama(nodesWithFolderWeights, edgesWithCrossfolderTypes);
 
   let projectedGraph: GraphViewData = {
-    nodes: nodesWithFolderWeights,
+    nodes: nodesWithFolderLevelLayout,
     edges: edgesWithCrossfolderTypes,
   };
   if (options.collapsedFolderIds.size > 0) {

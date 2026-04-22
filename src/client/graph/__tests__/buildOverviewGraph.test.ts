@@ -529,9 +529,16 @@ describe('buildOverviewGraph', () => {
       expect(groupNode?.data?.layoutWeight).toBe(0);
     });
 
-    it('folder with only consumer children gets most-left child weight', () => {
-      // mod-a → mod-c (in different folder), mod-b → mod-c (in different folder)
-      // Folder containing mod-a and mod-b: both have weight -1, so folder weight = max(-1, -1) = -1
+    it('connected folders are ranked by folder-level Sugiyama, not by aggregated module weights', () => {
+      // mod-a → mod-c (different folder), mod-b → mod-c (different folder).
+      // Two module-level edges collapse into one folder-level `crossFolder` edge:
+      //   consumers folder → lib folder
+      // On the folder subgraph:
+      //   lib has no outgoing folder edges        → depth 0, weight 0
+      //   consumers imports lib (folder fanIn=1)  → depth 1, weight -(1 + log2(1)) = -1
+      // The folder-level rank is intentionally smaller in magnitude than the
+      // module-level max(-2, -2) — folders collapse module-level fan-in into a
+      // single edge, which is the point of the second pass.
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/consumers/a.ts', {
         imports: {
           i1: { uuid: 'i1', name: 'c', fullPath: '../lib/c', relativePath: '../lib/c', specifiers: new Map(), depth: 0 },
@@ -547,7 +554,6 @@ describe('buildOverviewGraph', () => {
 
       const result = buildOverviewGraph(defaultOptions({ data }));
 
-      // Find folder groups
       const consumerFolder = result.nodes.find(
         (n) => n.type === 'group' && result.nodes.some((child) => child.parentNode === n.id && child.id === 'mod-a')
       );
@@ -556,10 +562,73 @@ describe('buildOverviewGraph', () => {
       );
       expect(consumerFolder).toBeDefined();
       expect(libFolder).toBeDefined();
-      // Consumer folder: max(-2, -2) = -2 (fanIn=2 for mod-c → stepCost=2)
-      expect(consumerFolder?.data?.layoutWeight).toBe(-2);
-      // Lib folder: max(0) = 0 (foundation)
+      expect(consumerFolder?.data?.layoutWeight).toBe(-1);
       expect(libFolder?.data?.layoutWeight).toBe(0);
+    });
+
+    it('ranks folders by their folder-level import direction, not by the shallowest module each contains', () => {
+      // Regression for the "src vs src/client inversion" bug.
+      //
+      // Module graph:
+      //   src/a/consumer.ts  → src/b/middle.ts  → src/c/foundation.ts
+      //   src/a/shallow.ts   (no imports, no fan-in)
+      //
+      // After edge lifting, the folder graph is a clean chain:
+      //   folderA (src/a) → folderB (src/b) → folderC (src/c)
+      //
+      // Under the pure max-aggregation policy, folderA's layoutWeight was dragged
+      // up to 0 by `shallow.ts`, while folderB inherited middle.ts's negative
+      // weight — inverting the relationship (folderA > folderB) even though
+      // folderA imports folderB.  A correct folder ranking must respect the
+      // folder-level edges themselves.
+      const consumer = makeModule('mod-consumer', 'consumer.ts', 'pkg-1', 'src/a/consumer.ts', {
+        imports: {
+          i1: {
+            uuid: 'i1',
+            name: 'middle',
+            fullPath: '../b/middle',
+            relativePath: '../b/middle',
+            specifiers: new Map(),
+            depth: 0,
+          },
+        },
+      });
+      const shallow = makeModule('mod-shallow', 'shallow.ts', 'pkg-1', 'src/a/shallow.ts');
+      const middle = makeModule('mod-middle', 'middle.ts', 'pkg-1', 'src/b/middle.ts', {
+        imports: {
+          i2: {
+            uuid: 'i2',
+            name: 'foundation',
+            fullPath: '../c/foundation',
+            relativePath: '../c/foundation',
+            specifiers: new Map(),
+            depth: 0,
+          },
+        },
+      });
+      const foundation = makeModule('mod-foundation', 'foundation.ts', 'pkg-1', 'src/c/foundation.ts');
+      const data = makeGraph([
+        makePackage('pkg-1', 'app', { consumer, shallow, middle, foundation }),
+      ]);
+
+      const result = buildOverviewGraph(defaultOptions({ data }));
+
+      const folderA = result.nodes.find((n) => n.id === 'dir:app:src/a');
+      const folderB = result.nodes.find((n) => n.id === 'dir:app:src/b');
+      const folderC = result.nodes.find((n) => n.id === 'dir:app:src/c');
+
+      const weightA = folderA?.data?.layoutWeight;
+      const weightB = folderB?.data?.layoutWeight;
+      const weightC = folderC?.data?.layoutWeight;
+
+      expect(weightA).toBeDefined();
+      expect(weightB).toBeDefined();
+      expect(weightC).toBeDefined();
+
+      // folderA imports folderB which imports folderC.
+      // Foundations are 0, consumers negative → strictly decreasing along the chain.
+      expect(weightA as number).toBeLessThan(weightB as number);
+      expect(weightB as number).toBeLessThan(weightC as number);
     });
 
     it('propagates mean sortOrder from children to folder groups', () => {
