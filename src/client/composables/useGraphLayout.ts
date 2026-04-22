@@ -6,6 +6,7 @@ import { buildOverviewGraph } from '../graph/buildGraphView';
 import { getHandlePositions } from '../graph/handleRouting';
 import { assignEdgeSides } from '../graph/layout/assignEdgeSides';
 import { layoutExternalBand } from '../graph/layout/layoutExternalBand';
+import { relocateInternalHubs } from '../graph/layout/relocateInternalHubs';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { parseDimension, resolveNodeDimensions } from '../layout/geometryBounds';
 import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
@@ -192,6 +193,16 @@ interface GraphLayout {
 }
 
 const HARDCODED_LAYOUT_CONFIG: LayoutConfig = { direction: 'LR' };
+
+/**
+ * Phase 4 feature flag. When `true` (default), internal modules with combined
+ * degree ≥ threshold are pulled toward the Y-centroid of their neighbours
+ * within their layer band. When `false`, the output is identical to the
+ * pre-Phase-4 layout. Module-local constant rather than per-call: threading
+ * an option through every caller doubles public-surface churn without
+ * buying user-facing control.
+ */
+const PHASE4_INTERNAL_HUB_RELOCATION_ENABLED = true;
 
 /** Gap between the bottom of the internal graph and the first external tier. */
 const EXTERNAL_BAND_GAP_PX = 240;
@@ -461,6 +472,22 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
           bandRect
         );
         for (const [id, pos] of externalPositions) {
+          layoutResult.positions.set(id, pos);
+        }
+      }
+
+      // Phase 4: pull high-degree internal hubs toward the Y-centroid of
+      // their neighbours within each hub's layer Y-band. Runs AFTER Phase 1's
+      // external-band overlay so externals have their final Y before their
+      // centroid contribution is read. `relocateInternalHubs` wraps
+      // `placeHubAnchors` (layer-band mode).
+      if (PHASE4_INTERNAL_HUB_RELOCATION_ENABLED) {
+        const relocatedPositions = relocateInternalHubs(
+          graphData.nodes,
+          graphData.edges,
+          layoutResult.positions
+        );
+        for (const [id, pos] of relocatedPositions) {
           layoutResult.positions.set(id, pos);
         }
       }
