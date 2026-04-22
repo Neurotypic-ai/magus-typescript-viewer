@@ -279,6 +279,8 @@ export function getEdgeStyle(type: DependencyEdgeKind): CSSProperties {
     case 'peerDependency':
     case 'import':
     case 'export':
+    case 'fanInTrunk':
+    case 'fanInStub':
       return {
         ...baseStyle,
         stroke: edgeColors[type],

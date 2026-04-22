@@ -21,6 +21,7 @@ import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS } from './handleRouting';
 import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
+import { bundleFanInTrunks } from './layout/bundleFanInTrunks';
 
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyData } from '../../shared/types/graph/DependencyData';
@@ -62,6 +63,11 @@ export interface BuildOverviewGraphOptions {
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
+  /**
+   * Phase 3 — enable fan-in trunk bundling. Defaults to `true`; set to `false`
+   * to render every incoming edge individually (useful for diff snapshots).
+   */
+  useFanInTrunks?: boolean;
 }
 
 function applyGraphTransforms(graphData: GraphViewData): GraphViewData {
@@ -847,13 +853,17 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
 
   const visibleEdges = applyEdgeVisibility(projectedGraph.edges, options.enabledRelationshipTypes);
   const bundledEdges = bundleParallelEdges(visibleEdges);
-  const currentDegreeMap = buildDegreeMap(projectedGraph.nodes, bundledEdges, false);
+  const useFanInTrunks = options.useFanInTrunks ?? true;
+  const trunkBundledEdges = useFanInTrunks
+    ? bundleFanInTrunks(bundledEdges, projectedGraph.nodes)
+    : bundledEdges;
+  const currentDegreeMap = buildDegreeMap(projectedGraph.nodes, trunkBundledEdges, false);
   const globalDegreeMap = buildDegreeMap(unfilteredGraph.nodes, unfilteredGraph.edges, true);
   const nodesWithDiagnostics = annotateOrphanDiagnostics(projectedGraph.nodes, currentDegreeMap, globalDegreeMap);
 
   return {
     nodes: nodesWithDiagnostics,
-    edges: bundledEdges,
+    edges: trunkBundledEdges,
     semanticSnapshot,
   };
 }

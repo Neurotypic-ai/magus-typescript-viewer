@@ -10,4 +10,6 @@ export type DependencyEdgeKind =
   | 'implements'
   | 'extends'
   | 'contains'
-  | 'uses';
+  | 'uses'
+  | 'fanInTrunk'
+  | 'fanInStub';

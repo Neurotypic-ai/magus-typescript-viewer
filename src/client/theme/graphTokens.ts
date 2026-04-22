@@ -27,6 +27,8 @@ export const ALL_DEPENDENCY_EDGE_KINDS: DependencyEdgeKind[] = [
   'extends',
   'contains',
   'uses',
+  'fanInTrunk',
+  'fanInStub',
 ];
 
 export const graphCssVariableNames = {
@@ -110,6 +112,12 @@ export const graphCssVariableNames = {
     },
     uses: {
       color: '--graph-edge-uses',
+    },
+    fanInTrunk: {
+      color: '--graph-edge-default',
+    },
+    fanInStub: {
+      color: '--graph-edge-default',
     },
   },
   nodeBadges: {
