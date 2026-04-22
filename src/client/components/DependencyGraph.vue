@@ -28,6 +28,7 @@ import ExternalPackageNode from './nodes/ExternalPackageNode.vue';
 import GroupNode from './nodes/GroupNode.vue';
 import ModuleNode from './nodes/ModuleNode.vue';
 import PackageNode from './nodes/PackageNode.vue';
+import SccNode from './nodes/SccNode.vue';
 import SymbolNode from './nodes/SymbolNode.vue';
 import {
   FOLDER_COLLAPSE_ACTIONS_KEY,
@@ -159,6 +160,7 @@ const nodeTypes: Record<string, Component> = Object.freeze({
   type: SymbolNode,
   function: SymbolNode,
   group: GroupNode,
+  scc: SccNode,
   property: SymbolNode,
   method: SymbolNode,
 });

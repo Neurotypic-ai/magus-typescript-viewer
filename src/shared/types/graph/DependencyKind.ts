@@ -11,5 +11,6 @@ export type DependencyKind =
   | 'type'
   | 'function'
   | 'group'
+  | 'scc'
   | 'property'
   | 'method';

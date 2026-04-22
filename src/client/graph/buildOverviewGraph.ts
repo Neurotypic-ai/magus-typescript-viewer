@@ -21,6 +21,9 @@ import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS } from './handleRouting';
 import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
+import { computeStronglyConnectedComponents, condenseBySCC } from './layout/condenseBySCC';
+import { partitionForLayout } from './layout/partitionForLayout';
+import { layoutSCCInternal } from './layout/sccInternalLayout';
 
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyData } from '../../shared/types/graph/DependencyData';
@@ -29,6 +32,7 @@ import type { DependencyKind } from '../../shared/types/graph/DependencyKind';
 import type { LayoutRankTrace, RankContribution } from '../../shared/types/graph/LayoutRankTrace';
 import type { DependencyNode } from '../types/DependencyNode';
 import type { GraphEdge } from '../types/GraphEdge';
+import type { SccSupernodeMeta } from './layout/condenseBySCC';
 import type { GraphViewData } from './graphViewShared';
 
 /**
@@ -58,10 +62,34 @@ const overviewGraphLogger = consola.withTag('OverviewGraph');
 export interface BuildOverviewGraphOptions {
   data: PackageGraph;
   enabledRelationshipTypes: string[];
+  /**
+   * @deprecated Layout is hardcoded LR regardless of this value. Retained
+   * only so existing callers (drilldown builders, tests) keep compiling.
+   * Will be removed when per-edge side assignment lands.
+   */
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
+  /**
+   * Phase 1 feature flag (plan §4.1 / §6 / §8.1).
+   *
+   * When `true` (default), external packages are removed from the Sugiyama
+   * input before layering and re-joined as root-level nodes. The caller
+   * (`useGraphLayout`) positions them in the peripheral band via
+   * `layoutExternalBand`. When `false`, externals participate in layering
+   * like any other node (legacy behaviour). A/B toggle.
+   */
+  useExternalBand?: boolean;
+  /**
+   * Phase 5 feature flag. When `true` (default), Tarjan SCC condensation
+   * replaces ad-hoc DFS back-edge classification: the layering pipeline
+   * operates on a canonical DAG (supernodes + inter-SCC edges) and cycle
+   * members are packaged into synthetic SCC nodes. When `false`, the legacy
+   * `detectBackEdges`/`markBackEdges` path runs — preserving byte-identical
+   * output for any graph that has no cycles.
+   */
+  useSccCondensation?: boolean;
 }
 
 function applyGraphTransforms(graphData: GraphViewData): GraphViewData {
@@ -127,6 +155,21 @@ function filterGraphByTestVisibility(graphData: GraphViewData, hideTestFiles: bo
     nodes: filteredNodes,
     edges: filterEdgesByNodeSet(filteredNodes, graphData.edges),
   };
+}
+
+/**
+ * Stamp a `layoutBand` membership marker on a node (Phase 1 plan §7.1).
+ *
+ * This tells downstream consumers which of the three populations the node
+ * belongs to without needing them to re-derive it from `type`.
+ */
+function annotateLayoutBand(
+  node: DependencyNode,
+  band: 'internal' | 'external' | 'scc'
+): DependencyNode {
+  const existingData: DependencyData = node.data ?? { label: node.id };
+  if (existingData.layoutBand === band) return node;
+  return { ...node, data: { ...existingData, layoutBand: band } };
 }
 
 function buildDegreeMap(nodes: DependencyNode[], edges: GraphEdge[], includeHiddenEdges = false): Map<string, number> {
@@ -253,18 +296,20 @@ function computeModuleLayoutWeights(
     fanIn.set(edge.target, (fanIn.get(edge.target) ?? 0) + 1);
   }
 
-  // Step cost: modules with higher fan-in create larger layout gaps.
-  // log₂ scaling keeps weights bounded while creating meaningful separation.
-  //   fanIn=1 → cost 1 (same as previous uniform-depth algorithm)
-  //   fanIn=2 → cost 2,  fanIn=4 → cost 3,  fanIn=8 → cost 4
+  // Step cost: log₂-scaled by fan-in of the target.
+  //   fanIn=1 → cost 1,  fanIn=2 → cost 2,  fanIn=4 → cost 3,  fanIn=8 → cost 4
+  //
+  // DIAGNOSTIC ONLY — this weight is surfaced via `layoutWeight` / `LayoutRankTrace`
+  // in the Rank Debug Panel but does NOT affect rendered X positions. Positioning
+  // reads `layerIndex` (uniform-cost) only. Do not assume visual spacing changes
+  // when you tweak this.
   function stepCost(targetId: string): number {
     const inDegree = fanIn.get(targetId) ?? 0;
     return 1 + Math.log2(Math.max(1, inDegree));
   }
 
   // Memoized longest-path weighted depth with cycle detection.
-  // Each edge step is weighted by the fan-in of its target, so heavily-imported
-  // foundations push their consumers further right in the layout.
+  // Feeds the Rank Debug Panel; see stepCost above for the DIAGNOSTIC-ONLY caveat.
   const depthCache = new Map<string, number>();
   const visiting = new Set<string>();
 
@@ -787,6 +832,110 @@ function aggregateFolderWeights(nodes: DependencyNode[]): DependencyNode[] {
   });
 }
 
+/**
+ * Compute SCC metadata for the Phase 5 condensation path.
+ *
+ * Runs Tarjan over the layering-edge subgraph only (same subgraph the old
+ * `detectBackEdges` used), marks every intra-SCC edge as `isBackEdge: true`
+ * for legacy styling consumers, and produces a condensed graph where every
+ * non-trivial SCC is replaced by a synthetic `scc`-kind supernode. The
+ * condensed graph is a genuine DAG, so downstream Sugiyama passes run on
+ * clean input.
+ *
+ * isBackEdge semantics differ from the old DFS-order-dependent definition:
+ * now an edge is `isBackEdge` iff it participates in a cycle (i.e. both
+ * endpoints belong to the same non-trivial SCC). This is a canonical
+ * property of the graph, independent of traversal order.
+ *
+ * TODO (plan §10): if an SCC member is inside a folder, the SCC is kept
+ * at the root level for now (supernode is a sibling to modules, not a
+ * child of any folder). Revisit once SCC × folder interaction is
+ * specified.
+ */
+interface SccCondenseOutcome {
+  /** Node set after member nodes have been replaced by supernodes. */
+  condensedNodes: DependencyNode[];
+  /** Edge set with endpoints rewritten; intra-SCC edges dropped. */
+  condensedEdges: GraphEdge[];
+  /** Supernodes created (size > 1 SCCs). */
+  supernodes: SccSupernodeMeta[];
+  /** memberId → supernodeId lookup. */
+  memberToSupernode: Map<string, string>;
+  /** Edges flagged as isBackEdge (intra-SCC edges). */
+  edgesWithBackEdges: GraphEdge[];
+}
+
+function runSccCondensation(
+  nodes: DependencyNode[],
+  edges: GraphEdge[]
+): SccCondenseOutcome {
+  // Only layering edges decide SCC membership — symbol-level edges are already
+  // excluded from the overview, but module→external edges (layering) are kept.
+  const layeringEdges = edges.filter((e) => !e.hidden && isLayeringEdge(e));
+  const { sccBackEdges } = computeStronglyConnectedComponents(nodes, layeringEdges);
+
+  // Stamp isBackEdge on the full edge set using the canonical intra-SCC
+  // classification. This preserves the legacy `isBackEdge` contract for
+  // downstream styling/filtering (dashed edges etc.) even though the
+  // semantics have changed slightly (see the top-level doc comment).
+  const edgesWithBackEdges = markBackEdges(edges, sccBackEdges);
+
+  const { condensedNodes, condensedEdges, supernodes, memberToSupernode } = condenseBySCC(
+    nodes,
+    edgesWithBackEdges
+  );
+  return { condensedNodes, condensedEdges, supernodes, memberToSupernode, edgesWithBackEdges };
+}
+
+/**
+ * After layering has assigned positions to each supernode (logically — we
+ * only have `layerIndex`/`sortOrder`, not pixels yet), compute the internal
+ * positions of each supernode's members. The positions are relative to the
+ * supernode's top-left (0, 0); the coordinate layout pass will translate
+ * them into absolute coordinates via Vue Flow's parentNode mechanism.
+ */
+function attachSccInternalLayouts(
+  nodes: DependencyNode[],
+  edges: GraphEdge[],
+  supernodes: readonly SccSupernodeMeta[]
+): DependencyNode[] {
+  if (supernodes.length === 0) return nodes;
+  const bySupernode = new Map<string, { members: string[]; intra: GraphEdge[] }>();
+  for (const sn of supernodes) {
+    bySupernode.set(sn.id, { members: sn.members, intra: [] });
+  }
+  // Collect intra-SCC edges by mapping edge endpoints to supernode ids.
+  const memberToSupernode = new Map<string, string>();
+  for (const sn of supernodes) {
+    for (const m of sn.members) memberToSupernode.set(m, sn.id);
+  }
+  for (const edge of edges) {
+    const src = memberToSupernode.get(edge.source);
+    const tgt = memberToSupernode.get(edge.target);
+    if (src !== undefined && src === tgt) {
+      bySupernode.get(src)?.intra.push(edge);
+    }
+  }
+
+  return nodes.map((node) => {
+    if (node.type !== 'scc') return node;
+    const entry = bySupernode.get(node.id);
+    if (!entry) return node;
+    const layout = layoutSCCInternal(entry.members, entry.intra, node.id);
+    const positions: Record<string, { x: number; y: number }> = {};
+    for (const [id, pos] of layout.positions) positions[id] = pos;
+    const existingData: DependencyData = node.data ?? { label: node.id };
+    return {
+      ...node,
+      data: {
+        ...existingData,
+        sccMemberPositions: positions,
+        sccSize: layout.parentSize,
+      },
+    };
+  });
+}
+
 export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphViewData {
   const graphNodes = createGraphNodes(options.data, {
     includePackages: false,
@@ -817,28 +966,169 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     edges: filterEdgesByNodeSet(graphNodes, graphEdges),
   };
   const filteredGraph = filterGraphByTestVisibility(unfilteredGraph, options.hideTestFiles);
-  const backEdgeIds = detectBackEdges(filteredGraph.nodes, filteredGraph.edges);
-  const edgesWithBackEdgeMarks = markBackEdges(filteredGraph.edges, backEdgeIds);
-  const semanticSnapshot = { nodes: filteredGraph.nodes, edges: edgesWithBackEdgeMarks };
-  validateEdgesAgainstRegistry(semanticSnapshot.nodes, semanticSnapshot.edges);
 
-  const { weights: moduleWeights, traces: rankTraces } = computeModuleLayoutWeights(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
-  const layerAssignment = computeLayerAssignment(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
-  const sortOrder = computeBarycenterSortOrder(semanticSnapshot.nodes, semanticSnapshot.edges, layerAssignment, backEdgeIds);
-  const weightedFilteredGraph = {
-    nodes: applyModuleWeights(filteredGraph.nodes, moduleWeights, layerAssignment, sortOrder, rankTraces),
-    edges: edgesWithBackEdgeMarks,
-  };
+  // Phase 1 (plan §4.1 / §6 / §8.1): split the graph into internal vs. external
+  // populations so externals don't compete for layer-0 column space with
+  // internal foundations. Internal subgraph runs through the full pipeline;
+  // externals are re-joined after layering as root-level nodes and positioned
+  // by `layoutExternalBand` during coordinate assignment.
+  const useExternalBand = options.useExternalBand ?? true;
+  const useSccCondensation = options.useSccCondensation ?? true;
 
-  const transformedGraph = applyGraphTransforms(weightedFilteredGraph);
+  const partitioned = useExternalBand
+    ? partitionForLayout(filteredGraph.nodes, filteredGraph.edges)
+    : null;
+  const layeringInputNodes = partitioned ? partitioned.internal : filteredGraph.nodes;
+  const layeringInputEdges = partitioned ? partitioned.internalEdges : filteredGraph.edges;
+  const externalIncidentEdges = partitioned ? partitioned.externalIncidentEdges : [];
+
+  // Phase 5: cycle handling via Tarjan SCC condensation on the INTERNAL subgraph.
+  // Externals are structurally sinks (no in-scope outgoing imports) so they never
+  // appear in SCCs; they're safe to partition out before condensation. Legacy
+  // path (flag OFF) uses DFS back-edge classification on the same input.
+  let condensedNodes: DependencyNode[];
+  let condensedEdges: GraphEdge[];
+  let supernodes: SccSupernodeMeta[];
+  let memberToSupernode: Map<string, string>;
+  let edgesWithBackEdgeMarks: GraphEdge[];
+  let backEdgeIds: Set<string>;
+
+  if (useSccCondensation) {
+    const outcome = runSccCondensation(layeringInputNodes, layeringInputEdges);
+    condensedNodes = outcome.condensedNodes;
+    condensedEdges = outcome.condensedEdges;
+    supernodes = outcome.supernodes;
+    memberToSupernode = outcome.memberToSupernode;
+    edgesWithBackEdgeMarks = outcome.edgesWithBackEdges;
+    // backEdgeIds contains intra-SCC edge ids (already dropped from condensedEdges
+    // but kept in edgesWithBackEdgeMarks so they can render inside the supernode).
+    backEdgeIds = new Set<string>();
+    for (const e of edgesWithBackEdgeMarks) {
+      if (e.data?.isBackEdge === true) backEdgeIds.add(e.id);
+    }
+  } else {
+    supernodes = [];
+    memberToSupernode = new Map();
+    backEdgeIds = detectBackEdges(layeringInputNodes, layeringInputEdges);
+    edgesWithBackEdgeMarks = markBackEdges(layeringInputEdges, backEdgeIds);
+    condensedNodes = layeringInputNodes;
+    condensedEdges = edgesWithBackEdgeMarks;
+  }
+
+  // Semantic snapshot mirrors the whole filtered graph (internal + external +
+  // SCC member edges) so debug panels and drilldown navigation see everything.
+  const fullEdgesWithBackEdgeMarks = [...edgesWithBackEdgeMarks, ...externalIncidentEdges];
+  const semanticSnapshot = { nodes: filteredGraph.nodes, edges: fullEdgesWithBackEdgeMarks };
+  validateEdgesAgainstRegistry(condensedNodes, condensedEdges);
+
+  // External-incident edges skipped SCC condensation (externals never participate
+  // in cycles — they're sinks). Rejoin them into the downstream edge stream so
+  // folder clustering, edge visibility, and bundling see them. Edges with an
+  // external endpoint pass through liftCrossfolderEdgesToFolderLevel cleanly
+  // because the external side has no parentNode.
+  const downstreamEdges = [...condensedEdges, ...externalIncidentEdges];
+
+  // Layering runs on the condensed internal graph (supernodes treated as regular nodes).
+  const { weights: moduleWeights, traces: rankTraces } = computeModuleLayoutWeights(
+    condensedNodes,
+    condensedEdges,
+    backEdgeIds
+  );
+  const layerAssignment = computeLayerAssignment(condensedNodes, condensedEdges, backEdgeIds);
+  const sortOrder = computeBarycenterSortOrder(condensedNodes, condensedEdges, layerAssignment, backEdgeIds);
+
+  // Apply layering results to the condensed nodes.
+  const weightedCondensedNodes = applyModuleWeights(
+    condensedNodes,
+    moduleWeights,
+    layerAssignment,
+    sortOrder,
+    rankTraces
+  );
+
+  // Tag each node with its population (plan §7.1). Internal modules get
+  // 'internal'; SCC supernodes get 'scc'; externals (if partitioned out) get
+  // 'external'. Rejoin externals here so folder clustering / edge visibility /
+  // bundling all see the complete graph; layout positioning happens in
+  // useGraphLayout (externals placed by layoutExternalBand).
+  const taggedCondensedNodes = partitioned
+    ? weightedCondensedNodes.map((node) =>
+        annotateLayoutBand(node, node.type === 'scc' ? 'scc' : 'internal')
+      )
+    : weightedCondensedNodes;
+  const taggedExternals = partitioned
+    ? partitioned.external.map((node) => annotateLayoutBand(node, 'external'))
+    : [];
+  const weightedWithExternals = [...taggedCondensedNodes, ...taggedExternals];
+
+  // Compute internal layouts for every supernode (relative to the supernode's
+  // top-left corner). Downstream (Vue Flow parentNode) will translate these
+  // into absolute coordinates. When there are no supernodes, this is a no-op.
+  const nodesWithSccLayouts = attachSccInternalLayouts(
+    weightedWithExternals,
+    edgesWithBackEdgeMarks,
+    supernodes
+  );
+
+  // Folder clustering runs on the CONDENSED node/edge set. SCC member nodes
+  // and intra-SCC edges are hidden from this pass so the folder pipeline
+  // sees a clean subgraph. We re-attach members and intra-SCC edges AFTER
+  // all folder transforms, which keeps SCCs as siblings to modules at the
+  // root level and preserves the original intra-SCC edges for rendering
+  // (drawn inside the supernode).
+  // TODO (plan §10): revisit if SCCs should live inside folders when all
+  // members share a folder.
+  const transformedGraph = applyGraphTransforms({ nodes: nodesWithSccLayouts, edges: downstreamEdges });
 
   const nodesWithFolderWeights = aggregateFolderWeights(transformedGraph.nodes);
   const edgesWithCrossfolderTypes = liftCrossfolderEdgesToFolderLevel(nodesWithFolderWeights, transformedGraph.edges);
   const nodesWithFolderLevelLayout = applyFolderLevelSugiyama(nodesWithFolderWeights, edgesWithCrossfolderTypes);
 
+  // Re-attach SCC members as children of their supernodes plus the intra-SCC
+  // edges that render inside the supernode. Member positions come from
+  // layoutSCCInternal (relative to the supernode's top-left corner).
+  let memberChildren: DependencyNode[] = [];
+  let intraSccEdges: GraphEdge[] = [];
+  if (useSccCondensation && supernodes.length > 0) {
+    const supernodeById = new Map<string, DependencyNode>();
+    for (const n of nodesWithFolderLevelLayout) if (n.type === 'scc') supernodeById.set(n.id, n);
+
+    const addedChildren: DependencyNode[] = [];
+    for (const sn of supernodes) {
+      const parent = supernodeById.get(sn.id);
+      if (!parent) continue;
+      const rawPositions = parent.data?.sccMemberPositions;
+      const positions =
+        rawPositions && typeof rawPositions === 'object' ? (rawPositions as Record<string, { x: number; y: number }>) : {};
+      for (const memberId of sn.members) {
+        const original = filteredGraph.nodes.find((n) => n.id === memberId);
+        if (!original) continue;
+        const { extent: _removedExtent, ...nodeWithoutExtent } = original;
+        const pos = positions[memberId] ?? { x: 0, y: 0 };
+        addedChildren.push({
+          ...nodeWithoutExtent,
+          parentNode: sn.id,
+          expandParent: true,
+          position: pos,
+          data: { ...(original.data ?? { label: original.id }), parentId: sn.id },
+        } as DependencyNode);
+      }
+    }
+    memberChildren = addedChildren;
+
+    // Intra-SCC edges: lifted from the marked edge set. Their endpoints are
+    // the original member ids, not the supernode id, so they render as edges
+    // between siblings inside the supernode.
+    intraSccEdges = edgesWithBackEdgeMarks.filter((e) => {
+      const src = memberToSupernode.get(e.source);
+      const tgt = memberToSupernode.get(e.target);
+      return src !== undefined && src === tgt;
+    });
+  }
+
   let projectedGraph: GraphViewData = {
-    nodes: nodesWithFolderLevelLayout,
-    edges: edgesWithCrossfolderTypes,
+    nodes: [...nodesWithFolderLevelLayout, ...memberChildren],
+    edges: [...edgesWithCrossfolderTypes, ...intraSccEdges],
   };
   if (options.collapsedFolderIds.size > 0) {
     const folderCollapsed = collapseFolders(projectedGraph.nodes, projectedGraph.edges, options.collapsedFolderIds);

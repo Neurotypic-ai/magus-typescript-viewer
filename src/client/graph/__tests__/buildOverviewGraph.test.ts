@@ -70,6 +70,32 @@ function makeGraph(packages: Package[]): PackageGraph {
   return { packages };
 }
 
+/**
+ * Helper to build a package with a module that imports an external package.
+ * Used by Phase 1 external-band tests below.
+ */
+function moduleWithExternalImport(
+  id: string,
+  path: string,
+  packageId: string,
+  externalPackageName: string
+): Module {
+  return makeModule(id, path.split('/').pop() ?? id, packageId, path, {
+    imports: {
+      [externalPackageName]: {
+        uuid: `imp-${id}-${externalPackageName}`,
+        name: externalPackageName,
+        fullPath: externalPackageName,
+        relativePath: externalPackageName,
+        specifiers: new Map(),
+        depth: 0,
+        isExternal: true,
+        packageName: externalPackageName,
+      },
+    } as unknown as NonNullable<Module['imports']>,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -1078,7 +1104,12 @@ describe('buildOverviewGraph', () => {
   // Back-edge detection (cycle marking)
   // -----------------------------------------------------------------------
 
-  describe('back-edge detection', () => {
+  describe('back-edge detection (legacy DFS path, useSccCondensation=false)', () => {
+    // These tests pin the legacy DFS back-edge classifier's behaviour. With
+    // Phase 5 SCC condensation (the default), cycle members are condensed
+    // into supernodes, so the module-level assertions here no longer apply.
+    // The byte-identical-output regression test in the Phase 5 suite confirms
+    // that the two paths produce identical output on cycle-free graphs.
     it('marks back-edges in a simple cycle with isBackEdge flag', () => {
       // mod-a → mod-b → mod-a (cycle)
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
@@ -1093,7 +1124,7 @@ describe('buildOverviewGraph', () => {
       });
       const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
 
-      const result = buildOverviewGraph(defaultOptions({ data }));
+      const result = buildOverviewGraph(defaultOptions({ data, useSccCondensation: false }));
 
       const importEdges = result.edges.filter((e) => e.data?.type === 'import');
       expect(importEdges).toHaveLength(2);
@@ -1118,7 +1149,7 @@ describe('buildOverviewGraph', () => {
       const modC = makeModule('mod-c', 'c.ts', 'pkg-1', 'src/c.ts');
       const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB, c: modC })]);
 
-      const result = buildOverviewGraph(defaultOptions({ data }));
+      const result = buildOverviewGraph(defaultOptions({ data, useSccCondensation: false }));
 
       const backEdges = result.edges.filter((e) => e.data?.isBackEdge === true);
       expect(backEdges).toHaveLength(0);
@@ -1151,7 +1182,7 @@ describe('buildOverviewGraph', () => {
       });
       const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB, c: modC, d: modD })]);
 
-      const result = buildOverviewGraph(defaultOptions({ data }));
+      const result = buildOverviewGraph(defaultOptions({ data, useSccCondensation: false }));
 
       // With back-edge (c→a) excluded: mod-a fanIn=1, stepCost(a)=1+log₂(1)=1
       // Chain: mod-a(depth 2) → mod-b(depth 1) → mod-c(depth 0)
@@ -1176,7 +1207,7 @@ describe('buildOverviewGraph', () => {
       });
       const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
 
-      const result = buildOverviewGraph(defaultOptions({ data }));
+      const result = buildOverviewGraph(defaultOptions({ data, useSccCondensation: false }));
 
       const layerA = result.nodes.find((n) => n.id === 'mod-a')?.data?.layerIndex;
       const layerB = result.nodes.find((n) => n.id === 'mod-b')?.data?.layerIndex;
@@ -1258,6 +1289,238 @@ describe('buildOverviewGraph', () => {
       const folderEdges = result.edges.filter((e) => e.source === folderA && e.target === folderB);
       expect(folderEdges).toHaveLength(1);
       expect(folderEdges[0]?.data?.aggregatedCount).toBe(2);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Phase 1: external band flag (partitionForLayout integration)
+  // -----------------------------------------------------------------------
+
+  describe('external-band feature flag (Phase 1)', () => {
+    function graphWithExternalImport(): PackageGraph {
+      const modApp = moduleWithExternalImport('mod-app', 'src/app.ts', 'pkg-1', 'vue');
+      return makeGraph([makePackage('pkg-1', 'app', { app: modApp })]);
+    }
+
+    it('by default includes an externalPackage node tagged as `layoutBand: external`', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const ext = result.nodes.find((n) => n.type === 'externalPackage');
+      expect(ext).toBeDefined();
+      expect(ext?.data?.layoutBand).toBe('external');
+      expect(ext?.parentNode).toBeUndefined();
+    });
+
+    it('tags internal nodes with `layoutBand: internal` when the flag is enabled', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const modNode = result.nodes.find((n) => n.id === 'mod-app');
+      expect(modNode?.data?.layoutBand).toBe('internal');
+    });
+
+    it('does not run layering over external packages: externals get no layerIndex/sortOrder from the internal pipeline', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const ext = result.nodes.find((n) => n.type === 'externalPackage');
+      // Externals bypass applyModuleWeights, so layerIndex/sortOrder/layoutWeight
+      // are untouched (undefined).  The module consumer still gets its layer-1
+      // ranking even though the external is no longer part of the DAG.
+      expect(ext?.data?.layerIndex).toBeUndefined();
+      expect(ext?.data?.sortOrder).toBeUndefined();
+      expect(ext?.data?.layoutWeight).toBeUndefined();
+
+      const modApp = result.nodes.find((n) => n.id === 'mod-app');
+      // Without externals in the DAG, mod-app becomes a foundation (layer 0,
+      // weight 0). This is the expected Phase-1 behaviour — importing an
+      // external no longer forces the importer to layer ≥ 1.
+      expect(modApp?.data?.layerIndex).toBe(0);
+    });
+
+    it('preserves external-incident edges in the final output', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const externalEdge = result.edges.find(
+        (e) => e.source === 'mod-app' && e.target === 'external:vue'
+      );
+      expect(externalEdge).toBeDefined();
+    });
+
+    it('legacy behaviour: when useExternalBand=false, externals get layered like any other node', () => {
+      const result = buildOverviewGraph(
+        defaultOptions({ data: graphWithExternalImport(), useExternalBand: false })
+      );
+
+      const ext = result.nodes.find((n) => n.type === 'externalPackage');
+      expect(ext).toBeDefined();
+      // In legacy mode we do NOT tag layoutBand (the partition step is skipped).
+      expect(ext?.data?.layoutBand).toBeUndefined();
+      // The external participates in layering → layer 0, importer → layer 1.
+      expect(ext?.data?.layerIndex).toBe(0);
+      const modApp = result.nodes.find((n) => n.id === 'mod-app');
+      expect(modApp?.data?.layerIndex).toBe(1);
+    });
+
+    it('legacy behaviour: the full edge set is still produced when useExternalBand=false', () => {
+      const result = buildOverviewGraph(
+        defaultOptions({ data: graphWithExternalImport(), useExternalBand: false })
+      );
+
+      const externalEdge = result.edges.find(
+        (e) => e.source === 'mod-app' && e.target === 'external:vue'
+      );
+      expect(externalEdge).toBeDefined();
+    });
+
+    it('the semantic snapshot still contains every external-incident edge with the flag enabled', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const externalEdgeInSnapshot = result.semanticSnapshot?.edges.find(
+        (e) => e.source === 'mod-app' && e.target === 'external:vue'
+      );
+      expect(externalEdgeInSnapshot).toBeDefined();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Phase 5: Tarjan SCC condensation
+  // -----------------------------------------------------------------------
+
+  describe('SCC condensation (Phase 5)', () => {
+    function acyclicChainGraph(): PackageGraph {
+      // mod-a → mod-b → mod-c (linear chain, no cycles)
+      const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts', {
+        imports: {
+          i2: { uuid: 'i2', name: 'c', fullPath: './c', relativePath: './c', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modC = makeModule('mod-c', 'c.ts', 'pkg-1', 'src/c.ts');
+      return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB, c: modC })]);
+    }
+
+    function twoCycleGraph(): PackageGraph {
+      // mod-a ↔ mod-b (2-cycle)
+      const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts', {
+        imports: {
+          i2: { uuid: 'i2', name: 'a', fullPath: './a', relativePath: './a', specifiers: new Map(), depth: 0 },
+        },
+      });
+      return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+    }
+
+    it('produces zero supernodes when the input is cycle-free (flag ON)', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: acyclicChainGraph(), useSccCondensation: true }));
+      const sccNodes = result.nodes.filter((n) => n.type === 'scc');
+      expect(sccNodes).toHaveLength(0);
+    });
+
+    it('produces one supernode with the two members of a 2-cycle (flag ON)', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: twoCycleGraph(), useSccCondensation: true }));
+      const sccNodes = result.nodes.filter((n) => n.type === 'scc');
+      expect(sccNodes).toHaveLength(1);
+      const members = sccNodes[0]?.data?.sccMembers;
+      expect(Array.isArray(members)).toBe(true);
+      expect(members).toHaveLength(2);
+      expect(members).toContain('mod-a');
+      expect(members).toContain('mod-b');
+    });
+
+    it('re-parents SCC members under the supernode (members are not roots)', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: twoCycleGraph(), useSccCondensation: true }));
+      const supernode = result.nodes.find((n) => n.type === 'scc');
+      expect(supernode).toBeDefined();
+      const memberA = result.nodes.find((n) => n.id === 'mod-a');
+      const memberB = result.nodes.find((n) => n.id === 'mod-b');
+      expect(memberA?.parentNode).toBe(supernode?.id);
+      expect(memberB?.parentNode).toBe(supernode?.id);
+    });
+
+    it('flags intra-SCC edges as isBackEdge on the rendered edge set', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: twoCycleGraph(), useSccCondensation: true }));
+      const importEdges = result.edges.filter((e) => e.data?.type === 'import');
+      // Both edges of a 2-cycle are intra-SCC, so both get isBackEdge: true.
+      const backEdges = importEdges.filter((e) => e.data?.isBackEdge === true);
+      expect(backEdges.length).toBeGreaterThan(0);
+    });
+
+    it('preserves inter-supernode edges after condensation', () => {
+      // Two cycles plus one edge between them.
+      //   a ↔ b (cycle), c ↔ d (cycle), edge from a → c
+      const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a.ts', {
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+          i2: { uuid: 'i2', name: 'c', fullPath: './c', relativePath: './c', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b.ts', {
+        imports: {
+          i3: { uuid: 'i3', name: 'a', fullPath: './a', relativePath: './a', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modC = makeModule('mod-c', 'c.ts', 'pkg-1', 'src/c.ts', {
+        imports: {
+          i4: { uuid: 'i4', name: 'd', fullPath: './d', relativePath: './d', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const modD = makeModule('mod-d', 'd.ts', 'pkg-1', 'src/d.ts', {
+        imports: {
+          i5: { uuid: 'i5', name: 'c', fullPath: './c', relativePath: './c', specifiers: new Map(), depth: 0 },
+        },
+      });
+      const data = makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB, c: modC, d: modD })]);
+      const result = buildOverviewGraph(defaultOptions({ data, useSccCondensation: true }));
+
+      const sccNodes = result.nodes.filter((n) => n.type === 'scc');
+      expect(sccNodes).toHaveLength(2);
+      // The only inter-SCC edge is a → c. In the rendered graph the source and
+      // target of this edge should have been rewritten to the supernode ids
+      // OR represented via parent-folder aggregation. At minimum, the edge
+      // connecting the two SCCs must still exist somewhere.
+      const sccIds = new Set(sccNodes.map((n) => n.id));
+      const hasInterSccEdge = result.edges.some(
+        (e) => sccIds.has(e.source) && sccIds.has(e.target) && e.source !== e.target
+      );
+      expect(hasInterSccEdge).toBe(true);
+    });
+
+    it('falls back to legacy DFS back-edge detection when flag is OFF', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: twoCycleGraph(), useSccCondensation: false }));
+      const sccNodes = result.nodes.filter((n) => n.type === 'scc');
+      expect(sccNodes).toHaveLength(0);
+      const importEdges = result.edges.filter((e) => e.data?.type === 'import');
+      // Legacy DFS marks exactly one of the two cycle edges as back-edge.
+      const backEdges = importEdges.filter((e) => e.data?.isBackEdge === true);
+      expect(backEdges).toHaveLength(1);
+    });
+
+    it('produces byte-identical Sugiyama output (layerIndex + sortOrder) on cycle-free input regardless of flag', () => {
+      const dataOn = acyclicChainGraph();
+      const dataOff = acyclicChainGraph();
+      const resultOn = buildOverviewGraph(defaultOptions({ data: dataOn, useSccCondensation: true }));
+      const resultOff = buildOverviewGraph(defaultOptions({ data: dataOff, useSccCondensation: false }));
+
+      function summarize(nodes: { id: string; data?: { layerIndex?: number; sortOrder?: number; layoutWeight?: number } }[]) {
+        return nodes
+          .slice()
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((n) => ({
+            id: n.id,
+            layerIndex: n.data?.layerIndex,
+            sortOrder: n.data?.sortOrder,
+            layoutWeight: n.data?.layoutWeight,
+          }));
+      }
+
+      expect(summarize(resultOn.nodes)).toEqual(summarize(resultOff.nodes));
     });
   });
 });

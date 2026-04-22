@@ -4,9 +4,12 @@ import { consola } from 'consola';
 
 import { buildOverviewGraph } from '../graph/buildGraphView';
 import { getHandlePositions } from '../graph/handleRouting';
+import { layoutExternalBand } from '../graph/layout/layoutExternalBand';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
-import { parseDimension } from '../layout/geometryBounds';
+import { parseDimension, resolveNodeDimensions } from '../layout/geometryBounds';
 import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
+
+import type { BandRect } from '../graph/layout/layoutExternalBand';
 
 import type { Ref } from 'vue';
 
@@ -183,6 +186,69 @@ interface GraphLayout {
 
 const HARDCODED_LAYOUT_CONFIG: LayoutConfig = { direction: 'LR' };
 
+/** Gap between the bottom of the internal graph and the first external tier. */
+const EXTERNAL_BAND_GAP_PX = 240;
+/** Distance between adjacent external tiers. */
+const EXTERNAL_BAND_TIER_HEIGHT_PX = 320;
+/** Number of external tiers. */
+const EXTERNAL_BAND_TIER_COUNT = 3;
+/** Default width/height fallback used when node sizes are missing. */
+const EXTERNAL_BAND_FALLBACK_WIDTH = 320;
+const EXTERNAL_BAND_FALLBACK_HEIGHT = 260;
+
+/**
+ * Derive the peripheral-band rectangle from the internal graph layout.
+ *
+ * Band orientation: bottom (plan §6 Phase 1, §10). `top` sits
+ * `EXTERNAL_BAND_GAP_PX` below the lowest internal node; `left`/`right` span
+ * the horizontal extent of the internal graph so the centroid X of any
+ * external's consumers lands inside the band.
+ */
+function computeExternalBandRect(
+  allNodes: DependencyNode[],
+  externalIds: Set<string>,
+  layoutResult: {
+    positions: Map<string, { x: number; y: number }>;
+    sizes: Map<string, { width: number; height: number }>;
+  }
+): BandRect {
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxBottom = Number.NEGATIVE_INFINITY;
+
+  for (const node of allNodes) {
+    if (externalIds.has(node.id)) continue;
+    // Only consider root-level nodes so that children aren't double-counted
+    // (they live in relative coordinates under their parent).
+    if (node.parentNode) continue;
+    const pos = layoutResult.positions.get(node.id);
+    if (!pos) continue;
+    const size = layoutResult.sizes.get(node.id) ?? resolveNodeDimensions(node, {
+      defaultNodeWidth: EXTERNAL_BAND_FALLBACK_WIDTH,
+      defaultNodeHeight: EXTERNAL_BAND_FALLBACK_HEIGHT,
+    });
+    const width = size.width;
+    const height = size.height;
+    if (pos.x < minX) minX = pos.x;
+    if (pos.x + width > maxX) maxX = pos.x + width;
+    if (pos.y + height > maxBottom) maxBottom = pos.y + height;
+  }
+
+  // Fallback when there is no internal content — park externals at the origin.
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(maxBottom)) {
+    minX = 0;
+    maxX = 0;
+    maxBottom = 0;
+  }
+
+  return {
+    left: minX,
+    right: maxX,
+    top: maxBottom + EXTERNAL_BAND_GAP_PX,
+    height: EXTERNAL_BAND_TIER_COUNT * EXTERNAL_BAND_TIER_HEIGHT_PX,
+  };
+}
+
 export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
   const {
     propsData,
@@ -357,14 +423,70 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
         sizes: Map<string, { width: number; height: number }>;
       };
 
+      // Phase 1: overlay external-package positions into the peripheral band
+      // below the internal graph. `buildOverviewGraph` has already tagged
+      // externals with `data.layoutBand === 'external'`; we pick them out and
+      // run the band layout over them using the just-computed internal
+      // positions as input. Band orientation: bottom, 240px gap, 320px tiers,
+      // 3 tiers (plan §6 Phase 1 / §10).
+      const externals = graphData.nodes.filter(
+        (node) => node.data?.layoutBand === 'external' || node.type === 'externalPackage'
+      );
+      if (externals.length > 0) {
+        const externalIds = new Set(externals.map((n) => n.id));
+        const externalEdges = graphData.edges.filter(
+          (edge) => externalIds.has(edge.source) || externalIds.has(edge.target)
+        );
+        const bandRect = computeExternalBandRect(graphData.nodes, externalIds, layoutResult);
+        const externalPositions = layoutExternalBand(
+          externals,
+          externalEdges,
+          layoutResult.positions,
+          bandRect
+        );
+        for (const [id, pos] of externalPositions) {
+          layoutResult.positions.set(id, pos);
+        }
+      }
+
+      // Phase 5: SCC supernodes carry their members' relative positions and
+      // the supernode's bounding-box size on node.data. Override the simple
+      // hierarchical layout for both members (relative positions) and the
+      // supernode (explicit size), mirroring how folder sizes work but kept
+      // out of computeSimpleHierarchicalLayout (Phase 1 owns that).
+      const sccMemberPositionOverrides = new Map<string, { x: number; y: number }>();
+      const sccParentSizeOverrides = new Map<string, { width: number; height: number }>();
+      for (const node of graphData.nodes) {
+        if (node.type !== 'scc') continue;
+        const rawPositions = node.data?.sccMemberPositions;
+        const size = node.data?.sccSize;
+        if (size) sccParentSizeOverrides.set(node.id, size);
+        if (rawPositions && typeof rawPositions === 'object') {
+          for (const [memberId, pos] of Object.entries(rawPositions)) {
+            if (
+              pos &&
+              typeof pos === 'object' &&
+              typeof (pos as { x?: unknown }).x === 'number' &&
+              typeof (pos as { y?: unknown }).y === 'number'
+            ) {
+              const typed = pos as { x: number; y: number };
+              sccMemberPositionOverrides.set(memberId, { x: typed.x, y: typed.y });
+            }
+          }
+        }
+      }
+
       // Apply computed positions and explicit sizes to nodes.
       // Children get relative positions within their parent; parents get explicit
       // CSS width/height strings so Vue Flow renders them large enough to enclose
       // children. Using CSS strings in node.style is the same format Vue Flow's
       // own handleParentExpand uses, ensuring consistent dimension tracking.
       const positionedNodes = graphData.nodes.map((node) => {
-        const pos = layoutResult.positions.get(node.id);
-        const rawSize = layoutResult.sizes.get(node.id);
+        // SCC overrides take priority over simpleHierarchicalLayout's decisions.
+        const overridePos = sccMemberPositionOverrides.get(node.id);
+        const overrideSize = sccParentSizeOverrides.get(node.id);
+        const pos = overridePos ?? layoutResult.positions.get(node.id);
+        const rawSize = overrideSize ?? layoutResult.sizes.get(node.id);
         const sz =
           rawSize && typeof rawSize.width === 'number' && typeof rawSize.height === 'number' ? rawSize : undefined;
         const styleBase =

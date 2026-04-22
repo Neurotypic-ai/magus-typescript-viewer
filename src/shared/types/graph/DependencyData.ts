@@ -34,5 +34,26 @@ export interface DependencyData {
   sortOrder?: number;
   layoutRankTrace?: LayoutRankTrace;
   collapsible?: boolean;
+  // ── Hub / population metadata (Phase 1 + Phase 4) ─────────────────────────
+  // `isHub` and `hubDegree` are set by the hub-aware layout passes once the
+  // client-side degree has been computed.  `layoutBand` identifies which of
+  // the three populations (internal/external/scc) a node belongs to so that
+  // downstream code can style or filter by band without re-deriving it from
+  // `type`.  `hubAnchorX`/`hubAnchorY` cache the centroid position assigned
+  // by `placeHubAnchors` (see `src/client/graph/layout/placeHubAnchors.ts`),
+  // which for layer-constrained internal hubs may differ from the column X
+  // but for externals is the final placement in the peripheral band.
+  isHub?: boolean;
+  hubDegree?: number;
+  layoutBand?: 'internal' | 'external' | 'scc';
+  hubAnchorX?: number;
+  hubAnchorY?: number;
+  // ── SCC supernode metadata (Phase 5) ──────────────────────────────────────
+  /** Members of an SCC supernode (only set on `type: 'scc'` nodes). */
+  sccMembers?: string[];
+  /** Positions of SCC members relative to the supernode's top-left corner. */
+  sccMemberPositions?: Record<string, { x: number; y: number }>;
+  /** Bounding-box size for an SCC supernode (width/height in CSS pixels). */
+  sccSize?: { width: number; height: number };
   [key: string]: unknown;
 }
