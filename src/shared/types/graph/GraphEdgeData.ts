@@ -19,4 +19,15 @@ export interface GraphEdgeData {
   targetAnchor?: GraphEdgeAnchor;
   aggregatedCount?: number;
   isBackEdge?: boolean;
+  /**
+   * The cardinal side this edge attaches to at its target node (set by
+   * Phase 2 `assignEdgeSides`). Downstream phases (e.g. Phase 3 fan-in
+   * trunks) read this to group edges arriving on the same side.
+   */
+  edgeSide?: 'left' | 'right' | 'top' | 'bottom';
+  /**
+   * The cardinal side this edge exits from at its source node (set by
+   * Phase 2 `assignEdgeSides`).
+   */
+  edgeSourceSide?: 'left' | 'right' | 'top' | 'bottom';
 }
