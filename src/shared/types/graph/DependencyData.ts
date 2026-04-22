@@ -34,5 +34,11 @@ export interface DependencyData {
   sortOrder?: number;
   layoutRankTrace?: LayoutRankTrace;
   collapsible?: boolean;
+  /** Members of an SCC supernode (only set on `type: 'scc'` nodes). */
+  sccMembers?: string[];
+  /** Positions of SCC members relative to the supernode's top-left corner. */
+  sccMemberPositions?: Record<string, { x: number; y: number }>;
+  /** Bounding-box size for an SCC supernode (width/height in CSS pixels). */
+  sccSize?: { width: number; height: number };
   [key: string]: unknown;
 }

@@ -13,6 +13,7 @@ export const ALL_DEPENDENCY_KINDS: DependencyKind[] = [
   'type',
   'function',
   'group',
+  'scc',
   'property',
   'method',
 ];
@@ -68,6 +69,10 @@ export const graphCssVariableNames = {
       border: '--graph-node-default-border',
     },
     group: {
+      background: '--graph-node-group-bg',
+      border: '--graph-node-group-border',
+    },
+    scc: {
       background: '--graph-node-group-bg',
       border: '--graph-node-group-border',
     },
@@ -282,6 +287,15 @@ export const graphTokenValues = {
         borderRadius: 4,
         borderStyle: 'dashed',
         minimapColor: 'rgba(148, 163, 184, 0.6)',
+      },
+      scc: {
+        background: 'rgba(244, 63, 94, 0.06)',
+        border: 'rgba(244, 63, 94, 0.6)',
+        minWidth: '220px',
+        padding: '8px',
+        borderRadius: 8,
+        borderStyle: 'dashed',
+        minimapColor: 'rgba(244, 63, 94, 0.7)',
       },
       property: {
         background: 'rgba(100, 149, 237, 0.15)',

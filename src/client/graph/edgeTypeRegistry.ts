@@ -11,12 +11,16 @@ interface EdgeTypeDefinition {
   handleCategory: HandleCategory;
 }
 
+// SCC supernodes aggregate module-level edges: when the layout pass condenses
+// a strongly-connected component, every edge whose source/target was a member
+// of that SCC is rewritten to point at the supernode. The supernode is an
+// accepted source/target for every edge kind a module can participate in.
 const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
   import: {
     kind: 'import',
     label: 'Imports',
-    validSources: ['module'],
-    validTargets: ['module', 'externalPackage'],
+    validSources: ['module', 'scc'],
+    validTargets: ['module', 'externalPackage', 'scc'],
     directed: true,
     handleCategory: 'relational',
   },
@@ -30,16 +34,16 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
     // Covers both class→class and interface→interface. The legacy
     // 'inheritance' kind has been merged in. 'module' is accepted so
     // module-level lifted edges (liftClassEdgesToModuleLevel) validate.
-    validSources: ['class', 'interface', 'module'],
-    validTargets: ['class', 'interface', 'module'],
+    validSources: ['class', 'interface', 'module', 'scc'],
+    validTargets: ['class', 'interface', 'module', 'scc'],
     directed: true,
     handleCategory: 'relational',
   },
   implements: {
     kind: 'implements',
     label: 'Implements',
-    validSources: ['class', 'module'],
-    validTargets: ['interface', 'module'],
+    validSources: ['class', 'module', 'scc'],
+    validTargets: ['interface', 'module', 'scc'],
     directed: true,
     handleCategory: 'relational',
   },
@@ -54,32 +58,32 @@ const EDGE_TYPE_REGISTRY: Record<DependencyEdgeKind, EdgeTypeDefinition> = {
   dependency: {
     kind: 'dependency',
     label: 'Dependency',
-    validSources: ['package', 'module'],
-    validTargets: ['package', 'externalPackage'],
+    validSources: ['package', 'module', 'scc'],
+    validTargets: ['package', 'externalPackage', 'scc'],
     directed: true,
     handleCategory: 'relational',
   },
   devDependency: {
     kind: 'devDependency',
     label: 'Dev Dependency',
-    validSources: ['package', 'module'],
-    validTargets: ['package', 'externalPackage'],
+    validSources: ['package', 'module', 'scc'],
+    validTargets: ['package', 'externalPackage', 'scc'],
     directed: true,
     handleCategory: 'relational',
   },
   peerDependency: {
     kind: 'peerDependency',
     label: 'Peer Dependency',
-    validSources: ['package', 'module'],
-    validTargets: ['package', 'externalPackage'],
+    validSources: ['package', 'module', 'scc'],
+    validTargets: ['package', 'externalPackage', 'scc'],
     directed: true,
     handleCategory: 'relational',
   },
   export: {
     kind: 'export',
     label: 'Exports',
-    validSources: ['module'],
-    validTargets: ['module'],
+    validSources: ['module', 'scc'],
+    validTargets: ['module', 'scc'],
     directed: true,
     handleCategory: 'relational',
   },
