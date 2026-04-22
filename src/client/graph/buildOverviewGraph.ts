@@ -62,6 +62,18 @@ export interface BuildOverviewGraphOptions {
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
+  /**
+   * Feature flag — when `true` (default) `useGraphLayout` calls
+   * `assignEdgeSides` after positioning, giving every edge a cardinal side
+   * at source and target based on the geometric relationship between
+   * endpoints (Phase 2). When `false`, the pre-Phase-2 hardcoded
+   * right-out / left-in handles are preserved for every edge.
+   *
+   * `buildOverviewGraph` itself does not inspect this flag — it only
+   * carries it through so the caller (`useGraphLayout`) can decide
+   * whether to run the side-assignment pass.
+   */
+  useFourSidedHandles?: boolean;
 }
 
 function applyGraphTransforms(graphData: GraphViewData): GraphViewData {

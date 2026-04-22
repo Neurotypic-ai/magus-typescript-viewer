@@ -5,6 +5,7 @@ import { Handle, Position } from '@vue-flow/core';
 import { NodeToolbar } from '@vue-flow/node-toolbar';
 
 import { useNodeMetricColor } from '../../composables/useNodeMetricColor';
+import { MODULE_HANDLE_IDS } from '../../graph/handleRouting';
 import { useGraphSettings } from '../../stores/graphSettings';
 import { useInsightsStore } from '../../stores/insightsStore';
 import { useIssuesStore } from '../../stores/issuesStore';
@@ -114,9 +115,28 @@ const isInsightDimmed = computed(() => {
 const sourcePosition = computed(() => props.sourcePosition ?? Position.Right);
 const targetPosition = computed(() => props.targetPosition ?? Position.Left);
 
+/**
+ * Canonical eight handles — one target (in) and one source (out) per
+ * cardinal side. Edges pick their handles via `assignEdgeSides`; legacy
+ * callers that still use `relational-in` / `relational-out` are also
+ * supported via two compatibility aliases so older snapshots and drilldown
+ * builders continue to render. The legacy aliases are positioned per
+ * `sourcePosition` / `targetPosition` so existing callers keep working.
+ */
 const handles = computed(() => [
-  { id: 'relational-in',  type: 'target' as const, position: targetPosition.value, class: 'base-node-handle' },
-  { id: 'relational-out', type: 'source' as const, position: sourcePosition.value, class: 'base-node-handle' },
+  { id: MODULE_HANDLE_IDS.topIn,     type: 'target' as const, position: Position.Top,    class: 'base-node-handle base-node-handle--side' },
+  { id: MODULE_HANDLE_IDS.topOut,    type: 'source' as const, position: Position.Top,    class: 'base-node-handle base-node-handle--side' },
+  { id: MODULE_HANDLE_IDS.rightIn,   type: 'target' as const, position: Position.Right,  class: 'base-node-handle base-node-handle--side' },
+  { id: MODULE_HANDLE_IDS.rightOut,  type: 'source' as const, position: Position.Right,  class: 'base-node-handle base-node-handle--side' },
+  { id: MODULE_HANDLE_IDS.bottomIn,  type: 'target' as const, position: Position.Bottom, class: 'base-node-handle base-node-handle--side' },
+  { id: MODULE_HANDLE_IDS.bottomOut, type: 'source' as const, position: Position.Bottom, class: 'base-node-handle base-node-handle--side' },
+  { id: MODULE_HANDLE_IDS.leftIn,    type: 'target' as const, position: Position.Left,   class: 'base-node-handle base-node-handle--side' },
+  { id: MODULE_HANDLE_IDS.leftOut,   type: 'source' as const, position: Position.Left,   class: 'base-node-handle base-node-handle--side' },
+  // Legacy aliases — preserve pre-Phase-2 handle IDs so drilldown builders,
+  // folder stubs, and older tests keep connecting. Positioned using the
+  // legacy `sourcePosition` / `targetPosition` props for continuity.
+  { id: 'relational-in',  type: 'target' as const, position: targetPosition.value, class: 'base-node-handle base-node-handle--legacy' },
+  { id: 'relational-out', type: 'source' as const, position: sourcePosition.value, class: 'base-node-handle base-node-handle--legacy' },
 ]);
 
 const inferredContainer = computed(() => {
@@ -226,14 +246,12 @@ const containerStyle = computed(() => {
       </div>
     </NodeToolbar>
 
-    <Handle
-      v-for="h in handles.slice(0, 1)"
-      :id="h.id"
-      :key="h.id"
-      :type="h.type"
-      :position="h.position"
-      :class="h.class"
-    />
+    <!--
+      First handle (legacy `relational-in` target) stays at the top of the
+      container for backward-compatible layout anchoring. Remaining handles
+      are rendered at the end of the container so they sit on all four
+      sides without disturbing the existing header geometry.
+    -->
 
     <button
       v-if="issueCount > 0"
@@ -283,7 +301,7 @@ const containerStyle = computed(() => {
     <slot name="empty" />
 
     <Handle
-      v-for="h in handles.slice(1)"
+      v-for="h in handles"
       :id="h.id"
       :key="h.id"
       :type="h.type"
@@ -355,6 +373,24 @@ const containerStyle = computed(() => {
 .base-node-handle {
   width: 0.75rem !important;
   height: 0.75rem !important;
+}
+
+/*
+ * Phase 2 side handles are always present on all four cardinal sides so Vue
+ * Flow can route an edge to any of them. They render as 1px squares with
+ * zero opacity; Vue Flow still registers them for hit-testing and edge
+ * attachment, but they add no visible chrome to the node.
+ */
+.base-node-handle.base-node-handle--side {
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 1px;
+  min-height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 
