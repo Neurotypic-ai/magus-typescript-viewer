@@ -21,6 +21,7 @@ import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
 import { FOLDER_HANDLE_IDS } from './handleRouting';
 import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
+import { partitionForLayout } from './layout/partitionForLayout';
 
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyData } from '../../shared/types/graph/DependencyData';
@@ -62,6 +63,20 @@ export interface BuildOverviewGraphOptions {
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
   highlightOrphanGlobal: boolean;
+  /**
+   * Phase 1 feature flag (see `/Users/khallmark/.claude/plans/you-are-inside-a-snug-ocean.md`).
+   *
+   * When `true` (default), external packages are removed from the Sugiyama
+   * input before layering, run through the internal pipeline on their own,
+   * and then re-joined as root-level nodes.  The caller (`useGraphLayout`)
+   * is responsible for positioning them in the peripheral band via
+   * `layoutExternalBand`.
+   *
+   * When `false`, the legacy behaviour is preserved: externals participate
+   * in layering like any other node and inherit the layer-0 stacking.  This
+   * flag exists so the two behaviours can be A/B compared.
+   */
+  useExternalBand?: boolean;
 }
 
 function applyGraphTransforms(graphData: GraphViewData): GraphViewData {
@@ -127,6 +142,21 @@ function filterGraphByTestVisibility(graphData: GraphViewData, hideTestFiles: bo
     nodes: filteredNodes,
     edges: filterEdgesByNodeSet(filteredNodes, graphData.edges),
   };
+}
+
+/**
+ * Stamp a `layoutBand` membership marker on a node (Phase 1 plan §7.1).
+ *
+ * This tells downstream consumers which of the three populations the node
+ * belongs to without needing them to re-derive it from `type`.
+ */
+function annotateLayoutBand(
+  node: DependencyNode,
+  band: 'internal' | 'external' | 'scc'
+): DependencyNode {
+  const existingData: DependencyData = node.data ?? { label: node.id };
+  if (existingData.layoutBand === band) return node;
+  return { ...node, data: { ...existingData, layoutBand: band } };
 }
 
 function buildDegreeMap(nodes: DependencyNode[], edges: GraphEdge[], includeHiddenEdges = false): Map<string, number> {
@@ -817,17 +847,69 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
     edges: filterEdgesByNodeSet(graphNodes, graphEdges),
   };
   const filteredGraph = filterGraphByTestVisibility(unfilteredGraph, options.hideTestFiles);
-  const backEdgeIds = detectBackEdges(filteredGraph.nodes, filteredGraph.edges);
-  const edgesWithBackEdgeMarks = markBackEdges(filteredGraph.edges, backEdgeIds);
-  const semanticSnapshot = { nodes: filteredGraph.nodes, edges: edgesWithBackEdgeMarks };
+
+  // Phase 1 (see plan §4.1 / §6 / §8.1): split the graph into internal vs.
+  // external populations so that externals don't compete for layer-0 column
+  // space with internal foundations.  The internal subgraph runs the
+  // classic Sugiyama pipeline; externals are re-joined after layering as
+  // root-level nodes and will be positioned by `layoutExternalBand` during
+  // coordinate assignment.
+  const useExternalBand = options.useExternalBand ?? true;
+  const partitioned = useExternalBand
+    ? partitionForLayout(filteredGraph.nodes, filteredGraph.edges)
+    : null;
+
+  // Nodes & edges that go through the layering passes.
+  const layeringNodes = partitioned ? partitioned.internal : filteredGraph.nodes;
+  const layeringEdges = partitioned ? partitioned.internalEdges : filteredGraph.edges;
+
+  const backEdgeIds = detectBackEdges(layeringNodes, layeringEdges);
+  const edgesWithBackEdgeMarks = markBackEdges(layeringEdges, backEdgeIds);
+
+  // Semantic snapshot mirrors the whole filtered graph (internal + external)
+  // so downstream consumers — debug panels, drilldown navigation — still
+  // see every node and every edge.
+  const fullEdgesWithBackEdgeMarks = partitioned
+    ? [...edgesWithBackEdgeMarks, ...partitioned.externalIncidentEdges]
+    : edgesWithBackEdgeMarks;
+  const semanticSnapshot = { nodes: filteredGraph.nodes, edges: fullEdgesWithBackEdgeMarks };
   validateEdgesAgainstRegistry(semanticSnapshot.nodes, semanticSnapshot.edges);
 
-  const { weights: moduleWeights, traces: rankTraces } = computeModuleLayoutWeights(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
-  const layerAssignment = computeLayerAssignment(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
-  const sortOrder = computeBarycenterSortOrder(semanticSnapshot.nodes, semanticSnapshot.edges, layerAssignment, backEdgeIds);
+  const { weights: moduleWeights, traces: rankTraces } = computeModuleLayoutWeights(
+    layeringNodes,
+    edgesWithBackEdgeMarks,
+    backEdgeIds
+  );
+  const layerAssignment = computeLayerAssignment(layeringNodes, edgesWithBackEdgeMarks, backEdgeIds);
+  const sortOrder = computeBarycenterSortOrder(
+    layeringNodes,
+    edgesWithBackEdgeMarks,
+    layerAssignment,
+    backEdgeIds
+  );
+  const weightedInternalNodes = applyModuleWeights(
+    layeringNodes,
+    moduleWeights,
+    layerAssignment,
+    sortOrder,
+    rankTraces
+  );
+
+  // Rejoin the external nodes (tagged with `layoutBand: 'external'`) after
+  // layering so that folder clustering, edge visibility, and bundling still
+  // see the complete graph.  Internal nodes get `layoutBand: 'internal'`.
+  const weightedInternalsTagged = partitioned
+    ? weightedInternalNodes.map((node) => annotateLayoutBand(node, 'internal'))
+    : weightedInternalNodes;
+  const weightedExternalsTagged = partitioned
+    ? partitioned.external.map((node) => annotateLayoutBand(node, 'external'))
+    : [];
+  const weightedFilteredNodes = partitioned
+    ? [...weightedInternalsTagged, ...weightedExternalsTagged]
+    : weightedInternalsTagged;
   const weightedFilteredGraph = {
-    nodes: applyModuleWeights(filteredGraph.nodes, moduleWeights, layerAssignment, sortOrder, rankTraces),
-    edges: edgesWithBackEdgeMarks,
+    nodes: weightedFilteredNodes,
+    edges: fullEdgesWithBackEdgeMarks,
   };
 
   const transformedGraph = applyGraphTransforms(weightedFilteredGraph);

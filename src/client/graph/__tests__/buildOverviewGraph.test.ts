@@ -70,6 +70,32 @@ function makeGraph(packages: Package[]): PackageGraph {
   return { packages };
 }
 
+/**
+ * Helper to build a package with a module that imports an external package.
+ * Used by Phase 1 external-band tests below.
+ */
+function moduleWithExternalImport(
+  id: string,
+  path: string,
+  packageId: string,
+  externalPackageName: string
+): Module {
+  return makeModule(id, path.split('/').pop() ?? id, packageId, path, {
+    imports: {
+      [externalPackageName]: {
+        uuid: `imp-${id}-${externalPackageName}`,
+        name: externalPackageName,
+        fullPath: externalPackageName,
+        relativePath: externalPackageName,
+        specifiers: new Map(),
+        depth: 0,
+        isExternal: true,
+        packageName: externalPackageName,
+      },
+    } as unknown as NonNullable<Module['imports']>,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -1258,6 +1284,95 @@ describe('buildOverviewGraph', () => {
       const folderEdges = result.edges.filter((e) => e.source === folderA && e.target === folderB);
       expect(folderEdges).toHaveLength(1);
       expect(folderEdges[0]?.data?.aggregatedCount).toBe(2);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Phase 1: external band flag (partitionForLayout integration)
+  // -----------------------------------------------------------------------
+
+  describe('external-band feature flag (Phase 1)', () => {
+    function graphWithExternalImport(): PackageGraph {
+      const modApp = moduleWithExternalImport('mod-app', 'src/app.ts', 'pkg-1', 'vue');
+      return makeGraph([makePackage('pkg-1', 'app', { app: modApp })]);
+    }
+
+    it('by default includes an externalPackage node tagged as `layoutBand: external`', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const ext = result.nodes.find((n) => n.type === 'externalPackage');
+      expect(ext).toBeDefined();
+      expect(ext?.data?.layoutBand).toBe('external');
+      expect(ext?.parentNode).toBeUndefined();
+    });
+
+    it('tags internal nodes with `layoutBand: internal` when the flag is enabled', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const modNode = result.nodes.find((n) => n.id === 'mod-app');
+      expect(modNode?.data?.layoutBand).toBe('internal');
+    });
+
+    it('does not run layering over external packages: externals get no layerIndex/sortOrder from the internal pipeline', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const ext = result.nodes.find((n) => n.type === 'externalPackage');
+      // Externals bypass applyModuleWeights, so layerIndex/sortOrder/layoutWeight
+      // are untouched (undefined).  The module consumer still gets its layer-1
+      // ranking even though the external is no longer part of the DAG.
+      expect(ext?.data?.layerIndex).toBeUndefined();
+      expect(ext?.data?.sortOrder).toBeUndefined();
+      expect(ext?.data?.layoutWeight).toBeUndefined();
+
+      const modApp = result.nodes.find((n) => n.id === 'mod-app');
+      // Without externals in the DAG, mod-app becomes a foundation (layer 0,
+      // weight 0). This is the expected Phase-1 behaviour — importing an
+      // external no longer forces the importer to layer ≥ 1.
+      expect(modApp?.data?.layerIndex).toBe(0);
+    });
+
+    it('preserves external-incident edges in the final output', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const externalEdge = result.edges.find(
+        (e) => e.source === 'mod-app' && e.target === 'external:vue'
+      );
+      expect(externalEdge).toBeDefined();
+    });
+
+    it('legacy behaviour: when useExternalBand=false, externals get layered like any other node', () => {
+      const result = buildOverviewGraph(
+        defaultOptions({ data: graphWithExternalImport(), useExternalBand: false })
+      );
+
+      const ext = result.nodes.find((n) => n.type === 'externalPackage');
+      expect(ext).toBeDefined();
+      // In legacy mode we do NOT tag layoutBand (the partition step is skipped).
+      expect(ext?.data?.layoutBand).toBeUndefined();
+      // The external participates in layering → layer 0, importer → layer 1.
+      expect(ext?.data?.layerIndex).toBe(0);
+      const modApp = result.nodes.find((n) => n.id === 'mod-app');
+      expect(modApp?.data?.layerIndex).toBe(1);
+    });
+
+    it('legacy behaviour: the full edge set is still produced when useExternalBand=false', () => {
+      const result = buildOverviewGraph(
+        defaultOptions({ data: graphWithExternalImport(), useExternalBand: false })
+      );
+
+      const externalEdge = result.edges.find(
+        (e) => e.source === 'mod-app' && e.target === 'external:vue'
+      );
+      expect(externalEdge).toBeDefined();
+    });
+
+    it('the semantic snapshot still contains every external-incident edge with the flag enabled', () => {
+      const result = buildOverviewGraph(defaultOptions({ data: graphWithExternalImport() }));
+
+      const externalEdgeInSnapshot = result.semanticSnapshot?.edges.find(
+        (e) => e.source === 'mod-app' && e.target === 'external:vue'
+      );
+      expect(externalEdgeInSnapshot).toBeDefined();
     });
   });
 });
