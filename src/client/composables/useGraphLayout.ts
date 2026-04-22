@@ -5,6 +5,7 @@ import { consola } from 'consola';
 import { buildOverviewGraph } from '../graph/buildGraphView';
 import { getHandlePositions } from '../graph/handleRouting';
 import { layoutExternalBand } from '../graph/layout/layoutExternalBand';
+import { relocateInternalHubs } from '../graph/layout/relocateInternalHubs';
 import { collectNodesNeedingInternalsUpdate } from '../graph/nodeDiff';
 import { parseDimension, resolveNodeDimensions } from '../layout/geometryBounds';
 import { computeSimpleHierarchicalLayout } from '../layout/simpleHierarchicalLayout';
@@ -185,6 +186,21 @@ interface GraphLayout {
 }
 
 const HARDCODED_LAYOUT_CONFIG: LayoutConfig = { direction: 'LR' };
+
+/**
+ * Phase 4 feature flag (plan §6 Phase 4). When `true` (default), internal
+ * modules with combined degree ≥ threshold are pulled toward the Y-centroid
+ * of their neighbours within their layer band. When `false`, the output is
+ * identical to the pre-Phase-4 layout.
+ *
+ * The flag is intentionally a module-local constant rather than per-call: the
+ * Phase 4 relocation needs to run on every layout refresh (size changes,
+ * filter toggles, etc.), and threading an option through every caller doubles
+ * the public-surface churn without buying anything users can influence.
+ * Tests override it via the optional `internalHubRelocation` parameter on
+ * `processGraphLayout` when they need to compare on/off behaviour.
+ */
+const PHASE4_INTERNAL_HUB_RELOCATION_ENABLED = true;
 
 /** Gap between the bottom of the internal graph and the first external tier. */
 const EXTERNAL_BAND_GAP_PX = 240;
@@ -445,6 +461,24 @@ export function useGraphLayout(options: UseGraphLayoutOptions): GraphLayout {
           bandRect
         );
         for (const [id, pos] of externalPositions) {
+          layoutResult.positions.set(id, pos);
+        }
+      }
+
+      // Phase 4 (plan §3.A, §4.2, §6 Phase 4): pull high-degree internal
+      // hubs toward the Y-centroid of their neighbours within each hub's
+      // layer Y-band. Runs AFTER Phase 1's external-band overlay so that
+      // externals have their final Y before their centroid contribution is
+      // read. `placeHubAnchors` (layer-band mode) is the shared abstraction;
+      // `relocateInternalHubs` is the thin wrapper that computes layer bands
+      // and selects degree-≥-threshold internal nodes.
+      if (PHASE4_INTERNAL_HUB_RELOCATION_ENABLED) {
+        const relocatedPositions = relocateInternalHubs(
+          graphData.nodes,
+          graphData.edges,
+          layoutResult.positions
+        );
+        for (const [id, pos] of relocatedPositions) {
           layoutResult.positions.set(id, pos);
         }
       }

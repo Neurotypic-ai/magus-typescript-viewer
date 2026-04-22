@@ -90,6 +90,16 @@ export interface BuildOverviewGraphOptions {
    * output for any graph that has no cycles.
    */
   useSccCondensation?: boolean;
+  /**
+   * Phase 4 feature flag (plan §6 Phase 4). When `true` (default), high-degree
+   * internal modules are relocated toward the Y-centroid of their neighbours
+   * during coordinate assignment (via `relocateInternalHubs` in
+   * `useGraphLayout`). When `false`, the pipeline skips that step and the
+   * Sugiyama output stands. `buildOverviewGraph` itself does not run the
+   * relocation — it only propagates the flag to consumers — but the flag
+   * lives on this options bag so every caller has a single control surface.
+   */
+  useInternalHubRelocation?: boolean;
 }
 
 function applyGraphTransforms(graphData: GraphViewData): GraphViewData {
@@ -540,65 +550,27 @@ function computeBarycenterSortOrder(
     updatePositions();
   }
 
-  // ── Centrality-weighted pyramid re-order ────────────────────────────────
+  // ── Centrality pyramid (removed in Phase 4) ─────────────────────────────
   //
-  // Within each layer, bias high-degree nodes toward the vertical center
-  // ("trunk") and low-degree nodes toward the edges ("leaves"). This shortens
-  // average edge length because widely-used hubs end up near the mean Y of
-  // their many consumers — important for external packages like `vue` that
-  // are imported by ~everything.
+  // Historical note: earlier versions of this function ran a centrality-
+  // weighted "pyramid" re-order here. It sorted each layer by descending
+  // degree and walked outward from the middle so that the highest-degree
+  // node sat at the centre, with the lowest on the edges. A `CENTRALITY_GATE`
+  // constant (value 2) gated the re-order so it only fired when the layer's
+  // max degree was ≥ 2× the mean. The intent was to shorten edges to hubs.
   //
-  // Guarded: we only re-order when there is a clear centrality gradient
-  // (the layer's max degree is materially higher than its mean). Otherwise
-  // we leave barycenter's output alone because the crossing-minimization it
-  // already performed is strictly better when all nodes have similar degree.
+  // Phase 4 replaces this discrete approximation with the continuous hub
+  // relocation in `relocateInternalHubs` (plan §6 Phase 4, §8.3). The new
+  // pass reads real pixel coordinates after Sugiyama + Phase 1 external-band
+  // layout have settled, computes each hub's neighbour Y-centroid, and
+  // clamps it to the hub's layer Y-band. Running both the pyramid and Phase 4
+  // would double-move the hub: Phase 4 would consume the already-re-ordered
+  // sortOrder as input, then shift it again with no gain.
   //
-  // Trade-off: when it fires, we sacrifice some crossing-minimization
-  // optimality in exchange for a layout closer to the user's mental model
-  // of a dependency graph (trunk in the middle, branches reaching outward).
-  const CENTRALITY_GATE = 2; // max degree must exceed mean by at least this factor
-  for (let l = 0; l <= maxLayer; l++) {
-    const bucket = layerBuckets[l];
-    if (!bucket || bucket.length <= 2) continue;
-
-    const degrees = bucket.map((id) => neighbors.get(id)?.size ?? 0);
-    const maxDeg = Math.max(...degrees);
-    const meanDeg = degrees.reduce((a, b) => a + b, 0) / degrees.length;
-    if (meanDeg === 0 || maxDeg < meanDeg * CENTRALITY_GATE) continue;
-
-    const byDegree = [...bucket].sort((a, b) => {
-      const da = neighbors.get(a)?.size ?? 0;
-      const db = neighbors.get(b)?.size ?? 0;
-      if (da !== db) return db - da; // descending by degree
-      // Tiebreak: preserve barycenter order for same-degree nodes
-      return (position.get(a) ?? 0) - (position.get(b) ?? 0);
-    });
-
-    const reordered = new Array<string>(bucket.length);
-    const mid = Math.floor((bucket.length - 1) / 2);
-    for (let i = 0; i < byDegree.length; i++) {
-      // Walk outward from the middle: 0 → mid, 1 → mid+1, 2 → mid-1, 3 → mid+2, ...
-      const offset = Math.ceil(i / 2);
-      const sign = i === 0 ? 0 : i % 2 === 1 ? 1 : -1;
-      const idx = mid + sign * offset;
-      const id = byDegree[i];
-      if (id !== undefined && idx >= 0 && idx < bucket.length) {
-        reordered[idx] = id;
-      }
-    }
-
-    // Fill any gaps with leftover items (defensive — edge cases around even
-    // bucket sizes can leave an untouched slot).
-    let writeIdx = 0;
-    for (const id of byDegree) {
-      if (reordered.includes(id)) continue;
-      while (writeIdx < reordered.length && reordered[writeIdx] !== undefined) writeIdx++;
-      if (writeIdx < reordered.length) reordered[writeIdx] = id;
-    }
-
-    layerBuckets[l] = reordered;
-  }
-  updatePositions();
+  // Keeping the CENTRALITY_GATE constant name + comment here so future
+  // readers who encounter a `git blame` pointer at this line understand
+  // which pass superseded the pyramid.
+  // Former: `const CENTRALITY_GATE = 2` (kept only as a breadcrumb).
 
   // Return final positions as sortOrder
   const sortOrder = new Map<string, number>();
