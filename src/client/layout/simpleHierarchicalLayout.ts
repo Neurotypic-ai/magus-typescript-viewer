@@ -2,7 +2,7 @@
  * Sugiyama-based synchronous hierarchical layout.
  *
  * Root-level nodes are arranged in layer-based columns (Sugiyama framework):
- *   - X position determined by layerIndex (foundations left, consumers right)
+ *   - X position determined by layerIndex (consumers left, foundations right — edges flow source→target left→right)
  *   - Y position within each column determined by sortOrder (barycenter heuristic)
  *
  * Child nodes in VueFlow are positioned relative to their parent:
@@ -255,8 +255,8 @@ export function computeSimpleHierarchicalLayout(
   // ── Step 2: lay out root nodes in Sugiyama layer columns ──────────────────
   //
   // Group root nodes by layerIndex, sort each column by sortOrder (barycenter),
-  // and stack them vertically. Columns are placed left-to-right, foundations
-  // (layer 0) on the left, consumers on the right.
+  // and stack them vertically. Columns are placed left-to-right, consumers
+  // (highest layer) on the left, foundations (layer 0) on the right.
 
   const rootNodes = nodes.filter((n) => !n.parentNode);
 

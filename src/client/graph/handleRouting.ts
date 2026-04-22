@@ -9,7 +9,10 @@ export const FOLDER_HANDLE_IDS = {
 
 /**
  * Canonical node handles are always right-out and left-in.
- * The direction argument is kept for compatibility with existing callers.
+ *
+ * @deprecated The `_direction` argument is ignored. Layout is hardcoded LR;
+ * TB/BT/RL requests produce identical output. Scheduled for removal when
+ * per-edge side assignment (Phase 2 of the hub-aware layout plan) lands.
  */
 export const getHandlePositions = (
   _direction: 'LR' | 'RL' | 'TB' | 'BT'

@@ -58,6 +58,11 @@ const overviewGraphLogger = consola.withTag('OverviewGraph');
 export interface BuildOverviewGraphOptions {
   data: PackageGraph;
   enabledRelationshipTypes: string[];
+  /**
+   * @deprecated Layout is hardcoded LR regardless of this value. Retained
+   * only so existing callers (drilldown builders, tests) keep compiling.
+   * Will be removed when per-edge side assignment lands.
+   */
   direction: 'LR' | 'RL' | 'TB' | 'BT';
   collapsedFolderIds: Set<string>;
   hideTestFiles: boolean;
@@ -253,18 +258,20 @@ function computeModuleLayoutWeights(
     fanIn.set(edge.target, (fanIn.get(edge.target) ?? 0) + 1);
   }
 
-  // Step cost: modules with higher fan-in create larger layout gaps.
-  // log₂ scaling keeps weights bounded while creating meaningful separation.
-  //   fanIn=1 → cost 1 (same as previous uniform-depth algorithm)
-  //   fanIn=2 → cost 2,  fanIn=4 → cost 3,  fanIn=8 → cost 4
+  // Step cost: log₂-scaled by fan-in of the target.
+  //   fanIn=1 → cost 1,  fanIn=2 → cost 2,  fanIn=4 → cost 3,  fanIn=8 → cost 4
+  //
+  // DIAGNOSTIC ONLY — this weight is surfaced via `layoutWeight` / `LayoutRankTrace`
+  // in the Rank Debug Panel but does NOT affect rendered X positions. Positioning
+  // reads `layerIndex` (uniform-cost) only. Do not assume visual spacing changes
+  // when you tweak this.
   function stepCost(targetId: string): number {
     const inDegree = fanIn.get(targetId) ?? 0;
     return 1 + Math.log2(Math.max(1, inDegree));
   }
 
   // Memoized longest-path weighted depth with cycle detection.
-  // Each edge step is weighted by the fan-in of its target, so heavily-imported
-  // foundations push their consumers further right in the layout.
+  // Feeds the Rank Debug Panel; see stepCost above for the DIAGNOSTIC-ONLY caveat.
   const depthCache = new Map<string, number>();
   const visiting = new Set<string>();
 
