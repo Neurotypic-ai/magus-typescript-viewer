@@ -92,7 +92,8 @@ function firstImportAlias(specifier: IImportSpecifier): string | undefined {
 }
 
 function getImportPath(importValue: Import & { path?: string }): string | undefined {
-  return importValue.relativePath;
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentional: skip empty strings
+  return importValue.relativePath || importValue.fullPath || importValue.path || importValue.name || undefined;
 }
 
 function toImportSpecifierLike(

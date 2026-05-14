@@ -1,7 +1,13 @@
 import { Position } from '@vue-flow/core';
 import { describe, expect, it } from 'vitest';
 
-import { FOLDER_HANDLE_IDS, getHandlePositions } from '../handleRouting';
+import {
+  FOLDER_HANDLE_IDS,
+  FOLDER_ROUTING_KINDS,
+  FOLDER_KIND_Y_OFFSET,
+  getFolderHandleId,
+  getHandlePositions,
+} from '../handleRouting';
 import * as handleRoutingModule from '../handleRouting';
 
 describe('handleRouting', () => {
@@ -27,4 +33,35 @@ describe('handleRouting', () => {
       });
     }
   );
+
+  describe('per-kind routing', () => {
+    it('FOLDER_ROUTING_KINDS contains all six routable kinds', () => {
+      expect(FOLDER_ROUTING_KINDS).toEqual([
+        'peerDependency',
+        'devDependency',
+        'dependency',
+        'import',
+        'extends',
+        'implements',
+      ]);
+    });
+
+    it('FOLDER_KIND_Y_OFFSET assigns distinct 8px-spaced offsets', () => {
+      expect(FOLDER_KIND_Y_OFFSET['peerDependency']).toBe(-24);
+      expect(FOLDER_KIND_Y_OFFSET['devDependency']).toBe(-16);
+      expect(FOLDER_KIND_Y_OFFSET['dependency']).toBe(-8);
+      expect(FOLDER_KIND_Y_OFFSET['import']).toBe(0);
+      expect(FOLDER_KIND_Y_OFFSET['extends']).toBe(8);
+      expect(FOLDER_KIND_Y_OFFSET['implements']).toBe(16);
+    });
+
+    it.each([
+      ['right', 'stub', 'import', 'folder-right-stub-import'],
+      ['left', 'in', 'extends', 'folder-left-in-extends'],
+      ['right', 'out', 'implements', 'folder-right-out-implements'],
+      ['left', 'stub', 'import', 'folder-left-stub-import'],
+    ] as const)('getFolderHandleId(%s, %s, %s) → %s', (side, role, kind, expected) => {
+      expect(getFolderHandleId(side, role, kind)).toBe(expected);
+    });
+  });
 });

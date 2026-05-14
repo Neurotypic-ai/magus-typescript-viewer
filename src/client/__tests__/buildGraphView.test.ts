@@ -4,10 +4,7 @@ import {
   applyEdgeVisibility,
   buildOverviewGraph,
   buildSymbolDrilldownGraph,
-  filterNodeChangesForFolderMode,
 } from '../graph/buildGraphView';
-
-import type { NodeChange } from '@vue-flow/core';
 
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyNode } from '../types/DependencyNode';
@@ -335,36 +332,5 @@ describe('buildSymbolDrilldownGraph', () => {
     expect(usesEdge).toBeDefined();
     expect(usesEdge?.data?.usageKind).toBe('property');
     expect(usesEdge?.hidden).toBe(false);
-  });
-});
-
-describe('filterNodeChangesForFolderMode', () => {
-  it('passes through all changes in folder mode (Vue Flow handles compound node movement)', () => {
-    const nodes: DependencyNode[] = [
-      {
-        id: 'group-1',
-        type: 'group',
-        position: { x: 0, y: 0 },
-        data: { label: 'group' },
-      } as DependencyNode,
-      {
-        id: 'module-1',
-        type: 'module',
-        position: { x: 0, y: 0 },
-        data: { label: 'module' },
-      } as DependencyNode,
-    ];
-
-    const changes: NodeChange[] = [
-      { id: 'group-1', type: 'position', position: { x: 10, y: 20 }, dragging: true } as NodeChange,
-      { id: 'module-1', type: 'position', position: { x: 30, y: 40 }, dragging: true } as NodeChange,
-      { id: 'module-1', type: 'dimensions', dimensions: { width: 200, height: 100 } } as NodeChange,
-      { id: 'module-1', type: 'select', selected: true } as NodeChange,
-    ];
-
-    const result = filterNodeChangesForFolderMode(changes, nodes, true);
-
-    expect(result).toHaveLength(4);
-    expect(result).toEqual(changes);
   });
 });

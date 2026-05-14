@@ -3,20 +3,7 @@
  * Implementation lives in buildOverviewGraph, drilldown/, and graphViewShared.
  */
 
-import type { NodeChange } from '@vue-flow/core';
-
-import type { DependencyNode } from '../types/DependencyNode';
-
 export { buildOverviewGraph } from './buildOverviewGraph';
 export { buildSymbolDrilldownGraph } from './drilldown/buildSymbolDrilldown';
 export { applyEdgeVisibility } from './graphViewShared';
 export { toDependencyEdgeKind } from './edgeKindUtils';
-
-export function filterNodeChangesForFolderMode(
-  changes: NodeChange[],
-  _nodes: DependencyNode[],
-  folderModeEnabled: boolean
-): NodeChange[] {
-  if (!folderModeEnabled) return changes;
-  return changes;
-}

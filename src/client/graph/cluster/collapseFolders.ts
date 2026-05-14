@@ -92,7 +92,8 @@ export function collapseFolders(
 
   // Remap edges: same dedup pattern as collapseSccs (scc.ts:133-155)
   const edgeMap = new Map<string, GraphEdge>();
-  let totalLifted = 0;
+  // Track how many unique edges cross each collapsed folder's boundary.
+  const liftedPerFolder = new Map<string, number>();
 
   for (const edge of edges) {
     const type = (edge.data?.type as string | undefined) ?? 'dependency';
@@ -101,9 +102,6 @@ export function collapseFolders(
 
     // Drop intra-folder edges
     if (mappedSource === mappedTarget) continue;
-
-    const wasRemapped = mappedSource !== edge.source || mappedTarget !== edge.target;
-    if (wasRemapped) totalLifted++;
 
     const key = `${mappedSource}|${mappedTarget}|${type}`;
     if (!edgeMap.has(key)) {
@@ -121,13 +119,20 @@ export function collapseFolders(
           height: EDGE_MARKER_HEIGHT_PX,
         },
       });
+
+      // Count this unique edge against each folder it crosses.
+      if (mappedSource !== edge.source) {
+        liftedPerFolder.set(mappedSource, (liftedPerFolder.get(mappedSource) ?? 0) + 1);
+      }
+      if (mappedTarget !== edge.target) {
+        liftedPerFolder.set(mappedTarget, (liftedPerFolder.get(mappedTarget) ?? 0) + 1);
+      }
     }
   }
 
-  // Record lifted edge counts
+  // Record per-folder lifted edge counts.
   for (const [folderId, meta] of collapsedMeta) {
-    meta.liftedEdgeCount = totalLifted;
-    collapsedMeta.set(folderId, meta);
+    meta.liftedEdgeCount = liftedPerFolder.get(folderId) ?? 0;
   }
 
   return {

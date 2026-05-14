@@ -156,6 +156,20 @@ describe('bundleParallelEdges', () => {
     expect(bundled?.data?.type).toBe('extends');
   });
 
+  it('prefers a visible edge over a hidden higher-priority representative', () => {
+    const parallelEdges: GraphEdge[] = [
+      { ...makeEdge('e1', 'a', 'b', 'extends'), hidden: true },
+      { ...makeEdge('e2', 'a', 'b', 'import'), hidden: false },
+    ];
+    const edges = [...parallelEdges, ...makeFiller(48)];
+
+    const result = bundleParallelEdges(edges);
+    const bundled = result.find((e) => e.source === 'a' && e.target === 'b');
+
+    expect(bundled?.hidden).toBe(false);
+    expect(bundled?.data?.type).toBe('import');
+  });
+
   it('leaves single edges in a group untouched', () => {
     const edges = [makeEdge('e1', 'a', 'b', 'import'), ...makeFiller(49)];
 

@@ -112,23 +112,11 @@ interface GeometryTheme {
   edgeMarkerHeight: number;
 }
 
-interface LayoutSpacing {
-  horizontal: number;
-  vertical: number;
-  edge: number;
-  margin: number;
-}
-
-interface LayoutTheme {
-  spacing: LayoutSpacing;
-}
-
 interface GraphTheme {
   nodes: NodeTheme;
   edges: EdgeTheme;
   severity: SeverityTheme;
   geometry: GeometryTheme;
-  layout: LayoutTheme;
 }
 
 function createNodeKindTheme(type: DependencyKind): NodeKindTheme {
@@ -214,16 +202,6 @@ export const graphTheme: GraphTheme = {
     insight: graphTokenValues.severity.insight,
   },
   geometry: graphTokenValues.geometry,
-  layout: {
-    // These values intentionally mirror the current layout engine constants.
-    // The layout engine is not wired to this object yet.
-    spacing: {
-      horizontal: 40,
-      vertical: 60,
-      edge: 20,
-      margin: 30,
-    },
-  },
 };
 
 export function getNodeStyle(type: DependencyKind): CSSProperties {

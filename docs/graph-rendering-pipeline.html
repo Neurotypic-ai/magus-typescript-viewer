@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graph Rendering Pipeline — Magus TypeScript Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;900&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & Base ───────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #080a0f;
+    --bg2:      #0d1117;
+    --bg3:      #141921;
+    --bg4:      #1a2232;
+    --surface:  #1e2838;
+    --border:   #2a3548;
+    --border2:  #3a4d68;
+
+    --text:     #dce8f5;
+    --text2:    #8da0b8;
+    --text3:    #5c7395;
+
+    --blue:     #3b82f6;
+    --blue-dim: #1d3a6a;
+    --cyan:     #22d3ee;
+    --green:    #10b981;
+    --amber:    #f59e0b;
+    --amber-dim:#4a3010;
+    --red:      #ef4444;
+    --red-dim:  #4a1010;
+    --purple:   #a855f7;
+    --pink:     #ec4899;
+
+    --font-display: 'Outfit', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+
+    --r: 8px;
+    --r-lg: 14px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-mono);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Layout ─────────────────────────────────────────────────────────────── */
+  .page-wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 32px 120px;
+  }
+
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.2; }
+
+  h1 {
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+  }
+  h2 {
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 18px;
+  }
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--cyan);
+    margin: 28px 0 10px;
+  }
+  h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text2);
+    margin: 20px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  p { margin-bottom: 14px; color: var(--text2); }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  code, .mono {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--cyan);
+  }
+
+  pre {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 20px 24px;
+    overflow-x: auto;
+    margin: 18px 0;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    position: relative;
+  }
+  pre .kw  { color: var(--purple); }
+  pre .fn  { color: var(--blue); }
+  pre .str { color: var(--green); }
+  pre .cm  { color: var(--text3); font-style: italic; }
+  pre .ty  { color: var(--amber); }
+  pre .num { color: var(--pink); }
+
+  /* ── Header ──────────────────────────────────────────────────────────────── */
+  .hero {
+    padding: 80px 0 60px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -120px; right: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(ellipse at center, rgba(59,130,246,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--blue);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .hero-eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 28px; height: 1px;
+    background: var(--blue);
+  }
+  .hero h1 span.accent { color: var(--blue); }
+  .hero-sub {
+    margin-top: 20px;
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    color: var(--text3);
+    max-width: 600px;
+    line-height: 1.65;
+  }
+  .hero-meta {
+    margin-top: 32px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .hero-badge {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 5px 12px;
+    border-radius: 100px;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+  }
+  .hero-badge.blue  { border-color: var(--blue); color: var(--blue); background: rgba(59,130,246,0.06); }
+  .hero-badge.green { border-color: var(--green); color: var(--green); background: rgba(16,185,129,0.06); }
+  .hero-badge.amber { border-color: var(--amber); color: var(--amber); background: rgba(245,158,11,0.06); }
+
+  /* ── Nav ─────────────────────────────────────────────────────────────────── */
+  .toc {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8,10,15,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+    margin: 0 -32px;
+    padding-left: 32px;
+    padding-right: 32px;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .toc::-webkit-scrollbar { display: none; }
+  .toc a {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--text3);
+    white-space: nowrap;
+    padding: 4px 14px 4px 0;
+    text-decoration: none;
+    transition: color 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .toc a:hover { color: var(--text); }
+  .toc a + a { border-left: 1px solid var(--border); padding-left: 14px; }
+
+  /* ── Section ─────────────────────────────────────────────────────────────── */
+  .section {
+    padding: 64px 0 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+  .section:last-child { border-bottom: none; }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--blue);
+    letter-spacing: 0.1em;
+    border: 1px solid var(--blue-dim);
+    border-radius: 4px;
+    padding: 2px 7px;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  /* ── Pipeline Diagram ────────────────────────────────────────────────────── */
+  #pipeline-diagram {
+    margin: 40px 0 60px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    position: relative;
+  }
+  #pipeline-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .stage-tooltip {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg4);
+    border: 1px solid var(--border2);
+    border-radius: var(--r);
+    padding: 12px 18px;
+    font-size: 0.78rem;
+    color: var(--text);
+    max-width: 380px;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .stage-tooltip.visible { opacity: 1; }
+  .stage-tooltip .tt-title { font-weight: 700; color: var(--cyan); margin-bottom: 4px; }
+
+  /* ── Info Cards ──────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 20px 24px;
+    margin: 16px 0;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .card-sm {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 16px 18px;
+  }
+  .card-sm h4 { margin-top: 0; }
+
+  /* ── Callouts ────────────────────────────────────────────────────────────── */
+  .callout {
+    border-left: 3px solid;
+    padding: 14px 18px 14px 20px;
+    border-radius: 0 var(--r) var(--r) 0;
+    margin: 20px 0;
+    background: var(--bg3);
+  }
+  .callout p { margin-bottom: 6px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.info   { border-color: var(--blue); }
+  .callout.warn   { border-color: var(--amber); background: var(--amber-dim); }
+  .callout.danger { border-color: var(--red); background: var(--red-dim); }
+  .callout.algo   { border-color: var(--green); }
+  .callout-title {
+    font-weight: 700;
+    font-family: var(--font-display);
+    font-size: 0.88rem;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .info .callout-title   { color: var(--blue); }
+  .warn .callout-title   { color: var(--amber); }
+  .danger .callout-title { color: var(--red); }
+  .algo .callout-title   { color: var(--green); }
+
+  /* ── Flaw Cards ──────────────────────────────────────────────────────────── */
+  .flaw-list { display: flex; flex-direction: column; gap: 20px; margin: 24px 0; }
+  .flaw-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    overflow: hidden;
+  }
+  .flaw-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .severity-badge {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 3px 9px;
+    border-radius: 100px;
+    flex-shrink: 0;
+  }
+  .sev-critical { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid var(--red); }
+  .sev-high     { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid var(--amber); }
+  .sev-medium   { background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid var(--purple); }
+  .sev-low      { background: rgba(100,116,139,0.15); color: var(--text3); border: 1px solid var(--border); }
+  .flaw-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+  .flaw-body { padding: 16px 20px; }
+  .flaw-body p { color: var(--text2); font-size: 0.85rem; margin-bottom: 10px; }
+  .flaw-file {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--blue);
+    background: rgba(59,130,246,0.08);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-bottom: 12px;
+    text-decoration: none;
+  }
+  .flaw-fix {
+    font-size: 0.8rem;
+    color: var(--green);
+    margin-top: 8px;
+  }
+  .flaw-fix::before { content: "Fix: "; font-weight: 700; }
+
+  /* ── Dead Code List ──────────────────────────────────────────────────────── */
+  .dead-list { display: flex; flex-direction: column; gap: 12px; margin: 24px 0; }
+  .dead-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px 16px;
+    align-items: start;
+  }
+  .dead-icon {
+    width: 22px; height: 22px;
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem;
+    color: var(--red);
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .dead-content h4 { margin-top: 0; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 0.88rem; }
+  .dead-content p  { font-size: 0.82rem; color: var(--text2); margin-bottom: 4px; }
+
+  /* ── Table ───────────────────────────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 0.82rem;
+  }
+  th {
+    background: var(--bg4);
+    color: var(--text2);
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+
+  /* ── Algorithm Diagram ───────────────────────────────────────────────────── */
+  .algo-steps {
+    counter-reset: step;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .algo-steps li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .algo-steps li::before {
+    content: counter(step);
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 0.95rem;
+    width: 36px; height: 36px;
+    background: var(--blue-dim);
+    border: 1px solid var(--blue);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--blue);
+    flex-shrink: 0;
+  }
+  .algo-steps .step-body { padding-top: 6px; }
+  .algo-steps .step-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .algo-steps .step-desc { font-size: 0.85rem; color: var(--text2); }
+
+  /* ── Edge Anatomy ────────────────────────────────────────────────────────── */
+  .edge-kinds {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .edge-kind {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .edge-swatch {
+    height: 3px;
+    border-radius: 2px;
+  }
+  .edge-kind-name {
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: var(--text);
+  }
+  .edge-kind-desc { font-size: 0.75rem; color: var(--text2); }
+
+  /* ── Pipeline Diagram Interactive ────────────────────────────────────────── */
+  .pipeline-stage {
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .pipeline-stage:hover .stage-box { filter: brightness(1.25); }
+
+  /* ── Scrollbar ────────────────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ── Annotations ─────────────────────────────────────────────────────────── */
+  .annotation {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--text3);
+    margin-left: 6px;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+  .tag.note   { background: rgba(34,211,238,0.12); color: var(--cyan); border: 1px solid rgba(34,211,238,0.25); }
+  .tag.perf   { background: rgba(16,185,129,0.12); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+  .tag.bug    { background: rgba(239,68,68,0.12); color: var(--red); border: 1px solid rgba(239,68,68,0.25); }
+  .tag.dead   { background: rgba(100,116,139,0.12); color: var(--text3); border: 1px solid var(--border); }
+
+  /* ── Footer ──────────────────────────────────────────────────────────────── */
+  footer {
+    margin-top: 80px;
+    padding: 32px 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.72rem;
+    color: var(--text3);
+    font-family: var(--font-mono);
+  }
+  footer span { display: flex; align-items: center; gap: 8px; }
+
+  /* ── Animations ──────────────────────────────────────────────────────────── */
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50%       { opacity: 1;   transform: scale(1.2); }
+  }
+  @keyframes flow {
+    0%   { stroke-dashoffset: 100; }
+    100% { stroke-dashoffset: 0;   }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-in {
+    animation: slide-up 0.4s ease forwards;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <!-- ══════════════════════════════════ HERO ══════════════════════════════════ -->
+  <header class="hero">
+    <div class="hero-eyebrow">Technical Architecture · Internal Documentation</div>
+    <h1>Graph Rendering<br><span class="accent">Pipeline</span></h1>
+    <div class="hero-sub">
+      A complete walkthrough of how TypeScript codebases become interactive dependency graphs —
+      from raw API bytes through Sugiyama layout algorithms to rendered Vue Flow nodes
+      and custom orthogonal edge paths.
+    </div>
+    <div class="hero-meta">
+      <span class="hero-badge blue">Vue 3 + Vue Flow</span>
+      <span class="hero-badge green">Sugiyama Layout</span>
+      <span class="hero-badge">DuckDB Backend</span>
+      <span class="hero-badge amber">Pinia State</span>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════ TOC ══════════════════════════════════ -->
+  <nav class="toc">
+    <a href="#pipeline-overview">Overview</a>
+    <a href="#server-api">Server &amp; API</a>
+    <a href="#hydration">Hydration</a>
+    <a href="#node-edge-creation">Node/Edge Creation</a>
+    <a href="#sugiyama">Sugiyama Layout</a>
+    <a href="#position-assignment">Position Assignment</a>
+    <a href="#node-rendering">Node Rendering</a>
+    <a href="#edge-rendering">Edge Rendering</a>
+    <a href="#interaction">Interaction</a>
+    <a href="#drilldown">Drilldown</a>
+    <a href="#flaws">Flaws</a>
+    <a href="#dead-code">Dead Code</a>
+  </nav>
+
+  <!-- ══════════════════════════════════ OVERVIEW ══════════════════════════════ -->
+  <section class="section" id="pipeline-overview">
+    <div class="section-header">
+      <span class="section-num">00</span>
+      <h2>Pipeline Overview</h2>
+    </div>
+
+    <p>The pipeline has 8 distinct phases. Data enters as a raw JSON API payload and exits as positioned, styled Vue Flow nodes and edges rendered in an SVG canvas. Hover any stage in the diagram below for a description.</p>
+
+    <div id="pipeline-diagram">
+      <svg id="pipeline-svg" viewBox="0 0 1040 360" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6" opacity="0.7"/>
+          </marker>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <!-- Flow animation path definitions -->
+          <style>
+            .flow-line { animation: flow 2s linear infinite; stroke-dasharray: 6 4; }
+            .stage-box { transition: filter 0.15s; }
+          </style>
+        </defs>
+
+        <!-- Background grid -->
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a2232" stroke-width="0.5"/>
+        </pattern>
+        <rect width="1040" height="360" fill="url(#grid)"/>
+
+        <!-- Flow lines (animated) -->
+        <g stroke="#3b82f6" stroke-width="1.5" fill="none" opacity="0.4">
+          <line x1="110" y1="60" x2="160" y2="60" class="flow-line" marker-end="url(#arr)"/>
+          <line x1="270" y1="60" x2="315" y2="60" class="flow-line" marker-end="url(#arr)"/>
+          <line x1="430" y1="60" x2="475" y2="60" class="flow-line" marker-end="url(#arr)"/>
+          <line x1="593" y1="60" x2="635" y2="60" class="flow-line" marker-end="url(#arr)"/>
+          <line x1="750" y1="60" x2="793" y2="60" class="flow-line" marker-end="url(#arr)"/>
+          <!-- second row -->
+          <line x1="590" y1="240" x2="547" y2="240" class="flow-line" marker-end="url(#arr)"/>
+          <line x1="430" y1="240" x2="385" y2="240" class="flow-line" marker-end="url(#arr)"/>
+          <!-- bend from row1 to row2 -->
+          <path d="M 920 80 Q 920 170 870 240" class="flow-line"/>
+          <path d="M 270 240 Q 240 240 220 120 Q 200 60 110 60" class="flow-line" opacity="0"/>
+        </g>
+
+        <!-- Row 1: stages 1-5 -->
+        <!-- Stage 1: Server -->
+        <g class="pipeline-stage" data-tip="Server API &amp; Data Fetching" data-desc="GraphHydrator fetches /graph/summary (or /graph fallback). JSON payload contains packages → modules → classes, interfaces, imports, exports. 30-second AbortSignal timeout." transform="translate(10,30)">
+          <rect class="stage-box" width="100" height="54" rx="8" fill="#1a2232" stroke="#3b82f6" stroke-width="1.5"/>
+          <text x="50" y="20" text-anchor="middle" fill="#3b82f6" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">SERVER</text>
+          <text x="50" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">DuckDB +</text>
+          <text x="50" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">Express</text>
+        </g>
+
+        <!-- Stage 2: Hydration -->
+        <g class="pipeline-stage" data-tip="GraphHydrator — Entity Hydration" data-desc="Deserializes raw JSON into typed class instances: Package, Module, Class, Interface, Import, Method, Property. EntityRegistry prevents duplicate objects. Two-pass: packages first, then dependency refs." transform="translate(160,30)">
+          <rect class="stage-box" width="110" height="54" rx="8" fill="#1a2232" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="55" y="20" text-anchor="middle" fill="#22d3ee" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">HYDRATION</text>
+          <text x="55" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">GraphHydrator</text>
+          <text x="55" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">→ PackageGraph</text>
+        </g>
+
+        <!-- Stage 3: Node/Edge Creation -->
+        <g class="pipeline-stage" data-tip="Node &amp; Edge Creation" data-desc="createGraphNodes() and createGraphEdges() transform the PackageGraph into Vue Flow primitives. Nodes get DependencyKind types; edges get DependencyEdgeKind types with styles pre-applied from the theme." transform="translate(315,30)">
+          <rect class="stage-box" width="115" height="54" rx="8" fill="#1a2232" stroke="#a855f7" stroke-width="1.5"/>
+          <text x="57" y="20" text-anchor="middle" fill="#a855f7" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">NODES/EDGES</text>
+          <text x="57" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">createGraphNodes</text>
+          <text x="57" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">createGraphEdges</text>
+        </g>
+
+        <!-- Stage 4: Sugiyama -->
+        <g class="pipeline-stage" data-tip="Sugiyama Layout Algorithms" data-desc="6-pass Sugiyama framework: (1) DFS back-edge detection, (2) fan-in weighted longest-path layering, (3) barycenter crossing minimization, (4) centrality pyramid, (5) folder aggregation, (6) folder-level Sugiyama second pass." transform="translate(475,30)">
+          <rect class="stage-box" width="120" height="54" rx="8" fill="#1a2232" stroke="#10b981" stroke-width="1.5"/>
+          <text x="60" y="20" text-anchor="middle" fill="#10b981" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">SUGIYAMA</text>
+          <text x="60" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">buildOverviewGraph</text>
+          <text x="60" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">6-pass layout</text>
+        </g>
+
+        <!-- Stage 5: Position -->
+        <g class="pipeline-stage" data-tip="Position Assignment" data-desc="computeSimpleHierarchicalLayout() converts Sugiyama rank/sort data into pixel (x,y) positions. Child nodes are laid out within parent folders. Parent containers get explicit CSS width/height strings." transform="translate(635,30)">
+          <rect class="stage-box" width="115" height="54" rx="8" fill="#1a2232" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="57" y="20" text-anchor="middle" fill="#f59e0b" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">POSITION</text>
+          <text x="57" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">simpleHierarchical</text>
+          <text x="57" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">Layout.ts</text>
+        </g>
+
+        <!-- Stage 6: Store -->
+        <g class="pipeline-stage" data-tip="Pinia Graph Store" data-desc="Nodes and edges land in graphStore via setNodes/setEdges. Shallow reactivity avoids O(n) deep diffs on hover. localStorage cache (debounced 500ms, max 1200 nodes). Manual offset overlay for collision-resolution pushes." transform="translate(795,30)">
+          <rect class="stage-box" width="110" height="54" rx="8" fill="#1a2232" stroke="#ec4899" stroke-width="1.5"/>
+          <text x="55" y="20" text-anchor="middle" fill="#ec4899" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">STORE</text>
+          <text x="55" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">Pinia graphStore</text>
+          <text x="55" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">+ localStorage</text>
+        </g>
+
+        <!-- Row 1 label -->
+        <text x="10" y="108" fill="#3a4d68" font-family="JetBrains Mono" font-size="8">DATA PREPARATION PIPELINE</text>
+
+        <!-- Divider -->
+        <line x1="10" y1="118" x2="1030" y2="118" stroke="#1a2232" stroke-width="1"/>
+
+        <!-- Row 2: stages 7-8 (rendering) -->
+        <!-- Stage 8: Interaction -->
+        <g class="pipeline-stage" data-tip="Interaction &amp; UX Layer" data-desc="useSelectionHighlighting applies CSS class tokens. useSearchHighlighting dims non-matching nodes. useIsolationMode rewrites the graph for neighborhood view. useGraphViewport tracks pan/zoom with Mac trackpad discrimination." transform="translate(635,205)">
+          <rect class="stage-box" width="120" height="54" rx="8" fill="#1a2232" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="60" y="20" text-anchor="middle" fill="#22d3ee" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">INTERACTION</text>
+          <text x="60" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">selection / search</text>
+          <text x="60" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">isolation / viewport</text>
+        </g>
+
+        <!-- Stage 7: Vue Flow Render -->
+        <g class="pipeline-stage" data-tip="Vue Flow Rendering" data-desc="Vue Flow renders DependencyNode[] as custom Vue components. ModuleNode, GroupNode, ExternalPackageNode for nodes. CrossFolderEdge, FolderStubEdge, IntraFolderEdge for edge types. Content-visibility CSS culling after layout." transform="translate(460,205)">
+          <rect class="stage-box" width="120" height="54" rx="8" fill="#1a2232" stroke="#3b82f6" stroke-width="1.5"/>
+          <text x="60" y="20" text-anchor="middle" fill="#3b82f6" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">VUE FLOW</text>
+          <text x="60" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">Node/Edge render</text>
+          <text x="60" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">SVG canvas</text>
+        </g>
+
+        <!-- Stage: Edge Geometry -->
+        <g class="pipeline-stage" data-tip="Custom Edge Geometry Engine" data-desc="buildEdgePolyline() produces orthogonal polylines with L-shape (perpendicular axes) or S-shape (dogleg) routing. insertOrthogonalMidpoints() inserts waypoints. buildRoundedPolylinePath() rounds corners with quadratic Bézier arcs." transform="translate(290,205)">
+          <rect class="stage-box" width="120" height="54" rx="8" fill="#1a2232" stroke="#a855f7" stroke-width="1.5"/>
+          <text x="60" y="20" text-anchor="middle" fill="#a855f7" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">EDGE GEOM</text>
+          <text x="60" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">polyline routing</text>
+          <text x="60" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">+ Bézier corners</text>
+        </g>
+
+        <!-- Row 2 label -->
+        <text x="10" y="288" fill="#3a4d68" font-family="JetBrains Mono" font-size="8">RENDERING PIPELINE</text>
+
+        <!-- Stage: Node Measurement -->
+        <g class="pipeline-stage" data-tip="Node Pre-measurement" data-desc="useNodePremeasure off-screen renders nodes in hidden DOM to get real pixel dimensions before layout. useNodeDimensions tracks ResizeObserver events. scheduleMeasurementDrivenRelayout triggers re-layout on dimension changes." transform="translate(830,205)">
+          <rect class="stage-box" width="115" height="54" rx="8" fill="#1a2232" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="57" y="20" text-anchor="middle" fill="#f59e0b" font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">MEASURE</text>
+          <text x="57" y="33" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">premeasure +</text>
+          <text x="57" y="44" text-anchor="middle" fill="#8da0b8" font-family="JetBrains Mono" font-size="8">ResizeObserver</text>
+        </g>
+
+        <!-- Connector: store → Vue Flow -->
+        <path d="M 905 57 Q 960 57 960 170 Q 960 232 580 232" stroke="#ec4899" stroke-width="1.5" fill="none" opacity="0.35" stroke-dasharray="5 3" class="flow-line"/>
+
+        <!-- Connector: Vue Flow → Edge Geom -->
+        <line x1="460" y1="232" x2="410" y2="232" stroke="#3b82f6" stroke-width="1.5" fill="none" opacity="0.4" marker-end="url(#arr)"/>
+
+        <!-- Measurement feedback loop -->
+        <path d="M 830 232 Q 790 290 695 290 Q 600 290 580 290 Q 480 290 460 290 Q 430 290 420 270 Q 410 250 350 250" stroke="#f59e0b" stroke-width="1" fill="none" opacity="0.25" stroke-dasharray="4 3"/>
+
+        <!-- Legend -->
+        <text x="10" y="340" fill="#3a4d68" font-family="JetBrains Mono" font-size="8">Hover stages for details · Dashed lines = feedback loops</text>
+      </svg>
+      <div class="stage-tooltip" id="stage-tooltip">
+        <div class="tt-title" id="tt-title"></div>
+        <div id="tt-desc"></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════ SERVER & API ══════════════════════════ -->
+  <section class="section" id="server-api">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>Server API &amp; Data Fetching</h2>
+    </div>
+
+    <p>The pipeline begins when <code>GraphHydrator.assembleGraphData()</code> fires. It tries <code>/graph/summary</code> first; if that returns non-200 it falls back to <code>/graph</code>. Both endpoints return the same shape — a <code>{ packages: GraphApiPackagePayload[] }</code> JSON envelope.</p>
+
+    <div class="card">
+      <h4>Request Flow</h4>
+      <pre><span class="cm">// GraphHydrator.ts — simplified</span>
+<span class="kw">const</span> cacheKey = <span class="str">`v5-external-deps-by-name:${this.baseUrl}`</span>;
+<span class="kw">if</span> (this.cache.get(cacheKey)) <span class="kw">return</span> cachedData; <span class="cm">// in-memory GraphDataCache</span>
+
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">'/graph/summary'</span>, { signal: AbortSignal.timeout(<span class="num">30_000</span>) });
+<span class="kw">const</span> graph = this.hydratePackages(payload.packages, <span class="kw">new</span> <span class="ty">EntityRegistry</span>());
+this.cache.set(cacheKey, graph); <span class="cm">// prevents re-fetch on hot reload</span></pre>
+    </div>
+
+    <h3>What's in the payload</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>string (UUID v5)</td><td>Deterministic; same codebase = same IDs across restarts</td></tr>
+        <tr><td><code>modules</code></td><td>Module[]</td><td>Full AST-extracted data: classes, interfaces, imports, exports, functions, typeAliases, enums, variables, symbol_references</td></tr>
+        <tr><td><code>externalDepsByName</code></td><td><code>Record&lt;name, scope&gt;</code></td><td>Populated from <code>packages.package_json_deps_json</code> column. Scope values: <code>dependency | devDependency | peerDependency</code></td></tr>
+        <tr><td><code>dependencies</code></td><td>Package[]</td><td>Only workspace-internal packages (external npm packages are NOT rows in the packages table)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="callout-title">Cache Version Coupling</div>
+      <p>The cache key is <code>v5-external-deps-by-name</code>. If you add a new field to the payload, bump this version string in <code>GraphHydrator.ts:82</code> or all existing browser caches will return stale data silently. There's no TTL — the cache lives for the duration of the page session (in-memory) or until manually cleared.</p>
+    </div>
+
+    <h3>Module Details on Demand</h3>
+    <p>When a user drills down into a specific module, <code>fetchModuleDetails(moduleId)</code> fires a separate <code>/module-details?moduleId=…</code> request. This response is also cached in <code>moduleDetailsCache</code> — a plain <code>Map&lt;string, Module | null&gt;</code>. The <code>null</code> sentinel prevents refetching 404'd modules.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════ HYDRATION ═════════════════════════════ -->
+  <section class="section" id="hydration">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>Entity Hydration</h2>
+    </div>
+
+    <p>Raw JSON is deserialized into a rich class hierarchy by <code>GraphHydrator</code>'s private <code>hydrateX()</code> methods. This is not simple JSON.parse — it constructs typed instances with methods, enforces invariants via <code>EntityRegistry</code>, and handles multiple field name variants for resilience against API drift.</p>
+
+    <ul class="algo-steps">
+      <li>
+        <div class="step-body">
+          <div class="step-title">Package Pass 1 — entity construction</div>
+          <div class="step-desc">For each raw package: hydrateModules → hydrateClasses/Interfaces/Imports → construct <code>Package</code> instances. <code>EntityRegistry.register(id, entity)</code> deduplicates: if the same UUID appears twice (e.g., an interface referenced by two classes), the registry returns the same object.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Package Pass 2 — dependency cross-linking</div>
+          <div class="step-desc">After all packages exist in the <code>byId</code> map, iterate again and populate <code>pkg.dependencies / devDependencies / peerDependencies</code> Maps. This two-pass approach avoids forward-reference errors.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Field name normalization</div>
+          <div class="step-desc">The hydrator checks multiple field names: <code>typeAliases ?? type_aliases</code>, import <code>path ?? relativePath ?? fullPath ?? name</code>. This handles both camelCase API responses and snake_case DB column names without a transformation layer.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">External deps scope hydration</div>
+          <div class="step-desc"><code>hydrateExternalDepsByName()</code> copies only the three valid scope values into a plain record. Any unknown scope string from the DB is silently dropped. This record is stored on <code>Package.externalDepsByName</code> and later used by <code>buildExternalPackageKindLookup()</code> in the edge builder.</div>
+        </div>
+      </li>
+    </ul>
+
+    <div class="callout info">
+      <div class="callout-title">TypeCollection&lt;T&gt; Pattern</div>
+      <p>Throughout the pipeline, collections can be <code>Array&lt;T&gt;</code>, <code>Map&lt;string, T&gt;</code>, or <code>Record&lt;string, T&gt;</code>. The <code>typeCollectionToArray()</code> and <code>mapTypeCollection()</code> utilities normalize all three forms. Always use these — never assume a collection is an array.</p>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════ NODE/EDGE CREATION ════════════════════ -->
+  <section class="section" id="node-edge-creation">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Node &amp; Edge Creation</h2>
+    </div>
+
+    <h3>createGraphNodes()</h3>
+    <p>Transforms a <code>PackageGraph</code> into <code>DependencyNode[]</code>. Each node carries its full data payload inline — symbols, external dependencies, diagnostics, subnodes metadata. Positions are all <code>{ x:0, y:0 }</code> at this stage; layout hasn't run yet.</p>
+
+    <div class="card-grid">
+      <div class="card-sm">
+        <h4>compact mode (default)</h4>
+        <p>Classes/interfaces are embedded in <code>moduleNode.data.symbols</code>. No separate Vue Flow nodes created for them. The module card component renders them inline as collapsible sections.</p>
+      </div>
+      <div class="card-sm">
+        <h4>graph mode</h4>
+        <p>Classes/interfaces become separate <code>DependencyNode</code> objects with <code>parentNode = module.id</code> and <code>extent = 'parent'</code>. Vue Flow nests them inside their parent module node.</p>
+      </div>
+    </div>
+
+    <h4>Node Types Created</h4>
+    <table>
+      <thead><tr><th>Type</th><th>Condition</th><th>Component</th></tr></thead>
+      <tbody>
+        <tr><td><code>package</code></td><td><code>includePackages: true</code></td><td>PackageNode.vue</td></tr>
+        <tr><td><code>module</code></td><td><code>includeModules: true</code> (default)</td><td>ModuleNode.vue</td></tr>
+        <tr><td><code>class</code></td><td><code>includeClassNodes &amp;&amp; graph mode</code></td><td>SymbolNode.vue</td></tr>
+        <tr><td><code>interface</code></td><td><code>includeInterfaceNodes &amp;&amp; graph mode</code></td><td>SymbolNode.vue</td></tr>
+        <tr><td><code>externalPackage</code></td><td><code>includeExternalPackages: true</code></td><td>ExternalPackageNode.vue</td></tr>
+        <tr><td><code>group</code></td><td>Created by <code>clusterByFolder()</code> downstream</td><td>GroupNode.vue</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Diagnostics <span class="tag note">embedded at creation time</span></h3>
+    <p>Every node gets a <code>diagnostics</code> object at creation. External dependency level thresholds: <code>high</code> = 12+ packages or 60+ symbols; <code>critical</code> = 20+ or 120+. These drive orange/red outline CSS classes on ModuleNode.vue. Orphan status (<code>orphanCurrent</code>, <code>orphanGlobal</code>) is added later in <code>buildOverviewGraph</code> after degree maps are computed.</p>
+
+    <h3>createGraphEdges()</h3>
+    <p>Edge creation is driven by a <code>NodeIndex</code> — a set of valid node IDs and a kind map. The <code>addEdge()</code> inner function silently drops any edge whose source or target isn't in the index, preventing dangling edges.</p>
+
+    <div class="card">
+      <h4>Edge Deduplication Key vs. Edge ID</h4>
+      <pre><span class="cm">// Two different key schemes live side by side:</span>
+<span class="kw">const</span> edgeId   = <span class="str">`${source}-${target}-${type}`</span>;        <span class="cm">// used as edge.id</span>
+<span class="kw">const</span> dedupeKey = <span class="str">`${source}|${target}|${type}|${importName}`</span>; <span class="cm">// used as map key</span>
+
+<span class="cm">// Problem: two import edges from A→B (different importNames)
+// get different dedupeKeys but share the same edge.id!
+// Vue Flow uses edge.id for keying — the second one silently wins.</span></pre>
+      <p><span class="tag bug">BUG</span> The edge <code>id</code> field is not unique when multiple imports exist between the same module pair. See the Flaws section.</p>
+    </div>
+
+    <h4>Edge Kinds Built</h4>
+    <table>
+      <thead><tr><th>Kind</th><th>Source → Target</th><th>Condition</th></tr></thead>
+      <tbody>
+        <tr><td><code>import</code></td><td>module → module</td><td>Always when <code>importDirection = 'importer-to-imported'</code></td></tr>
+        <tr><td><code>export</code></td><td>module → module</td><td>When <code>exp.exportedFrom</code> is set</td></tr>
+        <tr><td><code>extends</code></td><td>class → class, interface → interface</td><td><code>includeClassEdges</code></td></tr>
+        <tr><td><code>implements</code></td><td>class → interface</td><td><code>includeClassEdges</code></td></tr>
+        <tr><td><code>contains</code></td><td>class/interface → property/method</td><td><code>includeMemberContainmentEdges</code></td></tr>
+        <tr><td><code>uses</code></td><td>symbol → symbol</td><td><code>includeUsesEdges</code></td></tr>
+        <tr><td><code>dependency</code></td><td>package → package</td><td><code>includePackageEdges</code></td></tr>
+        <tr><td><code>dependency/devDep/peerDep</code></td><td>module → externalPackage</td><td><code>includeExternalPackageEdges</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Edge Lifting</h3>
+    <p>When <code>liftClassEdgesToModuleLevel: true</code>, class-level <code>extends/implements</code> edges are promoted to their parent module level. A class extending another class in a different module produces a module→module <code>extends</code> edge. <code>addLiftedModuleEdges()</code> uses <code>symbolToModuleMap</code> for this lookup and skips intra-module edges.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════ SUGIYAMA ══════════════════════════════ -->
+  <section class="section" id="sugiyama">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>Sugiyama Layout Algorithms</h2>
+    </div>
+
+    <p><code>buildOverviewGraph()</code> in <code>buildOverviewGraph.ts</code> implements a six-pass Sugiyama framework. This is where the topological structure of the codebase is encoded as graph layout data. No pixel positions yet — just rank weights, integer layer indices, and sort orders.</p>
+
+    <div class="callout algo">
+      <div class="callout-title">Sugiyama Framework</div>
+      <p>The Sugiyama framework for DAG drawing works in three conceptual steps: <strong>(1) cycle breaking</strong> — mark back edges so the graph is temporarily a DAG; <strong>(2) layering</strong> — assign each node an integer "rank" representing its column; <strong>(3) crossing minimization</strong> — reorder nodes within each layer to reduce edge crossings. This codebase implements all three plus a centrality refinement and a recursive folder-level re-run.</p>
+    </div>
+
+    <ul class="algo-steps">
+      <li>
+        <div class="step-body">
+          <div class="step-title">DFS Back-Edge Detection</div>
+          <div class="step-desc"><code>detectBackEdges()</code> performs iterative DFS tracking a "on-stack" set. Any edge pointing to an ancestor on the current DFS path is a back-edge — the closing edge of a cycle. Back-edge IDs are collected into a <code>Set&lt;string&gt;</code> and excluded from layering and barycenter passes. Back edges are marked with <code>data.isBackEdge = true</code> for dashed styling.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Fan-In Weighted Longest-Path Layering</div>
+          <div class="step-desc"><code>computeModuleLayoutWeights()</code> assigns a weighted depth to each node using memoized DFS. The step cost to traverse an edge is <code>1 + log₂(max(1, fanIn(target)))</code>. A module imported by 8 others has step cost 4 instead of 1 — it creates larger horizontal gaps in the layout, visually emphasizing foundational modules. layoutWeight = -weightedDepth so foundations (depth 0) are leftmost.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Integer Layer Assignment</div>
+          <div class="step-desc"><code>computeLayerAssignment()</code> is a separate simpler pass that produces integer layer indices (0, 1, 2, …) using longest-path with uniform step cost 1. This drives column assignment in the position stage. Conceptually separate from the weighted depth which controls <em>spacing</em> within columns.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Barycenter Crossing Minimization</div>
+          <div class="step-desc"><code>computeBarycenterSortOrder()</code> runs 4 alternating sweeps (2 L→R, 2 R→L). In each sweep, a node's position within its layer is set to the weighted average position of its neighbors in adjacent layers. The weight is <code>1/distance</code> — neighbors 1 layer away have full weight, those 2 away have half, etc. This distance-weighted variant handles "long edges" (43% of edges span &gt;1 layer) that the standard adjacent-only approach misses.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Centrality Pyramid Re-order</div>
+          <div class="step-desc">After barycenter, within each layer where max-degree &gt; 2× mean-degree (<code>CENTRALITY_GATE = 2</code>), high-degree nodes are moved toward the vertical center using a spiral outward pattern: position index 0→mid, 1→mid+1, 2→mid-1, 3→mid+2, … This places widely-used hubs (e.g., a <code>vue</code> or <code>consola</code> external package) at the visual trunk, shortening average edge length.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Folder Clustering + Cross-Folder Edge Lifting</div>
+          <div class="step-desc"><code>clusterByFolder()</code> groups modules by directory path and creates <code>group</code> type parent nodes. <code>liftCrossfolderEdgesToFolderLevel()</code> then replaces module→module edges that cross folder boundaries with three-segment representations: a <em>source stub</em> (module → source folder boundary), a <em>trunk</em> (folder → folder, type <code>crossFolder</code>), and a <em>target stub</em> (target folder boundary → module). This preserves routing information while aggregating count.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Folder-Level Sugiyama (Second Pass)</div>
+          <div class="step-desc"><code>applyFolderLevelSugiyama()</code> re-runs the entire module-level pipeline (back-edge detection → weighted depth → layer assignment → barycenter) but this time on <em>just the folder nodes and their cross-folder trunk edges</em>. This corrects folders whose aggregated rank would be misleading (e.g., <code>src/</code> contains both a shallow <code>server.ts</code> and deep <code>main.ts</code> — the aggregation would pick the wrong position). Only folders that participate in a cross-folder edge are overridden.</div>
+        </div>
+      </li>
+    </ul>
+
+    <h3>Build Pipeline Order</h3>
+    <pre><span class="cm">// buildOverviewGraph() — condensed execution order</span>
+<span class="fn">createGraphNodes</span>()                    <span class="cm">// 1. flat nodes, position={0,0}</span>
+<span class="fn">createGraphEdges</span>()                    <span class="cm">// 2. flat edges</span>
+<span class="fn">filterEdgesByNodeSet</span>()               <span class="cm">// 3. drop dangling edges</span>
+<span class="fn">filterGraphByTestVisibility</span>()        <span class="cm">// 4. optional: hide test files</span>
+<span class="fn">detectBackEdges</span>()                    <span class="cm">// 5. mark cycle-closing edges</span>
+<span class="fn">markBackEdges</span>()                      <span class="cm">// 6. tag edges with isBackEdge</span>
+<span class="fn">computeModuleLayoutWeights</span>()         <span class="cm">// 7. fan-in weighted depth</span>
+<span class="fn">computeLayerAssignment</span>()             <span class="cm">// 8. integer layers</span>
+<span class="fn">computeBarycenterSortOrder</span>()         <span class="cm">// 9. 4-sweep crossing min + pyramid</span>
+<span class="fn">applyModuleWeights</span>()                 <span class="cm">// 10. attach layout data to nodes</span>
+<span class="fn">clusterByFolder</span>()                    <span class="cm">// 11. create group nodes, re-parent modules</span>
+<span class="fn">aggregateFolderWeights</span>()             <span class="cm">// 12. folders inherit child ranks (mean/max)</span>
+<span class="fn">liftCrossfolderEdgesToFolderLevel</span>()  <span class="cm">// 13. stub+trunk+stub edge split</span>
+<span class="fn">applyFolderLevelSugiyama</span>()           <span class="cm">// 14. second Sugiyama pass on folders</span>
+<span class="fn">collapseFolders</span>()                    <span class="cm">// 15. if any folders collapsed</span>
+<span class="fn">applyEdgeVisibility</span>()               <span class="cm">// 16. hide/show by relationship filter</span>
+<span class="fn">bundleParallelEdges</span>()               <span class="cm">// 17. deduplicate parallel source→target pairs</span>
+<span class="fn">buildDegreeMap</span>() × 2                <span class="cm">// 18. current + global degree for orphan detection</span>
+<span class="fn">annotateOrphanDiagnostics</span>()          <span class="cm">// 19. mark nodes with no edges as orphans</span></pre>
+
+    <h3>Parallel Edge Bundling</h3>
+    <p><code>bundleParallelEdges()</code> is skipped for graphs under 50 edges (overhead not worth it). For larger graphs it groups by <code>source\0target</code> key, picks the highest-priority edge kind as the representative, and records all bundled types in <code>data.bundledTypes</code>. This reduces SVG DOM element count by 20–40% in real codebases. Priority order is defined in <code>edgePriority.ts</code>.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════ POSITION ASSIGNMENT ═══════════════════ -->
+  <section class="section" id="position-assignment">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>Position Assignment</h2>
+    </div>
+
+    <p><code>computeSimpleHierarchicalLayout()</code> in <code>simpleHierarchicalLayout.ts</code> is a pure function that converts the Sugiyama layout metadata (<code>layerIndex</code>, <code>sortOrder</code>) into pixel coordinates. It also sizes parent containers.</p>
+
+    <h3>Two-Phase Layout</h3>
+    <ul class="algo-steps">
+      <li>
+        <div class="step-body">
+          <div class="step-title">Child Layout (within folders)</div>
+          <div class="step-desc">
+            <strong>Single-column mode:</strong> when a folder has no intra-folder edges, all children share the same X and stack vertically by sortOrder. Gap = 200px. This is the common case — siblings in a directory are peers, not a dependency chain.<br><br>
+            <strong>Layer-column mode:</strong> when intra-folder edges exist (modules in the same directory import each other), children are grouped by <code>layerIndex</code> into sub-columns exactly like root-level layout. Foundations-left, consumers-right.
+          </div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Parent Sizing</div>
+          <div class="step-desc">Parent width = max(220, childWidth + 200px padding). Parent height = max(80, 100px header + contentHeight + 100px bottom). These explicit sizes are written as CSS pixel strings to <code>node.style.width</code> and <code>node.style.height</code> — the same format Vue Flow's internal <code>handleParentExpand</code> uses, ensuring consistent dimension tracking via <code>measured</code> field sync.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Root Node Column Layout</div>
+          <div class="step-desc">Root nodes (no <code>parentNode</code>) are grouped by <code>layerIndex</code>, sorted within each layer by <code>sortOrder</code> descending (higher = top), then placed in columns. Column X advances by <code>max(nodeWidths in column) + 120px gap</code>. Column Y advances by <code>nodeHeight + 120px gap</code>.</div>
+        </div>
+      </li>
+    </ul>
+
+    <div class="callout warn">
+      <div class="callout-title">Layout Constants Are Hardcoded</div>
+      <p><code>ROOT_H_GAP = 120</code>, <code>ROOT_V_GAP = 120</code>, <code>CHILD_GAP = 200</code> are hardcoded literals in <code>simpleHierarchicalLayout.ts</code>. The theme object at <code>graphTheme.layout.spacing</code> has <code>{ horizontal: 40, vertical: 60 }</code> — these values are <strong>not wired to the layout engine</strong>. The comment in <code>graphTheme.ts:218</code> literally says "The layout engine is not wired to this object yet." This means changing theme spacing has zero effect on layout.</p>
+    </div>
+
+    <h3>Pre-measurement &amp; Measurement-Driven Relayout</h3>
+    <p>Before layout runs, <code>useNodePremeasure</code> renders each node into a hidden off-screen container (<code>display:contents</code>) to get real pixel dimensions. These are applied before <code>computeSimpleHierarchicalLayout</code> runs, so the layout has accurate sizes rather than the estimated fallbacks (<code>CHILD_ESTIMATED_WIDTH = 320</code>, <code>CHILD_ESTIMATED_HEIGHT = 260</code>).</p>
+    <p>After Vue Flow renders nodes into the DOM, <code>ResizeObserver</code> events trigger <code>scheduleMeasurementDrivenRelayout()</code> which runs inside a <code>requestAnimationFrame</code> callback. This handles nodes whose real size differed significantly from the pre-measured estimate, causing a second layout pass with correct dimensions. The loop is guarded by change detection (<code>Math.abs(current - measured) &gt; 1px</code>) to prevent infinite relayout cycles.</p>
+
+    <h3>Manual Offset Overlay</h3>
+    <p>After layout, <code>graphStore.applyManualOffsets()</code> adds accumulated <code>{ dx, dy }</code> offsets to node positions. These come from collision-resolution pushes. Offsets are stored in <code>manualOffsets: Map&lt;string, ManualOffset&gt;</code> and survive re-layouts via <code>mergeManualOffsets()</code> which accumulates (not replaces) deltas. This means user-adjusted positions are sticky across layout refreshes triggered by settings changes.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════ NODE RENDERING ════════════════════════ -->
+  <section class="section" id="node-rendering">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <h2>Node Rendering</h2>
+    </div>
+
+    <p>Vue Flow dispatches to custom node components based on the <code>node.type</code> string. All nodes ultimately compose <code>BaseNode.vue</code> which provides the shared chrome (header, badge, handles, diagnostics strip).</p>
+
+    <div class="card-grid">
+      <div class="card-sm">
+        <h4>ModuleNode.vue</h4>
+        <p>The most complex node. Renders: metadata properties section, external dependencies (package → symbol list), embedded class cards (compact mode), entity list (functions, types, enums, const/vars). All sections are in collapsible <code>CollapsibleSection</code> wrappers. Dependency level drives <code>module-node--high-deps</code> / <code>module-node--critical-deps</code> CSS classes.</p>
+      </div>
+      <div class="card-sm">
+        <h4>GroupNode.vue</h4>
+        <p>Folder container. Handles collapsed/expanded state. When <code>data.isCollapsed</code> is true, renders a compact summary showing child count. The group node positions its border with <code>overflow: visible</code> and <code>padding: 0</code> — child positions are relative to the wrapper, not the visible border.</p>
+      </div>
+      <div class="card-sm">
+        <h4>SymbolNode.vue</h4>
+        <p>Used for standalone class/interface nodes in graph mode. Renders member lists (properties and methods) and connection handles for extends/implements edges.</p>
+      </div>
+      <div class="card-sm">
+        <h4>ExternalPackageNode.vue</h4>
+        <p>Represents an npm package imported by the workspace. Shows total symbol count across all modules that import it. Always a leaf in the dependency direction.</p>
+      </div>
+    </div>
+
+    <h3>Handle Routing</h3>
+    <p>Every node has Vue Flow <code>Handle</code> components for edge connection points. Regular module/symbol nodes use <code>sourcePosition</code> / <code>targetPosition</code> from the layout direction (always <code>LR</code> → right/left). Folder group nodes additionally expose named handles: <code>folder-right-out</code>, <code>folder-left-in</code>, <code>folder-right-stub</code>, <code>folder-left-stub</code> — used by the cross-folder edge split system.</p>
+
+    <h3>z-Index Strategy</h3>
+    <table>
+      <thead><tr><th>Node Type</th><th>z-Index</th><th>Rationale</th></tr></thead>
+      <tbody>
+        <tr><td>package / group</td><td>0</td><td>Background containers, always behind children</td></tr>
+        <tr><td>module</td><td>1</td><td>Primary content nodes</td></tr>
+        <tr><td>class / interface (graph mode)</td><td>3</td><td>Child nodes, must appear above parent border</td></tr>
+        <tr><td>hovered node</td><td>elevated (dynamic)</td><td><code>useNodeHoverZIndex</code> reads DOM to find child nodes and elevates all of them together</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Content-Visibility Culling</h3>
+    <p>After layout completes, <code>graphRootRef.value?.classList.add('cv-ready')</code> is called. This triggers a CSS rule that enables <code>content-visibility: auto</code> on nodes — the browser skips rendering nodes outside the viewport entirely. This is skipped on Firefox due to "severe toggle-thrash regressions" noted in the code comment at <code>useGraphLayout.ts:427</code>.</p>
+
+    <h3>Node Data Flow: Sorting</h3>
+    <p>ModuleNode uses five sorting functions from <code>moduleNodeSorting.ts</code>: <code>sortNodeProperties</code>, <code>sortExternalDependencies</code>, <code>sortEmbeddedSymbols</code>, <code>sortModuleEntities</code>, <code>sortSectionsByTitle</code>. These run inside <code>computed()</code> so they only re-execute when reactive data changes.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════ EDGE RENDERING ════════════════════════ -->
+  <section class="section" id="edge-rendering">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <h2>Edge Rendering</h2>
+    </div>
+
+    <h3>Edge Component Types</h3>
+    <p>Vue Flow dispatches to edge components based on <code>edge.type</code>. Three custom components handle the folder-edge system; all other edges use Vue Flow's default <code>BaseEdge</code> with styling from the theme.</p>
+
+    <table>
+      <thead><tr><th>edge.type</th><th>Component</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>crossFolder</code></td><td>CrossFolderEdge.vue</td><td>Folder → folder trunk. Uses <code>getSmoothStepPath</code> with <code>offset=40</code> and <code>borderRadius=12</code>. Cycle detection via <code>useCycleEdgeStyle</code>.</td></tr>
+        <tr><td><code>folderStub</code></td><td>FolderStubEdge.vue</td><td>Module → folder boundary (source stub) or folder boundary → module (target stub). Short stub segments.</td></tr>
+        <tr><td><code>intraFolder</code></td><td>IntraFolderEdge.vue</td><td>Module → module within the same folder. Styled differently to indicate locality.</td></tr>
+        <tr><td>(default)</td><td>BaseEdge via Vue Flow</td><td>All other edges: import, export, extends, implements, contains, uses, dependency</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Edge Visual Encoding</h3>
+    <div class="edge-kinds">
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background:#3b82f6"></div>
+        <div class="edge-kind-name">import</div>
+        <div class="edge-kind-desc">Module-level import dependency. Default weight.</div>
+      </div>
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background:#10b981"></div>
+        <div class="edge-kind-name">export</div>
+        <div class="edge-kind-desc">Re-export from another module.</div>
+      </div>
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background:#a855f7"></div>
+        <div class="edge-kind-name">extends</div>
+        <div class="edge-kind-desc">Class inheritance or interface extension. Thinner stroke.</div>
+      </div>
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background:#ec4899"></div>
+        <div class="edge-kind-name">implements</div>
+        <div class="edge-kind-desc">Class implementing an interface. Thinner stroke.</div>
+      </div>
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background:#f59e0b"></div>
+        <div class="edge-kind-name">dependency</div>
+        <div class="edge-kind-desc">Workspace package-level dependency.</div>
+      </div>
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background:#64748b"></div>
+        <div class="edge-kind-name">devDependency</div>
+        <div class="edge-kind-desc">Package devDependency scope.</div>
+      </div>
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background:#22d3ee"></div>
+        <div class="edge-kind-name">peerDependency</div>
+        <div class="edge-kind-desc">Package peerDependency scope.</div>
+      </div>
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background:#6b7280; background: repeating-linear-gradient(90deg,#6b7280 0,#6b7280 4px,transparent 4px,transparent 8px)"></div>
+        <div class="edge-kind-name">contains</div>
+        <div class="edge-kind-desc">Class/interface → member. Thinner, dotted.</div>
+      </div>
+      <div class="edge-kind">
+        <div class="edge-swatch" style="background: repeating-linear-gradient(90deg,#3b82f6 0,#3b82f6 4px,transparent 4px,transparent 8px)"></div>
+        <div class="edge-kind-name">uses</div>
+        <div class="edge-kind-desc">Symbol reference usage. Dashed, thinner.</div>
+      </div>
+    </div>
+
+    <h3>Custom Edge Geometry Engine</h3>
+    <p>Rather than relying solely on Vue Flow's built-in path helpers, the codebase ships a complete custom geometry engine in <code>edgeGeometryPolicy.ts</code>. This engine is responsible for producing orthogonal polylines with rounded corners for folder-system edges.</p>
+
+    <ul class="algo-steps">
+      <li>
+        <div class="step-body">
+          <div class="step-title">Handle Side Inference</div>
+          <div class="step-desc"><code>getHandleSide(handleId)</code> parses the handle ID string (e.g., <code>folder-right-out</code> → <code>'right'</code>, <code>relational-in</code> → <code>'left'</code>). When the handle ID doesn't encode a direction, <code>inferHandleSide(from, to)</code> uses the dominant axis of the source→target vector, with ties going horizontal.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Stub Extrusion</div>
+          <div class="step-desc"><code>buildEdgePolyline()</code> extrudes short stubs from source and target points along their side normals. Group nodes (folders) get a short <code>GROUP_ENTRY_STUB_PX = 12</code> stub; regular module nodes get <code>NODE_PRE_APPROACH_STUB_PX + NODE_FINAL_APPROACH_PX = 24px</code> with a two-segment approach (a longer pre-approach then a final close approach) that prevents the arrowhead from touching the node border.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Orthogonal Midpoint Insertion</div>
+          <div class="step-desc"><code>insertOrthogonalMidpoints()</code> detects whether the free segment between source and target stubs is diagonal. If so, it inserts: an <strong>L-shape midpoint</strong> (single corner) when source exits horizontally and target enters vertically (or vice versa), or an <strong>S-shape dogleg</strong> (two midpoints through the horizontal/vertical midline) when source and target share the same exit axis. This ensures all intermediate segments are strictly axis-aligned.</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Rounded Corner Path Generation</div>
+          <div class="step-desc"><code>buildRoundedPolylinePath()</code> iterates the polyline and replaces each interior corner with a quadratic Bézier arc. The effective radius at each corner is clamped to <code>min(cornerRadius, incomingLength/2, outgoingLength/2)</code> — preventing arcs from overshooting into adjacent segments. The output is a <code>{ start, segments: (line | quadratic)[] }</code> structure that callers convert to SVG path data.</div>
+        </div>
+      </li>
+    </ul>
+
+    <h3>Edge Hover System</h3>
+    <p>Hovering a node calls <code>applyHoverEdgeHighlight()</code> which iterates all edges connected to that node. Connected edges get the <code>EDGE_HOVER_CLASS = 'edge-hover-highlighted'</code> CSS class and a <code>--edge-hover-base-stroke</code> CSS custom property injected into their inline style. CSS rules in the graph stylesheet use this variable to animate the stroke color. Disconnected edges get <code>edge-selection-dimmed</code>. The entire operation is batched into <code>updateEdgesById(Map)</code> for a single Pinia state update.</p>
+
+    <h3>Selection Highlighting</h3>
+    <p><code>useSelectionHighlighting</code> applies three CSS class tokens to nodes: <code>selection-target</code> (the selected node), <code>selection-connected</code> (direct neighbors), <code>selection-dimmed</code> (everything else). Edges get <code>edge-selection-highlighted</code> or <code>edge-selection-dimmed</code>. Classes are applied/removed via <code>getClassTokens()</code> → <code>Set&lt;string&gt;</code> operations rather than string replacement, which handles class merging correctly.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════ INTERACTION ════════════════════════════ -->
+  <section class="section" id="interaction">
+    <div class="section-header">
+      <span class="section-num">08</span>
+      <h2>Interaction &amp; Runtime</h2>
+    </div>
+
+    <h3>Viewport Management</h3>
+    <p><code>useGraphViewport</code> wraps Vue Flow's <code>panBy</code> / <code>zoomTo</code> with custom wheel event handling. Mac trackpad vs. mouse wheel discrimination is done via <code>wheelIntent.ts</code> — it examines <code>deltaMode</code>, <code>ctrlKey</code>, and delta magnitudes to determine whether a wheel event is a pinch-zoom or a two-finger pan. The result drives either <code>panBy()</code> (trackpad) or <code>zoomTo()</code> (mouse).</p>
+
+    <h3>Search</h3>
+    <p><code>useGraphSearch</code> produces <code>SearchResult[]</code>. <code>useSearchHighlighting</code> consumes them: matching nodes get full opacity, non-matching nodes get <code>selection-dimmed</code>. Edges connecting two non-matching nodes are hidden. The highlight state (<code>searchHighlightState</code>) is passed through to <code>useSelectionHighlighting</code> so that node selection during a search doesn't clear the search results.</p>
+
+    <h3>Isolation Mode</h3>
+    <p><code>useIsolationMode.isolateNeighborhood(nodeId)</code> rewrites the graph completely — it builds a new node/edge set containing only the selected node and its neighbors, then calls <code>processGraphLayout()</code> on that subgraph. The original overview graph is saved to <code>graphStore.overviewSnapshot</code>. Returning calls <code>restoreOverviewSnapshot()</code>. The <code>semanticSnapshot</code> (pre-folder-transform nodes/edges) is used for neighborhood computation so filtering includes edges that may be hidden in the overview.</p>
+
+    <h3>State Machine: View Modes</h3>
+    <table>
+      <thead><tr><th>Mode</th><th>Trigger</th><th>Data Source</th></tr></thead>
+      <tbody>
+        <tr><td><code>overview</code></td><td>Initial load, return-to-overview</td><td><code>buildOverviewGraph()</code></td></tr>
+        <tr><td><code>isolate</code></td><td>Node context menu "Isolate"</td><td>Neighborhood subgraph from <code>semanticSnapshot</code></td></tr>
+        <tr><td><code>moduleDrilldown</code></td><td>Double-click module node</td><td><code>buildModuleDrilldownGraph()</code></td></tr>
+        <tr><td><code>symbolDrilldown</code></td><td>"Open symbol usage graph" action</td><td><code>buildSymbolDrilldownGraph()</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>FPS Monitoring</h3>
+    <p><code>useFpsCounter</code> tracks frame times via <code>requestAnimationFrame</code> and computes a rolling average. <code>useFpsChart</code> renders an SVG sparkline of the FPS history. Both are opt-in via <code>graphSettings.showFps</code>. The chart shows a target line and uses <code>fpsChartScaleMax</code> as the Y axis ceiling. This is purely a development/debugging aid with no production impact on rendering performance.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════ DRILLDOWN ═════════════════════════════ -->
+  <section class="section" id="drilldown">
+    <div class="section-header">
+      <span class="section-num">09</span>
+      <h2>Drilldown Views</h2>
+    </div>
+
+    <h3>Symbol Drilldown</h3>
+    <p><code>buildSymbolDrilldownGraph()</code> focuses on a single class, interface, or module. It builds a star-shaped graph: the containing module at center, selected symbol(s) as children, and each symbol's properties/methods as leaf nodes. Symbol references from the module are wired as <code>uses</code> edges with dashed styling (<code>strokeDasharray: '4 2'</code>). Only references where both the source and target node exist in the graph are included.</p>
+
+    <div class="callout info">
+      <div class="callout-title">Symbol Context Resolution</div>
+      <p><code>findSymbolContext()</code> must scan the entire PackageGraph to find which module contains the selected class or interface. This is an O(packages × modules × symbols) scan that runs synchronously. For very large codebases this could be slow, but since it only runs once per drilldown interaction, it's acceptable in practice.</p>
+    </div>
+
+    <h3>Module Drilldown</h3>
+    <p>Focuses on a single module and its immediate import neighbors. Builds edges for direct imports, exports, and any symbol-level extends/implements relationships. Does not recurse — only depth-1 neighbors.</p>
+
+    <h3>Expand-Collapse State Persistence</h3>
+    <p>When isolation mode is entered, <code>useExpandCollapseState</code> saves the current expanded/collapsed state of each node's sections. When returning to overview, the state is restored. This prevents the UX jarring of sections collapsing when you return from a drilldown.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════ FLAWS ═════════════════════════════════ -->
+  <section class="section" id="flaws">
+    <div class="section-header">
+      <span class="section-num">10</span>
+      <h2>Identified Flaws</h2>
+    </div>
+
+    <p>Issues found via code review. Severities: <span class="tag" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444">CRITICAL</span> = data corruption or silent breakage; <span class="tag" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid #f59e0b">HIGH</span> = observable wrong behavior; <span class="tag" style="background:rgba(168,85,247,0.15);color:#a855f7;border:1px solid #a855f7">MEDIUM</span> = technical debt with real consequences; <span class="tag" style="background:rgba(100,116,139,0.15);color:#8da0b8;border:1px solid #3a4d68">LOW</span> = minor inconsistency.</p>
+
+    <div class="flaw-list">
+
+      <!-- Flaw 1 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-critical">Critical</span>
+          <div class="flaw-title">Non-unique edge IDs cause silent last-write-wins collision</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/utils/createGraphEdges.ts">src/client/utils/createGraphEdges.ts:201</a>
+          <p><code>createEdge()</code> computes <code>id: `${source}-${target}-${type}`</code>. But the dedup map key is <code>`${source}|${target}|${type}|${importName}`</code>. When module A imports module B via two named imports (<code>import { X } from …</code> and <code>import { Y } from …</code>), two separate entries land in <code>edgeMap</code> with distinct keys but the <strong>same <code>edge.id</code></strong>. Vue Flow uses <code>edge.id</code> as the React key — the second edge silently replaces the first in the rendered graph. Import names after the first are lost.</p>
+          <p class="flaw-fix">Make the edge ID unique: <code>id: `${source}|${target}|${type}|${importName ?? ''}`</code>. Alternatively, add a counter suffix for multi-import pairs. The deduplication key and the edge ID should be derived from the same formula.</p>
+        </div>
+      </div>
+
+      <!-- Flaw 2 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-critical">Critical</span>
+          <div class="flaw-title">DFS back-edge detection uses recursion — stack overflow on deep graphs</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/graph/buildOverviewGraph.ts">src/client/graph/buildOverviewGraph.ts:195</a>
+          <p><code>detectBackEdges()</code> uses a recursive <code>dfs(nodeId)</code> inner function. JavaScript engines typically have a call stack limit of ~10,000 frames. A monorepo with deeply nested import chains (e.g., utility → helpers → primitives → …) can hit 50–100 levels deep easily in large codebases. At sufficient scale this throws a <code>RangeError: Maximum call stack size exceeded</code> and the entire graph initialization fails silently (caught by the outer try/catch in <code>initializeGraph</code>).</p>
+          <p class="flaw-fix">Replace the recursive DFS with an explicit stack: <code>const stack = [startId]; while (stack.length) { const id = stack.pop(); … }</code>. Track "on-stack" state using a <code>Set</code> that nodes are added to when pushed and removed when fully processed.</p>
+        </div>
+      </div>
+
+      <!-- Flaw 3 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-high">High</span>
+          <div class="flaw-title">collapsedMeta.liftedEdgeCount is wrong for every folder</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/graph/cluster/collapseFolders.ts">src/client/graph/cluster/collapseFolders.ts:127</a>
+          <p>After edge remapping, the loop stamps <code>meta.liftedEdgeCount = totalLifted</code> on every folder. <code>totalLifted</code> is the count of all edges remapped across <em>all</em> collapsed folders — not the count per-folder. A workspace with two collapsed folders (one with 3 lifted edges, one with 7) will show both folders as having 10 lifted edges instead of 3 and 7 respectively.</p>
+          <p class="flaw-fix">Track a <code>Map&lt;string, number&gt;</code> of per-folder lifted counts during the edge remapping loop, keyed by <code>mappedSource</code> and <code>mappedTarget</code>. Then stamp each folder's own count in the final loop.</p>
+        </div>
+      </div>
+
+      <!-- Flaw 4 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-high">High</span>
+          <div class="flaw-title">graphTheme.layout.spacing is completely disconnected from layout</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/theme/graphTheme.ts">src/client/theme/graphTheme.ts:218</a>
+          <p>The theme object exposes <code>layout.spacing = { horizontal: 40, vertical: 60, edge: 20, margin: 30 }</code> but <code>simpleHierarchicalLayout.ts</code> uses hardcoded <code>ROOT_H_GAP = 120</code>, <code>ROOT_V_GAP = 120</code>, <code>CHILD_GAP = 200</code>. The theme values and layout constants are not only disconnected — they're also factually mismatched (120 ≠ 40). Any code that reads <code>graphTheme.layout.spacing</code> expecting it to reflect real layout behavior is silently wrong.</p>
+          <p class="flaw-fix">Either wire the layout engine to consume from graphTheme (import the theme and use its spacing values as constants), or remove <code>graphTheme.layout</code> entirely. Don't document future intent in source code that misleads consumers.</p>
+        </div>
+      </div>
+
+      <!-- Flaw 5 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-high">High</span>
+          <div class="flaw-title">filterNodeChangesForFolderMode is a no-op stub</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/graph/buildGraphView.ts">src/client/graph/buildGraphView.ts:15</a>
+          <p>The function signature implies different behavior based on <code>folderModeEnabled</code>, but both branches return <code>changes</code> unchanged. The <code>_nodes</code> parameter is also prefixed with underscore (intentionally unused). This function is exported and called from the interaction layer — any caller passing <code>folderModeEnabled: true</code> gets identical behavior to <code>false</code>. If folder-mode filtering was ever intended, it was never implemented.</p>
+          <p class="flaw-fix">Either implement the intended filtering logic or delete this function and remove all call sites. If the feature is deferred, add a <code>TODO</code> comment with a ticket reference — but don't ship a public function that lies about its behavior.</p>
+        </div>
+      </div>
+
+      <!-- Flaw 6 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-medium">Medium</span>
+          <div class="flaw-title">getModuleExports result is computed but never stored</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/utils/createGraphNodes.ts">src/client/utils/createGraphNodes.ts:267</a>
+          <p><code>getModuleExports(module)</code> builds an array of export name strings and handles three different collection shapes (Map, Array, plain object). However, the returned value is <strong>never assigned to the module node's data</strong>. The <code>moduleNode.data</code> object has <code>imports: getModuleImports(module)</code> but no <code>exports</code> field. The computed export list is silently discarded every time a node is created.</p>
+          <p class="flaw-fix">Add <code>exports: getModuleExports(module)</code> to the module node data object, or delete <code>getModuleExports</code> entirely. The ModuleNode.vue template would need a new section to render it if added.</p>
+        </div>
+      </div>
+
+      <!-- Flaw 7 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-medium">Medium</span>
+          <div class="flaw-title">Sugiyama runs on folders with no cross-folder edges (wasted work)</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/graph/buildOverviewGraph.ts">src/client/graph/buildOverviewGraph.ts:707</a>
+          <p><code>applyFolderLevelSugiyama()</code> correctly early-exits when <code>folderEdges.length === 0</code>, but <code>aggregateFolderWeights()</code> and <code>liftCrossfolderEdgesToFolderLevel()</code> still run their full iterations over all nodes and edges in graphs with no folder hierarchy. For small codebases this is negligible, but for large monorepos with thousands of modules it adds unnecessary O(n) passes.</p>
+          <p class="flaw-fix">Add a guard: if no modules have a <code>parentNode</code> (i.e., clustering was a no-op), skip all folder-level passes entirely.</p>
+        </div>
+      </div>
+
+      <!-- Flaw 8 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-medium">Medium</span>
+          <div class="flaw-title">getImportPath ignores all fallback fields</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/utils/createGraphNodes.ts">src/client/utils/createGraphNodes.ts:94</a>
+          <p><code>getImportPath()</code> returns <code>importValue.relativePath</code> only — ignoring <code>fullPath</code>, <code>path</code>, and <code>name</code>. Every other path resolution in the codebase (including <code>createGraphEdges.ts:346</code>) uses the pattern <code>imp.relativePath || imp.fullPath || imp.path || imp.name</code>. If an import was stored with only a <code>fullPath</code> (which the DB schema allows), <code>getModuleImports()</code> returns empty strings for those entries, causing their edges to resolve against an empty path.</p>
+          <p class="flaw-fix">Align with the fallback chain: <code>return importValue.relativePath || importValue.fullPath || importValue.path || importValue.name || undefined</code>.</p>
+        </div>
+      </div>
+
+      <!-- Flaw 9 -->
+      <div class="flaw-card">
+        <div class="flaw-header">
+          <span class="severity-badge sev-low">Low</span>
+          <div class="flaw-title">Cache write guard doesn't distinguish graph identity</div>
+        </div>
+        <div class="flaw-body">
+          <a class="flaw-file" href="../src/client/stores/graphStore.ts">src/client/stores/graphStore.ts:98</a>
+          <p>The localStorage cache only skips writing when nodes exceed 1200 or edges exceed 5000. But there's no mechanism to invalidate the cache when the codebase changes (e.g., a new file is added). The cache key is <code>v1:typescript-viewer-nodes</code> — static. When the user restarts the server after adding files, the browser may render the old stale graph until the user manually clicks "clear cache".</p>
+          <p class="flaw-fix">Include a content hash (e.g., total module count + max <code>created_at</code> timestamp) in the cache key. The <code>setCacheKey()</code> action already exists for this purpose but receives <code>null</code> — wire it to a hash derived from the assembled graph.</p>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════ DEAD CODE ══════════════════════════════ -->
+  <section class="section" id="dead-code">
+    <div class="section-header">
+      <span class="section-num">11</span>
+      <h2>Unused &amp; Dead Code</h2>
+    </div>
+
+    <p>These items appear in the codebase but are either unreachable, never called in the main rendering pipeline, or intentionally stubbed without implementation. Safe to delete or consolidate.</p>
+
+    <div class="dead-list">
+
+      <div class="dead-item">
+        <div class="dead-icon">✕</div>
+        <div class="dead-content">
+          <h4><code>filterNodeChangesForFolderMode()</code> — buildGraphView.ts:15</h4>
+          <p>Exported function that takes a <code>folderModeEnabled: boolean</code> parameter and returns <code>changes</code> unchanged regardless. Both branches are identical. The <code>_nodes</code> parameter (underscored = intentionally unused) confirms this was never properly implemented. The function is exported and presumably called somewhere, but its behavior is always a pass-through. Safe to delete and inline the pass-through at call sites.</p>
+          <p><span class="tag dead">DEAD</span> Can be deleted — zero behavioral difference.</p>
+        </div>
+      </div>
+
+      <div class="dead-item">
+        <div class="dead-icon">✕</div>
+        <div class="dead-content">
+          <h4><code>computeSccs()</code> / <code>collapseSccs()</code> — scc.ts</h4>
+          <p>Tarjan's SCC algorithm and the SCC-collapse function are implemented and tested, but <code>collapseSccs()</code> is never called in the main rendering pipeline. <code>buildOverviewGraph</code> calls <code>detectBackEdges()</code> for cycle marking but does NOT call <code>collapseSccs()</code>. The SCC group nodes and remapped edges are never produced in a live graph. This is significant dead code — Tarjan's full implementation including the compound node creation logic sits unused.</p>
+          <p><span class="tag dead">DEAD</span> If SCC grouping is a planned feature, document it. If not, delete <code>collapseSccs</code> and keep only <code>computeSccs</code> if it's referenced elsewhere for analysis.</p>
+        </div>
+      </div>
+
+      <div class="dead-item">
+        <div class="dead-icon">✕</div>
+        <div class="dead-content">
+          <h4><code>getModuleExports()</code> result — createGraphNodes.ts:267</h4>
+          <p>The <code>getModuleExports()</code> function is called (it's not dead), but its return value is <strong>discarded</strong>. The computed export names array is never assigned to <code>moduleNode.data</code>. This means 60 lines of complex multi-shape collection handling (Map, Array, plain object branches) runs on every module creation but produces no observable effect. Either the field needs to be added to the data object, or the call and function should be removed.</p>
+          <p><span class="tag dead">DEAD RESULT</span> The function call is wasted compute.</p>
+        </div>
+      </div>
+
+      <div class="dead-item">
+        <div class="dead-icon">✕</div>
+        <div class="dead-content">
+          <h4><code>graphTheme.layout.spacing</code> — graphTheme.ts:218</h4>
+          <p>The <code>layout.spacing</code> object with <code>{ horizontal: 40, vertical: 60, edge: 20, margin: 30 }</code> is defined in the theme but the comment explicitly says "The layout engine is not wired to this object yet." No code in the codebase reads from <code>graphTheme.layout.spacing</code>. These four values are pure dead configuration.</p>
+          <p><span class="tag dead">DEAD CONFIG</span> Delete from graphTheme or wire to the layout engine.</p>
+        </div>
+      </div>
+
+      <div class="dead-item">
+        <div class="dead-icon">✕</div>
+        <div class="dead-content">
+          <h4><code>includeSymbolEdges</code> alias — createGraphEdges.ts:32</h4>
+          <p>The <code>CreateGraphEdgesOptions</code> interface documents <code>includeSymbolEdges</code> as a "Backward-compatible alias for includeClassEdges." The alias is respected in the resolved options (<code>options.includeClassEdges ?? options.includeSymbolEdges ?? false</code>), but no call site in the codebase passes <code>includeSymbolEdges</code>. This backward-compat shim is for a caller that no longer exists.</p>
+          <p><span class="tag dead">DEAD ALIAS</span> Remove the alias from the interface and the options resolver.</p>
+        </div>
+      </div>
+
+      <div class="dead-item">
+        <div class="dead-icon">✕</div>
+        <div class="dead-content">
+          <h4><code>HARDCODED_LAYOUT_CONFIG</code> direction is always 'LR' — useGraphLayout.ts:184</h4>
+          <p>The comment says "Simplified layout config; direction is always 'LR'." The <code>LayoutConfig</code> interface allows <code>'TB' | 'LR' | 'BT' | 'RL'</code> but the constant is <code>{ direction: 'LR' }</code> unconditionally. <code>createGraphNodes()</code> accepts a direction option and <code>buildOverviewGraph()</code> passes it through, but since the only source of direction is this hardcoded constant, other directions are unreachable in production. The <code>direction</code> field in <code>LayoutConfig</code> and all the switch cases in <code>createGraphNodes</code> for non-LR directions are effectively dead paths.</p>
+          <p><span class="tag dead">DEAD PATHS</span> Either implement direction control in the settings UI or simplify the types to remove the unused variants.</p>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════ FOOTER ════════════════════════════════ -->
+  <footer>
+    <span>Magus TypeScript Viewer · Graph Rendering Pipeline Documentation</span>
+    <span>Generated 2026-05-13 · claude-sonnet-4-6</span>
+  </footer>
+
+</div><!-- .page-wrap -->
+
+<script>
+  // Interactive pipeline diagram tooltips
+  document.querySelectorAll('.pipeline-stage').forEach(function(stage) {
+    var tooltip = document.getElementById('stage-tooltip');
+    var ttTitle = document.getElementById('tt-title');
+    var ttDesc  = document.getElementById('tt-desc');
+
+    stage.addEventListener('mouseenter', function() {
+      ttTitle.textContent = stage.dataset.tip || '';
+      ttDesc.textContent  = stage.dataset.desc || '';
+      tooltip.classList.add('visible');
+    });
+    stage.addEventListener('mouseleave', function() {
+      tooltip.classList.remove('visible');
+    });
+  });
+
+  // Animate sections into view on scroll
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.05 });
+
+  document.querySelectorAll('.section').forEach(function(el) {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(16px)';
+    el.style.transition = 'opacity 0.45s ease, transform 0.45s ease';
+    observer.observe(el);
+  });
+
+  // Animate flow lines in the SVG
+  var flowLines = document.querySelectorAll('.flow-line');
+  flowLines.forEach(function(line, i) {
+    line.style.animationDelay = (i * 0.3) + 's';
+    line.style.animationDuration = (1.8 + i * 0.15) + 's';
+  });
+</script>
+</body>
+</html>

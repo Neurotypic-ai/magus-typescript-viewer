@@ -50,6 +50,10 @@ export function bundleParallelEdges(edges: GraphEdge[]): GraphEdge[] {
     }
 
     group.sort((a, b) => {
+      const visibleA = a.hidden === true ? 0 : 1;
+      const visibleB = b.hidden === true ? 0 : 1;
+      if (visibleA !== visibleB) return visibleB - visibleA;
+
       const typeA = a.data?.type;
       const typeB = b.data?.type;
       const prioA = typeA ? EDGE_KIND_PRIORITY[typeA] : 0;
@@ -84,6 +88,9 @@ export function applyEdgeVisibility(edges: GraphEdge[], enabledRelationshipTypes
   return edges.map((edge) => {
     const type = edge.data?.type;
     if (!type) {
+      return { ...edge, hidden: false };
+    }
+    if (type === 'contains' || type === 'uses') {
       return { ...edge, hidden: false };
     }
     return {

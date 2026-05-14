@@ -4,6 +4,7 @@ import { computed, inject } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
 
 import { FOLDER_COLLAPSE_ACTIONS_KEY } from './utils';
+import { FOLDER_ROUTING_KINDS, FOLDER_KIND_Y_OFFSET } from '../../graph/handleRouting';
 
 import type { DependencyProps } from '../../types/DependencyProps';
 
@@ -28,36 +29,20 @@ interface FolderHandleConfig {
   class: string;
 }
 
-const folderHandles: FolderHandleConfig[] = [
-  {
-    id: 'folder-left-in',
-    type: 'target' as HandleType,
-    position: Position.Left,
-    style: { top: '50%' },
-    class: 'folder-handle',
-  },
-  {
-    id: 'folder-right-out',
-    type: 'source' as HandleType,
-    position: Position.Right,
-    style: { top: '50%' },
-    class: 'folder-handle',
-  },
-  {
-    id: 'folder-right-stub',
-    type: 'target' as HandleType,
-    position: Position.Right,
-    style: { top: '50%' },
-    class: 'folder-handle',
-  },
-  {
-    id: 'folder-left-stub',
-    type: 'source' as HandleType,
-    position: Position.Left,
-    style: { top: '50%' },
-    class: 'folder-handle',
-  },
-];
+const folderHandles = computed<FolderHandleConfig[]>(() => {
+  const handles: FolderHandleConfig[] = [];
+  for (const kind of FOLDER_ROUTING_KINDS) {
+    const offset = FOLDER_KIND_Y_OFFSET[kind] ?? 0;
+    const top = offset === 0 ? '50%' : `calc(50% + ${offset}px)`;
+    handles.push(
+      { id: `folder-left-in-${kind}`, type: 'target', position: Position.Left, style: { top }, class: 'folder-handle' },
+      { id: `folder-right-out-${kind}`, type: 'source', position: Position.Right, style: { top }, class: 'folder-handle' },
+      { id: `folder-right-stub-${kind}`, type: 'target', position: Position.Right, style: { top }, class: 'folder-handle' },
+      { id: `folder-left-stub-${kind}`, type: 'source', position: Position.Left, style: { top }, class: 'folder-handle' },
+    );
+  }
+  return handles;
+});
 </script>
 
 <template>

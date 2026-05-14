@@ -164,9 +164,9 @@ export type MeasureAllNodeDimensions = (layoutedNodes: DependencyNode[]) => Meas
 /** Returns whether two-pass measurement should run for the given node count. */
 export type ShouldRunTwoPassMeasure = (nodeCount: number) => boolean;
 
-/** Simplified layout config; direction is always 'LR'. */
+/** Layout config; direction is always left-to-right. */
 export interface LayoutConfig {
-  direction: 'TB' | 'LR' | 'BT' | 'RL';
+  direction: 'LR';
 }
 
 interface GraphLayout {

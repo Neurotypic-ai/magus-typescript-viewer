@@ -19,8 +19,8 @@ import { createGraphNodes } from '../utils/createGraphNodes';
 import { collapseFolders } from './cluster/collapseFolders';
 import { clusterByFolder } from './cluster/folders';
 import { isValidEdgeConnection } from './edgeTypeRegistry';
-import { FOLDER_HANDLE_IDS } from './handleRouting';
 import { applyEdgeVisibility, bundleParallelEdges, filterEdgesByNodeSet } from './graphViewShared';
+import { getFolderHandleId } from './handleRouting';
 
 import type { PackageGraph } from '../../shared/types/Package';
 import type { DependencyData } from '../../shared/types/graph/DependencyData';
@@ -54,6 +54,8 @@ const EDGE_REGISTRY_DEBUG =
   import.meta.env.DEV && (import.meta.env['VITE_DEBUG_EDGE_REGISTRY'] as string | undefined) === 'true';
 const EDGE_REGISTRY_DEBUG_SAMPLE_LIMIT = 5;
 const overviewGraphLogger = consola.withTag('OverviewGraph');
+const RELATIONAL_SOURCE_HANDLE = 'relational-out';
+const RELATIONAL_TARGET_HANDLE = 'relational-in';
 
 export interface BuildOverviewGraphOptions {
   data: PackageGraph;
@@ -192,22 +194,38 @@ function detectBackEdges(nodes: DependencyNode[], edges: GraphEdge[]): Set<strin
   const visited = new Set<string>();
   const onStack = new Set<string>();
 
-  function dfs(nodeId: string): void {
-    visited.add(nodeId);
-    onStack.add(nodeId);
-    for (const { target, edgeId } of adj.get(nodeId) ?? []) {
-      if (onStack.has(target)) {
-        backEdgeIds.add(edgeId);
-      } else if (!visited.has(target)) {
-        dfs(target);
+  // Iterative DFS — avoids call-stack overflow on large graphs.
+  // Each frame tracks the node id and which neighbor index to process next,
+  // simulating the recursive call stack without relying on JS stack depth.
+  for (const startId of nodeIds) {
+    if (visited.has(startId)) continue;
+    const callStack: Array<{ id: string; neighborIdx: number }> = [];
+    visited.add(startId);
+    onStack.add(startId);
+    callStack.push({ id: startId, neighborIdx: 0 });
+
+    while (callStack.length > 0) {
+      const frame = callStack[callStack.length - 1]!;
+      const neighbors = adj.get(frame.id) ?? [];
+
+      if (frame.neighborIdx < neighbors.length) {
+        const { target, edgeId } = neighbors[frame.neighborIdx]!;
+        frame.neighborIdx += 1;
+
+        if (onStack.has(target)) {
+          backEdgeIds.add(edgeId);
+        } else if (!visited.has(target)) {
+          visited.add(target);
+          onStack.add(target);
+          callStack.push({ id: target, neighborIdx: 0 });
+        }
+      } else {
+        callStack.pop();
+        onStack.delete(frame.id);
       }
     }
-    onStack.delete(nodeId);
   }
 
-  for (const id of nodeIds) {
-    if (!visited.has(id)) dfs(id);
-  }
   return backEdgeIds;
 }
 
@@ -610,10 +628,10 @@ function liftCrossfolderEdgesToFolderLevel(nodes: DependencyNode[], edges: Graph
   for (const edge of edges) {
     const sourceParent = parentById.get(edge.source);
     const targetParent = parentById.get(edge.target);
+    const type = edge.data?.type ?? 'import';
 
     if (sourceParent && targetParent && sourceParent !== targetParent) {
       // Cross-folder: lift to folder→folder edge and deduplicate
-      const type = edge.data?.type ?? 'import';
       const key = `${sourceParent}|${targetParent}|${type}`;
       aggregatedCount.set(key, (aggregatedCount.get(key) ?? 0) + 1);
 
@@ -625,14 +643,14 @@ function liftCrossfolderEdgesToFolderLevel(nodes: DependencyNode[], edges: Graph
           id: key,
           source: sourceParent,
           target: targetParent,
-          sourceHandle: FOLDER_HANDLE_IDS.rightOut,
-          targetHandle: FOLDER_HANDLE_IDS.leftIn,
+          sourceHandle: getFolderHandleId('right', 'out', type),
+          targetHandle: getFolderHandleId('left', 'in', type),
           type: 'crossFolder',
         } as GraphEdge);
       }
 
       // Source stub: child module → source folder right boundary (no arrow)
-      const srcKey = `stub-src|${edge.source}|${sourceParent}`;
+      const srcKey = `stub-src|${edge.source}|${sourceParent}|${type}`;
       if (!sourceStubs.has(srcKey)) {
         const { markerEnd: _m, ...srcBase } = edge;
         sourceStubs.set(srcKey, {
@@ -640,32 +658,98 @@ function liftCrossfolderEdgesToFolderLevel(nodes: DependencyNode[], edges: Graph
           id: srcKey,
           source: edge.source,
           target: sourceParent,
-          sourceHandle: 'relational-out',
-          targetHandle: FOLDER_HANDLE_IDS.rightStub,
+          sourceHandle: RELATIONAL_SOURCE_HANDLE,
+          targetHandle: getFolderHandleId('right', 'stub', type),
           type: 'folderStub',
         } as GraphEdge);
       }
 
       // Target stub: target folder left boundary → child module (keeps arrow)
-      const tgtKey = `stub-tgt|${targetParent}|${edge.target}`;
+      const tgtKey = `stub-tgt|${targetParent}|${edge.target}|${type}`;
       if (!targetStubs.has(tgtKey)) {
         targetStubs.set(tgtKey, {
           ...edge,
           id: tgtKey,
           source: targetParent,
           target: edge.target,
-          sourceHandle: FOLDER_HANDLE_IDS.leftStub,
-          targetHandle: 'relational-in',
+          sourceHandle: getFolderHandleId('left', 'stub', type),
+          targetHandle: RELATIONAL_TARGET_HANDLE,
+          type: 'folderStub',
+        } as GraphEdge);
+      }
+    } else if (sourceParent && !targetParent) {
+      // Source in a folder, target is root-level (external package, etc.)
+      // Lift to folder→target trunk + source stub so the line exits via the folder boundary.
+      const key = `${sourceParent}|${edge.target}|${type}`;
+      aggregatedCount.set(key, (aggregatedCount.get(key) ?? 0) + 1);
+
+      if (!edgeMap.has(key)) {
+        const { markerEnd: _m, ...trunkBase } = edge;
+        edgeMap.set(key, {
+          ...trunkBase,
+          id: key,
+          source: sourceParent,
+          target: edge.target,
+          sourceHandle: getFolderHandleId('right', 'out', type),
+          targetHandle: RELATIONAL_TARGET_HANDLE,
+          type: 'crossFolder',
+        } as GraphEdge);
+      }
+
+      const srcKey = `stub-src|${edge.source}|${sourceParent}|${type}`;
+      if (!sourceStubs.has(srcKey)) {
+        const { markerEnd: _m, ...srcBase } = edge;
+        sourceStubs.set(srcKey, {
+          ...srcBase,
+          id: srcKey,
+          source: edge.source,
+          target: sourceParent,
+          sourceHandle: RELATIONAL_SOURCE_HANDLE,
+          targetHandle: getFolderHandleId('right', 'stub', type),
+          type: 'folderStub',
+        } as GraphEdge);
+      }
+    } else if (!sourceParent && targetParent) {
+      // Source is root-level, target in a folder.
+      const key = `${edge.source}|${targetParent}|${type}`;
+      aggregatedCount.set(key, (aggregatedCount.get(key) ?? 0) + 1);
+
+      if (!edgeMap.has(key)) {
+        const { markerEnd: _m, ...trunkBase } = edge;
+        edgeMap.set(key, {
+          ...trunkBase,
+          id: key,
+          source: edge.source,
+          target: targetParent,
+          sourceHandle: RELATIONAL_SOURCE_HANDLE,
+          targetHandle: getFolderHandleId('left', 'in', type),
+          type: 'crossFolder',
+        } as GraphEdge);
+      }
+
+      const tgtKey = `stub-tgt|${targetParent}|${edge.target}|${type}`;
+      if (!targetStubs.has(tgtKey)) {
+        targetStubs.set(tgtKey, {
+          ...edge,
+          id: tgtKey,
+          source: targetParent,
+          target: edge.target,
+          sourceHandle: getFolderHandleId('left', 'stub', type),
+          targetHandle: RELATIONAL_TARGET_HANDLE,
           type: 'folderStub',
         } as GraphEdge);
       }
     } else {
       // Intra-folder or folder-level: tag with intraFolder type when both nodes share a parent
-      const type = edge.data?.type ?? 'import';
       const key = edge.id || `${edge.source}|${edge.target}|${type}`;
       if (!edgeMap.has(key)) {
         if (sourceParent && targetParent && sourceParent === targetParent) {
-          edgeMap.set(key, { ...edge, type: 'intraFolder' } as GraphEdge);
+          edgeMap.set(key, {
+            ...edge,
+            sourceHandle: edge.sourceHandle ?? RELATIONAL_SOURCE_HANDLE,
+            targetHandle: edge.targetHandle ?? RELATIONAL_TARGET_HANDLE,
+            type: 'intraFolder',
+          } as GraphEdge);
         } else {
           edgeMap.set(key, edge);
         }
@@ -822,9 +906,18 @@ export function buildOverviewGraph(options: BuildOverviewGraphOptions): GraphVie
   const semanticSnapshot = { nodes: filteredGraph.nodes, edges: edgesWithBackEdgeMarks };
   validateEdgesAgainstRegistry(semanticSnapshot.nodes, semanticSnapshot.edges);
 
-  const { weights: moduleWeights, traces: rankTraces } = computeModuleLayoutWeights(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
+  const { weights: moduleWeights, traces: rankTraces } = computeModuleLayoutWeights(
+    semanticSnapshot.nodes,
+    semanticSnapshot.edges,
+    backEdgeIds
+  );
   const layerAssignment = computeLayerAssignment(semanticSnapshot.nodes, semanticSnapshot.edges, backEdgeIds);
-  const sortOrder = computeBarycenterSortOrder(semanticSnapshot.nodes, semanticSnapshot.edges, layerAssignment, backEdgeIds);
+  const sortOrder = computeBarycenterSortOrder(
+    semanticSnapshot.nodes,
+    semanticSnapshot.edges,
+    layerAssignment,
+    backEdgeIds
+  );
   const weightedFilteredGraph = {
     nodes: applyModuleWeights(filteredGraph.nodes, moduleWeights, layerAssignment, sortOrder, rankTraces),
     edges: edgesWithBackEdgeMarks,

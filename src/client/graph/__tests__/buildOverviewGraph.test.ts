@@ -352,7 +352,9 @@ describe('buildOverviewGraph', () => {
   describe('folder clustering', () => {
     function multifolderGraph(): PackageGraph {
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/a/a.ts', {
-        imports: { i1: { uuid: 'i1', name: 'b', fullPath: '../b/b', relativePath: '../b/b', specifiers: new Map(), depth: 0 } },
+        imports: {
+          i1: { uuid: 'i1', name: 'b', fullPath: '../b/b', relativePath: '../b/b', specifiers: new Map(), depth: 0 },
+        },
       });
       const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/b/b.ts');
       return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
@@ -376,9 +378,7 @@ describe('buildOverviewGraph', () => {
       // No highway segment metadata on any edge
       expect(result.edges.some((edge) => 'highwaySegment' in (edge.data ?? {}))).toBe(false);
       // Module-level edge is gone — lifted to folder level
-      expect(
-        result.edges.some((edge) => edge.source === 'mod-a' && edge.target === 'mod-b')
-      ).toBe(false);
+      expect(result.edges.some((edge) => edge.source === 'mod-a' && edge.target === 'mod-b')).toBe(false);
       // Folder→folder edge exists with crossFolder type
       const folderEdge = result.edges.find(
         (edge) => edge.source === 'dir:app:src/a' && edge.target === 'dir:app:src/b'
@@ -541,12 +541,26 @@ describe('buildOverviewGraph', () => {
       // single edge, which is the point of the second pass.
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/consumers/a.ts', {
         imports: {
-          i1: { uuid: 'i1', name: 'c', fullPath: '../lib/c', relativePath: '../lib/c', specifiers: new Map(), depth: 0 },
+          i1: {
+            uuid: 'i1',
+            name: 'c',
+            fullPath: '../lib/c',
+            relativePath: '../lib/c',
+            specifiers: new Map(),
+            depth: 0,
+          },
         },
       });
       const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/consumers/b.ts', {
         imports: {
-          i2: { uuid: 'i2', name: 'c', fullPath: '../lib/c', relativePath: '../lib/c', specifiers: new Map(), depth: 0 },
+          i2: {
+            uuid: 'i2',
+            name: 'c',
+            fullPath: '../lib/c',
+            relativePath: '../lib/c',
+            specifiers: new Map(),
+            depth: 0,
+          },
         },
       });
       const modC = makeModule('mod-c', 'c.ts', 'pkg-1', 'src/lib/c.ts');
@@ -607,9 +621,7 @@ describe('buildOverviewGraph', () => {
         },
       });
       const foundation = makeModule('mod-foundation', 'foundation.ts', 'pkg-1', 'src/c/foundation.ts');
-      const data = makeGraph([
-        makePackage('pkg-1', 'app', { consumer, shallow, middle, foundation }),
-      ]);
+      const data = makeGraph([makePackage('pkg-1', 'app', { consumer, shallow, middle, foundation })]);
 
       const result = buildOverviewGraph(defaultOptions({ data }));
 
@@ -636,12 +648,26 @@ describe('buildOverviewGraph', () => {
       // Folder sortOrder = mean(child sortOrders)
       const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/consumers/a.ts', {
         imports: {
-          i1: { uuid: 'i1', name: 'x', fullPath: '../lib/x', relativePath: '../lib/x', specifiers: new Map(), depth: 0 },
+          i1: {
+            uuid: 'i1',
+            name: 'x',
+            fullPath: '../lib/x',
+            relativePath: '../lib/x',
+            specifiers: new Map(),
+            depth: 0,
+          },
         },
       });
       const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/consumers/b.ts', {
         imports: {
-          i2: { uuid: 'i2', name: 'y', fullPath: '../lib/y', relativePath: '../lib/y', specifiers: new Map(), depth: 0 },
+          i2: {
+            uuid: 'i2',
+            name: 'y',
+            fullPath: '../lib/y',
+            relativePath: '../lib/y',
+            specifiers: new Map(),
+            depth: 0,
+          },
         },
       });
       const modX = makeModule('mod-x', 'x.ts', 'pkg-1', 'src/lib/x.ts');
@@ -717,9 +743,7 @@ describe('buildOverviewGraph', () => {
           iF: { uuid: 'iF', name: 'e', fullPath: './e', relativePath: './e', specifiers: new Map(), depth: 0 },
         },
       });
-      const allModules = Object.fromEntries(
-        [...consumers, modD, modE, modF].map((m) => [m.name, m])
-      );
+      const allModules = Object.fromEntries([...consumers, modD, modE, modF].map((m) => [m.name, m]));
       const data = makeGraph([makePackage('pkg-1', 'app', allModules)]);
 
       const result = buildOverviewGraph(defaultOptions({ data }));
@@ -1197,7 +1221,14 @@ describe('buildOverviewGraph', () => {
       // modA (src/a/) imports modB (src/b/) — different directories
       const modA = makeModule('mod-a', 'index.ts', 'pkg-1', 'src/a/index.ts', {
         imports: {
-          i1: { uuid: 'i1', name: 'b', fullPath: '../b/index', relativePath: '../b/index', specifiers: new Map(), depth: 0 },
+          i1: {
+            uuid: 'i1',
+            name: 'b',
+            fullPath: '../b/index',
+            relativePath: '../b/index',
+            specifiers: new Map(),
+            depth: 0,
+          },
         },
       });
       const modB = makeModule('mod-b', 'index.ts', 'pkg-1', 'src/b/index.ts');
@@ -1234,6 +1265,121 @@ describe('buildOverviewGraph', () => {
       expect(edge).toBeDefined();
       expect(edge?.type).toBe('intraFolder');
     });
+
+    const sameFolderRelationshipCases = [
+      {
+        kind: 'import',
+        data: () => {
+          const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/utils/a.ts', {
+            imports: {
+              i1: { uuid: 'i1', name: 'b', fullPath: './b', relativePath: './b', specifiers: new Map(), depth: 0 },
+            },
+          });
+          const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/utils/b.ts');
+          return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+        },
+      },
+      {
+        kind: 'export',
+        data: () => {
+          const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/utils/a.ts', {
+            exports: {
+              e1: {
+                uuid: 'e1',
+                module: 'mod-a',
+                name: 'value',
+                exportedFrom: 'mod-b',
+                isDefault: false,
+                imports: new Set(),
+              },
+            },
+          });
+          const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/utils/b.ts');
+          return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+        },
+      },
+      {
+        kind: 'extends',
+        data: () => {
+          const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/utils/a.ts', {
+            classes: {
+              BaseConsumer: {
+                id: 'cls-a',
+                name: 'BaseConsumer',
+                package_id: 'pkg-1',
+                module_id: 'mod-a',
+                created_at: '2024-01-01T00:00:00.000Z',
+                extends_id: 'cls-b',
+                implemented_interfaces: {},
+                properties: {},
+                methods: {},
+              } as unknown as IClass,
+            },
+          });
+          const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/utils/b.ts', {
+            classes: {
+              BaseClass: {
+                id: 'cls-b',
+                name: 'BaseClass',
+                package_id: 'pkg-1',
+                module_id: 'mod-b',
+                created_at: '2024-01-01T00:00:00.000Z',
+                implemented_interfaces: {},
+                properties: {},
+                methods: {},
+              } as unknown as IClass,
+            },
+          });
+          return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+        },
+      },
+      {
+        kind: 'implements',
+        data: () => {
+          const iface = {
+            id: 'iface-b',
+            name: 'FeatureContract',
+            package_id: 'pkg-1',
+            module_id: 'mod-b',
+            created_at: '2024-01-01T00:00:00.000Z',
+            extended_interfaces: {},
+            properties: {},
+            methods: {},
+          } as unknown as IInterface;
+          const modA = makeModule('mod-a', 'a.ts', 'pkg-1', 'src/utils/a.ts', {
+            classes: {
+              FeatureImpl: {
+                id: 'cls-a',
+                name: 'FeatureImpl',
+                package_id: 'pkg-1',
+                module_id: 'mod-a',
+                created_at: '2024-01-01T00:00:00.000Z',
+                implemented_interfaces: { FeatureContract: iface },
+                properties: {},
+                methods: {},
+              } as unknown as IClass,
+            },
+          });
+          const modB = makeModule('mod-b', 'b.ts', 'pkg-1', 'src/utils/b.ts', {
+            interfaces: { FeatureContract: iface },
+          });
+          return makeGraph([makePackage('pkg-1', 'app', { a: modA, b: modB })]);
+        },
+      },
+    ] as const;
+
+    for (const { kind, data } of sameFolderRelationshipCases) {
+      it(`routes same-folder ${kind} edges through the intraFolder edge type`, () => {
+        const result = buildOverviewGraph(defaultOptions({ data: data(), enabledRelationshipTypes: [kind] }));
+
+        const edge = result.edges.find((e) => e.source === 'mod-a' && e.target === 'mod-b' && e.data?.type === kind);
+        expect(edge).toBeDefined();
+        expect(edge?.hidden).toBe(false);
+        expect(edge?.type).toBe('intraFolder');
+        expect(edge?.sourceHandle).toBe('relational-out');
+        expect(edge?.targetHandle).toBe('relational-in');
+      });
+    }
 
     it('deduplicates multiple module→module edges between the same folder pair', () => {
       // Two modules in src/a/ each import a module in src/b/

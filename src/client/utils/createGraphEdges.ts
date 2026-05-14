@@ -303,7 +303,7 @@ export function createGraphEdges(data: PackageGraph, options: CreateGraphEdgesOp
       keyOverride ?? `${edge.source}|${edge.target}|${edge.data?.type ?? 'unknown'}|${edge.data?.importName ?? ''}`;
 
     if (!edgeMap.has(key)) {
-      edgeMap.set(key, { ...edge, id: edge.id || key });
+      edgeMap.set(key, { ...edge, id: key });
     }
   };
 

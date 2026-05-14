@@ -1,9 +1,3 @@
-import { MarkerType } from '@vue-flow/core';
-
-import { EDGE_MARKER_HEIGHT_PX, EDGE_MARKER_WIDTH_PX } from '../../layout/edgeGeometryPolicy';
-import { getNodeStyle } from '../../theme/graphTheme';
-
-import type { DependencyKind } from '../../../shared/types/graph/DependencyKind';
 import type { DependencyNode } from '../../types/DependencyNode';
 import type { GraphEdge } from '../../types/GraphEdge';
 
@@ -93,76 +87,4 @@ export function computeSccs(nodes: DependencyNode[], edges: GraphEdge[]): Strong
   return result;
 }
 
-/**
- * Collapse SCCs into compound "group" nodes. Modules inside SCCs become children.
- * Edges within the same SCC are removed. Inter-SCC edges are redirected to group nodes.
- */
-export function collapseSccs(
-  nodes: DependencyNode[],
-  edges: GraphEdge[]
-): { nodes: DependencyNode[]; edges: GraphEdge[] } {
-  const sccs = computeSccs(nodes, edges);
-  if (sccs.length === 0) return { nodes, edges };
 
-  const moduleIdToSccId = new Map<string, string>();
-  sccs.forEach((scc) => {
-    scc.memberIds.forEach((id) => moduleIdToSccId.set(id, scc.id));
-  });
-
-  const groupNodes: DependencyNode[] = sccs.map((scc) => ({
-    id: scc.id,
-    type: 'group' as DependencyKind,
-    position: { x: 0, y: 0 },
-    data: {
-      label: 'Cycle (' + String(scc.memberIds.length) + ')',
-    },
-    style: {
-      ...getNodeStyle('group'),
-    },
-    expandParent: true,
-  }));
-
-  const remappedNodes: DependencyNode[] = nodes.map((n) => {
-    const sccId = moduleIdToSccId.get(n.id);
-    if (!sccId) return n;
-    return {
-      ...n,
-      parentNode: sccId,
-      extent: 'parent',
-      data: { ...(n.data ?? {}), parentId: sccId },
-    } as DependencyNode;
-  });
-
-  const edgeMap = new Map<string, GraphEdge>();
-  edges.forEach((e) => {
-    const type = (e.data?.type as string | undefined) ?? 'dependency';
-    const srcScc = moduleIdToSccId.get(e.source);
-    const tgtScc = moduleIdToSccId.get(e.target);
-
-    const mappedSource = srcScc ?? e.source;
-    const mappedTarget = tgtScc ?? e.target;
-
-    if (mappedSource === mappedTarget) return; // drop intra-scc edges
-
-    const key = `${mappedSource}|${mappedTarget}|${type}`;
-    if (!edgeMap.has(key)) {
-      edgeMap.set(key, {
-        ...e,
-        id: key,
-        source: mappedSource,
-        target: mappedTarget,
-        hidden: false,
-        markerEnd: e.markerEnd ?? {
-          type: MarkerType.ArrowClosed,
-          width: EDGE_MARKER_WIDTH_PX,
-          height: EDGE_MARKER_HEIGHT_PX,
-        },
-      });
-    }
-  });
-
-  return {
-    nodes: [...groupNodes, ...remappedNodes],
-    edges: Array.from(edgeMap.values()),
-  };
-}
