@@ -222,7 +222,7 @@ function codeIssueRowToEntity(row: ICodeIssueRow): CodeIssueEntity {
   };
 }
 
-export interface MetricsSnapshotPayload {
+interface MetricsSnapshotPayload {
   snapshot: {
     id: string;
     package_id: string;
@@ -238,7 +238,7 @@ export interface MetricsSnapshotPayload {
   violations: ArchitecturalViolation[];
 }
 
-export interface MetricsDiffPayload {
+interface MetricsDiffPayload {
   a: MetricsSnapshotPayload;
   b: MetricsSnapshotPayload;
 }
@@ -945,12 +945,8 @@ export class ApiServerResponder {
       safe('entity_metrics', () => this.entityMetricRepository.retrieveBySnapshotId(snapshot.id)),
       this.loadCodeIssuesByPackageId(snapshot.package_id),
       safe('dependency_cycles', () => this.dependencyCycleRepository.retrieveByPackageId(snapshot.package_id)),
-      safe('duplication_clusters', () =>
-        this.duplicationClusterRepository.retrieveByPackageId(snapshot.package_id)
-      ),
-      safe('architectural_violations', () =>
-        this.architecturalViolationRepository.retrieveBySnapshotId(snapshot.id)
-      ),
+      safe('duplication_clusters', () => this.duplicationClusterRepository.retrieveByPackageId(snapshot.package_id)),
+      safe('architectural_violations', () => this.architecturalViolationRepository.retrieveBySnapshotId(snapshot.id)),
     ]);
 
     return {
@@ -978,12 +974,10 @@ export class ApiServerResponder {
     }
 
     // retrieve() already orders by created_at DESC, but sort defensively in case that changes.
-    const latest = snapshots
-      .slice()
-      .sort((a, b) => {
-        if (a.created_at === b.created_at) return 0;
-        return a.created_at < b.created_at ? 1 : -1;
-      })[0];
+    const latest = snapshots.slice().sort((a, b) => {
+      if (a.created_at === b.created_at) return 0;
+      return a.created_at < b.created_at ? 1 : -1;
+    })[0];
 
     if (!latest) {
       return null;
@@ -1015,10 +1009,7 @@ export class ApiServerResponder {
    * Returns null if either snapshot is missing.
    */
   async getMetricsDiff(aId: string, bId: string): Promise<MetricsDiffPayload | null> {
-    const [a, b] = await Promise.all([
-      this.getMetricsBySnapshotId(aId),
-      this.getMetricsBySnapshotId(bId),
-    ]);
+    const [a, b] = await Promise.all([this.getMetricsBySnapshotId(aId), this.getMetricsBySnapshotId(bId)]);
     if (!a || !b) {
       return null;
     }

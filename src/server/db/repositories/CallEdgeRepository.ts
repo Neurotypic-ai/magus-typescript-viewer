@@ -7,7 +7,7 @@ import type { IDatabaseAdapter } from '../adapter/IDatabaseAdapter';
  * Local domain shape for a call-graph edge.
  * Extends the DTO row and adds the index signature required by BaseRepository.executeQuery.
  */
-export interface CallEdge extends ICallEdgeRow {
+interface CallEdge extends ICallEdgeRow {
   [key: string]: unknown;
 }
 
@@ -72,11 +72,7 @@ export class CallEdgeRepository extends BaseRepository<CallEdge, ICallEdgeCreate
   }
 
   async retrieveById(id: string): Promise<CallEdge | undefined> {
-    const results = await this.executeQuery<CallEdge>(
-      'retrieveById',
-      'SELECT * FROM call_edges WHERE id = ?',
-      [id]
-    );
+    const results = await this.executeQuery<CallEdge>('retrieveById', 'SELECT * FROM call_edges WHERE id = ?', [id]);
     return results[0];
   }
 
@@ -111,10 +107,6 @@ export class CallEdgeRepository extends BaseRepository<CallEdge, ICallEdgeCreate
   }
 
   async deleteByPackageId(packageId: string): Promise<void> {
-    await this.executeQuery(
-      'deleteByPackageId',
-      'DELETE FROM call_edges WHERE package_id = ?',
-      [packageId]
-    );
+    await this.executeQuery('deleteByPackageId', 'DELETE FROM call_edges WHERE package_id = ?', [packageId]);
   }
 }

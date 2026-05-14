@@ -13,7 +13,7 @@
  */
 import type { ESLint, Linter } from 'eslint';
 
-export interface BuildAnalysisEslintConfigOptions {
+interface BuildAnalysisEslintConfigOptions {
   /**
    * Path to the project's `tsconfig.json`. If omitted, the parser falls back
    * to `project: true` which asks the TS parser to auto-discover the nearest
@@ -28,6 +28,7 @@ interface ModuleWithDefault<T> {
 }
 
 async function loadDefaultOrNamespace<T>(specifier: string): Promise<T> {
+  // eslint-disable-next-line dollarwise/no-dynamic-imports -- lazy load so ts-morph stays optional
   const mod = (await import(specifier)) as T & ModuleWithDefault<T>;
   // ESM-over-CJS interop: prefer `.default` when present.
   return (mod.default ?? mod) as T;
@@ -39,9 +40,7 @@ async function loadDefaultOrNamespace<T>(specifier: string): Promise<T> {
  * Returns a single-element array because ESLint flat configs are
  * concatenated — callers may prepend/append additional entries.
  */
-export async function buildAnalysisEslintConfig(
-  options: BuildAnalysisEslintConfigOptions
-): Promise<Linter.Config[]> {
+export async function buildAnalysisEslintConfig(options: BuildAnalysisEslintConfigOptions): Promise<Linter.Config[]> {
   const projectTsconfig: string | true = options.projectTsconfig ?? true;
 
   const [tsParser, tsPlugin, sonarjsPlugin, unicornPlugin] = await Promise.all([

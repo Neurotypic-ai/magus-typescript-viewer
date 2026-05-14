@@ -27,7 +27,7 @@ export interface DependencyCycle {
   severity: string;
 }
 
-export interface DuplicationCluster {
+interface DuplicationCluster {
   id: string;
   token_count: number;
   line_count: number;
@@ -36,7 +36,7 @@ export interface DuplicationCluster {
   fragments_json: string;
 }
 
-export interface ArchitecturalViolation {
+interface ArchitecturalViolation {
   id: string;
   rule_name: string;
   source_module_id: string | null;
@@ -56,7 +56,7 @@ export type MetricsTab =
   | 'typeSafety'
   | 'trends';
 
-export interface SnapshotSummary {
+interface SnapshotSummary {
   id: string;
   package_id: string;
   created_at: string;
@@ -311,7 +311,8 @@ const createMetricsStore = (): MetricsStore => {
         baselineSnapshotId.value = null;
         baselineSnapshot.value = null;
         baselineMetrics.value = [];
-        baselineError.value = response.status === 404 ? 'Snapshot not found' : `Request failed (${response.status.toString()})`;
+        baselineError.value =
+          response.status === 404 ? 'Snapshot not found' : `Request failed (${response.status.toString()})`;
         return;
       }
       const data = (await response.json()) as MetricsBundleResponse;
@@ -383,4 +384,7 @@ const createMetricsStore = (): MetricsStore => {
   };
 };
 
-export const useMetricsStore: SetupStoreDefinition<'metrics', MetricsStore> = defineStore('metrics', createMetricsStore);
+export const useMetricsStore: SetupStoreDefinition<'metrics', MetricsStore> = defineStore(
+  'metrics',
+  createMetricsStore
+);

@@ -5,7 +5,7 @@ import type { ASTNode, Identifier, JSCodeshift, JSXIdentifier, TSTypeAnnotation,
  * Line range (1-indexed) extracted from a jscodeshift AST node's `.loc` property.
  * Both fields are undefined when the node has no source location (e.g., synthesized nodes).
  */
-export interface AstLineRange {
+interface AstLineRange {
   start_line?: number;
   end_line?: number;
 }
@@ -36,7 +36,6 @@ export function hasJsDocComment(node: ASTNode | null | undefined): boolean {
   const comments = (node as { leadingComments?: { type?: string; value?: string }[] }).leadingComments;
   if (!Array.isArray(comments)) return false;
   return comments.some((c) => {
-    if (!c) return false;
     const type = c.type ?? '';
     const value = c.value ?? '';
     return (type === 'CommentBlock' || type === 'Block') && value.startsWith('*');

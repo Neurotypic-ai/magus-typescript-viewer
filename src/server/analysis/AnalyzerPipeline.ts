@@ -2,11 +2,7 @@ import { consola } from 'consola';
 
 import { analyzerEnabled } from './AnalysisConfig';
 
-import type {
-  Analyzer,
-  AnalyzerContext,
-  AnalyzerResult,
-} from './types';
+import type { Analyzer, AnalyzerContext, AnalyzerResult } from './types';
 
 const logger = consola.withTag('AnalyzerPipeline');
 
@@ -30,9 +26,7 @@ function topologicalOrder(analyzers: Analyzer[]): Analyzer[] {
     for (const dep of deps) {
       if (!byId.has(dep)) {
         // Missing dep is not a hard error — warn and proceed with the analyzer still ordered.
-        logger.warn(
-          `Analyzer '${analyzer.id}' depends on unknown analyzer '${dep}'; dependency will be ignored.`
-        );
+        logger.warn(`Analyzer '${analyzer.id}' depends on unknown analyzer '${dep}'; dependency will be ignored.`);
         continue;
       }
       const children = edges.get(dep);
@@ -137,7 +131,7 @@ async function tryCreateTsMorphProject(packageRoot: string): Promise<unknown> {
 }
 
 /** Status of a single analyzer run, reported via `lastRunTimings`/`lastRunStatus`. */
-export type AnalyzerRunStatus = 'ok' | 'skipped' | 'error';
+type AnalyzerRunStatus = 'ok' | 'skipped' | 'error';
 
 export class AnalyzerPipeline {
   /** Per-analyzer wall-clock duration (ms) from the most recent `.run()` call. */
